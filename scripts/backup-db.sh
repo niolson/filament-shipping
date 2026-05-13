@@ -41,7 +41,7 @@ trap cleanup EXIT
 MYSQL_ROOT_PASS=$(docker exec "$MYSQL_CONTAINER" printenv MYSQL_ROOT_PASSWORD 2>/dev/null)
 if [ -z "$MYSQL_ROOT_PASS" ]; then
     # Try from shared .env
-    MYSQL_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' /opt/shared/.env 2>/dev/null | cut -d= -f2-)
+    MYSQL_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' /opt/shared/.env 2>/dev/null | cut -d= -f2- || true)
 fi
 
 if [ -z "$MYSQL_ROOT_PASS" ]; then

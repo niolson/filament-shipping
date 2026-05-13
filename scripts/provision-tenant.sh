@@ -214,7 +214,7 @@ if [ -f "${SHARED_DIR}/oauth.env" ]; then
     info "Adding shared OAuth broker configuration..."
 
     # Set broker URL, secret, and instance ID
-    OAUTH_SECRET=$(grep '^OAUTH_BROKER_SECRET=' "${SHARED_DIR}/oauth.env" | cut -d= -f2-)
+    OAUTH_SECRET=$(grep '^OAUTH_BROKER_SECRET=' "${SHARED_DIR}/oauth.env" | cut -d= -f2- || true)
     [ -n "$OAUTH_SECRET" ] && sed -i "s|^OAUTH_BROKER_SECRET=.*|OAUTH_BROKER_SECRET=${OAUTH_SECRET}|" .env
     sed -i "s|^OAUTH_BROKER_URL=.*|OAUTH_BROKER_URL=https://connect.${DEFAULT_DOMAIN_SUFFIX}|" .env
     sed -i "s|^OAUTH_INSTANCE_ID=.*|OAUTH_INSTANCE_ID=${TENANT}.${DEFAULT_DOMAIN_SUFFIX}|" .env
@@ -226,8 +226,8 @@ fi
 
 # --- Shared Google SSO ---
 
-GOOGLE_CID=$(grep '^GOOGLE_CLIENT_ID=' "${SHARED_DIR}/.env" 2>/dev/null | cut -d= -f2-)
-GOOGLE_SEC=$(grep '^GOOGLE_CLIENT_SECRET=' "${SHARED_DIR}/.env" 2>/dev/null | cut -d= -f2-)
+GOOGLE_CID=$(grep '^GOOGLE_CLIENT_ID=' "${SHARED_DIR}/.env" 2>/dev/null | cut -d= -f2- || true)
+GOOGLE_SEC=$(grep '^GOOGLE_CLIENT_SECRET=' "${SHARED_DIR}/.env" 2>/dev/null | cut -d= -f2- || true)
 
 if [ -n "$GOOGLE_CID" ] && [ -n "$GOOGLE_SEC" ]; then
     info "Adding shared Google SSO credentials..."
