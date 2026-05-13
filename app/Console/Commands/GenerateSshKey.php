@@ -32,12 +32,15 @@ class GenerateSshKey extends Command
 
         @mkdir(dirname($privateKeyPath), 0775, recursive: true);
 
+        $comment = parse_url(config('app.url'), PHP_URL_HOST) ?? 'polybag-import';
+
         $result = null;
         $output = null;
         exec(
             sprintf(
-                'ssh-keygen -t ed25519 -f %s -N "" -q -C "polybag-import"',
+                'ssh-keygen -t ed25519 -f %s -N "" -q -C %s',
                 escapeshellarg($privateKeyPath),
+                escapeshellarg($comment),
             ),
             $output,
             $result,
