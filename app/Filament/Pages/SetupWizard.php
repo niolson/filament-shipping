@@ -472,7 +472,7 @@ class SetupWizard extends Page
                             ->columnSpanFull(),
                         Forms\Components\TextInput::make('ssh_public_key')
                             ->label('SSH Public Key')
-                            ->helperText('Add this to ~/.ssh/authorized_keys on the SSH host. This allows PolyBag to log in.')
+                            ->helperText('Add this to ~/.ssh/authorized_keys on the SSH host. Optionally append permitopen="host:port" to restrict forwarding to a specific server.')
                             ->visible(fn (Get $get) => $get('db_ssh_enabled'))
                             ->columnSpanFull()
                             ->readOnly()
@@ -484,7 +484,7 @@ class SetupWizard extends Page
                                     return 'SSH key not generated. Run: php artisan app:generate-ssh-key';
                                 }
 
-                                return 'no-pty,no-X11-forwarding,no-agent-forwarding '.trim(file_get_contents($pubKeyPath));
+                                return 'restrict,port-forwarding '.trim(file_get_contents($pubKeyPath));
                             }),
                     ])
                     ->columns(2),
