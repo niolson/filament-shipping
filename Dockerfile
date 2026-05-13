@@ -32,6 +32,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     libpng-dev \
     libicu-dev \
     libonig-dev \
+    openssh-client \
     unzip \
     && docker-php-ext-install \
         pdo_mysql \
