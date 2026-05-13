@@ -41,6 +41,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
         intl \
         bcmath \
         pcntl \
+        sockets \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apt-get clean \
