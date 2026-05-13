@@ -50,6 +50,16 @@ class DatabaseSource implements ExportDestinationInterface, ImportSourceInterfac
             DB::purge($connection);
         }
 
+        // Override mark_exported config from settings if present
+        $markExportedEnabled = $settings->get('import.mark_exported_enabled');
+        if ($markExportedEnabled !== null) {
+            $markExportedQuery = $settings->get('import.mark_exported_query');
+            $config['mark_exported'] = [
+                'enabled' => (bool) $markExportedEnabled,
+                'query' => $markExportedQuery,
+            ];
+        }
+
         // Override SSH config from settings if present
         $sshEnabled = $settings->get('import.ssh_enabled');
         if ($sshEnabled !== null) {

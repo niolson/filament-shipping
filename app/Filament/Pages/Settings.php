@@ -138,6 +138,7 @@ class Settings extends Page
         'import_ssh_remote_host' => 'import.ssh_remote_host',
         'import_ssh_remote_port' => 'import.ssh_remote_port',
         'import_ssh_host_key' => 'import.ssh_host_key',
+        'import_mark_exported_query' => 'import.mark_exported_query',
     ];
 
     public function mount(): void
@@ -201,6 +202,8 @@ class Settings extends Page
             'import_shipments_query' => app(SettingsService::class)->get('import.shipments_query', ''),
             'import_shipment_items_query' => app(SettingsService::class)->get('import.shipment_items_query', ''),
             'import_export_query' => app(SettingsService::class)->get('import.export_query', ''),
+            'import_mark_exported_enabled' => (bool) app(SettingsService::class)->get('import.mark_exported_enabled', false),
+            'import_mark_exported_query' => app(SettingsService::class)->get('import.mark_exported_query', ''),
             'import_ssh_enabled' => (bool) app(SettingsService::class)->get('import.ssh_enabled', false),
             'import_ssh_host' => app(SettingsService::class)->get('import.ssh_host', ''),
             'import_ssh_port' => app(SettingsService::class)->get('import.ssh_port', '22'),
@@ -1218,6 +1221,17 @@ class Settings extends Page
                                 ->helperText('Optional SQL used to export tracking data back to the external database. Leave blank to disable database export queries.')
                                 ->rows(4)
                                 ->columnSpanFull(),
+                            Toggle::make('import_mark_exported_enabled')
+                                ->label('Mark as Exported After Import')
+                                ->helperText('When enabled, runs the query below after each shipment is imported to mark it as processed in the source database.')
+                                ->columnSpanFull()
+                                ->live(),
+                            Textarea::make('import_mark_exported_query')
+                                ->label('Mark Exported Query')
+                                ->helperText('SQL to mark a shipment as exported. Use :shipment_reference as the placeholder for the shipment ID.')
+                                ->rows(3)
+                                ->columnSpanFull()
+                                ->visible(fn (Get $get) => (bool) $get('import_mark_exported_enabled')),
                             Toggle::make('import_ssh_enabled')
                                 ->label('Connect via SSH Tunnel')
                                 ->columnSpanFull()
@@ -1340,6 +1354,7 @@ class Settings extends Page
             'import.shipments_query' => blank($data['import_shipments_query'] ?? null) ? null : trim((string) $data['import_shipments_query']),
             'import.shipment_items_query' => blank($data['import_shipment_items_query'] ?? null) ? null : trim((string) $data['import_shipment_items_query']),
             'import.export_query' => blank($data['import_export_query'] ?? null) ? null : trim((string) $data['import_export_query']),
+            'import.mark_exported_enabled' => (bool) ($data['import_mark_exported_enabled'] ?? false),
         ];
 
         // Update each standard setting
