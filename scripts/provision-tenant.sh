@@ -238,9 +238,11 @@ else
     info "No Google SSO credentials in ${SHARED_DIR}/.env (skipping)."
 fi
 
-# Pre-create SSH key directory so the bind mount is owned by the current user,
-# not root (Docker creates missing bind-mount dirs as root)
+# Pre-create SSH key directory so Docker doesn't create it as root.
+# www-data inside the container needs write access; the key files
+# themselves are protected by their own 600 permissions.
 mkdir -p storage/app/private/ssh
+chmod 777 storage/app/private/ssh
 
 # --- Build & Start ---
 
