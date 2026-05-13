@@ -317,7 +317,7 @@ ok "App key generated."
 
 # --- SSH Key for Import Tunneling ---
 info "Generating SSH keypair for import tunneling..."
-docker compose exec app php artisan app:generate-ssh-key --force
+docker compose exec --user www-data app php artisan app:generate-ssh-key --force
 ok "SSH keypair generated."
 
 # --- Caddy ---
