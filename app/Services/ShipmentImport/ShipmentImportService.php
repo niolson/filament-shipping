@@ -56,7 +56,11 @@ class ShipmentImportService
 
         $this->references->warm();
 
-        $shipments = $this->source->fetchShipments();
+        try {
+            $shipments = $this->source->fetchShipments();
+        } catch (\Exception $e) {
+            return $this->runRecorder->configurationFailed($e->getMessage(), microtime(true) - $startTime);
+        }
 
         $this->runRecorder->started($shipments->count());
 

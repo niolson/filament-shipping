@@ -1,15 +1,19 @@
 <?php
 
 use App\Contracts\ImportSourceInterface;
+use App\Enums\Role;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
 use App\Models\ImportSource;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
 use App\Models\ShippingMethodAlias;
+use App\Models\User;
+use App\Notifications\ImportCompleted;
 use App\Services\ShipmentImport\ShipmentImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
@@ -894,4 +898,49 @@ it('can import shipments without fetching shipment items when item import is dis
         ->and($result->itemsCreated)->toBe(0)
         ->and($result->hasErrors())->toBeFalse()
         ->and(Shipment::where('shipment_reference', 'ORD-NO-ITEMS-001')->exists())->toBeTrue();
+});
+
+it('returns an error result and notifies admins when fetchShipments throws', function (): void {
+    Notification::fake();
+
+    $admin = User::factory()->create(['role' => Role::Admin, 'active' => true]);
+
+    $source = new class implements ImportSourceInterface
+    {
+        public function getSourceName(): string
+        {
+            return 'test';
+        }
+
+        public function fetchShipments(): Collection
+        {
+            throw new RuntimeException('You have an error in your SQL syntax near \'FROM\'');
+        }
+
+        public function fetchShipmentItems(string $sourceRecordId): Collection
+        {
+            return collect();
+        }
+
+        public function validateConfiguration(): void {}
+
+        public function getFieldMapping(): array
+        {
+            return [];
+        }
+
+        public function markExported(string $sourceRecordId): bool
+        {
+            return false;
+        }
+    };
+
+    $result = ShipmentImportService::forSource($source)->import();
+
+    expect($result->hasErrors())->toBeTrue()
+        ->and($result->errors[0])->toContain('SQL syntax');
+
+    Notification::assertSentTo($admin, ImportCompleted::class, function (ImportCompleted $notification): bool {
+        return count($notification->errors) > 0;
+    });
 });
