@@ -150,6 +150,7 @@ if [ -f "$CADDY_FILE" ] && grep -q "$DOMAIN" "$CADDY_FILE"; then
     info "Removing Caddy route for ${DOMAIN}..."
     # Remove the block: blank line before, domain line, contents, closing brace
     awk -v domain="$DOMAIN" '
+        BEGIN { gsub(/\./, "\\.", domain) }
         /^[[:space:]]*$/ { blank=$0; next }
         $0 ~ "^"domain" \\{" { in_block=1; blank=""; next }
         in_block && /^\}/ { in_block=0; next }

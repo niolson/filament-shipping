@@ -172,6 +172,7 @@ if [ "$MODE" = "shared" ]; then
     # If the line wasn't commented, update it directly
     sed -i "s|^REDIS_PREFIX=.*|REDIS_PREFIX=${TENANT}-|" .env
     sed -i "s|^# CACHE_PREFIX=.*|CACHE_PREFIX=${TENANT}-cache-|" .env
+    sed -i "s|^CACHE_PREFIX=.*|CACHE_PREFIX=${TENANT}-cache-|" .env
 
     # Point QZ cert volumes at shared location
     echo "" >> .env
@@ -206,11 +207,6 @@ else
     info "No shared QZ Tray certificate found at ${SHARED_QZ_DIR}."
     info "Generate one after setup: docker compose exec -it app php artisan app:generate-qz-cert"
 fi
-
-# --- SSH Key for Import Tunneling ---
-info "Generating SSH keypair for import tunneling..."
-docker compose exec app php artisan app:generate-ssh-key --force
-ok "SSH keypair generated."
 
 # --- Shared OAuth Broker ---
 
@@ -275,6 +271,11 @@ fi
 
 ok "Containers running."
 
+# --- SSH Key for Import Tunneling ---
+info "Generating SSH keypair for import tunneling..."
+docker compose exec app php artisan app:generate-ssh-key --force
+ok "SSH keypair generated."
+
 # --- Generate App Key ---
 
 info "Generating application key..."
@@ -287,6 +288,29 @@ if [ "$MODE" = "standalone" ]; then
 else
     docker compose up -d --force-recreate app queue
 fi
+
+info "Waiting for app to become healthy after key rotation..."
+timeout=120
+elapsed=0
+while [ $elapsed -lt $timeout ]; do
+    if [ "$MODE" = "standalone" ]; then
+        status=$(docker compose --profile standalone ps app --format '{{.Status}}' 2>/dev/null || echo "")
+    else
+        status=$(docker compose ps app --format '{{.Status}}' 2>/dev/null || echo "")
+    fi
+    if echo "$status" | grep -q "(healthy)"; then
+        break
+    fi
+    sleep 5
+    elapsed=$((elapsed + 5))
+done
+
+if [ $elapsed -ge $timeout ]; then
+    error "App container did not become healthy within ${timeout}s after key rotation."
+    error "Check logs: cd ${TENANT_DIR} && docker compose logs app"
+    exit 1
+fi
+
 ok "App key generated."
 
 # --- Caddy ---

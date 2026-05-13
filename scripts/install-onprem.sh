@@ -92,10 +92,14 @@ if [ "$SKIP_ENV" = false ]; then
     sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" .env
     sed -i "s|^REDIS_HOST=.*|REDIS_HOST=redis|" .env
     sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=${REDIS_PASSWORD}|" .env
+    sed -i "s|^QUEUE_CONNECTION=.*|QUEUE_CONNECTION=redis|" .env
+    sed -i "s|^SESSION_DRIVER=.*|SESSION_DRIVER=redis|" .env
+    sed -i "s|^CACHE_STORE=.*|CACHE_STORE=redis|" .env
 
     # Set custom port if specified
     if [ -n "${APP_PORT:-}" ] && [ "$APP_PORT" != "80" ]; then
         sed -i "s|^# APP_PORT=.*|APP_PORT=${APP_PORT}|" .env
+        sed -i "s|^APP_PORT=.*|APP_PORT=${APP_PORT}|" .env
     fi
 
     ok ".env created."
@@ -173,9 +177,10 @@ ok "QZ Tray certificate generated for ${QZ_DOMAIN}."
 # --- Generate SSH keypair for import tunneling ---
 
 info "Generating SSH keypair for import tunneling..."
-mkdir -p storage/app/private/ssh
-ssh-keygen -t ed25519 -f storage/app/private/ssh/id_ed25519 -N "" -q -C "polybag-import"
-chmod 600 storage/app/private/ssh/id_ed25519
+docker compose --profile standalone \
+    -f docker-compose.yml \
+    -f docker-compose.onprem.yml \
+    exec app php artisan app:generate-ssh-key --force
 ok "SSH keypair generated."
 
 # --- Restart to pick up new key ---

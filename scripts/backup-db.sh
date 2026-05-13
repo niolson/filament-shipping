@@ -85,14 +85,14 @@ for DB in $DATABASES; do
     if [ -n "$ENCRYPTION_KEY" ]; then
         # Dump, compress, and encrypt
         if ! docker exec "$MYSQL_CONTAINER" mysqldump -uroot -p"$MYSQL_ROOT_PASS" \
-            --single-transaction --routines --triggers "$DB" 2>/dev/null \
-            | gzip | openssl enc -aes-256-cbc -pbkdf2 -pass env:BACKUP_ENCRYPTION_KEY -out "$FILEPATH" 2>/dev/null; then
+            --single-transaction --routines --triggers "$DB" \
+            | gzip | openssl enc -aes-256-cbc -pbkdf2 -pass env:BACKUP_ENCRYPTION_KEY -out "$FILEPATH"; then
             echo "  ERROR: Failed to dump ${DB}"
             FAILED=$((FAILED + 1))
             continue
         fi
     elif ! docker exec "$MYSQL_CONTAINER" mysqldump -uroot -p"$MYSQL_ROOT_PASS" \
-        --single-transaction --routines --triggers "$DB" 2>/dev/null | gzip > "$FILEPATH"; then
+        --single-transaction --routines --triggers "$DB" | gzip > "$FILEPATH"; then
         echo "  ERROR: Failed to dump ${DB}"
         FAILED=$((FAILED + 1))
         continue
@@ -121,7 +121,7 @@ if [ "$RETENTION_DAYS" -gt 0 ]; then
     echo "Pruning backups older than ${CUTOFF}..."
 
     aws s3 ls "s3://${S3_BUCKET}/${S3_PREFIX}/" --endpoint-url "$S3_ENDPOINT" 2>/dev/null | while read -r LINE; do
-        FILE_DATE=$(echo "$LINE" | awk '{print $NF}' | grep -oP 'polybag[^_]*_\K\d{4}-\d{2}-\d{2}' || true)
+        FILE_DATE=$(echo "$LINE" | awk '{print $NF}' | sed -n 's/^polybag[^_]*_\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\).*/\1/p')
         FILENAME=$(echo "$LINE" | awk '{print $NF}')
 
         if [ -n "$FILE_DATE" ] && [[ "$FILE_DATE" < "$CUTOFF" ]]; then
