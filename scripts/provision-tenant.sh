@@ -238,6 +238,10 @@ else
     info "No Google SSO credentials in ${SHARED_DIR}/.env (skipping)."
 fi
 
+# Pre-create SSH key directory so the bind mount is owned by the current user,
+# not root (Docker creates missing bind-mount dirs as root)
+mkdir -p storage/app/private/ssh
+
 # --- Build & Start ---
 
 info "Building and starting containers (${MODE} mode)..."
@@ -270,11 +274,6 @@ if [ $elapsed -ge $timeout ]; then
 fi
 
 ok "Containers running."
-
-# --- SSH Key for Import Tunneling ---
-info "Generating SSH keypair for import tunneling..."
-docker compose exec app php artisan app:generate-ssh-key --force
-ok "SSH keypair generated."
 
 # --- Generate App Key ---
 
@@ -313,6 +312,11 @@ if [ $elapsed -ge $timeout ]; then
 fi
 
 ok "App key generated."
+
+# --- SSH Key for Import Tunneling ---
+info "Generating SSH keypair for import tunneling..."
+docker compose exec app php artisan app:generate-ssh-key --force
+ok "SSH keypair generated."
 
 # --- Caddy ---
 

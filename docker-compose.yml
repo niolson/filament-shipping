@@ -9,6 +9,7 @@ services:
       - ./.env:/var/www/html/.env
       - ${QZ_PRIVATE_KEY_PATH:-./storage/app/private/qz-private-key.pem}:/var/www/html/storage/app/private/qz-private-key.pem:ro
       - ${QZ_CERTIFICATE_PATH:-./public/qz-certificate.pem}:/var/www/html/public/qz-certificate.pem:ro
+      - ./storage/app/private/ssh:/var/www/html/storage/app/private/ssh
     depends_on:
       mysql:
         condition: service_healthy
