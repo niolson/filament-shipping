@@ -13,3 +13,9 @@ Schedule::command('shipments:import')
     ->withoutOverlapping()
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/import.log'));
+
+Schedule::command('shipments:validate')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/validate.log'));
