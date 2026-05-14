@@ -211,7 +211,7 @@ if [ ${#SHARED_TENANTS[@]} -gt 0 ]; then
     for tenant in "${SHARED_TENANTS[@]}"; do
         (
             cd "${TENANTS_DIR}/${tenant}"
-            docker compose up -d --force-recreate app queue scheduler 2>&1 | \
+            docker compose up -d --force-recreate app queue scheduler nginx 2>&1 | \
                 sed "s/^/  [${tenant}] /"
         ) &
         PIDS+=($!)
