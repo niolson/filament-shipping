@@ -5,6 +5,9 @@ services:
       dockerfile: Dockerfile
       target: app
     restart: unless-stopped
+    env_file:
+      - path: /opt/shared/shared-secrets.env
+        required: false
     volumes:
       - ./.env:/var/www/html/.env
       - ${QZ_PRIVATE_KEY_PATH:-./storage/app/private/qz-private-key.pem}:/var/www/html/storage/app/private/qz-private-key.pem:ro
@@ -87,6 +90,9 @@ services:
       dockerfile: Dockerfile
       target: app
     restart: unless-stopped
+    env_file:
+      - path: /opt/shared/shared-secrets.env
+        required: false
     volumes:
       - ./.env:/var/www/html/.env
     entrypoint: ["sh", "-c", "php artisan config:cache && php artisan queue:work --queue=default,low --tries=3"]
@@ -107,6 +113,9 @@ services:
       dockerfile: Dockerfile
       target: app
     restart: unless-stopped
+    env_file:
+      - path: /opt/shared/shared-secrets.env
+        required: false
     volumes:
       - ./.env:/var/www/html/.env
     entrypoint: ["sh", "-c", "php artisan config:cache && php artisan schedule:work"]

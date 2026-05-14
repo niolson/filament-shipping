@@ -508,10 +508,6 @@ class Settings extends Page
                                 ->label('Packing Validation')
                                 ->helperText('When enabled, all items must be scanned before shipping. When disabled, only weight and dimensions are required.')
                                 ->default(true),
-                            Toggle::make('transparency_enabled')
-                                ->label('Transparency Program')
-                                ->helperText('When enabled, shipment items requiring transparency codes will prompt for code scanning during packing.')
-                                ->default(true),
                             Toggle::make('batch_shipping_enabled')
                                 ->label('Batch Shipping')
                                 ->helperText('When enabled, admins can select multiple shipments and generate labels in bulk.')
@@ -524,6 +520,10 @@ class Settings extends Page
                                 ->label('Picking')
                                 ->helperText('When enabled, pickers can create pick batches and print picking summaries before packing.')
                                 ->default(false),
+                            Toggle::make('transparency_enabled')
+                                ->label('Amazon Transparency Program')
+                                ->helperText('When enabled, shipment items requiring transparency codes will prompt for code scanning during packing.')
+                                ->default(false),                                
                         ])
                         ->columns(1),
 

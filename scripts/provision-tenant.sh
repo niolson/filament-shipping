@@ -94,6 +94,17 @@ if [ "$MODE" = "shared" ]; then
         exit 1
     fi
 
+    if [ ! -f "${SHARED_DIR}/shared-secrets.env" ]; then
+        error "Shared secrets file not found at ${SHARED_DIR}/shared-secrets.env"
+        error "Copy infra/shared-secrets.env.example to ${SHARED_DIR}/shared-secrets.env and fill in values."
+        exit 1
+    fi
+
+    if ! grep -q '^REDIS_PASSWORD=.' "${SHARED_DIR}/shared-secrets.env"; then
+        error "REDIS_PASSWORD is not set in ${SHARED_DIR}/shared-secrets.env"
+        exit 1
+    fi
+
     # Verify shared containers are running
     if ! docker inspect shared-mysql --format '{{.State.Running}}' 2>/dev/null | grep -q true; then
         error "shared-mysql container is not running. Start shared infra first."
@@ -133,7 +144,6 @@ if [ "$MODE" = "shared" ]; then
     # --- Shared mode: use shared-mysql and shared-redis ---
 
     SHARED_MYSQL_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' "${SHARED_DIR}/.env" | cut -d= -f2-)
-    SHARED_REDIS_PASS=$(grep '^REDIS_PASSWORD=' "${SHARED_DIR}/.env" | cut -d= -f2-)
 
     DB_NAME="polybag_${TENANT}"
     DB_USER="polybag_${TENANT}"
@@ -165,7 +175,7 @@ if [ "$MODE" = "shared" ]; then
     sed -i "s|^DB_USERNAME=.*|DB_USERNAME=${DB_USER}|" .env
     sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" .env
     sed -i "s|^REDIS_HOST=.*|REDIS_HOST=shared-redis|" .env
-    sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=${SHARED_REDIS_PASS}|" .env
+    # REDIS_PASSWORD is injected at runtime from /opt/shared/shared-secrets.env via Docker env_file
 
     # Set Redis prefix for tenant isolation
     sed -i "s|^# REDIS_PREFIX=.*|REDIS_PREFIX=${TENANT}-|" .env
@@ -208,34 +218,46 @@ else
     info "Generate one after setup: docker compose exec -it app php artisan app:generate-qz-cert"
 fi
 
-# --- Shared OAuth Broker ---
+# --- OAuth Broker + Google SSO ---
+# In shared mode these are injected at runtime from /opt/shared/shared-secrets.env via Docker
+# env_file, so there is nothing to write into the tenant .env here.
+# In standalone mode we attempt to copy from shared files if available.
 
-if [ -f "${SHARED_DIR}/oauth.env" ]; then
-    info "Adding shared OAuth broker configuration..."
+if [ "$MODE" = "standalone" ]; then
+    OAUTH_SECRET=""
 
-    # Set broker URL, secret, and instance ID
-    OAUTH_SECRET=$(grep '^OAUTH_BROKER_SECRET=' "${SHARED_DIR}/oauth.env" | cut -d= -f2- || true)
-    [ -n "$OAUTH_SECRET" ] && sed -i "s|^OAUTH_BROKER_SECRET=.*|OAUTH_BROKER_SECRET=${OAUTH_SECRET}|" .env
+    if [ -f "${SHARED_DIR}/shared-secrets.env" ]; then
+        OAUTH_SECRET=$(grep '^OAUTH_BROKER_SECRET=' "${SHARED_DIR}/shared-secrets.env" | cut -d= -f2- || true)
+    elif [ -f "/opt/polybag-connect/.env" ]; then
+        OAUTH_SECRET=$(grep '^SHARED_TENANT_SECRET=' "/opt/polybag-connect/.env" | cut -d= -f2- || true)
+    fi
+
+    if [ -n "$OAUTH_SECRET" ]; then
+        info "Adding OAuth broker configuration..."
+        sed -i "s|^OAUTH_BROKER_SECRET=.*|OAUTH_BROKER_SECRET=${OAUTH_SECRET}|" .env
+        sed -i "s|^OAUTH_BROKER_URL=.*|OAUTH_BROKER_URL=https://connect.${DEFAULT_DOMAIN_SUFFIX}|" .env
+        sed -i "s|^OAUTH_INSTANCE_ID=.*|OAUTH_INSTANCE_ID=${TENANT}.${DEFAULT_DOMAIN_SUFFIX}|" .env
+        ok "OAuth broker configuration added."
+    else
+        info "No OAuth secret found — set OAUTH_BROKER_SECRET in .env manually if needed."
+    fi
+
+    GOOGLE_CID=$(grep '^GOOGLE_CLIENT_ID=' "${SHARED_DIR}/shared-secrets.env" 2>/dev/null | cut -d= -f2- || true)
+    GOOGLE_SEC=$(grep '^GOOGLE_CLIENT_SECRET=' "${SHARED_DIR}/shared-secrets.env" 2>/dev/null | cut -d= -f2- || true)
+
+    if [ -n "$GOOGLE_CID" ] && [ -n "$GOOGLE_SEC" ]; then
+        info "Adding Google SSO credentials..."
+        sed -i "s|^GOOGLE_CLIENT_ID=.*|GOOGLE_CLIENT_ID=${GOOGLE_CID}|" .env
+        sed -i "s|^GOOGLE_CLIENT_SECRET=.*|GOOGLE_CLIENT_SECRET=${GOOGLE_SEC}|" .env
+        ok "Google SSO credentials added. Remember to register https://${DOMAIN}/auth/google/callback in Google Console."
+    else
+        info "No Google SSO credentials found — set GOOGLE_CLIENT_ID/SECRET in .env manually if needed."
+    fi
+else
+    # Shared mode: OAUTH_BROKER_URL and OAUTH_INSTANCE_ID are tenant-specific and still need to be set.
     sed -i "s|^OAUTH_BROKER_URL=.*|OAUTH_BROKER_URL=https://connect.${DEFAULT_DOMAIN_SUFFIX}|" .env
     sed -i "s|^OAUTH_INSTANCE_ID=.*|OAUTH_INSTANCE_ID=${TENANT}.${DEFAULT_DOMAIN_SUFFIX}|" .env
-
-    ok "OAuth broker configuration added."
-else
-    info "No shared OAuth config found at ${SHARED_DIR}/oauth.env (skipping)."
-fi
-
-# --- Shared Google SSO ---
-
-GOOGLE_CID=$(grep '^GOOGLE_CLIENT_ID=' "${SHARED_DIR}/.env" 2>/dev/null | cut -d= -f2- || true)
-GOOGLE_SEC=$(grep '^GOOGLE_CLIENT_SECRET=' "${SHARED_DIR}/.env" 2>/dev/null | cut -d= -f2- || true)
-
-if [ -n "$GOOGLE_CID" ] && [ -n "$GOOGLE_SEC" ]; then
-    info "Adding shared Google SSO credentials..."
-    sed -i "s|^GOOGLE_CLIENT_ID=.*|GOOGLE_CLIENT_ID=${GOOGLE_CID}|" .env
-    sed -i "s|^GOOGLE_CLIENT_SECRET=.*|GOOGLE_CLIENT_SECRET=${GOOGLE_SEC}|" .env
-    ok "Google SSO credentials added. Remember to register https://${TENANT}.${DEFAULT_DOMAIN_SUFFIX}/auth/google/callback in Google Console."
-else
-    info "No Google SSO credentials in ${SHARED_DIR}/.env (skipping)."
+    info "OAUTH_BROKER_SECRET, REDIS_PASSWORD, GOOGLE_CLIENT_ID/SECRET will be injected from ${SHARED_DIR}/shared-secrets.env at runtime."
 fi
 
 # Pre-create SSH key directory so Docker doesn't create it as root.

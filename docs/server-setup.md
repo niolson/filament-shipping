@@ -118,6 +118,7 @@ Shared MySQL + Redis serve all tenants from a single instance, reducing memory u
 mkdir -p /opt/shared
 cp <repo>/infra/docker-compose.yml /opt/shared/docker-compose.yml
 cp <repo>/infra/.env.example /opt/shared/.env
+cp <repo>/infra/shared-secrets.env.example /opt/shared/shared-secrets.env
 ```
 
 Edit `/opt/shared/.env` and set strong passwords:
@@ -126,6 +127,14 @@ Edit `/opt/shared/.env` and set strong passwords:
 cd /opt/shared
 nano .env   # set MYSQL_ROOT_PASSWORD and REDIS_PASSWORD
 ```
+
+Edit `/opt/shared/shared-secrets.env` — this file is injected into every tenant app container at runtime, so secrets here are set once and apply to all tenants. `REDIS_PASSWORD` must match the value in `.env`:
+
+```bash
+nano /opt/shared/shared-secrets.env  # set REDIS_PASSWORD, GOOGLE_CLIENT_ID/SECRET, OAUTH_BROKER_SECRET
+```
+
+To rotate any shared secret later: update `shared-secrets.env` and restart all tenant containers (`deploy-tenant.sh --all`). No per-tenant `.env` edits needed.
 
 Start shared infrastructure:
 
@@ -281,11 +290,13 @@ The broker is a separate Laravel app — see the [polybag-connect](https://githu
 
 ### Generate shared secret
 
+Generate a secret and add it to `/opt/shared/shared-secrets.env` (the file you created during shared infra setup):
+
 ```bash
-echo "OAUTH_BROKER_SECRET=$(openssl rand -hex 32)" > /opt/shared/oauth.env
+echo "OAUTH_BROKER_SECRET=$(openssl rand -hex 32)" >> /opt/shared/shared-secrets.env
 ```
 
-> The provisioning script reads this file and sets `OAUTH_BROKER_SECRET`, `OAUTH_BROKER_URL`, and `OAUTH_INSTANCE_ID` in each tenant's `.env`.
+> The provisioning script sets `OAUTH_BROKER_URL` and `OAUTH_INSTANCE_ID` in each tenant's `.env`. `OAUTH_BROKER_SECRET` is injected at runtime from `shared-secrets.env` — no per-tenant edits needed.
 
 ### Deploy the broker
 
@@ -296,7 +307,7 @@ cp .env.example .env
 ```
 
 Edit `/opt/polybag-connect/.env`:
-- Set `SHARED_TENANT_SECRET` to the value from `/opt/shared/oauth.env`
+- Set `SHARED_TENANT_SECRET` to the same value as `OAUTH_BROKER_SECRET` in `/opt/shared/shared-secrets.env`
 - Set `REDIS_HOST=shared-redis` and `REDIS_PASSWORD` (from `/opt/shared/.env`)
 - Add provider credentials (`SHOPIFY_CLIENT_ID`, `SHOPIFY_CLIENT_SECRET`, etc.)
 
