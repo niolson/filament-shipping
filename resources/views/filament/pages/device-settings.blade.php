@@ -1,4 +1,32 @@
 <x-filament-panels::page>
+    <!-- QZ Tray Setup -->
+    <x-filament::section>
+        <x-slot name="heading">QZ Tray Setup</x-slot>
+        <x-slot name="description">QZ Tray must be installed and running on each workstation to print labels and read USB scales. After installing, download the certificate and add it to QZ Tray's trusted sites via the site manager.</x-slot>
+
+        <div class="flex flex-wrap gap-3">
+            <x-filament::button
+                tag="a"
+                color="gray"
+                icon="heroicon-o-arrow-down-tray"
+                href="https://qz.io/download/"
+                target="_blank"
+            >
+                Download QZ Tray
+            </x-filament::button>
+
+            <x-filament::button
+                tag="a"
+                color="gray"
+                icon="heroicon-o-document-arrow-down"
+                href="/qz-certificate.pem"
+                download="qz-certificate.pem"
+            >
+                Download Certificate
+            </x-filament::button>
+        </div>
+    </x-filament::section>
+
     <!-- QZ Tray Status -->
     <div id="qz-status" class="mb-6 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
         <div class="flex items-center gap-3">
