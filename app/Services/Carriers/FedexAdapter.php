@@ -24,6 +24,7 @@ use App\Http\Integrations\Fedex\Requests\TrackShipment;
 use App\Models\Location;
 use App\Models\Package;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
+use App\Services\Carriers\Concerns\HasSaturdayDelivery;
 use App\Services\SettingsService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -34,6 +35,7 @@ use Saloon\Http\Response;
 class FedexAdapter implements CarrierAdapterInterface
 {
     use HasDefaultServiceCapabilities;
+    use HasSaturdayDelivery;
 
     public function serviceCapability(string $serviceCode): ServiceCapability
     {
@@ -797,23 +799,6 @@ class FedexAdapter implements CarrierAdapterInterface
      *
      * @return array<string, mixed>
      */
-    private function withoutSaturdayDelivery(RateRequest $request): RateRequest
-    {
-        return new RateRequest(
-            originPostalCode: $request->originPostalCode,
-            destinationPostalCode: $request->destinationPostalCode,
-            originCountry: $request->originCountry,
-            destinationCountry: $request->destinationCountry,
-            destinationCity: $request->destinationCity,
-            destinationStateOrProvince: $request->destinationStateOrProvince,
-            residential: $request->residential,
-            packages: $request->packages,
-            saturdayDelivery: false,
-            locationId: $request->locationId,
-            shipDate: $request->shipDate,
-        );
-    }
-
     /**
      * Extract rate details from a successful FedEx rate response.
      * Core parsing loop used by parseRateResponse and mixed Saturday handling.
@@ -874,52 +859,6 @@ class FedexAdapter implements CarrierAdapterInterface
      * Classify Saturday delivery eligibility for the requested service codes.
      * Returns 'all', 'none', or 'mixed' based on today's day of week.
      */
-    private function classifySaturdayEligibility(array $serviceCodes, ?RateRequest $request = null): string
-    {
-        $today = ($request?->shipDate ?? now())->dayOfWeek;
-
-        // No service filter = FedEx returns all service types = always mixed
-        if (empty($serviceCodes)) {
-            return 'mixed';
-        }
-
-        $eligible = 0;
-        $ineligible = 0;
-
-        foreach ($serviceCodes as $code) {
-            $saturdayDay = self::SATURDAY_DELIVERY_DAY_MAP[$code] ?? null;
-            if ($saturdayDay === $today) {
-                $eligible++;
-            } else {
-                $ineligible++;
-            }
-        }
-
-        if ($ineligible === 0) {
-            return 'all';
-        }
-
-        if ($eligible === 0) {
-            return 'none';
-        }
-
-        return 'mixed';
-    }
-
-    /**
-     * Adjust the rate request for Saturday delivery based on service eligibility.
-     * For 'all' eligible: keep Saturday. For 'none' or 'mixed': strip it
-     * (mixed sends a follow-up Saturday request in parseRateResponse).
-     */
-    private function adjustRequestForSaturday(RateRequest $request, array $serviceCodes): RateRequest
-    {
-        if ($request->saturdayDelivery && $this->classifySaturdayEligibility($serviceCodes, $request) !== 'all') {
-            return $this->withoutSaturdayDelivery($request);
-        }
-
-        return $request;
-    }
-
     /**
      * Check if the request is eligible for FedEx One Rate pricing.
      * Requires: FedEx-branded packaging, domestic US, weight ≤ 50 lbs.

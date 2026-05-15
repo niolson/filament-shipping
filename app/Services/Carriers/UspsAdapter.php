@@ -40,6 +40,8 @@ class UspsAdapter implements CarrierAdapterInterface
     public function serviceCapability(string $serviceCode): ServiceCapability
     {
         return match ($serviceCode) {
+            // USPS delivers Saturday as part of standard service — no special flag needed
+            'saturday_delivery' => ServiceCapability::Supported,
             'cremated_remains' => ServiceCapability::Supported,
             // Mailing alcohol is prohibited under 27 CFR 72.11 (federal law)
             'alcohol' => ServiceCapability::Prohibited,
@@ -412,6 +414,7 @@ class UspsAdapter implements CarrierAdapterInterface
                 labelFormat: $request->labelFormat,
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
+                appliedServices: $request->saturdayDelivery ? ['saturday_delivery'] : [],
             );
         } catch (\Exception $e) {
             logger()->error('USPS createDomesticShipment error', [
@@ -516,6 +519,7 @@ class UspsAdapter implements CarrierAdapterInterface
                 labelFormat: $request->labelFormat,
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
+                appliedServices: $request->saturdayDelivery ? ['saturday_delivery'] : [],
             );
         } catch (\Exception $e) {
             logger()->error('USPS createInternationalShipment error', [
