@@ -14,6 +14,7 @@ use App\DataTransferObjects\Tracking\TrackingEventData;
 use App\DataTransferObjects\Tracking\TrackShipmentResponse;
 use App\Enums\ServiceCapability;
 use App\Enums\TrackingStatus;
+use App\Exceptions\Carriers\CarrierRateFetchException;
 use App\Http\Integrations\Ups\Requests\CreateShipment;
 use App\Http\Integrations\Ups\Requests\Rate;
 use App\Http\Integrations\Ups\Requests\TrackShipment;
@@ -91,9 +92,7 @@ class UpsAdapter implements CarrierAdapterInterface
             // Pass original $request so parseRateResponse knows Saturday was requested
             return $this->parseRateResponse($response, $request, $serviceCodes);
         } catch (\Exception $e) {
-            logger()->error('UPS getRates error', ['error' => $e->getMessage()]);
-
-            return collect();
+            throw new CarrierRateFetchException('UPS', $e);
         }
     }
 
@@ -567,7 +566,11 @@ class UpsAdapter implements CarrierAdapterInterface
                 shipDate: $request->shipDate,
             );
         } catch (\Exception $e) {
-            logger()->error('UPS createShipment error', ['error' => $e->getMessage()]);
+            logger()->error('UPS createShipment error', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
             return ShipResponse::failure($e->getMessage());
         }
@@ -594,6 +597,12 @@ class UpsAdapter implements CarrierAdapterInterface
 
             return CancelResponse::failure($errorMessage);
         } catch (\Exception $e) {
+            logger()->error('UPS cancelShipment error', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'tracking_number' => $trackingNumber,
+            ]);
+
             return CancelResponse::failure($e->getMessage());
         }
     }

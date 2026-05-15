@@ -414,7 +414,11 @@ class UspsAdapter implements CarrierAdapterInterface
                 shipDate: $request->shipDate,
             );
         } catch (\Exception $e) {
-            logger()->error('USPS createDomesticShipment error', ['error' => $e->getMessage()]);
+            logger()->error('USPS createDomesticShipment error', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
             return ShipResponse::failure($e->getMessage());
         }
@@ -514,7 +518,11 @@ class UspsAdapter implements CarrierAdapterInterface
                 shipDate: $request->shipDate,
             );
         } catch (\Exception $e) {
-            logger()->error('USPS createInternationalShipment error', ['error' => $e->getMessage()]);
+            logger()->error('USPS createInternationalShipment error', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
             return ShipResponse::failure($e->getMessage());
         }

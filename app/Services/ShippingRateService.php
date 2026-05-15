@@ -6,6 +6,7 @@ use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\Enums\ServiceCapability;
+use App\Exceptions\Carriers\CarrierRateFetchException;
 use App\Exceptions\NoActiveCarrierServicesException;
 use App\Models\CarrierService;
 use App\Models\Package;
@@ -160,8 +161,18 @@ class ShippingRateService
 
                 $preparedRequests[$carrierName] = $prepared;
                 $taskMeta[$carrierName] = ['adapter' => $adapter, 'serviceCodes' => $serviceCodes, 'rateRequest' => $carrierRateRequest];
+            } catch (CarrierRateFetchException $e) {
+                $loggedException = $e->getPrevious() ?? $e;
+
+                logger()->error("ShippingRateService: {$carrierName} rate fetch failed", [
+                    'carrier' => $carrierName,
+                    'exception' => $loggedException::class,
+                    'error' => $e->getMessage(),
+                ]);
             } catch (\Exception $e) {
                 logger()->error("ShippingRateService: {$carrierName} prepare error", [
+                    'carrier' => $carrierName,
+                    'exception' => $e::class,
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -177,8 +188,19 @@ class ShippingRateService
         if (count($preparedRequests) <= 1 || $hasFakeResponses) {
             foreach ($preparedRequests as $carrierName => $prepared) {
                 $meta = $taskMeta[$carrierName];
-                $rates = $meta['adapter']->getRates($meta['rateRequest'], $meta['serviceCodes']);
-                $rateOptions->push(...$rates);
+
+                try {
+                    $rates = $meta['adapter']->getRates($meta['rateRequest'], $meta['serviceCodes']);
+                    $rateOptions->push(...$rates);
+                } catch (CarrierRateFetchException $e) {
+                    $loggedException = $e->getPrevious() ?? $e;
+
+                    logger()->error("ShippingRateService: {$carrierName} rate fetch failed", [
+                        'carrier' => $carrierName,
+                        'exception' => $loggedException::class,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
 
             return $rateOptions;
@@ -214,6 +236,8 @@ class ShippingRateService
                     $rateOptions->push(...$rates);
                 } catch (\Exception $e) {
                     logger()->error("ShippingRateService: {$carrierName} parse error", [
+                        'carrier' => $carrierName,
+                        'exception' => $e::class,
                         'error' => $e->getMessage(),
                     ]);
                 }

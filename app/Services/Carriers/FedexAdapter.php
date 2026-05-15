@@ -578,7 +578,11 @@ class FedexAdapter implements CarrierAdapterInterface
                 appliedServices: $appliedServices,
             );
         } catch (\Exception $e) {
-            logger()->error('FedEx createShipment error', ['error' => $e->getMessage()]);
+            logger()->error('FedEx createShipment error', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
 
             return ShipResponse::failure($e->getMessage());
         }
@@ -605,6 +609,12 @@ class FedexAdapter implements CarrierAdapterInterface
 
             return CancelResponse::failure('FedEx returned status '.$response->status());
         } catch (\Exception $e) {
+            logger()->error('FedEx cancelShipment error', [
+                'exception' => $e::class,
+                'error' => $e->getMessage(),
+                'tracking_number' => $trackingNumber,
+            ]);
+
             return CancelResponse::failure($e->getMessage());
         }
     }

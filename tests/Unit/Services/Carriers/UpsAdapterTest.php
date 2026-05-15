@@ -1,9 +1,14 @@
 <?php
 
+use App\DataTransferObjects\Shipping\PackageData;
+use App\DataTransferObjects\Shipping\RateRequest;
 use App\Enums\TrackingStatus;
+use App\Exceptions\Carriers\CarrierRateFetchException;
+use App\Http\Integrations\Ups\Requests\Rate;
 use App\Http\Integrations\Ups\Requests\TrackShipment;
 use App\Models\Package;
 use App\Services\Carriers\UpsAdapter;
+use Saloon\Exceptions\Request\RequestException;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
@@ -13,6 +18,43 @@ beforeEach(function (): void {
 
 it('supports tracking', function (): void {
     expect($this->adapter->supportsTracking())->toBeTrue();
+});
+
+it('throws CarrierRateFetchException when the UPS rate API fails', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rate::class => MockResponse::make(['errors' => [['message' => 'Internal Server Error']]], 500),
+    ]);
+
+    $request = new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: '90210',
+        packages: [new PackageData(weight: 5.0, length: 12, width: 10, height: 8)],
+    );
+
+    expect(fn () => $this->adapter->getRates($request, ['03']))
+        ->toThrow(CarrierRateFetchException::class, 'Failed to fetch rates from UPS');
+});
+
+it('wraps the original exception as previous when rate fetch fails', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rate::class => MockResponse::make(['errors' => [['message' => 'Service Unavailable']]], 503),
+    ]);
+
+    $request = new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: '90210',
+        packages: [new PackageData(weight: 5.0, length: 12, width: 10, height: 8)],
+    );
+
+    try {
+        $this->adapter->getRates($request, ['03']);
+        $this->fail('Expected CarrierRateFetchException was not thrown');
+    } catch (CarrierRateFetchException $e) {
+        expect($e->carrier)->toBe('UPS')
+            ->and($e->getPrevious())->toBeInstanceOf(RequestException::class);
+    }
 });
 
 it('maps a UPS tracking response into normalized tracking data', function (): void {

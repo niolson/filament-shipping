@@ -1,9 +1,12 @@
 <?php
 
+use App\Contracts\CarrierAdapterInterface;
 use App\DataTransferObjects\Shipping\PackageData;
 use App\DataTransferObjects\Shipping\RateRequest;
+use App\Exceptions\Carriers\CarrierRateFetchException;
 use App\Exceptions\NoActiveCarrierServicesException;
 use App\Http\Integrations\Fedex\Requests\Rates as FedexRates;
+use App\Http\Integrations\Ups\Requests\Rate as UpsRate;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Models\Carrier;
 use App\Models\CarrierService;
@@ -11,6 +14,7 @@ use App\Models\Package;
 use App\Models\Setting;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
+use App\Services\Carriers\CarrierRegistry;
 use App\Services\Carriers\UspsAdapter;
 use App\Services\SettingsService;
 use App\Services\ShippingRateService;
@@ -22,6 +26,10 @@ use Saloon\Laravel\Facades\Saloon;
 beforeEach(function (): void {
     $this->uspsCarrier = Carrier::factory()->usps()->create();
     $this->fedexCarrier = Carrier::factory()->fedex()->create();
+});
+
+afterEach(function (): void {
+    app(CarrierRegistry::class)->reset();
 });
 
 it('fetches USPS rates for a package', function (): void {
@@ -648,4 +656,80 @@ it('falls back to RETAIL pricing when CONTRACT returns 403', function (): void {
         ->and($rates[0]->price)->toBe(9.00);
 
     expect(Cache::get('usps_pricing_type'))->toBe('RETAIL');
+});
+
+it('returns rates from healthy carriers when one carrier rate fetch fails', function (): void {
+    $upsCarrier = Carrier::factory()->ups()->create();
+
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => MockResponse::make([
+            'pricingOptions' => [[
+                'shippingOptions' => [[
+                    'rateOptions' => [[
+                        'totalBasePrice' => 8.50,
+                        'commitment' => ['name' => '2-5 Business Days'],
+                        'rates' => [[
+                            'mailClass' => 'USPS_GROUND_ADVANTAGE',
+                            'processingCategory' => 'MACHINABLE',
+                            'rateIndicator' => 'SP',
+                            'destinationEntryFacilityType' => 'NONE',
+                            'description' => 'USPS Ground Advantage',
+                        ]],
+                    ]],
+                ]],
+            ]],
+        ]),
+        UpsRate::class => MockResponse::make(['errors' => [['message' => 'Service Unavailable']]], 503),
+    ]);
+
+    Setting::updateOrCreate(['key' => 'ups.client_id'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'ups.client_secret'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'ups.account_number'], ['value' => 'test', 'type' => 'string']);
+    app(SettingsService::class)->clearCache();
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $uspsService = CarrierService::factory()->uspsGroundAdvantage()->for($this->uspsCarrier)->create();
+    $upsService = CarrierService::factory()->upsGround()->for($upsCarrier)->create();
+    $shippingMethod->carrierServices()->attach([$uspsService->id, $upsService->id]);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create(['postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create([
+        'weight' => 2.5, 'height' => 6, 'width' => 8, 'length' => 10,
+    ]);
+
+    $rates = app(ShippingRateService::class)->getShippingRates($package->id);
+
+    // USPS rates should be present even though UPS threw CarrierRateFetchException
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('USPS')
+        ->and($rates[0]->price)->toBe(8.50);
+});
+
+it('continues when carrier rate fetch exception has no previous exception', function (): void {
+    app(CarrierRegistry::class)->reset();
+
+    $upsCarrier = Carrier::factory()->ups()->create();
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('isConfigured')->once()->andReturnTrue();
+    $adapter->shouldReceive('prepareRateRequest')->once()->andReturnNull();
+    $adapter->shouldReceive('getRates')->once()->andThrow(new CarrierRateFetchException('UPS'));
+
+    app(CarrierRegistry::class)->registerInstance('UPS', $adapter);
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $upsService = CarrierService::factory()->upsGround()->for($upsCarrier)->create();
+    $shippingMethod->carrierServices()->attach($upsService->id);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create(['postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create([
+        'weight' => 2.5,
+        'height' => 6,
+        'width' => 8,
+        'length' => 10,
+    ]);
+
+    $rates = app(ShippingRateService::class)->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(0);
 });
