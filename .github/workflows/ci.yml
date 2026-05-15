@@ -63,6 +63,10 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Get week number for cache rotation
+        id: date
+        run: echo "week=$(date +%Y-%U)" >> $GITHUB_OUTPUT
+
       - name: Build app image
         uses: docker/build-push-action@v6
         with:
@@ -71,8 +75,8 @@ jobs:
           tags: polybag-app:ci
           load: true
           push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=app-${{ steps.date.outputs.week }}
+          cache-to: type=gha,scope=app-${{ steps.date.outputs.week }},mode=max
 
       - name: Build nginx image
         uses: docker/build-push-action@v6
@@ -80,8 +84,8 @@ jobs:
           context: .
           target: nginx
           push: false
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=nginx-${{ steps.date.outputs.week }}
+          cache-to: type=gha,scope=nginx-${{ steps.date.outputs.week }},mode=max
 
       - name: Scan app image for CVEs
         uses: anchore/scan-action@v6
