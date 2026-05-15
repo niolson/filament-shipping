@@ -56,11 +56,12 @@ RUN printf '[global]\ndaemonize = no\n\n[www]\nlisten = 0.0.0.0:9000\n' > /usr/l
 COPY . .
 
 # Remove hot file if it was copied from host (forces production manifest)
-# Ensure bind-mount destinations exist as files (Docker can't mount a file onto
-# a missing path on some runc versions — it creates a directory instead)
+# Ensure bind-mount destinations exist as empty files. Use rm -rf before touch
+# so that if Docker previously created a directory at these paths (due to a
+# missing bind-mount source), the build doesn't silently embed that directory.
 RUN rm -f public/hot \
-    && touch public/qz-certificate.pem \
-    && touch storage/app/private/qz-private-key.pem
+    && rm -rf public/qz-certificate.pem && touch public/qz-certificate.pem \
+    && rm -rf storage/app/private/qz-private-key.pem && touch storage/app/private/qz-private-key.pem
 
 # Copy vendor from stage 1 and built assets from stage 2
 COPY --from=vendor /app/vendor vendor
