@@ -63,7 +63,7 @@ class GenerateQzCert extends Command
             $key,
             ['config' => $opensslConfigPath, 'req_extensions' => 'v3_req'],
         );
-        $cert = openssl_csr_sign($csr, null, $key, 3650, ['config' => $opensslConfigPath, 'x509_extensions' => 'v3_req']);
+        $cert = openssl_csr_sign($csr, null, $key, 3650, ['config' => $opensslConfigPath, 'x509_extensions' => 'v3_req', 'digest_alg' => 'sha256']);
 
         openssl_pkey_export($key, $privateKeyPem, null, ['config' => $opensslConfigPath]);
         openssl_x509_export($cert, $certPem);
