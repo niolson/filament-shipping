@@ -56,7 +56,11 @@ RUN printf '[global]\ndaemonize = no\n\n[www]\nlisten = 0.0.0.0:9000\n' > /usr/l
 COPY . .
 
 # Remove hot file if it was copied from host (forces production manifest)
-RUN rm -f public/hot
+# Ensure bind-mount destinations exist as files (Docker can't mount a file onto
+# a missing path on some runc versions — it creates a directory instead)
+RUN rm -f public/hot \
+    && touch public/qz-certificate.pem \
+    && touch storage/app/private/qz-private-key.pem
 
 # Copy vendor from stage 1 and built assets from stage 2
 COPY --from=vendor /app/vendor vendor
