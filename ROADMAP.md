@@ -90,19 +90,13 @@ The REST API eliminates the need for most inbound polling sources. Build dedicat
 
 ---
 
-### 2.2 Tracking & Delivery Status
+### 2.2 Tracking & Delivery Status ✓
 
 Monitor post-shipment delivery status. Focus on exception detection rather than full delivery lifecycle tracking — the customer's ERP or storefront typically handles customer-facing tracking. Promoted from "nice to have" — exception detection (lost/stuck packages) is a daily operational need for any shipping operation.
 
-**Implementation:**
+**Completed:** `TrackingStatus` enum, `tracking_status` / `tracking_updated_at` / `delivered_at` / `tracking_checked_at` columns on packages, `packages:refresh-tracking` command scheduled every 4 hours with tiered polling intervals and 45-day stale-package abandonment, `ExceptionsWidget` dashboard stats for exceptions and stuck pre-transit packages, `TrackingStatusUpdated` event, `TrackingExceptionDetected` database notification dispatched to operations users.
 
-- Add `tracking_status` enum to packages: `pre_transit`, `in_transit`, `out_for_delivery`, `delivered`, `exception`, `returned`
-- Add `tracking_updated_at`, `delivered_at` timestamps
-- Scheduled job (every 4–6 hours): check status on shipped-but-not-delivered packages
-- Dashboard widget: packages with exceptions, packages stuck in pre-transit > 48 hours
-- Fire `TrackingStatusUpdated` event on status changes
-- Database notification when exceptions are detected (leverages Phase 1.8 infrastructure)
-- Later: inbound carrier webhooks for real-time updates (USPS Informed Visibility, FedEx Track API, UPS Quantum View Notify)
+**Deferred:** Inbound carrier webhooks for real-time updates (USPS Informed Visibility, FedEx Track API, UPS Quantum View Notify) — polling covers operational needs; webhooks can be added when volume justifies it.
 
 **Scope note:** The core value here is exception detection (lost/stuck packages), not full delivery visibility. This also provides data for the delivery confidence scoring feature in Phase 3.
 
@@ -145,11 +139,13 @@ Let users personalize their dashboard — choose which widgets to display, reord
 
 **Foundations (completed 2026-03-04):** `Location` model + migration, `location_id` on packages and daily_shipping_stats, `AddressData::fromLocation()`, `originCountry` on `RateRequest`, `AddressValidationInterface` dispatcher pattern with `UspsAddressValidator`. Origin address now resolves through the Location model instead of raw settings.
 
+**Optional mode:** Multi-location is off by default. A `multi_location_enabled` setting controls it. When disabled, all packages silently use the default location and no location UI is shown — no picker on Pack/Ship pages, no location column in tables or resources. When enabled, the full multi-origin workflow surfaces. Single-warehouse operators never see location as a concept.
+
 **Remaining work:**
 
+- `multi_location_enabled` setting + location UI visibility gating
 - Assign shipments to locations (manually or by rule)
-- Location picker on Pack/Ship pages for multi-origin workflow
-- Per-location carrier availability (carrier-location many-to-many)
+- Location picker on Pack/Ship pages for multi-origin workflow (only when `multi_location_enabled`)
 - `CarrierAccount` model with per-location credentials (e.g. different USPS CRIDs per warehouse)
 - Unit conversion layer in carrier adapters (kg/cm for non-US origins — currently hardcoded LB/IN/USD)
 - Multi-currency support (add currency to Location model)
@@ -178,6 +174,48 @@ Let users personalize their dashboard — choose which widgets to display, reord
 - Custom branding (logo, colors, app name) via config or settings
 - Targeted at 3PLs who present the tool as their own to clients
 - Filament supports theme customization via CSS/Tailwind
+
+---
+
+### 3.5 Multi-Client (3PL) Mode
+
+Enables a single PolyBag installation to serve a third-party logistics provider (3PL) that fulfills orders for multiple brands or sellers. Each client has its own import integrations, product catalog, shipping method mappings, and reporting. The 3PL uses one workstation and one carrier account (or per-client accounts when needed) across all clients.
+
+**Foundations (completed 2026-05-19):** `Client` model + migration, nullable `client_id` on shipments, products, import\_sources, shipping\_method\_aliases, channel\_aliases, and shipping\_rules. `ClientContext` service resolves the active client. `ImportReferenceResolver` warms per-client alias caches so the same reference string (e.g. "standard", "web") can resolve to different targets per client. Import pipeline propagates `client_id` from import source → shipment → shipment items → products.
+
+**Optional mode:** Multi-client is off by default. A `multi_client_enabled` setting controls it. When disabled, all records silently use the default client and no client UI is shown — no client column in tables, no client selector on any page or resource. Single-brand operators never see client as a concept. When enabled, client becomes visible across the UI and the full 3PL workflow surfaces.
+
+**Remaining work:**
+
+**Core UI & management:**
+- `multi_client_enabled` setting + client UI visibility gating
+- `Client` Filament resource (list, create, edit) — name, code, active flag
+- Client selector on shipment/product resources (only when `multi_client_enabled`)
+- Client column in shipment and product tables (hidden when mode is off)
+
+**Per-client shipping configuration:**
+- Per-client shipping method mapping UI — same method name can map to different carrier services per client
+- Per-client shipping rules (the `client_id` column exists; surfacing it in the rules UI)
+- Per-client return address (ship-from on labels should show the brand's address, not the warehouse)
+
+**Per-client import & export:**
+- Import source management UI with client assignment
+- Per-client outbound webhook/export configuration (notify each client's system on ship; see Phase 2.1)
+- Packing slip branding per client (logo, custom message, return instructions)
+
+**Reporting & invoicing:**
+- Per-client summary report: order count, package count, postage cost, weight shipped — filterable by date range
+- Billable event log: postage at cost, per-order handling fees, special handling (configurable rate card per client)
+- Export to CSV for invoicing
+
+**Carrier accounts (when per-client accounts are needed):**
+- `CarrierAccount` model with encrypted credentials, nullable `client_id` and `location_id`
+- Resolution hierarchy at label-purchase time: client + location → client → location → default (3PL account)
+- This extends the existing carrier-location infrastructure; see Phase 3.1 for context
+
+**Client portal (optional / later):**
+- Read-only Filament panel scoped to a single client's data — order status, shipments, tracking
+- Auth via separate client user accounts or token-based access
 
 ---
 
