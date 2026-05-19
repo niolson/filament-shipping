@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\Product;
+use App\Services\ClientContext;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class ProductFactory extends Factory
@@ -12,6 +13,7 @@ class ProductFactory extends Factory
     public function definition(): array
     {
         return [
+            'client_id' => app(ClientContext::class)->id(),
             'sku' => fake()->unique()->regexify('[A-Z]{3}[0-9]{4}'),
             'name' => fake()->words(3, true),
             'barcode' => fake()->ean13(),

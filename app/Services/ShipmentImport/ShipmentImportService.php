@@ -54,7 +54,7 @@ class ShipmentImportService
             return $this->runRecorder->configurationFailed($e->getMessage(), microtime(true) - $startTime);
         }
 
-        $this->references->warm();
+        $this->references->warm($this->importSource->client);
 
         try {
             $shipments = $this->source->fetchShipments();

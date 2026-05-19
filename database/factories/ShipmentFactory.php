@@ -7,6 +7,7 @@ use App\Enums\PickingStatus;
 use App\Models\Channel;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
+use App\Services\ClientContext;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class ShipmentFactory extends Factory
@@ -16,6 +17,7 @@ class ShipmentFactory extends Factory
     public function definition(): array
     {
         return [
+            'client_id' => app(ClientContext::class)->id(),
             'shipment_reference' => fake()->regexify('[A-Z]{2}[0-9]{8}'),
             'first_name' => fake()->firstName(),
             'last_name' => fake()->lastName(),

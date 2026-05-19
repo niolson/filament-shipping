@@ -37,6 +37,7 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             SettingsSeeder::class,
+            ClientSeeder::class,
             LocationSeeder::class,
             ReferenceDataSeeder::class,
             ChannelSeeder::class,

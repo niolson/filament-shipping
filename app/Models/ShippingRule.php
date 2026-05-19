@@ -13,6 +13,7 @@ class ShippingRule extends Model
     use HasFactory;
 
     protected $fillable = [
+        'client_id',
         'name',
         'shipping_method_id',
         'priority',
@@ -29,6 +30,11 @@ class ShippingRule extends Model
             'conditions' => 'array',
             'enabled' => 'boolean',
         ];
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
     }
 
     public function shippingMethod(): BelongsTo

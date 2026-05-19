@@ -5,10 +5,12 @@ namespace App\Services\ShipmentImport;
 use App\Contracts\ImportSourceInterface;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
+use App\Models\Client;
 use App\Models\ImportSource;
 use App\Models\Product;
 use App\Models\ShippingMethod;
 use App\Models\ShippingMethodAlias;
+use App\Services\ClientContext;
 
 class ImportReferenceResolver
 {
@@ -21,17 +23,33 @@ class ImportReferenceResolver
     /** @var array<string, int> */
     private array $productCache = [];
 
-    public function warm(): void
+    private ?int $warmedClientId = null;
+
+    public function warm(?Client $client = null): void
     {
-        ChannelAlias::all()->each(function (ChannelAlias $alias): void {
+        $client ??= app(ClientContext::class)->default();
+
+        $this->channelCache = [];
+        $this->shippingMethodCache = [];
+        $this->productCache = [];
+
+        ChannelAlias::whereNull('client_id')->get()->each(function (ChannelAlias $alias): void {
             $this->channelCache[$alias->reference] = $alias->channel_id;
         });
 
-        Channel::all()->each(function (Channel $channel): void {
-            $this->channelCache[(string) $channel->id] = $channel->id;
+        ChannelAlias::where('client_id', $client->id)->get()->each(function (ChannelAlias $alias): void {
+            $this->channelCache[$alias->reference] = $alias->channel_id;
         });
 
-        ShippingMethodAlias::all()->each(function (ShippingMethodAlias $alias): void {
+        Channel::pluck('id')->each(function (int $id): void {
+            $this->channelCache[(string) $id] = $id;
+        });
+
+        ShippingMethodAlias::whereNull('client_id')->get()->each(function (ShippingMethodAlias $alias): void {
+            $this->shippingMethodCache[$alias->reference] = $alias->shipping_method_id;
+        });
+
+        ShippingMethodAlias::where('client_id', $client->id)->get()->each(function (ShippingMethodAlias $alias): void {
             $this->shippingMethodCache[$alias->reference] = $alias->shipping_method_id;
         });
 
@@ -39,18 +57,28 @@ class ImportReferenceResolver
             $this->shippingMethodCache[(string) $id] = $id;
         });
 
-        Product::pluck('id', 'sku')->each(function (int $id, string $sku): void {
+        Product::whereNull('client_id')->pluck('id', 'sku')->each(function (int $id, string $sku): void {
             $this->productCache[$sku] = $id;
         });
+
+        Product::where('client_id', $client->id)->pluck('id', 'sku')->each(function (int $id, string $sku): void {
+            $this->productCache[$sku] = $id;
+        });
+
+        $this->warmedClientId = $client->id;
     }
 
     public function importSourceFor(ImportSourceInterface $source): ImportSource
     {
+        $client = app(ClientContext::class)->default();
         $configKey = $source->getSourceName();
         $config = config("shipment-import.sources.{$configKey}", []);
 
         return ImportSource::firstOrCreate(
-            ['config_key' => $configKey],
+            [
+                'client_id' => $client->id,
+                'config_key' => $configKey,
+            ],
             [
                 'name' => (string) ($config['name'] ?? str($configKey)->replace(['_', '-'], ' ')->title()),
                 'driver' => (string) ($config['driver'] ?? $source::class),
@@ -60,7 +88,7 @@ class ImportReferenceResolver
         );
     }
 
-    public function shippingMethodIdFor(array $data): ?int
+    public function shippingMethodIdFor(array $data, ?Client $client = null): ?int
     {
         $reference = $data['shipping_method_id'] ?? null;
 
@@ -68,10 +96,12 @@ class ImportReferenceResolver
             return null;
         }
 
+        $this->ensureWarm($client);
+
         return $this->shippingMethodCache[(string) $reference] ?? null;
     }
 
-    public function channelIdFor(array $data): ?int
+    public function channelIdFor(array $data, ?Client $client = null): ?int
     {
         $reference = $data['channel_id'] ?? null;
 
@@ -79,14 +109,17 @@ class ImportReferenceResolver
             return null;
         }
 
+        $this->ensureWarm($client);
+
         return $this->channelCache[(string) $reference] ?? null;
     }
 
     /**
      * @return array{id: int|null, created: bool, updated: bool}
      */
-    public function productIdFor(array $itemData): array
+    public function productIdFor(array $itemData, ?Client $client = null): array
     {
+        $client ??= app(ClientContext::class)->default();
         $sku = $itemData['sku'] ?? null;
 
         if (! $sku) {
@@ -102,7 +135,10 @@ class ImportReferenceResolver
             ], fn ($value) => $value !== null);
 
             $product = Product::updateOrCreate(
-                ['sku' => $sku],
+                [
+                    'client_id' => $client->id,
+                    'sku' => $sku,
+                ],
                 array_merge($updateData, ['active' => true])
             );
 
@@ -115,10 +151,21 @@ class ImportReferenceResolver
             ];
         }
 
+        $this->ensureWarm($client);
+
         return [
             'id' => $this->productCache[$sku] ?? null,
             'created' => false,
             'updated' => false,
         ];
+    }
+
+    private function ensureWarm(?Client $client = null): void
+    {
+        $client ??= app(ClientContext::class)->default();
+
+        if ($this->warmedClientId !== $client->id) {
+            $this->warm($client);
+        }
     }
 }

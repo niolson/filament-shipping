@@ -4,7 +4,9 @@ use App\Contracts\ImportSourceInterface;
 use App\Enums\Role;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
+use App\Models\Client;
 use App\Models\ImportSource;
+use App\Models\Product;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
 use App\Models\ShippingMethodAlias;
@@ -175,6 +177,88 @@ it('imports a shipment with a matching shipping method', function (): void {
         ->and($shipment->source_record_id)->toBe('ORD-001')
         ->and($shipment->importSource)->not->toBeNull()
         ->and($shipment->importSource->config_key)->toBe('test');
+});
+
+it('resolves shipping references and products inside the active client context', function (): void {
+    $clientA = Client::where('code', 'default')->firstOrFail();
+    $clientB = Client::factory()->create([
+        'name' => 'Second Client',
+        'code' => 'second-client',
+        'is_default' => true,
+    ]);
+
+    $methodA = ShippingMethod::factory()->create(['name' => 'Client A Standard']);
+    $methodB = ShippingMethod::factory()->create(['name' => 'Client B Standard']);
+    $channelA = Channel::factory()->create(['name' => 'Client A Web']);
+    $channelB = Channel::factory()->create(['name' => 'Client B Web']);
+
+    ShippingMethodAlias::factory()->create([
+        'client_id' => $clientA->id,
+        'reference' => 'standard',
+        'shipping_method_id' => $methodA->id,
+    ]);
+    ShippingMethodAlias::factory()->create([
+        'client_id' => $clientB->id,
+        'reference' => 'standard',
+        'shipping_method_id' => $methodB->id,
+    ]);
+    ChannelAlias::factory()->create([
+        'client_id' => $clientA->id,
+        'reference' => 'web',
+        'channel_id' => $channelA->id,
+    ]);
+    ChannelAlias::factory()->create([
+        'client_id' => $clientB->id,
+        'reference' => 'web',
+        'channel_id' => $channelB->id,
+    ]);
+
+    Product::factory()->create([
+        'client_id' => $clientA->id,
+        'sku' => 'SHARED-SKU',
+        'name' => 'Client A Existing Product',
+    ]);
+
+    $source = fakeSource(
+        collect([
+            [
+                'shipment_reference' => 'ORD-CLIENT-B',
+                'first_name' => 'Jane',
+                'last_name' => 'Client',
+                'address1' => '123 Main St',
+                'city' => 'Seattle',
+                'state_or_province' => 'WA',
+                'postal_code' => '98101',
+                'country' => 'US',
+                'shipping_method_id' => 'standard',
+                'channel_id' => 'web',
+            ],
+        ]),
+        collect([
+            [
+                'sku' => 'SHARED-SKU',
+                'name' => 'Client B Product',
+                'quantity' => 1,
+            ],
+        ]),
+        'client_b_source',
+    );
+
+    $result = ShipmentImportService::forSource($source)->import();
+
+    expect($result->shipmentsCreated)->toBe(1)
+        ->and($result->productsCreated)->toBe(1)
+        ->and($result->hasErrors())->toBeFalse();
+
+    $shipment = Shipment::where('shipment_reference', 'ORD-CLIENT-B')->firstOrFail();
+    $clientBProduct = Product::where('client_id', $clientB->id)->where('sku', 'SHARED-SKU')->first();
+
+    expect($shipment->client_id)->toBe($clientB->id)
+        ->and($shipment->importSource->client_id)->toBe($clientB->id)
+        ->and($shipment->shipping_method_id)->toBe($methodB->id)
+        ->and($shipment->channel_id)->toBe($channelB->id)
+        ->and($clientBProduct)->not->toBeNull()
+        ->and(Product::where('sku', 'SHARED-SKU')->count())->toBe(2);
 });
 
 it('imports a shipment when shipping method reference does not match', function (): void {

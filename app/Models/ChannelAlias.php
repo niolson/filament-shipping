@@ -13,9 +13,15 @@ class ChannelAlias extends Model
     use HasFactory;
 
     protected $fillable = [
+        'client_id',
         'reference',
         'channel_id',
     ];
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
 
     public function channel(): BelongsTo
     {

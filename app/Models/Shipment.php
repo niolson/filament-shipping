@@ -23,6 +23,7 @@ class Shipment extends Model
     use HasFactory, Searchable;
 
     protected $fillable = [
+        'client_id',
         'shipment_reference',
         'source_record_id',
         'first_name',
@@ -193,6 +194,11 @@ class Shipment extends Model
 
         // 3. No deadline
         return null;
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
     }
 
     public function shipmentItems(): HasMany

@@ -25,7 +25,7 @@ class ShipmentItemImporter
         $items = $source->fetchShipmentItems((string) $shipment->source_record_id);
 
         foreach ($items as $itemData) {
-            $product = $this->references->productIdFor($itemData);
+            $product = $this->references->productIdFor($itemData, $shipment->client);
             $productId = $product['id'];
 
             if (! $productId) {

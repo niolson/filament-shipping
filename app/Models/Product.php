@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\HazmatClass;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Laravel\Scout\Attributes\SearchUsingPrefix;
 use Laravel\Scout\Searchable;
@@ -14,6 +15,7 @@ class Product extends Model
     use HasFactory, Searchable;
 
     protected $fillable = [
+        'client_id',
         'name',
         'sku',
         'barcode',
@@ -48,6 +50,11 @@ class Product extends Model
             'sku' => $this->sku,
             'barcode' => $this->barcode,
         ];
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
     }
 
     public function shipmentItems(): HasMany

@@ -13,9 +13,15 @@ class ShippingMethodAlias extends Model
     use HasFactory;
 
     protected $fillable = [
+        'client_id',
         'reference',
         'shipping_method_id',
     ];
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
+    }
 
     public function shippingMethod(): BelongsTo
     {

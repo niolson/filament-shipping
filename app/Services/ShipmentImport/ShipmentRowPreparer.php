@@ -45,8 +45,11 @@ class ShipmentRowPreparer
             }
         }
 
+        $client = $importSource->client;
+
         return new PreparedShipmentRow(
             attributes: [
+                'client_id' => $client?->id,
                 'import_source_id' => $importSource->id,
                 'source_record_id' => $data['source_record_id'] ?? $data['shipment_reference'],
                 'shipment_reference' => $data['shipment_reference'],
@@ -66,9 +69,9 @@ class ShipmentRowPreparer
                 'value' => $data['value'] ?? null,
                 'validation_message' => $validationWarnings !== [] ? implode('; ', $validationWarnings) : null,
                 'shipping_method_reference' => $data['shipping_method_id'] ?? null,
-                'shipping_method_id' => $this->references->shippingMethodIdFor($data),
+                'shipping_method_id' => $this->references->shippingMethodIdFor($data, $client),
                 'channel_reference' => $data['channel_id'] ?? null,
-                'channel_id' => $this->references->channelIdFor($data),
+                'channel_id' => $this->references->channelIdFor($data, $client),
                 'deliver_by' => $data['deliver_by'] ?? null,
                 'metadata' => isset($data['metadata']) ? json_encode($data['metadata']) : null,
             ],

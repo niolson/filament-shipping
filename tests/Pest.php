@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Client;
 use App\Models\Location;
 use App\Models\Setting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -58,6 +59,7 @@ function something()
 */
 
 uses()->beforeEach(function (): void {
+    Client::factory()->default()->create();
     Location::factory()->default()->create();
     Setting::updateOrCreate(
         ['key' => 'setup_complete'],

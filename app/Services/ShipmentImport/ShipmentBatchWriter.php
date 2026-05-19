@@ -19,6 +19,7 @@ class ShipmentBatchWriter
         $now = now();
 
         foreach ($preparedRows as &$preparedRow) {
+            $preparedRow['client_id'] ??= $importSource->client_id;
             $preparedRow['created_at'] = $now;
             $preparedRow['updated_at'] = $now;
         }
@@ -31,6 +32,7 @@ class ShipmentBatchWriter
             ->all();
 
         $updateColumns = [
+            'client_id',
             'shipment_reference',
             'first_name', 'last_name', 'company',
             'address1', 'address2', 'city', 'state_or_province', 'postal_code', 'country',
