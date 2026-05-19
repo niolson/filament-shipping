@@ -28,6 +28,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
+use Filament\Pages\Concerns\HasUnsavedDataChangesAlert;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Component;
@@ -51,6 +52,8 @@ use UnitEnum;
  */
 class Settings extends Page
 {
+    use HasUnsavedDataChangesAlert;
+
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-adjustments-horizontal';
 
     protected static ?string $navigationLabel = 'App Settings';
@@ -523,7 +526,7 @@ class Settings extends Page
                             Toggle::make('transparency_enabled')
                                 ->label('Amazon Transparency Program')
                                 ->helperText('When enabled, shipment items requiring transparency codes will prompt for code scanning during packing.')
-                                ->default(false),                                
+                                ->default(false),
                         ])
                         ->columns(1),
 
@@ -1415,6 +1418,8 @@ class Settings extends Page
             Cache::forget('amazon_sp_api_access_token');
             Cache::forget('shopify_access_token');
         }
+
+        $this->rememberData();
 
         Notification::make()
             ->success()

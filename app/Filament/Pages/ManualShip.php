@@ -29,6 +29,7 @@ use BackedEnum;
 use Filament\Forms;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
+use Filament\Pages\Concerns\HasUnsavedDataChangesAlert;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
@@ -40,6 +41,7 @@ use UnitEnum;
 
 class ManualShip extends Page implements HasForms
 {
+    use HasUnsavedDataChangesAlert;
     use InteractsWithForms;
     use NotifiesUser;
     use PrintsLabels;

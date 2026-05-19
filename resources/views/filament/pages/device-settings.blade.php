@@ -646,12 +646,30 @@
                 }
             }
 
+            // Unsaved changes alert
+            let hasUnsavedChanges = false;
+            const markDirty = () => { hasUnsavedChanges = true; };
+            [labelPrinterSelect, reportPrinterSelect, labelFormatSelect, labelDpiSelect, scaleBackendSelect].forEach(el => {
+                el.addEventListener('change', markDirty);
+            });
+            window.addEventListener('beforeunload', (event) => {
+                if (!hasUnsavedChanges) return;
+                event.preventDefault();
+                event.returnValue = true;
+            });
+            document.addEventListener('livewire:navigate', (event) => {
+                if (!hasUnsavedChanges) return;
+                if (!confirm('{{ __('filament-panels::unsaved-changes-alert.body') }}')) {
+                    event.preventDefault();
+                }
+            });
+
             // Event listeners
             refreshPrintersBtn.addEventListener('click', refreshPrinters);
             labelFormatSelect.addEventListener('change', updateDpiVisibility);
             detectScalesBtn.addEventListener('click', detectScales);
             disconnectScaleBtn.addEventListener('click', disconnectScale);
-            saveSettingsBtn.addEventListener('click', saveSettings);
+            saveSettingsBtn.addEventListener('click', () => { hasUnsavedChanges = false; saveSettings(); });
             scaleBackendSelect.addEventListener('change', updateScaleBackendUI);
             pairScaleWebhidBtn.addEventListener('click', pairScaleWebhid);
 
