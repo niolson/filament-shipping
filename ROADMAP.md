@@ -387,33 +387,21 @@ May or may not be in scope depending on product direction and customer demand.
 - **Additional SSO providers** — Microsoft, Okta, generic OIDC/SAML. Architecture supports adding providers via Socialite drivers + Settings toggle. Google implementation serves as template.
 - **Automated Google OAuth client provisioning** — Script to create per-customer OAuth client IDs via Google Cloud API (`gcloud`). Currently manual (30 seconds per customer in Google Console). Automate when onboarding volume justifies it.
 
-## OAuth 2.0 Authorization Code Flow for Integrations
+## OAuth 2.0 Authorization Code Flow for Integrations ✓
 
-All external API integrations currently use client credentials flow, which requires customers to create developer accounts and manually paste API keys. The authorization code flow replaces this with a "Connect" button that redirects to the provider's auth page and returns with a token — dramatically simpler onboarding.
+All external API integrations previously required customers to create developer accounts and manually paste API keys. The authorization code flow replaces this with a "Connect" button — dramatically simpler onboarding.
 
-**Implementation:**
+**Completed:** Redirect-based OAuth flow (Connect button → provider auth page → callback → store tokens), automatic token refresh, Disconnect button, per-provider callback routes (`/oauth/usps/callback` etc.), tokens encrypted in Settings. Implemented for Shopify, Amazon SP-API (LWA), USPS, FedEx, and UPS.
 
-- Redirect-based OAuth flow: Settings page "Connect" button → provider auth page → callback URL → store tokens
-- Token refresh handled automatically (all providers support refresh tokens)
-- "Disconnect" button revokes tokens and clears stored credentials
-- Callback route per provider (e.g. `/oauth/usps/callback`, `/oauth/shopify/callback`)
-- Stored tokens encrypted in Settings (existing encryption infrastructure)
+**Remaining: client credentials UI cleanup**
 
-**Integrations:**
+Client credentials fields (client ID, client secret, API keys) still appear in Settings for all carriers. These require a developer account with each carrier — something most users will never have in a production install. The fields should be demoted:
 
-| Provider | Current Auth | OAuth Support | Priority | Notes |
-|----------|-------------|---------------|----------|-------|
-| **Shopify** | Client credentials (custom app) | OAuth 2.0 (standard for Shopify apps) | High | Biggest onboarding friction — merchants must create a custom app in Shopify admin |
-| **Amazon SP-API** | Client credentials + refresh token | OAuth 2.0 (LWA) | High | Current setup requires IAM role, developer registration, manual refresh token |
-| **USPS** | Client credentials | OAuth 2.0 (authorization code + refresh token) | Medium | Client credentials works fine but auth code flow is available per USPS OAuth v3 spec |
-| **FedEx** | Client credentials | OAuth 2.0 | Medium | Auth code flow mainly benefits hosted SaaS (single developer account, customers authorize through it) |
-| **UPS** | Client credentials | OAuth 2.0 | Medium | Same as FedEx — most useful for SaaS model |
+- Move client credentials fields to an "Advanced" tab or collapsible section within each carrier's settings panel, out of the primary view
+- Consider hiding them entirely when `APP_ENV=production` and no credentials are currently set — show only the Connect button in that case
+- Keep client credentials accessible for: testing installs (`APP_ENV != production`), users who have already entered credentials, and users who explicitly expand the advanced section
 
-**Deployment considerations:**
-
-- On-prem/standalone: client credentials may still be simpler (no callback URL needed). Keep both flows available.
-- SaaS/hosted: authorization code flow preferred. Single developer account per carrier, customers connect via OAuth.
-- Per-tenant callback URLs needed for multi-tenant deployments
+The goal is a first-run experience where a non-technical user sees only "Connect with Shopify" — not a wall of API key fields.
 
 ## Data Privacy & Compliance
 
