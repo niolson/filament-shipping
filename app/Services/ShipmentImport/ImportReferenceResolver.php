@@ -74,18 +74,38 @@ class ImportReferenceResolver
         $configKey = $source->getSourceName();
         $config = config("shipment-import.sources.{$configKey}", []);
 
-        return ImportSource::firstOrCreate(
+        $attributes = [
+            'name' => (string) ($config['name'] ?? str($configKey)->replace(['_', '-'], ' ')->title()),
+            'driver' => (string) ($config['driver'] ?? $source::class),
+            'active' => (bool) ($config['enabled'] ?? true),
+            'settings' => null,
+        ];
+
+        $importSource = ImportSource::where('client_id', $client->id)
+            ->where('config_key', $configKey)
+            ->first();
+
+        if ($importSource) {
+            return $importSource;
+        }
+
+        $legacyImportSource = ImportSource::whereNull('client_id')
+            ->where('config_key', $configKey)
+            ->first();
+
+        if ($legacyImportSource) {
+            $legacyImportSource->update(['client_id' => $client->id]);
+
+            return $legacyImportSource;
+        }
+
+        return ImportSource::create(array_merge(
             [
                 'client_id' => $client->id,
                 'config_key' => $configKey,
             ],
-            [
-                'name' => (string) ($config['name'] ?? str($configKey)->replace(['_', '-'], ' ')->title()),
-                'driver' => (string) ($config['driver'] ?? $source::class),
-                'active' => (bool) ($config['enabled'] ?? true),
-                'settings' => null,
-            ],
-        );
+            $attributes,
+        ));
     }
 
     public function shippingMethodIdFor(array $data, ?Client $client = null): ?int
