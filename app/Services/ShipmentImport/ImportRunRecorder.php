@@ -109,9 +109,11 @@ class ImportRunRecorder
 
         ImportCompleted::dispatch($this->stats, $this->sourceName);
 
-        $this->notifyAdmins(
-            new ImportCompletedNotification($this->stats, $this->sourceName, $this->errors)
-        );
+        if ($this->errors !== []) {
+            $this->notifyAdmins(
+                new ImportCompletedNotification($this->stats, $this->sourceName, $this->errors)
+            );
+        }
 
         return new ImportResult(
             shipmentsCreated: $this->stats['shipments_created'],
