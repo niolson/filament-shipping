@@ -504,7 +504,7 @@ class Settings extends Page
                                 ->image()
                                 ->imagePreviewHeight('60')
                                 ->maxSize(2048)
-                                ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
+                                ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']),
                         ])
                         ->columns(1),
 
