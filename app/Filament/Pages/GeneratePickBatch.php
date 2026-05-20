@@ -107,7 +107,7 @@ class GeneratePickBatch extends Page implements HasForms
             user: auth()->user(),
         );
 
-        if ($batch->total_shipments === 0) {
+        if ($batch === null) {
             Notification::make()
                 ->warning()
                 ->title('No pending shipments')

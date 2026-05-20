@@ -22,6 +22,9 @@
     </style>
 </head>
 <body>
+    @if(request()->boolean('print'))
+    <script>window.addEventListener('load', () => window.print());</script>
+    @endif
     <div class="actions">
         <button onclick="window.print()">Print</button>
         <a href="javascript:history.back()">Back</a>

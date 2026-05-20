@@ -92,4 +92,8 @@ return [
         'redirect' => '/auth/google/callback',
     ],
 
+    'gotenberg' => [
+        'url' => env('GOTENBERG_URL'),
+    ],
+
 ];

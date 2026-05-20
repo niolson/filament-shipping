@@ -22,6 +22,9 @@
     </style>
 </head>
 <body>
+    @if(request()->boolean('print'))
+    <script>window.addEventListener('load', () => window.print());</script>
+    @endif
     <div class="actions">
         <button onclick="window.print()">Print</button>
         <a href="javascript:history.back()">Back</a>
@@ -40,7 +43,7 @@
 
         @if ($pivot->shipment?->shipment_reference)
         <div class="barcode-wrap">
-            <svg data-barcode="{{ $pivot->shipment->shipment_reference }}"></svg>
+            {!! $generator->getBarcode($pivot->shipment->shipment_reference, \Picqer\Barcode\BarcodeGeneratorSVG::TYPE_CODE_128, 2, 40) !!}
             <div class="barcode-ref">{{ $pivot->shipment->shipment_reference }}</div>
         </div>
         @endif
@@ -79,19 +82,5 @@
     </div>
     @endforeach
 
-    @vite('resources/js/barcodes.js')
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            document.querySelectorAll('svg[data-barcode]').forEach(function (svg) {
-                JsBarcode(svg, svg.getAttribute('data-barcode'), {
-                    format: 'CODE128',
-                    width: 2,
-                    height: 40,
-                    displayValue: false,
-                    margin: 0,
-                });
-            });
-        });
-    </script>
 </body>
 </html>

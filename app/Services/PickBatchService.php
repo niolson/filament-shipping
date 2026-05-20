@@ -112,6 +112,58 @@ class PickBatchService
     }
 
     /**
+     * Build the aggregated product rows for the picking summary document.
+     *
+     * @return array<int, array{bin_location: string|null, sku: string, product_name: string, quantity: int, tote_codes: array<string>}>
+     */
+    public function summaryRows(PickBatch $batch): array
+    {
+        $batch->load('pickBatchShipments.shipment.shipmentItems.product');
+
+        $rows = collect();
+
+        foreach ($batch->pickBatchShipments as $pivot) {
+            foreach ($pivot->shipment->shipmentItems as $item) {
+                $key = $item->product_id;
+
+                if ($rows->has($key)) {
+                    $row = $rows->get($key);
+                    $row['quantity'] += $item->quantity;
+                    $row['tote_codes'][] = $pivot->tote_code;
+                    $rows->put($key, $row);
+                } else {
+                    $rows->put($key, [
+                        'bin_location' => $item->product?->bin_location,
+                        'sku' => $item->product?->sku ?? '—',
+                        'product_name' => $item->product?->name ?? '—',
+                        'quantity' => $item->quantity,
+                        'tote_codes' => [$pivot->tote_code],
+                    ]);
+                }
+            }
+        }
+
+        $rows = $rows->map(function (array $row) {
+            $row['tote_codes'] = array_values(array_unique(array_filter($row['tote_codes'])));
+            natsort($row['tote_codes']);
+            $row['tote_codes'] = array_values($row['tote_codes']);
+
+            return $row;
+        });
+
+        $located = $rows->filter(fn ($r) => filled($r['bin_location']))->values();
+        $unlocated = $rows->filter(fn ($r) => blank($r['bin_location']))->values();
+
+        $locatedArray = $located->toArray();
+        usort($locatedArray, fn ($a, $b) => strnatcasecmp($a['bin_location'], $b['bin_location']));
+
+        $unlocatedArray = $unlocated->toArray();
+        usort($unlocatedArray, fn ($a, $b) => strcasecmp($a['product_name'], $b['product_name']));
+
+        return array_merge($locatedArray, $unlocatedArray);
+    }
+
+    /**
      * Mark all shipments in a batch as picked and complete the batch.
      */
     public function complete(PickBatch $batch): void

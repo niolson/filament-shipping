@@ -14,6 +14,7 @@
         "laravel/scout": "^10.23",
         "laravel/socialite": "^5.26",
         "laravel/tinker": "^3.0",
+        "picqer/php-barcode-generator": "^3.2",
         "saloonphp/laravel-plugin": "^4.0",
         "saloonphp/saloon": "^4.0"
     },
