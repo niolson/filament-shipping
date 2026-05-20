@@ -114,7 +114,10 @@ class PickBatchService
     /**
      * Build the aggregated product rows for the picking summary document.
      *
-     * @return array<int, array{bin_location: string|null, sku: string, product_name: string, quantity: int, tote_codes: array<string>}>
+     * `totes` is a map of tote_code => quantity for that product in that tote,
+     * sorted naturally by tote code.
+     *
+     * @return array<int, array{bin_location: string|null, sku: string, product_name: string, quantity: int, totes: array<string, int>}>
      */
     public function summaryRows(PickBatch $batch): array
     {
@@ -129,24 +132,24 @@ class PickBatchService
                 if ($rows->has($key)) {
                     $row = $rows->get($key);
                     $row['quantity'] += $item->quantity;
-                    $row['tote_codes'][] = $pivot->tote_code;
+                    $toteCode = $pivot->tote_code ?? '';
+                    $row['totes'][$toteCode] = ($row['totes'][$toteCode] ?? 0) + $item->quantity;
                     $rows->put($key, $row);
                 } else {
+                    $toteCode = $pivot->tote_code ?? '';
                     $rows->put($key, [
                         'bin_location' => $item->product?->bin_location,
                         'sku' => $item->product?->sku ?? '—',
                         'product_name' => $item->product?->name ?? '—',
                         'quantity' => $item->quantity,
-                        'tote_codes' => [$pivot->tote_code],
+                        'totes' => [$toteCode => $item->quantity],
                     ]);
                 }
             }
         }
 
         $rows = $rows->map(function (array $row) {
-            $row['tote_codes'] = array_values(array_unique(array_filter($row['tote_codes'])));
-            natsort($row['tote_codes']);
-            $row['tote_codes'] = array_values($row['tote_codes']);
+            uksort($row['totes'], fn ($a, $b) => strnatcasecmp($a, $b));
 
             return $row;
         });

@@ -60,7 +60,11 @@
                 <td>{{ $row['sku'] }}</td>
                 <td>{{ $row['product_name'] }}</td>
                 <td>{{ $row['quantity'] }}</td>
-                <td class="totes">{{ implode(', ', $row['tote_codes']) }}</td>
+                <td class="totes">
+                    @foreach ($row['totes'] as $tote => $qty)
+                        {{ $tote }}@if ($qty > 1) <span style="font-weight:normal;color:#555">×{{ $qty }}</span>@endif{{ !$loop->last ? ', ' : '' }}
+                    @endforeach
+                </td>
             </tr>
             @endforeach
         </tbody>
