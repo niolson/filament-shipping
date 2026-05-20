@@ -7,3 +7,7 @@ services:
   nginx:
     ports:
       - "${APP_PORT:-80}:80"
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped

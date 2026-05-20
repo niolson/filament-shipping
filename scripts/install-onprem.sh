@@ -95,6 +95,7 @@ if [ "$SKIP_ENV" = false ]; then
     sed -i "s|^QUEUE_CONNECTION=.*|QUEUE_CONNECTION=redis|" .env
     sed -i "s|^SESSION_DRIVER=.*|SESSION_DRIVER=redis|" .env
     sed -i "s|^CACHE_STORE=.*|CACHE_STORE=redis|" .env
+    sed -i "s|^GOTENBERG_URL=.*|GOTENBERG_URL=http://gotenberg:3000|" .env
 
     # Set custom port if specified
     if [ -n "${APP_PORT:-}" ] && [ "$APP_PORT" != "80" ]; then
