@@ -18,6 +18,7 @@ class PickBatch extends Model
         'status',
         'total_shipments',
         'completed_at',
+        'summary_printed_at',
     ];
 
     protected function casts(): array
@@ -25,6 +26,7 @@ class PickBatch extends Model
         return [
             'status' => PickBatchStatus::class,
             'completed_at' => 'datetime',
+            'summary_printed_at' => 'datetime',
         ];
     }
 

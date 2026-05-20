@@ -49,6 +49,18 @@ class PickBatchShipmentsRelationManager extends RelationManager
                     ->dateTime('M j, Y g:i A', timezone: Location::timezone())
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('pack_slip_printed_at')
+                    ->label('Slip Printed')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-printer')
+                    ->trueColor('success')
+                    ->falseIcon('heroicon-o-minus-circle')
+                    ->falseColor('gray'),
+                Tables\Columns\TextColumn::make('pack_slip_printed_at')
+                    ->label('Slip Printed At')
+                    ->dateTime('M j, Y g:i A', timezone: Location::timezone())
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->recordActions([
                 Action::make('markPicked')

@@ -47,7 +47,9 @@ class ViewPickBatch extends ViewRecord
                     $this->printDocument('pick-batches.summary', [
                         'pickBatch' => $this->record,
                         'rows' => app(PickBatchService::class)->summaryRows($this->record),
-                    ]);
+                    ], function (): void {
+                        $this->record->update(['summary_printed_at' => now()]);
+                    });
                 }),
 
             // View mode — open HTML in a new tab
@@ -70,7 +72,9 @@ class ViewPickBatch extends ViewRecord
                         'pickBatch' => $this->record,
                         'pivotRows' => $this->record->pickBatchShipments->sortBy('tote_code'),
                         'generator' => new BarcodeGeneratorSVG,
-                    ]);
+                    ], function (): void {
+                        $this->record->pickBatchShipments()->update(['pack_slip_printed_at' => now()]);
+                    });
                 }),
 
             Action::make('complete')
@@ -108,15 +112,16 @@ class ViewPickBatch extends ViewRecord
     }
 
     /**
-     * Render a view to PDF via Gotenberg and dispatch it to the QZ Tray report printer.
+     * Render a view to PDF via Gotenberg, dispatch to QZ Tray, and call $onSuccess if it worked.
      *
      * @param  array<string, mixed>  $data
      */
-    private function printDocument(string $view, array $data): void
+    private function printDocument(string $view, array $data, callable $onSuccess): void
     {
         try {
             $pdf = app(GotenbergService::class)->pdfFromView($view, $data);
             $this->dispatch('print-report', data: base64_encode($pdf));
+            $onSuccess();
         } catch (Throwable $e) {
             Notification::make()
                 ->danger()
