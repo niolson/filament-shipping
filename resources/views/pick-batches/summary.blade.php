@@ -62,7 +62,7 @@
                 <td>{{ $row['quantity'] }}</td>
                 <td class="totes">
                     @foreach ($row['totes'] as $tote => $qty)
-                        {{ $tote }}@if ($qty > 1) <span style="font-weight:normal;color:#555">×{{ $qty }}</span>@endif{{ !$loop->last ? ', ' : '' }}
+                        {{ $tote }}@if (count($row['totes']) > 1) <span style="font-weight:normal;color:#555">×{{ $qty }}</span>@endif{{ !$loop->last ? ', ' : '' }}
                     @endforeach
                 </td>
             </tr>
