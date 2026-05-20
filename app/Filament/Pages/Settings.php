@@ -20,6 +20,7 @@ use BackedEnum;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
@@ -156,6 +157,7 @@ class Settings extends Page
 
         $this->form->fill([
             'company_name' => app(SettingsService::class)->get('company_name', ''),
+            'pack_slip_logo' => app(SettingsService::class)->get('pack_slip_logo'),
             'packing_validation_enabled' => app(SettingsService::class)->get('packing_validation_enabled', true),
             'transparency_enabled' => app(SettingsService::class)->get('transparency_enabled', true),
             'batch_shipping_enabled' => app(SettingsService::class)->get('batch_shipping_enabled', true),
@@ -493,6 +495,16 @@ class Settings extends Page
                             TextInput::make('company_name')
                                 ->label('Company Name')
                                 ->maxLength(255),
+                            FileUpload::make('pack_slip_logo')
+                                ->label('Pack Slip Logo')
+                                ->helperText('Logo printed on pack slips. Recommended: landscape image, PNG or JPG.')
+                                ->disk('public')
+                                ->directory('logos')
+                                ->visibility('public')
+                                ->image()
+                                ->imagePreviewHeight('60')
+                                ->maxSize(2048)
+                                ->acceptedFileTypes(['image/png', 'image/jpeg', 'image/gif', 'image/webp']),
                         ])
                         ->columns(1),
 
@@ -1324,6 +1336,7 @@ class Settings extends Page
         // Map form fields to setting keys
         $settings = [
             'company_name' => $data['company_name'] ?? '',
+            'pack_slip_logo' => $data['pack_slip_logo'] ?? null,
             'packing_validation_enabled' => $data['packing_validation_enabled'] ?? true,
             'transparency_enabled' => $data['transparency_enabled'] ?? true,
             'batch_shipping_enabled' => $data['batch_shipping_enabled'] ?? true,

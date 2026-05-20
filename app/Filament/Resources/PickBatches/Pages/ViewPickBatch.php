@@ -4,11 +4,14 @@ namespace App\Filament\Resources\PickBatches\Pages;
 
 use App\Enums\PickBatchStatus;
 use App\Filament\Resources\PickBatches\PickBatchResource;
+use App\Models\Location;
 use App\Services\GotenbergService;
 use App\Services\PickBatchService;
+use App\Services\SettingsService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Support\Facades\Storage;
 use Picqer\Barcode\BarcodeGeneratorSVG;
 use Throwable;
 
@@ -72,6 +75,8 @@ class ViewPickBatch extends ViewRecord
                         'pickBatch' => $this->record,
                         'pivotRows' => $this->record->pickBatchShipments->sortBy('tote_code'),
                         'generator' => new BarcodeGeneratorSVG,
+                        'logoDataUri' => $this->resolveLogoDataUri(),
+                        'defaultLocation' => Location::getDefault(),
                     ], function (): void {
                         $this->record->pickBatchShipments()->update(['pack_slip_printed_at' => now()]);
                     });
@@ -109,6 +114,20 @@ class ViewPickBatch extends ViewRecord
                     $this->record->refresh();
                 }),
         ];
+    }
+
+    private function resolveLogoDataUri(): ?string
+    {
+        $path = app(SettingsService::class)->get('pack_slip_logo');
+
+        if (blank($path) || ! Storage::disk('public')->exists($path)) {
+            return null;
+        }
+
+        $content = Storage::disk('public')->get($path);
+        $mimeType = Storage::disk('public')->mimeType($path) ?: 'image/png';
+
+        return 'data:'.$mimeType.';base64,'.base64_encode($content);
     }
 
     /**
