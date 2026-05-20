@@ -502,8 +502,9 @@ class Settings extends Page
                                 ->directory('logos')
                                 ->visibility('public')
                                 ->image()
-                                ->imagePreviewHeight('60')
-                                ->maxSize(2048)
+                                ->panelLayout('grid')
+                                // ->imagePreviewHeight('200')
+                                ->maxSize(10240)
                                 ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']),
                         ])
                         ->columns(1),
