@@ -1,0 +1,36 @@
+name: Scheduled Rebuild
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Every Monday at 6am UTC
+  workflow_dispatch:
+
+jobs:
+  docker:
+    name: Rebuild & Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build app image (no cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: app
+          tags: polybag-app:scheduled
+          load: true
+          push: false
+          no-cache: true
+
+      - name: Scan app image for CVEs
+        uses: anchore/scan-action@v6
+        with:
+          image: polybag-app:scheduled
+          severity-cutoff: high
+          only-fixed: true
+          fail-build: true
+          output-format: table
