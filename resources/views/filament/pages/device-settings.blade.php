@@ -144,34 +144,7 @@
                 </x-filament::fieldset>
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
-                <div>
-                    <label for="scale-vendor-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Vendor ID
-                    </label>
-                    <input
-                        type="text"
-                        id="scale-vendor-id"
-                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                        placeholder="e.g., 0x0922"
-                        readonly
-                    >
-                </div>
-                <div>
-                    <label for="scale-product-id" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Product ID
-                    </label>
-                    <input
-                        type="text"
-                        id="scale-product-id"
-                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-primary-500 focus:ring-primary-500"
-                        placeholder="e.g., 0x8003"
-                        readonly
-                    >
-                </div>
-            </div>
-
-            <div id="scale-reading" class="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 hidden">
+<div id="scale-reading" class="p-5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 hidden">
                 <div class="text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">Current Reading</div>
                 <div class="text-4xl font-mono font-bold text-gray-950 dark:text-white tabular-nums">
                     <span id="scale-weight">0.00</span> <span class="text-lg font-medium text-gray-400">lbs</span>
@@ -212,23 +185,6 @@
         </div>
     </x-filament::section>
 
-    <!-- Scale Status -->
-    <x-filament::section>
-        <x-slot name="heading">Scale Status</x-slot>
-        <x-slot name="description">Live connection status for the configured scale on this workstation.</x-slot>
-
-        <div class="grid gap-3 sm:grid-cols-2">
-            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Connection</div>
-                <div id="scale-status-connection" class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">Not connected</div>
-            </div>
-            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Scale State</div>
-                <div id="scale-status-state" class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">Waiting</div>
-            </div>
-        </div>
-    </x-filament::section>
-
     <!-- Save Button -->
     <div class="flex items-center gap-4">
         <x-filament::button
@@ -255,8 +211,6 @@
             const detectScalesBtn = document.getElementById('detect-scales');
             const scaleDeviceSelect = document.getElementById('scale-device-select');
             const saveSettingsBtn = document.getElementById('save-settings');
-            const scaleVendorInput = document.getElementById('scale-vendor-id');
-            const scaleProductInput = document.getElementById('scale-product-id');
             const qzIndicator = document.getElementById('qz-indicator');
             const qzStatusText = document.getElementById('qz-status-text');
             const saveStatus = document.getElementById('save-status');
@@ -271,14 +225,10 @@
             function loadSettings() {
                 const labelPrinter = localStorage.getItem('labelPrinter') || '';
                 const reportPrinter = localStorage.getItem('reportPrinter') || '';
-                const scaleVendorId = localStorage.getItem('scaleVendorId') || '';
-                const scaleProductId = localStorage.getItem('scaleProductId') || '';
                 const labelFormat = localStorage.getItem('labelFormat') || 'pdf';
                 const labelDpi = localStorage.getItem('labelDpi') || '203';
                 const scaleBackend = localStorage.getItem('scaleBackend') || 'auto';
 
-                scaleVendorInput.value = scaleVendorId;
-                scaleProductInput.value = scaleProductId;
                 labelFormatSelect.value = labelFormat;
                 labelDpiSelect.value = labelDpi;
                 scaleBackendSelect.value = scaleBackend;
@@ -331,8 +281,6 @@
                     const vendorId = '0x' + device.vendorId.toString(16).padStart(4, '0');
                     const productId = '0x' + device.productId.toString(16).padStart(4, '0');
 
-                    scaleVendorInput.value = vendorId;
-                    scaleProductInput.value = productId;
                     localStorage.setItem('scaleVendorId', vendorId);
                     localStorage.setItem('scaleProductId', productId);
 
@@ -366,8 +314,6 @@
                 localStorage.setItem('reportPrinter', reportPrinterSelect.value);
                 localStorage.setItem('labelFormat', labelFormatSelect.value);
                 localStorage.setItem('labelDpi', labelDpiSelect.value);
-                localStorage.setItem('scaleVendorId', scaleVendorInput.value);
-                localStorage.setItem('scaleProductId', scaleProductInput.value);
                 localStorage.setItem('scaleBackend', scaleBackendSelect.value);
 
                 saveStatus.textContent = 'Settings saved!';
@@ -495,23 +441,12 @@
             const scaleWeightSpan = document.getElementById('scale-weight');
             const scaleStatusDiv = document.getElementById('scale-status');
             const disconnectScaleBtn = document.getElementById('disconnect-scale');
-            const scaleStatusConnection = document.getElementById('scale-status-connection');
-            const scaleStatusState = document.getElementById('scale-status-state');
-
             function updateScaleDisplay(result) {
                 if (result) {
                     scaleWeightSpan.textContent = result.weight.toFixed(2);
                     scaleStatusDiv.textContent = result.status;
                     scaleStatusDiv.classList.toggle('text-success-500', result.isStable);
                     scaleStatusDiv.classList.toggle('text-warning-500', !result.isStable);
-
-                    if (result.isStable) {
-                        scaleStatusState.textContent = 'Stable';
-                        scaleStatusState.className = 'mt-2 text-sm font-semibold text-success-600 dark:text-success-400';
-                    } else {
-                        scaleStatusState.textContent = 'In motion';
-                        scaleStatusState.className = 'mt-2 text-sm font-semibold text-warning-600 dark:text-warning-400';
-                    }
                 }
             }
 
@@ -535,8 +470,7 @@
                         return;
                     }
 
-                    const savedVendorId = scaleVendorInput.value;
-                    const savedProductId = scaleProductInput.value;
+                    const { vendorId: savedVendorId, productId: savedProductId } = ScaleUtils.getScaleIds();
 
                     // Deduplicate by vendor:product (devices can appear multiple times for different usage pages)
                     const seen = new Set();
@@ -581,31 +515,20 @@
                 }
             }
 
-            // When a scale is selected from the dropdown, update the vendor/product ID fields
+            // When a scale is selected from the dropdown, save and connect
             scaleDeviceSelect.addEventListener('change', async function() {
                 const value = this.value;
-                if (!value) {
-                    scaleVendorInput.value = '';
-                    scaleProductInput.value = '';
-                    return;
-                }
+                if (!value) return;
 
                 const [vendorId, productId] = value.split(':');
-                scaleVendorInput.value = vendorId;
-                scaleProductInput.value = productId;
-
-                // Save immediately so ScaleUtils can find the device
                 localStorage.setItem('scaleVendorId', vendorId);
                 localStorage.setItem('scaleProductId', productId);
 
-                // Auto-connect to show live reading
                 await connectScale();
             });
 
             async function connectScale() {
-                const vendorId = scaleVendorInput.value;
-                const productId = scaleProductInput.value;
-
+                const { vendorId, productId } = ScaleUtils.getScaleIds();
                 if (!vendorId || !productId) return;
 
                 try {
@@ -615,9 +538,6 @@
 
                     scaleReadingDiv.classList.remove('hidden');
                     disconnectScaleBtn.style.display = '';
-
-                    scaleStatusConnection.textContent = 'Connected';
-                    scaleStatusConnection.className = 'mt-2 text-sm font-semibold text-success-600 dark:text-success-400';
 
                     new FilamentNotification()
                         .title('Scale Connected')
@@ -648,19 +568,12 @@
                 // Clear saved scale settings
                 localStorage.removeItem('scaleVendorId');
                 localStorage.removeItem('scaleProductId');
-                scaleVendorInput.value = '';
-                scaleProductInput.value = '';
                 scaleDeviceSelect.value = '';
 
                 scaleReadingDiv.classList.add('hidden');
                 disconnectScaleBtn.style.display = 'none';
                 scaleWeightSpan.textContent = '0.00';
                 scaleStatusDiv.textContent = 'Waiting for stable reading...';
-
-                scaleStatusConnection.textContent = 'Not connected';
-                scaleStatusConnection.className = 'mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300';
-                scaleStatusState.textContent = 'Waiting';
-                scaleStatusState.className = 'mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300';
 
                 new FilamentNotification()
                     .title('Scale Disconnected')
@@ -710,7 +623,6 @@
 
             // Auto-connect scale based on backend
             if (ScaleUtils.backend === 'webhid') {
-                loadSettings(); // populate vendor/product inputs before connectScale reads them
                 autoConnectScale();
             } else {
                 document.addEventListener('qz-tray:connected', function() {
