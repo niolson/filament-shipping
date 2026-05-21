@@ -94,3 +94,4 @@ jobs:
           severity-cutoff: high
           only-fixed: true
           fail-build: true
+          output-format: table
