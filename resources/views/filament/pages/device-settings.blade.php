@@ -710,6 +710,7 @@
 
             // Auto-connect scale based on backend
             if (ScaleUtils.backend === 'webhid') {
+                loadSettings(); // populate vendor/product inputs before connectScale reads them
                 autoConnectScale();
             } else {
                 document.addEventListener('qz-tray:connected', function() {
