@@ -503,7 +503,6 @@ class Settings extends Page
                                 ->visibility('public')
                                 ->image()
                                 ->panelLayout('grid')
-                                // ->imagePreviewHeight('200')
                                 ->maxSize(10240)
                                 ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']),
                         ])
@@ -836,9 +835,7 @@ class Settings extends Page
                                             Select::make('fedex_reg_state')
                                                 ->label(fn (Get $get): string => app(AddressReferenceService::class)->getAdministrativeAreaLabel($get('fedex_reg_country')))
                                                 ->options(fn (Get $get): array => app(AddressReferenceService::class)->getSubdivisionOptions($get('fedex_reg_country')))
-                                                ->native(false)
-                                                ->searchable()
-                                                ->optionsLimit(300)
+                                                ->native(true)
                                                 ->required(fn (Get $get): bool => app(AddressReferenceService::class)->isAdministrativeAreaRequired($get('fedex_reg_country')))
                                                 ->hidden(fn (Get $get): bool => app(AddressReferenceService::class)->getSubdivisionOptions($get('fedex_reg_country')) === [])
                                                 ->live(),

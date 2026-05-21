@@ -56,7 +56,7 @@
             }
         }"
     >
-        <div class="sticky top-0 z-10 mb-4 rounded-xl border border-gray-200/70 bg-white/90 p-3 shadow-sm backdrop-blur dark:border-white/10 dark:bg-gray-950/80">
+        <div class="sticky top-0 z-10 mb-4">
             <div class="flex flex-wrap items-center justify-end gap-3">
             @if($isAdmin)
                 <x-shipping-auto-ship-toggle
