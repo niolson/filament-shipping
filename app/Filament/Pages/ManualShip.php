@@ -37,6 +37,7 @@ use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\HtmlString;
 use UnitEnum;
 
 class ManualShip extends Page implements HasForms
@@ -94,81 +95,95 @@ class ManualShip extends Page implements HasForms
                         Section::make('Recipient & Address')
                             ->description('Enter the destination details for this manual shipment.')
                             ->schema([
-                                Forms\Components\TextInput::make('shipment_reference')
-                                    ->label('Reference')
-                                    ->helperText('Optional - External channel reference number')
-                                    ->maxLength(255)
-                                    ->columnSpanFull(),
                                 ...AddressForm::recipientAddressFields(
                                     includeCompany: true,
                                     includePhone: true,
                                     includeEmail: true,
                                 ),
-                                Forms\Components\Select::make('shipping_method_id')
-                                    ->label('Shipping Method')
-                                    ->options(fn (): array => $this->getShippingMethodOptions())
-                                    ->searchable()
-                                    ->native(false)
-                                    ->placeholder('— None —')
-                                    ->columnSpanFull(),
                             ])
                             ->columns(2),
-                        Section::make('Package')
-                            ->description('Choose a saved box and confirm the measured package dimensions.')
+                        Grid::make(1)
                             ->schema([
-                                Forms\Components\Select::make('box_size_id')
-                                    ->label('Box Size')
-                                    ->options(fn (): array => $this->getBoxSizeOptions())
-                                    ->searchable()
-                                    ->native(false)
-                                    ->placeholder('Custom')
-                                    ->live()
-                                    ->afterStateUpdated(function (Set $set, ?string $state): void {
-                                        if (! $state) {
-                                            return;
-                                        }
+                                Section::make('Package')
+                                    ->description('Choose a saved box and confirm the measured package dimensions.')
+                                    ->schema([
+                                        Forms\Components\Select::make('box_size_id')
+                                            ->label('Box Size')
+                                            ->options(fn (): array => $this->getBoxSizeOptions())
+                                            ->searchable()
+                                            ->native(false)
+                                            ->placeholder('Custom')
+                                            ->live()
+                                            ->afterStateUpdated(function (Set $set, ?string $state): void {
+                                                if (! $state) {
+                                                    return;
+                                                }
 
-                                        $box = BoxSize::find($state);
+                                                $box = BoxSize::find($state);
 
-                                        if (! $box) {
-                                            return;
-                                        }
+                                                if (! $box) {
+                                                    return;
+                                                }
 
-                                        $set('height', (string) $box->height);
-                                        $set('width', (string) $box->width);
-                                        $set('length', (string) $box->length);
-                                    }),
-                                Forms\Components\TextInput::make('weight')
-                                    ->label('Weight')
-                                    ->suffix('lbs')
-                                    ->helperText('Auto-fills from the connected scale when stable.')
-                                    ->required()
-                                    ->numeric()
-                                    ->minValue(0.01)
-                                    ->step(0.01),
-                                Forms\Components\TextInput::make('height')
-                                    ->label('Height')
-                                    ->suffix('in')
-                                    ->required()
-                                    ->numeric()
-                                    ->minValue(0.01)
-                                    ->step(0.01),
-                                Forms\Components\TextInput::make('width')
-                                    ->label('Width')
-                                    ->suffix('in')
-                                    ->required()
-                                    ->numeric()
-                                    ->minValue(0.01)
-                                    ->step(0.01),
-                                Forms\Components\TextInput::make('length')
-                                    ->label('Length')
-                                    ->suffix('in')
-                                    ->required()
-                                    ->numeric()
-                                    ->minValue(0.01)
-                                    ->step(0.01),
-                            ])
-                            ->columns(2),
+                                                $set('height', (string) $box->height);
+                                                $set('width', (string) $box->width);
+                                                $set('length', (string) $box->length);
+                                            }),
+                                        Forms\Components\TextInput::make('weight')
+                                            ->label(new HtmlString(
+                                                'Weight <span x-show="scaleConnected && !scaleStable" x-cloak class="ml-1 text-xs font-normal text-warning-500">In motion...</span>'
+                                            ))
+                                            ->suffix('lbs')
+                                            ->helperText('Auto-fills from the connected scale when stable.')
+                                            ->required()
+                                            ->numeric()
+                                            ->minValue(0.01)
+                                            ->step(0.01)
+                                            ->extraInputAttributes([
+                                                'x-bind:style' => "scaleConnected && !scaleStable ? 'color: var(--warning-500)' : ''",
+                                            ]),
+                                        Grid::make(3)
+                                            ->schema([
+                                                Forms\Components\TextInput::make('height')
+                                                    ->label('Height')
+                                                    ->suffix('in')
+                                                    ->required()
+                                                    ->numeric()
+                                                    ->minValue(0.01)
+                                                    ->step(0.01),
+                                                Forms\Components\TextInput::make('width')
+                                                    ->label('Width')
+                                                    ->suffix('in')
+                                                    ->required()
+                                                    ->numeric()
+                                                    ->minValue(0.01)
+                                                    ->step(0.01),
+                                                Forms\Components\TextInput::make('length')
+                                                    ->label('Length')
+                                                    ->suffix('in')
+                                                    ->required()
+                                                    ->numeric()
+                                                    ->minValue(0.01)
+                                                    ->step(0.01),
+                                            ])
+                                            ->columnSpanFull(),
+                                    ])
+                                    ->columns(2),
+                                Section::make('Shipment Details')
+                                    ->schema([
+                                        Forms\Components\TextInput::make('shipment_reference')
+                                            ->label('Reference')
+                                            ->helperText('Optional - External channel reference number')
+                                            ->maxLength(255),
+                                        Forms\Components\Select::make('shipping_method_id')
+                                            ->label('Shipping Method')
+                                            ->options(fn (): array => $this->getShippingMethodOptions())
+                                            ->searchable()
+                                            ->native(false)
+                                            ->placeholder('— None —'),
+                                    ])
+                                    ->columns(2),
+                            ]),
                     ]),
             ])
             ->statePath('data');
@@ -327,6 +342,11 @@ class ManualShip extends Page implements HasForms
                 $box->id => sprintf('%s (%s" x %s" x %s")', $box->label, $box->length, $box->width, $box->height),
             ])
             ->all();
+    }
+
+    public function syncDataHash(): void
+    {
+        $this->rememberData();
     }
 
     public function reprintLastLabel(): void

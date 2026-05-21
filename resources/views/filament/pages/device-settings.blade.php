@@ -212,6 +212,23 @@
         </div>
     </x-filament::section>
 
+    <!-- Scale Status -->
+    <x-filament::section>
+        <x-slot name="heading">Scale Status</x-slot>
+        <x-slot name="description">Live connection status for the configured scale on this workstation.</x-slot>
+
+        <div class="grid gap-3 sm:grid-cols-2">
+            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Connection</div>
+                <div id="scale-status-connection" class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">Not connected</div>
+            </div>
+            <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
+                <div class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Scale State</div>
+                <div id="scale-status-state" class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">Waiting</div>
+            </div>
+        </div>
+    </x-filament::section>
+
     <!-- Save Button -->
     <div class="flex items-center gap-4">
         <x-filament::button
@@ -478,6 +495,8 @@
             const scaleWeightSpan = document.getElementById('scale-weight');
             const scaleStatusDiv = document.getElementById('scale-status');
             const disconnectScaleBtn = document.getElementById('disconnect-scale');
+            const scaleStatusConnection = document.getElementById('scale-status-connection');
+            const scaleStatusState = document.getElementById('scale-status-state');
 
             function updateScaleDisplay(result) {
                 if (result) {
@@ -485,6 +504,14 @@
                     scaleStatusDiv.textContent = result.status;
                     scaleStatusDiv.classList.toggle('text-success-500', result.isStable);
                     scaleStatusDiv.classList.toggle('text-warning-500', !result.isStable);
+
+                    if (result.isStable) {
+                        scaleStatusState.textContent = 'Stable';
+                        scaleStatusState.className = 'mt-2 text-sm font-semibold text-success-600 dark:text-success-400';
+                    } else {
+                        scaleStatusState.textContent = 'In motion';
+                        scaleStatusState.className = 'mt-2 text-sm font-semibold text-warning-600 dark:text-warning-400';
+                    }
                 }
             }
 
@@ -589,6 +616,9 @@
                     scaleReadingDiv.classList.remove('hidden');
                     disconnectScaleBtn.style.display = '';
 
+                    scaleStatusConnection.textContent = 'Connected';
+                    scaleStatusConnection.className = 'mt-2 text-sm font-semibold text-success-600 dark:text-success-400';
+
                     new FilamentNotification()
                         .title('Scale Connected')
                         .body('Reading live weight data from scale.')
@@ -626,6 +656,11 @@
                 disconnectScaleBtn.style.display = 'none';
                 scaleWeightSpan.textContent = '0.00';
                 scaleStatusDiv.textContent = 'Waiting for stable reading...';
+
+                scaleStatusConnection.textContent = 'Not connected';
+                scaleStatusConnection.className = 'mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300';
+                scaleStatusState.textContent = 'Waiting';
+                scaleStatusState.className = 'mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300';
 
                 new FilamentNotification()
                     .title('Scale Disconnected')

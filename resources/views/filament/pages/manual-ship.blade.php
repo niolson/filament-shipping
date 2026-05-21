@@ -41,12 +41,22 @@
 
                 try {
                     await ScaleUtils.claimScale();
+
+                    let prevStable = null;
                     await ScaleUtils.startScaleStream((result) => {
                         this.scaleStable = result.isStable;
 
                         if (result.weight > 0) {
                             $wire.data.weight = result.weight.toFixed(2);
                         }
+
+                        // Resync the saved-data hash when the weight settles so
+                        // scale autofill doesn't trigger the unsaved-changes alert.
+                        if (result.isStable && prevStable !== true && result.weight > 0) {
+                            $wire.syncDataHash();
+                        }
+
+                        prevStable = result.isStable;
                     });
 
                     this.scaleConnected = true;
@@ -79,7 +89,9 @@
                 type="submit"
                 form="manual-ship-form"
                 wire:loading.attr="disabled"
+                wire:target="ship"
                 loading-type="wire"
+                loading-target="ship"
             />
             </div>
         </div>
@@ -87,40 +99,6 @@
         <form id="manual-ship-form" wire:submit="ship" class="space-y-6">
             {{ $this->form }}
 
-            <x-filament::section>
-                <x-slot name="heading">Scale Status</x-slot>
-                <x-slot name="description">Live workstation status for the connected shipping scale.</x-slot>
-
-                <div class="grid gap-3 sm:grid-cols-3">
-                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Connection</div>
-                        <div x-show="scaleConnected" x-cloak class="mt-2 text-sm font-semibold text-success-600 dark:text-success-400">
-                            Connected
-                        </div>
-                        <div x-show="!scaleConnected" class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">
-                            Not connected
-                        </div>
-                    </div>
-                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Scale State</div>
-                        <div x-show="scaleConnected && scaleStable" x-cloak class="mt-2 text-sm font-semibold text-success-600 dark:text-success-400">
-                            Stable
-                        </div>
-                        <div x-show="scaleConnected && !scaleStable" x-cloak class="mt-2 text-sm font-semibold text-warning-600 dark:text-warning-400">
-                            In motion
-                        </div>
-                        <div x-show="!scaleConnected" class="mt-2 text-sm font-semibold text-gray-600 dark:text-gray-300">
-                            Waiting
-                        </div>
-                    </div>
-                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-white/5">
-                        <div class="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Behavior</div>
-                        <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                            Stable readings update the Weight field automatically.
-                        </div>
-                    </div>
-                </div>
-            </x-filament::section>
-        </form>
+            </form>
     </div>
 </x-filament-panels::page>
