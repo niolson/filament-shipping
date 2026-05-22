@@ -333,7 +333,7 @@ class UspsAdapter implements CarrierAdapterInterface
     {
         try {
             $connector = USPSConnector::getUspsConnector();
-            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken();
+            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken($request->locationId);
 
             $apiRequest = new Label;
             $apiRequest->headers()->set([
@@ -431,7 +431,7 @@ class UspsAdapter implements CarrierAdapterInterface
     {
         try {
             $connector = USPSConnector::getUspsConnector();
-            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken();
+            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken($request->locationId);
 
             $apiRequest = new InternationalLabel;
             $apiRequest->headers()->set([
@@ -569,7 +569,7 @@ class UspsAdapter implements CarrierAdapterInterface
     {
         try {
             $connector = USPSConnector::getUspsConnector();
-            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken();
+            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken($package->location_id);
             $isInternational = $package->shipment->country !== 'US';
 
             $apiRequest = $isInternational

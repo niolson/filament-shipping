@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Location;
 use App\Models\Manifest;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -16,6 +17,7 @@ class ManifestFactory extends Factory
     {
         return [
             'carrier' => 'USPS',
+            'location_id' => fn () => Location::getDefault()?->id,
             'manifest_number' => fake()->numerify('##########'),
             'image' => null,
             'manifest_date' => now()->toDateString(),

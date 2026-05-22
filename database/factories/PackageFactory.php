@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\BoxSize;
+use App\Models\Location;
 use App\Models\Manifest;
 use App\Models\Package;
 use App\Models\Shipment;
@@ -17,6 +18,7 @@ class PackageFactory extends Factory
     {
         return [
             'shipment_id' => Shipment::factory(),
+            'location_id' => fn () => Location::getDefault()?->id,
             'box_size_id' => fake()->optional()->randomElement([BoxSize::factory(), null]),
             'tracking_number' => null,
             'carrier' => null,

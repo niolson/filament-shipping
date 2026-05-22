@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\AddressReferenceService;
 use App\Services\PhoneParserService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -37,6 +38,11 @@ class Location extends Model
         'is_default' => 'boolean',
         'active' => 'boolean',
     ];
+
+    public function scopeActive(Builder $query): Builder
+    {
+        return $query->where('active', true);
+    }
 
     /**
      * Get the default location, memoized for the request lifecycle.

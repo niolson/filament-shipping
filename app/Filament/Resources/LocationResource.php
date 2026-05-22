@@ -11,6 +11,7 @@ use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -70,7 +71,7 @@ class LocationResource extends Resource
                         postalCodeMaxLength: 20,
                         phoneMaxLength: 20,
                     ))->columns(2),
-                Components\Section::make('Carrier Pickup Schedule')
+                Components\Section::make('Carrier Settings')
                     ->schema([
                         Forms\Components\Repeater::make('carrierLocations')
                             ->relationship()
@@ -79,6 +80,7 @@ class LocationResource extends Resource
                                     ->label('Carrier')
                                     ->options(fn () => Carrier::active()->pluck('name', 'id'))
                                     ->required()
+                                    ->live()
                                     ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
                                 Forms\Components\CheckboxList::make('pickup_days')
                                     ->label('Pickup Days')
@@ -93,12 +95,27 @@ class LocationResource extends Resource
                                     ])
                                     ->default([1, 2, 3, 4, 5])
                                     ->columns(7),
+                                Forms\Components\TextInput::make('usps_crid')
+                                    ->label('USPS CRID')
+                                    ->helperText('Customer Registration ID for this location. Overrides the global CRID in Settings.')
+                                    ->maxLength(50)
+                                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'USPS'),
+                                Forms\Components\TextInput::make('usps_mid')
+                                    ->label('USPS MID')
+                                    ->helperText('Mailer ID for this location. Overrides the global MID in Settings.')
+                                    ->maxLength(9)
+                                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'USPS'),
+                                Forms\Components\TextInput::make('usps_eps_account')
+                                    ->label('USPS EPS Account')
+                                    ->helperText('Leave blank to use the value from the OAuth token.')
+                                    ->maxLength(50)
+                                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'USPS'),
                             ])
                             ->defaultItems(0)
                             ->addActionLabel('Add Carrier')
                             ->columnSpanFull(),
                     ])
-                    ->description('Configure which days each carrier picks up from this location. Defaults to weekdays if not set.')
+                    ->description('Configure pickup days and carrier-specific settings for this location.')
                     ->collapsible(),
             ]);
     }

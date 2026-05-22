@@ -6,6 +6,7 @@ use App\Enums\PackageStatus;
 use App\Enums\Role;
 use App\Filament\Concerns\NotifiesUser;
 use App\Models\Carrier;
+use App\Models\Location;
 use App\Models\Manifest;
 use App\Models\Package;
 use App\Services\Carriers\CarrierRegistry;
@@ -35,12 +36,20 @@ class EndOfDay extends Page
     /** @var array<int, array{carrier: string, package_count: int, unmanifested_count: int, supports_manifest: bool, ship_date: string, next_ship_date: string}> */
     public array $carrierSummary = [];
 
+    public ?int $locationId = null;
+
     public static function canAccess(): bool
     {
         return auth()->user()->role->isAtLeast(Role::Manager);
     }
 
     public function mount(): void
+    {
+        $this->locationId = auth()->user()->resolveLocation()?->id;
+        $this->loadData();
+    }
+
+    public function updatedLocationId(): void
     {
         $this->loadData();
     }
@@ -49,13 +58,15 @@ class EndOfDay extends Page
     {
         $shipDateService = app(ShipDateService::class);
         $registry = app(CarrierRegistry::class);
+        $multiLocation = (bool) app(SettingsService::class)->get('multi_location_enabled', false);
 
         $this->carrierSummary = Carrier::active()
             ->orderBy('name')
             ->get()
-            ->map(function ($carrier) use ($shipDateService, $registry) {
-                $shipDate = $shipDateService->getShipDate($carrier->name);
-                $nextShipDate = $shipDateService->getNextPickupDay($carrier->name);
+            ->map(function ($carrier) use ($shipDateService, $registry, $multiLocation) {
+                $locationId = $multiLocation ? $this->locationId : null;
+                $shipDate = $shipDateService->getShipDate($carrier->name, $locationId);
+                $nextShipDate = $shipDateService->getNextPickupDay($carrier->name, $locationId);
                 $supportsManifest = $registry->has($carrier->name)
                     && $registry->get($carrier->name)->supportsManifest();
 
@@ -64,6 +75,7 @@ class EndOfDay extends Page
                     ->where('status', PackageStatus::Shipped)
                     ->whereNotNull('tracking_number')
                     ->whereDate('ship_date', $shipDate)
+                    ->when($multiLocation && $locationId, fn ($q) => $q->where('location_id', $locationId))
                     ->count();
 
                 $unmanifestedCount = 0;
@@ -74,6 +86,7 @@ class EndOfDay extends Page
                         ->whereNotNull('tracking_number')
                         ->whereNull('manifest_id')
                         ->whereDate('ship_date', $shipDate)
+                        ->when($multiLocation && $locationId, fn ($q) => $q->where('location_id', $locationId))
                         ->count();
                 }
 
@@ -87,23 +100,34 @@ class EndOfDay extends Page
                 ];
             })
             ->all();
-
     }
 
     public function getManifestsProperty(): LengthAwarePaginator
     {
+        $multiLocation = (bool) app(SettingsService::class)->get('multi_location_enabled', false);
+
         return Manifest::query()
+            ->with('location')
+            ->when($multiLocation && $this->locationId, fn ($q) => $q->where('location_id', $this->locationId))
             ->latest()
             ->paginate(10);
+    }
+
+    /** @return array<int|string, string> */
+    public function getLocationsProperty(): array
+    {
+        return Location::active()->orderBy('name')->pluck('name', 'id')->all();
     }
 
     public function endShippingDay(string $carrier): void
     {
         $shipDateService = app(ShipDateService::class);
+        $multiLocation = (bool) app(SettingsService::class)->get('multi_location_enabled', false);
+        $locationId = $multiLocation ? $this->locationId : null;
 
-        $shipDateService->endShippingDay($carrier);
+        $shipDateService->endShippingDay($carrier, $locationId);
 
-        $nextDate = $shipDateService->getShipDate($carrier);
+        $nextDate = $shipDateService->getShipDate($carrier, $locationId);
         $this->notifySuccess('Shipping Day Ended', "{$carrier} ship date advanced to {$nextDate->format('M j')}.");
 
         $this->loadData();
@@ -111,7 +135,9 @@ class EndOfDay extends Page
 
     public function generateManifest(string $carrier): void
     {
-        $shipDate = app(ShipDateService::class)->getShipDate($carrier);
+        $multiLocation = (bool) app(SettingsService::class)->get('multi_location_enabled', false);
+        $locationId = $multiLocation ? $this->locationId : null;
+        $shipDate = app(ShipDateService::class)->getShipDate($carrier, $locationId);
 
         $packages = Package::query()
             ->where('carrier', $carrier)
@@ -119,6 +145,7 @@ class EndOfDay extends Page
             ->whereNotNull('tracking_number')
             ->whereNull('manifest_id')
             ->whereDate('ship_date', $shipDate)
+            ->when($multiLocation && $locationId, fn ($q) => $q->where('location_id', $locationId))
             ->get();
 
         if ($packages->isEmpty()) {
@@ -127,7 +154,7 @@ class EndOfDay extends Page
             return;
         }
 
-        $response = app(ManifestService::class)->createManifest($carrier, $packages, $shipDate);
+        $response = app(ManifestService::class)->createManifest($carrier, $packages, $shipDate, $locationId);
 
         if (! $response->success) {
             $this->notifyError('Manifest Error', $response->errorMessage ?? 'Failed to create manifest.');

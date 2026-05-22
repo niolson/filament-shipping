@@ -8,6 +8,7 @@ use App\Http\Integrations\Fedex\Requests\Registration\ValidateAddress;
 use App\Http\Integrations\Fedex\Requests\Registration\VerifyInvoice;
 use App\Http\Integrations\Fedex\Requests\Registration\VerifyPin;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
+use App\Models\Location;
 use App\Models\Setting;
 use App\Models\ShippingMethod;
 use App\Models\User;
@@ -92,8 +93,11 @@ it('forces suppress_printing to false when sandbox_mode is turned off', function
 });
 
 it('clears API auth caches when sandbox_mode changes', function (): void {
+    $location = Location::factory()->create();
+
     Cache::put('usps_authenticator', 'test-token', 3600);
-    Cache::put('usps_payment_authorization_token', 'test-payment-token', 3600);
+    Cache::put('usps_payment_authorization_token:global', 'test-payment-token-global', 3600);
+    Cache::put("usps_payment_authorization_token:{$location->id}", 'test-payment-token-loc', 3600);
     Cache::put('fedex_authenticator', 'test-fedex-token', 3600);
 
     Livewire::test(Settings::class)
@@ -104,7 +108,8 @@ it('clears API auth caches when sandbox_mode changes', function (): void {
         ->assertNotified();
 
     expect(Cache::has('usps_authenticator'))->toBeFalse()
-        ->and(Cache::has('usps_payment_authorization_token'))->toBeFalse()
+        ->and(Cache::has('usps_payment_authorization_token:global'))->toBeFalse()
+        ->and(Cache::has("usps_payment_authorization_token:{$location->id}"))->toBeFalse()
         ->and(Cache::has('fedex_authenticator'))->toBeFalse();
 });
 

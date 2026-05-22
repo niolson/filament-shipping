@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\Location;
 use App\Models\User;
+use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
@@ -48,6 +49,12 @@ class UserResource extends Resource
                 Forms\Components\Select::make('role')
                     ->options(Role::class)
                     ->required(),
+                Forms\Components\Select::make('location_id')
+                    ->label('Default Location')
+                    ->relationship('location', 'name')
+                    ->placeholder('Use system default location')
+                    ->nullable()
+                    ->visible(fn (): bool => (bool) app(SettingsService::class)->get('multi_location_enabled', false)),
                 Forms\Components\Toggle::make('active')
                     ->default(true),
             ]);

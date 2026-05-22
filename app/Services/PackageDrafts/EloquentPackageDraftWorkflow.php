@@ -16,6 +16,7 @@ use App\Events\PackageCreated;
 use App\Exceptions\PackageDraftIncompleteException;
 use App\Exceptions\PackageDraftInvalidException;
 use App\Models\BoxSize;
+use App\Models\Location;
 use App\Models\Package;
 use App\Models\Shipment;
 use Illuminate\Support\Facades\DB;
@@ -182,6 +183,7 @@ class EloquentPackageDraftWorkflow implements PackageDraftWorkflow
     {
         $package = Package::create([
             'shipment_id' => $shipment->id,
+            'location_id' => auth()->user()?->resolveLocation()?->id ?? Location::getDefault()?->id,
             'status' => PackageStatus::Unshipped,
         ]);
 

@@ -163,6 +163,7 @@ class Settings extends Page
             'batch_shipping_enabled' => app(SettingsService::class)->get('batch_shipping_enabled', true),
             'manual_shipping_enabled' => app(SettingsService::class)->get('manual_shipping_enabled', true),
             'picking_enabled' => app(SettingsService::class)->get('picking_enabled', false),
+            'multi_location_enabled' => app(SettingsService::class)->get('multi_location_enabled', false),
             'carrier_api_timeout' => app(SettingsService::class)->get('carrier_api_timeout', 15),
             'import_source' => app(SettingsService::class)->get('import_source', 'database'),
             'audit_log_retention_days' => app(SettingsService::class)->get('audit_log_retention_days', 365),
@@ -535,6 +536,10 @@ class Settings extends Page
                                 ->label('Picking')
                                 ->helperText('When enabled, pickers can create pick batches and print picking summaries before packing.')
                                 ->default(false),
+                            Toggle::make('multi_location_enabled')
+                                ->label('Multi-Location')
+                                ->helperText('When enabled, packages are tracked per warehouse and end-of-day processes run per location. Each user can be assigned a default location.')
+                                ->default(false),
                             Toggle::make('transparency_enabled')
                                 ->label('Amazon Transparency Program')
                                 ->helperText('When enabled, shipment items requiring transparency codes will prompt for code scanning during packing.')
@@ -668,9 +673,11 @@ class Settings extends Page
                                 ->placeholder(fn () => $this->getCredentialPlaceholder('usps.client_secret', 'services.usps.client_secret')),
                             TextInput::make('usps_crid')
                                 ->label('CRID')
+                                ->helperText('Global fallback — used when a location has no CRID configured under its Carrier Settings.')
                                 ->maxLength(50),
                             TextInput::make('usps_mid')
                                 ->label('MID')
+                                ->helperText('Global fallback — used when a location has no MID configured under its Carrier Settings.')
                                 ->maxLength(50),
                             Placeholder::make('usps_pricing_tier')
                                 ->label('Pricing Tier')
@@ -1340,6 +1347,7 @@ class Settings extends Page
             'batch_shipping_enabled' => $data['batch_shipping_enabled'] ?? true,
             'manual_shipping_enabled' => $data['manual_shipping_enabled'] ?? true,
             'picking_enabled' => (bool) ($data['picking_enabled'] ?? false),
+            'multi_location_enabled' => (bool) ($data['multi_location_enabled'] ?? false),
             'carrier_api_timeout' => (int) ($data['carrier_api_timeout'] ?? 15),
             'import_source' => $data['import_source'] ?? 'database',
             'audit_log_retention_days' => (int) ($data['audit_log_retention_days'] ?? 365),
@@ -1421,7 +1429,10 @@ class Settings extends Page
         // Clear cached OAuth tokens when sandbox mode or credentials change
         if ($sandboxMode !== $previousSandboxMode || $credentialsChanged) {
             Cache::forget('usps_authenticator');
-            Cache::forget('usps_payment_authorization_token');
+            Cache::forget('usps_payment_authorization_token:global');
+            foreach (Location::pluck('id') as $locationId) {
+                Cache::forget("usps_payment_authorization_token:{$locationId}");
+            }
             Cache::forget('fedex_authenticator');
             Cache::forget('fedex_authenticator_sandbox');
             Cache::forget('ups_authenticator');

@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Events\PackageCreated;
+use App\Models\Location;
 use App\Models\Package;
 use App\Models\Shipment;
 
@@ -50,6 +51,7 @@ class PackagingService
     ): Package {
         $package = Package::create([
             'shipment_id' => $shipment->id,
+            'location_id' => auth()->user()?->resolveLocation()?->id ?? Location::getDefault()?->id,
             'box_size_id' => $boxSizeId,
             'weight' => $weight,
             'height' => $height,

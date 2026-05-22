@@ -8,6 +8,7 @@ use App\Enums\PackageStatus;
 use App\Events\ManifestCreated as ManifestCreatedEvent;
 use App\Http\Integrations\USPS\Requests\ScanForm;
 use App\Http\Integrations\USPS\USPSConnector;
+use App\Models\Location;
 use App\Models\Manifest;
 use App\Models\Package;
 use Carbon\CarbonImmutable;
@@ -20,16 +21,17 @@ use Saloon\Http\Response;
 class ManifestService
 {
     /**
-     * Get unmanifested shipped packages grouped by carrier.
+     * Get unmanifested shipped packages grouped by carrier, optionally scoped to a location.
      *
      * @return Collection<string, Collection<int, Package>>
      */
-    public function getUnmanifestedPackages(): Collection
+    public function getUnmanifestedPackages(?int $locationId = null): Collection
     {
         return Package::query()
             ->whereNull('manifest_id')
             ->where('status', PackageStatus::Shipped)
             ->whereNotNull('tracking_number')
+            ->when($locationId, fn ($q) => $q->where('location_id', $locationId))
             ->with('shipment')
             ->get()
             ->groupBy('carrier');
@@ -38,10 +40,10 @@ class ManifestService
     /**
      * Create a manifest for the given carrier and packages.
      */
-    public function createManifest(string $carrier, Collection $packages, ?CarbonImmutable $shipDate = null): ManifestResponse
+    public function createManifest(string $carrier, Collection $packages, ?CarbonImmutable $shipDate = null, ?int $locationId = null): ManifestResponse
     {
         return match ($carrier) {
-            'USPS' => $this->createUspsManifest($packages, $shipDate),
+            'USPS' => $this->createUspsManifest($packages, $shipDate, $locationId),
             'FedEx' => $this->createFedexManifest(),
             default => ManifestResponse::failure("Unsupported carrier: {$carrier}"),
         };
@@ -52,10 +54,11 @@ class ManifestService
      */
     private const USPS_MANIFEST_CHUNK_SIZE = 10_000;
 
-    private function createUspsManifest(Collection $packages, ?CarbonImmutable $shipDate = null): ManifestResponse
+    private function createUspsManifest(Collection $packages, ?CarbonImmutable $shipDate = null, ?int $locationId = null): ManifestResponse
     {
         try {
-            $fromAddress = AddressData::fromConfig();
+            $location = $locationId ? Location::find($locationId) : null;
+            $fromAddress = $location ? AddressData::fromLocation($location) : AddressData::fromConfig();
             $connector = USPSConnector::getAuthenticatedConnector();
 
             $chunks = $packages->chunk(self::USPS_MANIFEST_CHUNK_SIZE);
@@ -64,7 +67,7 @@ class ManifestService
             $totalManifested = 0;
 
             foreach ($chunks as $chunkIndex => $chunk) {
-                $result = $this->createUspsScanForm($connector, $chunk->values(), $fromAddress, $shipDate);
+                $result = $this->createUspsScanForm($connector, $chunk->values(), $fromAddress, $shipDate, $locationId);
 
                 if (! $result['success']) {
                     // If some chunks succeeded, report partial success
@@ -109,6 +112,7 @@ class ManifestService
         Collection $packages,
         AddressData $fromAddress,
         ?CarbonImmutable $shipDate = null,
+        ?int $locationId = null,
     ): array {
         $remainingPackages = $packages;
         $totalMarkedExternally = 0;
@@ -129,6 +133,7 @@ class ManifestService
                 // Create a placeholder manifest for externally manifested packages
                 $externalManifest = Manifest::create([
                     'carrier' => 'USPS',
+                    'location_id' => $locationId,
                     'manifest_number' => 'EXTERNAL-'.now()->format('YmdHis'),
                     'manifest_date' => now()->toDateString(),
                     'package_count' => count($alreadyManifested),
@@ -164,9 +169,10 @@ class ManifestService
             $manifestNumber = $response->metadata['manifestNumber'] ?? '';
             $image = $response->image;
 
-            $manifest = DB::transaction(function () use ($manifestNumber, $image, $remainingPackages) {
+            $manifest = DB::transaction(function () use ($manifestNumber, $image, $remainingPackages, $locationId) {
                 $manifest = Manifest::create([
                     'carrier' => 'USPS',
+                    'location_id' => $locationId,
                     'manifest_number' => $manifestNumber,
                     'image' => $image,
                     'manifest_date' => now()->toDateString(),

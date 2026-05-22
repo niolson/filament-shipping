@@ -5,6 +5,7 @@ namespace App\Http\Integrations\USPS;
 use App\Http\Integrations\Concerns\HasCachedAuthentication;
 use App\Http\Integrations\Concerns\RetriesTransientErrors;
 use App\Http\Integrations\USPS\Requests\PaymentAuthorization;
+use App\Models\CarrierLocation;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
 use Carbon\Carbon;
@@ -227,14 +228,34 @@ class USPSConnector extends Connector
         return self::getAuthenticatedConnector();
     }
 
-    public static function getUspsPaymentAuthorizationToken(): string
+    public static function getUspsPaymentAuthorizationToken(?int $locationId = null): string
     {
-        return Cache::get('usps_payment_authorization_token', function () {
+        $cacheKey = 'usps_payment_authorization_token:'.($locationId ?? 'global');
+
+        return Cache::get($cacheKey, function () use ($cacheKey, $locationId) {
             $settings = app(SettingsService::class);
-            $crid = $settings->get('usps.crid');
-            $mid = $settings->get('usps.mid');
+
+            // Resolve CRID/MID from the carrier_location pivot when a location is provided,
+            // falling back to global settings for single-location installs.
+            $crid = null;
+            $mid = null;
+            $epsAccount = null;
+
+            if ($locationId !== null) {
+                $carrierLocation = CarrierLocation::whereHas(
+                    'carrier',
+                    fn ($q) => $q->where('name', 'USPS')
+                )->where('location_id', $locationId)->first();
+
+                $crid = $carrierLocation?->usps_crid;
+                $mid = $carrierLocation?->usps_mid;
+                $epsAccount = $carrierLocation?->usps_eps_account;
+            }
+
+            $crid ??= $settings->get('usps.crid');
+            $mid ??= $settings->get('usps.mid');
             // EPS account number is distinct from CRID; auto-populated from OAuth JWT
-            $epsAccount = $settings->get('usps.eps_account', $crid);
+            $epsAccount ??= $settings->get('usps.eps_account', $crid);
 
             $request = new PaymentAuthorization;
             $request->body()->set([
@@ -264,11 +285,12 @@ class USPSConnector extends Connector
                 logger()->error('USPS payment authorization failed', [
                     'status' => $response->status(),
                     'body' => $response->body(),
+                    'location_id' => $locationId,
                 ]);
                 throw new RuntimeException('USPS payment authorization returned empty token');
             }
 
-            Cache::put('usps_payment_authorization_token', $paymentAuthorizationToken, now()->addHours(7));
+            Cache::put($cacheKey, $paymentAuthorizationToken, now()->addHours(7));
 
             return $paymentAuthorizationToken;
         });

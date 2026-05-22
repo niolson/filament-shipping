@@ -2,6 +2,20 @@
     <x-qz-tray />
 
     <div class="space-y-6">
+        {{-- Location selector (multi-location mode only) --}}
+        @if(app(\App\Services\SettingsService::class)->get('multi_location_enabled', false))
+            <x-filament::section>
+                <x-slot name="heading">Location</x-slot>
+                <div class="max-w-xs">
+                    <select wire:model.live="locationId" class="fi-select-input block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm dark:border-gray-600 dark:bg-gray-900 dark:text-white">
+                        @foreach($this->locations as $id => $name)
+                            <option value="{{ $id }}">{{ $name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </x-filament::section>
+        @endif
+
         {{-- Carrier Summary --}}
         <x-filament::section>
             <x-slot name="heading">Carriers</x-slot>
@@ -101,7 +115,7 @@
                                     <td class="px-4 py-3">{{ \Carbon\Carbon::parse($manifest->manifest_date)->format('M j') }}</td>
                                     <td class="px-4 py-3 font-mono text-xs">{{ $manifest->manifest_number }}</td>
                                     <td class="px-4 py-3">{{ $manifest->package_count }}</td>
-                                    <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ $manifest->created_at->tz(\App\Models\Location::timezone())->format('g:i A') }}</td>
+                                    <td class="px-4 py-3 text-gray-500 dark:text-gray-400">{{ $manifest->created_at->tz($manifest->location?->timezone ?? \App\Models\Location::timezone())->format('g:i A') }}</td>
                                     <td class="px-4 py-3 text-right">
                                         @if(!empty($manifest->image))
                                             <x-filament::button
