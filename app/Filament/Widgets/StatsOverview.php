@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\ShipmentStatus;
+use App\Filament\Resources\ShipmentResource;
 use App\Models\DailyShippingStat;
 use App\Models\Location;
 use App\Models\Shipment;
@@ -40,7 +41,8 @@ class StatsOverview extends BaseWidget
             Stat::make('Pending Shipments', number_format($data['pending']))
                 ->description('Awaiting shipment')
                 ->descriptionIcon('heroicon-m-clock')
-                ->color('warning'),
+                ->color('warning')
+                ->url(ShipmentResource::getUrl('index').'?status_tab='.ShipmentStatus::Open->value),
             Stat::make('Shipped Today', number_format($data['shipped_today']))
                 ->description('Packages shipped today')
                 ->descriptionIcon('heroicon-m-check-circle')
