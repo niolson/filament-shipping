@@ -117,4 +117,9 @@ class Location extends Model
     {
         return $this->hasMany(CarrierLocation::class);
     }
+
+    public function carrierAccountScopes(): HasMany
+    {
+        return $this->hasMany(CarrierAccountScope::class);
+    }
 }

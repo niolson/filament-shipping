@@ -9,6 +9,7 @@ use App\Http\Integrations\Fedex\Requests\Registration\SendPin;
 use App\Http\Integrations\Fedex\Requests\Registration\ValidateAddress;
 use App\Http\Integrations\Fedex\Requests\Registration\VerifyInvoice;
 use App\Http\Integrations\Fedex\Requests\Registration\VerifyPin;
+use App\Models\CarrierAccount;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
 use RuntimeException;
@@ -223,6 +224,29 @@ class FedexRegistrationService
         $this->saveChildCredentials($childKey, $childSecret);
 
         FedexConnector::getAuthenticatedConnector();
+    }
+
+    /**
+     * Store child credentials on a specific CarrierAccount (not global settings).
+     */
+    public function saveChildCredentialsToAccount(string $childKey, string $childSecret, CarrierAccount $account): void
+    {
+        $oldChildKey = $account->secret('child_key');
+        $oldEnv = $account->credential('child_env') ?? 'production';
+
+        if ($oldChildKey) {
+            $this->clearFedexAuthenticatorCaches($oldChildKey, $oldEnv);
+        }
+
+        $isSandbox = (bool) $this->settings->get('sandbox_mode', false);
+        $env = $isSandbox ? 'sandbox' : 'production';
+
+        $account->mergeCredential('child_env', $env);
+        $account->mergeSecret('child_key', $childKey);
+        $account->mergeSecret('child_secret', $childSecret);
+        $account->save();
+
+        $this->clearFedexAuthenticatorCaches($childKey, $env);
     }
 
     /**

@@ -5,13 +5,13 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\LocationResource\Pages;
 use App\Filament\Support\AddressForm;
 use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Location;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -95,27 +95,35 @@ class LocationResource extends Resource
                                     ])
                                     ->default([1, 2, 3, 4, 5])
                                     ->columns(7),
-                                Forms\Components\TextInput::make('usps_crid')
-                                    ->label('USPS CRID')
-                                    ->helperText('Customer Registration ID for this location. Overrides the global CRID in Settings.')
-                                    ->maxLength(50)
-                                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'USPS'),
-                                Forms\Components\TextInput::make('usps_mid')
-                                    ->label('USPS MID')
-                                    ->helperText('Mailer ID for this location. Overrides the global MID in Settings.')
-                                    ->maxLength(9)
-                                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'USPS'),
-                                Forms\Components\TextInput::make('usps_eps_account')
-                                    ->label('USPS EPS Account')
-                                    ->helperText('Leave blank to use the value from the OAuth token.')
-                                    ->maxLength(50)
-                                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'USPS'),
                             ])
                             ->defaultItems(0)
                             ->addActionLabel('Add Carrier')
                             ->columnSpanFull(),
                     ])
-                    ->description('Configure pickup days and carrier-specific settings for this location.')
+                    ->description('Configure pickup days per carrier for this location.')
+                    ->collapsible(),
+                Components\Section::make('Carrier Accounts')
+                    ->schema([
+                        Forms\Components\Repeater::make('carrierAccountScopes')
+                            ->relationship()
+                            ->schema([
+                                Forms\Components\Select::make('carrier_account_id')
+                                    ->label('Account')
+                                    ->options(fn () => CarrierAccount::with('carrier')
+                                        ->where('active', true)
+                                        ->get()
+                                        ->mapWithKeys(fn ($a) => [$a->id => "[{$a->carrier->name}] {$a->name}"]))
+                                    ->required(),
+                                Forms\Components\Toggle::make('rate_shop')
+                                    ->label('Rate shop with location default')
+                                    ->helperText('Reserved for future rate-shop support. When implemented, the cheapest rate across this account and the location default will be used automatically.')
+                                    ->default(false),
+                            ])
+                            ->defaultItems(0)
+                            ->addActionLabel('Assign Account')
+                            ->columnSpanFull(),
+                    ])
+                    ->description('Assign carrier accounts to this location. Client-specific overrides are configured per client.')
                     ->collapsible(),
             ]);
     }

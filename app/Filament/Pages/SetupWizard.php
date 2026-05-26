@@ -5,9 +5,11 @@ namespace App\Filament\Pages;
 use App\Enums\BoxSizeType;
 use App\Enums\FedexPackageType;
 use App\Enums\Role;
+use App\Filament\Resources\CarrierAccounts\CarrierAccountResource;
 use App\Filament\Support\AddressForm;
 use App\Models\BoxSize;
 use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\CarrierService;
 use App\Models\Channel;
 use App\Models\Location;
@@ -557,9 +559,25 @@ class SetupWizard extends Page
                 Forms\Components\Placeholder::make('summary_import')
                     ->label('Import Source')
                     ->content(fn () => app(SettingsService::class)->get('import_source', 'none')),
-                Forms\Components\Placeholder::make('summary_next')
-                    ->label('')
-                    ->content('Click "Complete Setup" to finish. Printer and scale can be configured on the Device Settings page.'),
+                Forms\Components\Placeholder::make('summary_next_steps')
+                    ->label('Next Steps')
+                    ->content(function (): HtmlString {
+                        $incomplete = CarrierAccount::with('carrier')
+                            ->whereHas('carrier', fn ($q) => $q->where('active', true))
+                            ->get()
+                            ->filter(fn (CarrierAccount $a) => $a->connectionStatus() === 'Needs Setup');
+
+                        $items = $incomplete->map(function (CarrierAccount $account): string {
+                            $url = CarrierAccountResource::getUrl('edit', ['record' => $account->id]);
+                            $verb = $account->carrier->name === 'FedEx' ? 'Register' : 'Connect';
+
+                            return "<li><a href=\"{$url}\" class=\"text-primary-600 hover:underline font-medium\">{$verb} {$account->carrier->name}</a> — credentials required before shipping</li>";
+                        })->values()->all();
+
+                        $items[] = '<li class="text-gray-500">Configure your printer &amp; scale in <strong>Device Settings</strong> on each workstation</li>';
+
+                        return new HtmlString('<ul class="list-disc ml-4 space-y-1">'.implode('', $items).'</ul>');
+                    }),
             ]);
     }
 
@@ -642,6 +660,24 @@ class SetupWizard extends Page
         }
 
         app(CacheService::class)->clearCarrierServicesCache();
+
+        // Create a default CarrierAccount + global (null,null) scope for each
+        // newly-enabled carrier so resolveForShipment() can find the account.
+        foreach (['USPS', 'FedEx', 'UPS'] as $carrierName) {
+            $carrier = Carrier::where('name', $carrierName)->first();
+            if (! $carrier?->active) {
+                continue;
+            }
+
+            $account = CarrierAccount::firstOrCreate(
+                ['carrier_id' => $carrier->id],
+                ['name' => "{$carrierName} Default", 'active' => true],
+            );
+
+            if (! $account->scopes()->whereNull('location_id')->whereNull('client_id')->exists()) {
+                $account->scopes()->create(['location_id' => null, 'client_id' => null, 'rate_shop' => false]);
+            }
+        }
     }
 
     private function saveBoxSizes(): void
@@ -791,12 +827,19 @@ class SetupWizard extends Page
         $settings->set('setup_complete', true, 'boolean', group: 'system');
         $settings->clearCache();
 
+        $hasIncomplete = CarrierAccount::with('carrier')
+            ->whereHas('carrier', fn ($q) => $q->where('active', true))
+            ->get()
+            ->contains(fn (CarrierAccount $a) => $a->connectionStatus() === 'Needs Setup');
+
         Notification::make()
             ->success()
             ->title('Setup complete!')
-            ->body('Configure your printer and scale on the Device Settings page when ready.')
+            ->body($hasIncomplete
+                ? 'Activate your carrier accounts to start shipping.'
+                : 'Configure your printer and scale on the Device Settings page when ready.')
             ->send();
 
-        $this->redirect('/');
+        $this->redirect($hasIncomplete ? CarrierAccountResource::getUrl('index') : '/');
     }
 }

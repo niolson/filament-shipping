@@ -20,6 +20,8 @@ use App\Http\Integrations\Ups\Requests\Rate;
 use App\Http\Integrations\Ups\Requests\TrackShipment;
 use App\Http\Integrations\Ups\Requests\VoidShipment;
 use App\Http\Integrations\Ups\UpsConnector;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Package;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\Carriers\Concerns\HasSaturdayDelivery;
@@ -34,6 +36,29 @@ class UpsAdapter implements CarrierAdapterInterface
 {
     use HasDefaultServiceCapabilities;
     use HasSaturdayDelivery;
+
+    private ?CarrierAccount $currentAccount = null;
+
+    private function resolveAccount(?int $locationId, ?int $clientId = null): ?CarrierAccount
+    {
+        static $carrierId = null;
+        $carrierId ??= Carrier::where('name', 'UPS')->value('id');
+
+        return $carrierId
+            ? CarrierAccount::resolveForShipment($carrierId, $locationId, $clientId)->first()
+            : null;
+    }
+
+    private function resolveConnector(): UpsConnector
+    {
+        return UpsConnector::getAuthenticatedConnector($this->currentAccount);
+    }
+
+    private function resolveAccountNumber(): ?string
+    {
+        return $this->currentAccount?->credential('account_number')
+            ?? app(SettingsService::class)->get('ups.account_number');
+    }
 
     public function serviceCapability(string $serviceCode): ServiceCapability
     {
@@ -80,14 +105,18 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function getRates(RateRequest $request, array $serviceCodes): Collection
     {
+        $this->currentAccount = $this->resolveAccount($request->locationId);
+
         try {
             $prepared = $this->prepareRateRequest($request, $serviceCodes);
 
             if (! $prepared) {
+                $this->currentAccount = null;
+
                 return collect();
             }
 
-            $connector = UpsConnector::getAuthenticatedConnector();
+            $connector = $this->resolveConnector();
             $apiRequest = $this->buildRateApiRequest($this->adjustRequestForSaturday($request, $serviceCodes));
             $response = $connector->send($apiRequest);
 
@@ -104,7 +133,8 @@ class UpsAdapter implements CarrierAdapterInterface
             return null;
         }
 
-        $connector = UpsConnector::getAuthenticatedConnector();
+        $this->currentAccount ??= $this->resolveAccount($request->locationId);
+        $connector = $this->resolveConnector();
         $apiRequest = $this->buildRateApiRequest($this->adjustRequestForSaturday($request, $serviceCodes));
         $pendingRequest = $connector->createPendingRequest($apiRequest);
 
@@ -131,7 +161,7 @@ class UpsAdapter implements CarrierAdapterInterface
         // a follow-up with Saturday for eligible services and merge results
         if ($request->saturdayDelivery && $this->classifySaturdayEligibility($serviceCodes, $request) === 'mixed') {
             try {
-                $connector = UpsConnector::getAuthenticatedConnector();
+                $connector = $this->resolveConnector();
                 $saturdayApiRequest = $this->buildRateApiRequest($request);
                 $saturdayResponse = $connector->send($saturdayApiRequest);
 
@@ -166,7 +196,8 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function trackShipment(Package $package): TrackShipmentResponse
     {
-        $connector = UpsConnector::getAuthenticatedConnector();
+        $this->currentAccount = $this->resolveAccount($package->location_id);
+        $connector = $this->resolveConnector();
         $trackRequest = new TrackShipment($package->tracking_number);
         $requestUri = rtrim($connector->resolveBaseUrl(), '/').$trackRequest->resolveEndpoint();
 
@@ -407,8 +438,10 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function createShipment(ShipRequest $request): ShipResponse
     {
+        $this->currentAccount = $this->resolveAccount($request->locationId, $request->clientId);
+
         try {
-            $connector = UpsConnector::getAuthenticatedConnector();
+            $connector = $this->resolveConnector();
 
             $serviceCode = $request->selectedRate->metadata['serviceCode'] ?? $request->selectedRate->serviceCode;
 
@@ -416,7 +449,7 @@ class UpsAdapter implements CarrierAdapterInterface
                 'Description' => 'Shipment',
                 'Shipper' => [
                     'Name' => trim($request->fromAddress->company ?: $request->fromAddress->firstName.' '.$request->fromAddress->lastName),
-                    'ShipperNumber' => app(SettingsService::class)->get('ups.account_number'),
+                    'ShipperNumber' => $this->resolveAccountNumber(),
                     'Address' => $this->buildAddress($request->fromAddress),
                 ],
                 'ShipTo' => [
@@ -432,7 +465,7 @@ class UpsAdapter implements CarrierAdapterInterface
                         [
                             'Type' => '01',
                             'BillShipper' => [
-                                'AccountNumber' => app(SettingsService::class)->get('ups.account_number'),
+                                'AccountNumber' => $this->resolveAccountNumber(),
                             ],
                         ],
                     ],
@@ -580,8 +613,10 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function cancelShipment(string $trackingNumber, Package $package): CancelResponse
     {
+        $this->currentAccount = $this->resolveAccount($package->location_id);
+
         try {
-            $connector = UpsConnector::getAuthenticatedConnector();
+            $connector = $this->resolveConnector();
 
             $apiRequest = new VoidShipment($trackingNumber);
 
@@ -612,6 +647,11 @@ class UpsAdapter implements CarrierAdapterInterface
     public function isConfigured(): bool
     {
         $settings = app(SettingsService::class);
+        $carrierId = Carrier::where('name', 'UPS')->value('id');
+
+        if ($carrierId && CarrierAccount::active()->where('carrier_id', $carrierId)->exists()) {
+            return true;
+        }
 
         return filled($settings->get('ups.client_id'))
             && filled($settings->get('ups.client_secret'))

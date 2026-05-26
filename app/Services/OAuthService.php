@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\CarrierAccount;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -18,7 +19,7 @@ class OAuthService
     /**
      * Generate the broker authorization URL and store nonce in session.
      */
-    public function initiateAuthorization(string $providerKey): string
+    public function initiateAuthorization(string $providerKey, ?int $accountId = null): string
     {
         $provider = $this->registry->get($providerKey);
 
@@ -36,6 +37,10 @@ class OAuthService
 
         $nonce = Str::random(40);
         session()->put("oauth_state.{$providerKey}", $nonce);
+
+        if ($accountId) {
+            session()->put("oauth_account_id.{$providerKey}", $accountId);
+        }
 
         $returnUrl = config('app.url');
         $signature = hash_hmac('sha256', "{$providerKey}:{$instanceId}:{$returnUrl}:{$nonce}", $brokerSecret);
@@ -258,5 +263,164 @@ class OAuthService
     public function getAuthMode(string $providerKey): string
     {
         return $this->settings->get("{$providerKey}.auth_mode", 'client_credentials');
+    }
+
+    /**
+     * Handle broker redirect for a per-account OAuth connection.
+     * Tokens are stored in the account's secret_credentials instead of global settings.
+     */
+    public function handleReceiveForAccount(string $providerKey, string $transferCode, CarrierAccount $account): void
+    {
+        $provider = $this->registry->get($providerKey);
+
+        $brokerUrl = config('services.oauth.broker_url');
+        $brokerSecret = config('services.oauth.broker_secret');
+        $instanceId = config('services.oauth.instance_id');
+
+        $signature = hash_hmac('sha256', $transferCode, $brokerSecret);
+
+        $response = Http::post(rtrim($brokerUrl, '/').'/oauth/claim', [
+            'transfer_code' => $transferCode,
+            'instance_id' => $instanceId,
+            'signature' => $signature,
+        ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('Failed to claim tokens from broker: '.$response->body());
+        }
+
+        $data = $response->json();
+
+        $expectedNonce = session()->pull("oauth_state.{$providerKey}");
+
+        if (empty($expectedNonce) || ! hash_equals($expectedNonce, $data['nonce'] ?? '')) {
+            throw new RuntimeException('OAuth state mismatch. Please try again.');
+        }
+
+        $accessToken = $data['access_token'] ?? null;
+        if (empty($accessToken)) {
+            throw new RuntimeException('No access token received from broker.');
+        }
+
+        $account->mergeSecret('oauth_token', $accessToken);
+        $account->mergeSecret('auth_mode', 'authorization_code');
+
+        if (! empty($data['refresh_token'])) {
+            $account->mergeSecret('refresh_token', $data['refresh_token']);
+        }
+
+        if (! empty($data['expires_in'])) {
+            $account->mergeSecret('token_expires_at', now()->addSeconds((int) $data['expires_in'])->toIso8601String());
+        }
+
+        if (! empty($data['refresh_token_expires_in'])) {
+            $account->mergeSecret('refresh_token_expires_at', now()->addSeconds((int) $data['refresh_token_expires_in'])->toIso8601String());
+        }
+
+        $scopes = $data['extra']['scope'] ?? $data['scope'] ?? '';
+        $account->mergeCredential('oauth_scopes', $scopes);
+        $account->mergeCredential('oauth_connected_at', now()->toIso8601String());
+
+        $account->save();
+
+        if (method_exists($provider, 'afterConnectToAccount')) {
+            $provider->afterConnectToAccount($accessToken, $account);
+        }
+    }
+
+    /**
+     * Refresh an expired token for a specific account via the broker.
+     *
+     * @return array{access_token: string, refresh_token: ?string, expires_in: ?int}
+     */
+    public function refreshTokenForAccount(string $providerKey, CarrierAccount $account): array
+    {
+        $refreshToken = $account->secret('refresh_token');
+
+        if (empty($refreshToken)) {
+            throw new RuntimeException("No refresh token stored for account {$account->id}. Please reconnect.");
+        }
+
+        $refreshExpiresAt = $account->secret('refresh_token_expires_at');
+        if ($refreshExpiresAt && now()->greaterThan($refreshExpiresAt)) {
+            throw new RuntimeException("Refresh token expired for account {$account->id}. Please reconnect.");
+        }
+
+        $brokerUrl = config('services.oauth.broker_url');
+        $brokerSecret = config('services.oauth.broker_secret');
+        $instanceId = config('services.oauth.instance_id');
+
+        $signature = hash_hmac('sha256', $refreshToken, $brokerSecret);
+
+        $response = Http::post(rtrim($brokerUrl, '/')."/oauth/{$providerKey}/refresh", [
+            'refresh_token' => $refreshToken,
+            'instance_id' => $instanceId,
+            'signature' => $signature,
+        ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('Token refresh failed: '.$response->body());
+        }
+
+        $data = $response->json();
+
+        if (! empty($data['access_token'])) {
+            $account->mergeSecret('oauth_token', $data['access_token']);
+        }
+
+        if (! empty($data['refresh_token'])) {
+            $account->mergeSecret('refresh_token', $data['refresh_token']);
+        }
+
+        if (! empty($data['expires_in'])) {
+            $account->mergeSecret('token_expires_at', now()->addSeconds((int) $data['expires_in'])->toIso8601String());
+        }
+
+        if (! empty($data['refresh_token_expires_in'])) {
+            $account->mergeSecret('refresh_token_expires_at', now()->addSeconds((int) $data['refresh_token_expires_in'])->toIso8601String());
+        }
+
+        $account->save();
+
+        return $data;
+    }
+
+    /**
+     * Disconnect an account's OAuth connection, clearing its token fields.
+     */
+    public function disconnectAccount(CarrierAccount $account, string $providerKey): void
+    {
+        $provider = $this->registry->get($providerKey);
+
+        $token = $account->secret('oauth_token');
+        if ($token) {
+            try {
+                $provider->revokeToken($token);
+            } catch (\Throwable) {
+                // Best-effort; continue with local cleanup
+            }
+        }
+
+        $secrets = $account->secret_credentials ?? [];
+        foreach (['oauth_token', 'refresh_token', 'token_expires_at', 'refresh_token_expires_at', 'auth_mode'] as $key) {
+            unset($secrets[$key]);
+        }
+        $account->secret_credentials = $secrets ?: null;
+
+        $creds = $account->credentials ?? [];
+        foreach (['oauth_scopes', 'oauth_connected_at'] as $key) {
+            unset($creds[$key]);
+        }
+        $account->credentials = $creds ?: null;
+
+        $account->save();
+    }
+
+    /**
+     * Check if a specific account is connected via OAuth.
+     */
+    public function isAccountConnected(CarrierAccount $account): bool
+    {
+        return ! empty($account->secret('oauth_token'));
     }
 }

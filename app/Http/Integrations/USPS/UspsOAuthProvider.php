@@ -3,6 +3,7 @@
 namespace App\Http\Integrations\USPS;
 
 use App\Contracts\OAuthProvider;
+use App\Models\CarrierAccount;
 use App\Services\SettingsService;
 
 class UspsOAuthProvider implements OAuthProvider
@@ -85,5 +86,44 @@ class UspsOAuthProvider implements OAuthProvider
         if (! empty($payload['company_name'])) {
             $settings->set('usps.company_name', $payload['company_name'], group: $group);
         }
+    }
+
+    /**
+     * Same JWT decode as afterConnect(), but writes to an account's JSON credentials
+     * instead of global settings.
+     */
+    public function afterConnectToAccount(string $accessToken, CarrierAccount $account): void
+    {
+        $parts = explode('.', $accessToken);
+
+        if (count($parts) !== 3) {
+            return;
+        }
+
+        $payload = json_decode(
+            base64_decode(str_pad(strtr($parts[1], '-_', '+/'), strlen($parts[1]) % 4, '=', STR_PAD_RIGHT)),
+            true
+        );
+
+        if (! is_array($payload)) {
+            return;
+        }
+
+        if (! empty($payload['crid'])) {
+            $account->mergeCredential('crid', (string) $payload['crid']);
+        }
+
+        $midsRaw = $payload['mail_owners'][0]['mids'] ?? null;
+        if ($midsRaw) {
+            $masterMid = trim(explode(',', (string) $midsRaw)[0]);
+            $account->mergeCredential('mid', $masterMid);
+        }
+
+        $epsAccount = $payload['payment_accounts']['accounts'] ?? null;
+        if ($epsAccount) {
+            $account->mergeCredential('eps_account', (string) $epsAccount);
+        }
+
+        $account->save();
     }
 }

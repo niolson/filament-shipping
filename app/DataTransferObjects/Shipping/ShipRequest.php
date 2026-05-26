@@ -21,6 +21,7 @@ readonly class ShipRequest
         public ?int $labelDpi = null,
         public bool $saturdayDelivery = false,
         public ?int $locationId = null,
+        public ?int $clientId = null,
         public ?CarbonImmutable $shipDate = null,
     ) {}
 
@@ -64,6 +65,7 @@ readonly class ShipRequest
             labelDpi: $this->labelDpi,
             saturdayDelivery: $this->saturdayDelivery,
             locationId: $this->locationId,
+            clientId: $this->clientId,
             shipDate: $this->shipDate,
         );
     }
@@ -102,6 +104,7 @@ readonly class ShipRequest
             labelDpi: $labelDpi,
             saturdayDelivery: (bool) $shippingMethod?->hasDefaultService('saturday_delivery'),
             locationId: $package->location_id,
+            clientId: $package->shipment->client_id,
             shipDate: $shipDate,
         );
     }

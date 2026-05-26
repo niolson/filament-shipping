@@ -2,13 +2,15 @@
 
 use App\Exceptions\FedexRegistrationMaxRetriesException;
 use App\Filament\Pages\Settings;
+use App\Filament\Resources\CarrierAccounts\Pages\EditCarrierAccount;
 use App\Http\Integrations\Fedex\FedexConnector;
 use App\Http\Integrations\Fedex\Requests\Registration\SendPin;
 use App\Http\Integrations\Fedex\Requests\Registration\ValidateAddress;
 use App\Http\Integrations\Fedex\Requests\Registration\VerifyInvoice;
 use App\Http\Integrations\Fedex\Requests\Registration\VerifyPin;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
-use App\Models\Location;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Setting;
 use App\Models\ShippingMethod;
 use App\Models\User;
@@ -93,11 +95,8 @@ it('forces suppress_printing to false when sandbox_mode is turned off', function
 });
 
 it('clears API auth caches when sandbox_mode changes', function (): void {
-    $location = Location::factory()->create();
-
     Cache::put('usps_authenticator', 'test-token', 3600);
     Cache::put('usps_payment_authorization_token:global', 'test-payment-token-global', 3600);
-    Cache::put("usps_payment_authorization_token:{$location->id}", 'test-payment-token-loc', 3600);
     Cache::put('fedex_authenticator', 'test-fedex-token', 3600);
 
     Livewire::test(Settings::class)
@@ -109,7 +108,6 @@ it('clears API auth caches when sandbox_mode changes', function (): void {
 
     expect(Cache::has('usps_authenticator'))->toBeFalse()
         ->and(Cache::has('usps_payment_authorization_token:global'))->toBeFalse()
-        ->and(Cache::has("usps_payment_authorization_token:{$location->id}"))->toBeFalse()
         ->and(Cache::has('fedex_authenticator'))->toBeFalse();
 });
 
@@ -268,12 +266,12 @@ it('test usps connection shows danger notification when auth fails', function ()
     expect(Cache::get('usps_pricing_type'))->toBeNull();
 });
 
-it('displays pricing tier placeholder from cache on settings page', function (): void {
+it('usps pricing tier cache is set by testUspsConnection (display moved to carrier accounts)', function (): void {
+    // The pricing tier is now only stored in cache by testUspsConnection();
+    // the UI display moved from Settings to the Carrier Accounts resource.
     Cache::put('usps_pricing_type', 'RETAIL', 3600);
 
-    $this->get(Settings::getUrl())
-        ->assertOk()
-        ->assertSee('RETAIL');
+    expect(Cache::get('usps_pricing_type'))->toBe('RETAIL');
 });
 
 // ─── FedEx Account Registration ───────────────────────────────────────────────
@@ -319,13 +317,14 @@ it('fedex account status shows not connected when no child key stored', function
         ->assertSee('Not connected');
 });
 
-it('fedex account status shows connected when child key is stored', function (): void {
+it('fedex account status is not shown on settings page (moved to carrier accounts)', function (): void {
+    // FedEx connection status moved to the Carrier Accounts edit page.
     Setting::create(['key' => 'fedex.child_key', 'value' => 'some-child-key', 'type' => 'string', 'encrypted' => true, 'group' => 'fedex']);
     app(SettingsService::class)->clearCache();
 
     $this->get(Settings::getUrl())
         ->assertOk()
-        ->assertSee('Connected');
+        ->assertDontSee('Account Status');
 });
 
 it('fedex connector keeps parent oauth config when child key is present', function (): void {
@@ -516,8 +515,11 @@ it('fedex registration service maps current fedex max retry codes to the fallbac
     }
 });
 
-it('settings page filters exhausted fedex verification methods', function (): void {
-    $page = Livewire::test(Settings::class)->instance();
+it('carrier account edit page filters exhausted fedex verification methods', function (): void {
+    $fedex = Carrier::factory()->fedex()->create();
+    $account = CarrierAccount::factory()->fedex()->create(['carrier_id' => $fedex->id]);
+
+    $page = Livewire::test(EditCarrierAccount::class, ['record' => $account->id])->instance();
 
     $page->fedexSecureCodeOptions = ['SMS', 'CALL', 'EMAIL'];
     $page->fedexMaskedPhone = '***-***-1234';
@@ -530,8 +532,11 @@ it('settings page filters exhausted fedex verification methods', function (): vo
         ->and($page->hasAvailableFedexFactor2Methods())->toBeTrue();
 });
 
-it('settings page reports when all fedex verification methods are exhausted', function (): void {
-    $page = Livewire::test(Settings::class)->instance();
+it('carrier account edit page reports when all fedex verification methods are exhausted', function (): void {
+    $fedex = Carrier::factory()->fedex()->create();
+    $account = CarrierAccount::factory()->fedex()->create(['carrier_id' => $fedex->id]);
+
+    $page = Livewire::test(EditCarrierAccount::class, ['record' => $account->id])->instance();
 
     $page->fedexSecureCodeOptions = ['SMS', 'CALL', 'EMAIL'];
     $page->fedexInvoiceAvailable = true;

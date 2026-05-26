@@ -22,6 +22,8 @@ use App\Http\Integrations\USPS\Requests\Label;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Http\Integrations\USPS\Requests\TrackShipment;
 use App\Http\Integrations\USPS\USPSConnector;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Package;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\SettingsService;
@@ -73,7 +75,9 @@ class UspsAdapter implements CarrierAdapterInterface
             return collect();
         }
 
-        $connector = USPSConnector::getUspsConnector();
+        $connector = USPSConnector::getAuthenticatedConnector(
+            $this->resolveAccount($request->locationId, null)
+        );
         $apiRequest = $this->buildRateApiRequest($request);
 
         try {
@@ -98,7 +102,9 @@ class UspsAdapter implements CarrierAdapterInterface
             return null;
         }
 
-        $connector = USPSConnector::getUspsConnector();
+        $connector = USPSConnector::getAuthenticatedConnector(
+            $this->resolveAccount($request->locationId, null)
+        );
         $apiRequest = $this->buildRateApiRequest($request);
         $pendingRequest = $connector->createPendingRequest($apiRequest);
 
@@ -234,8 +240,11 @@ class UspsAdapter implements CarrierAdapterInterface
 
     public function trackShipment(Package $package): TrackShipmentResponse
     {
+        $connector = USPSConnector::getAuthenticatedConnector(
+            $this->resolveAccount($package->location_id, $package->shipment?->client_id)
+        );
+
         try {
-            $connector = USPSConnector::getUspsConnector();
             $trackRequest = new TrackShipment($package->tracking_number);
             $requestUri = rtrim($connector->resolveBaseUrl(), '/').$trackRequest->resolveEndpoint();
 
@@ -307,7 +316,7 @@ class UspsAdapter implements CarrierAdapterInterface
 
             Log::channel('usps-validation')->info('TRACK RESPONSE', [
                 'tracking_number' => $package->tracking_number,
-                'uri' => rtrim(USPSConnector::getUspsConnector()->resolveBaseUrl(), '/').(new TrackShipment($package->tracking_number))->resolveEndpoint(),
+                'uri' => rtrim($connector->resolveBaseUrl(), '/').(new TrackShipment($package->tracking_number))->resolveEndpoint(),
                 'status' => $e->getResponse()->status(),
                 'body' => $rawResponse,
             ]);
@@ -332,8 +341,9 @@ class UspsAdapter implements CarrierAdapterInterface
     private function createDomesticShipment(ShipRequest $request): ShipResponse
     {
         try {
-            $connector = USPSConnector::getUspsConnector();
-            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken($request->locationId);
+            $account = $this->resolveAccount($request->locationId, $request->clientId);
+            $connector = USPSConnector::getAuthenticatedConnector($account);
+            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken($account?->id);
 
             $apiRequest = new Label;
             $apiRequest->headers()->set([
@@ -430,8 +440,9 @@ class UspsAdapter implements CarrierAdapterInterface
     private function createInternationalShipment(ShipRequest $request): ShipResponse
     {
         try {
-            $connector = USPSConnector::getUspsConnector();
-            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken($request->locationId);
+            $account = $this->resolveAccount($request->locationId, $request->clientId);
+            $connector = USPSConnector::getAuthenticatedConnector($account);
+            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken($account?->id);
 
             $apiRequest = new InternationalLabel;
             $apiRequest->headers()->set([
@@ -568,8 +579,9 @@ class UspsAdapter implements CarrierAdapterInterface
     public function cancelShipment(string $trackingNumber, Package $package): CancelResponse
     {
         try {
-            $connector = USPSConnector::getUspsConnector();
-            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken($package->location_id);
+            $account = $this->resolveAccount($package->location_id, $package->shipment->client_id);
+            $connector = USPSConnector::getAuthenticatedConnector($account);
+            $paymentAuthorizationToken = USPSConnector::getUspsPaymentAuthorizationToken($account?->id);
             $isInternational = $package->shipment->country !== 'US';
 
             $apiRequest = $isInternational
@@ -590,6 +602,16 @@ class UspsAdapter implements CarrierAdapterInterface
         } catch (\Exception $e) {
             return CancelResponse::failure($e->getMessage());
         }
+    }
+
+    private function resolveAccount(?int $locationId, ?int $clientId): ?CarrierAccount
+    {
+        static $carrierId = null;
+        $carrierId ??= Carrier::where('name', 'USPS')->value('id');
+
+        return $carrierId
+            ? CarrierAccount::resolveForShipment($carrierId, $locationId, $clientId)->first()
+            : null;
     }
 
     public function isConfigured(): bool

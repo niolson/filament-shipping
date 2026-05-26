@@ -4,6 +4,7 @@ namespace App\Http\Integrations\Ups;
 
 use App\Http\Integrations\Concerns\HasCachedAuthentication;
 use App\Http\Integrations\Concerns\RetriesTransientErrors;
+use App\Models\CarrierAccount;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
 use Carbon\Carbon;
@@ -24,6 +25,16 @@ class UpsConnector extends Connector
     use RetriesTransientErrors;
 
     protected int $connectTimeout = 5;
+
+    private ?CarrierAccount $carrierAccount = null;
+
+    public static function forAccount(CarrierAccount $account): self
+    {
+        $instance = new self;
+        $instance->carrierAccount = $account;
+
+        return $instance;
+    }
 
     public function getRequestTimeout(): float
     {
@@ -57,10 +68,16 @@ class UpsConnector extends Connector
     protected function defaultOauthConfig(): OAuthConfig
     {
         $settings = app(SettingsService::class);
+        $clientId = $this->carrierAccount?->secret('client_id')
+            ?? $settings->get('ups.client_id')
+            ?? config('services.ups.client_id', '');
+        $clientSecret = $this->carrierAccount?->secret('client_secret')
+            ?? $settings->get('ups.client_secret')
+            ?? config('services.ups.client_secret', '');
 
         return OAuthConfig::make()
-            ->setClientId((string) $settings->get('ups.client_id', ''))
-            ->setClientSecret((string) $settings->get('ups.client_secret', ''))
+            ->setClientId((string) $clientId)
+            ->setClientSecret((string) $clientSecret)
             ->setTokenEndpoint('/security/v1/oauth/token');
     }
 
@@ -73,26 +90,28 @@ class UpsConnector extends Connector
      * Get an authenticated connector, using OAuth token if connected via auth code flow,
      * otherwise falling back to client credentials.
      */
-    public static function getAuthenticatedConnector(): static
+    public static function getAuthenticatedConnector(?CarrierAccount $account = null): static
     {
         $settings = app(SettingsService::class);
+        $authMode = $account?->secret('auth_mode') ?? $settings->get('ups.auth_mode');
 
-        if ($settings->get('ups.auth_mode') === 'authorization_code') {
-            return static::fromOAuthToken($settings);
+        if ($authMode === 'authorization_code') {
+            return static::fromOAuthToken($settings, $account);
         }
 
-        // Client credentials flow (parent trait behavior)
-        return static::fromClientCredentials();
+        return static::fromClientCredentials($account);
     }
 
     /**
      * Client credentials flow — delegates to the HasCachedAuthentication trait.
      */
-    private static function fromClientCredentials(): static
+    private static function fromClientCredentials(?CarrierAccount $account = null): static
     {
         /** @phpstan-ignore new.static */
-        $connector = new static;
-        $cacheKey = static::getAuthenticatorCacheKey();
+        $connector = $account ? static::forAccount($account) : new static;
+        $cacheKey = $account?->secret('client_id')
+            ? "ups_authenticator:{$account->id}"
+            : static::getAuthenticatorCacheKey();
 
         $cached = Cache::get($cacheKey);
 
@@ -124,13 +143,12 @@ class UpsConnector extends Connector
     /**
      * OAuth authorization code flow — uses stored token with automatic refresh.
      */
-    private static function fromOAuthToken(SettingsService $settings): static
+    private static function fromOAuthToken(SettingsService $settings, ?CarrierAccount $account = null): static
     {
         /** @phpstan-ignore new.static */
-        $connector = new static;
-        $cacheKey = 'ups_oauth_token';
+        $connector = $account ? static::forAccount($account) : new static;
+        $cacheKey = $account ? "ups_oauth_token:{$account->id}" : 'ups_oauth_token';
 
-        // Try cache first
         $cachedToken = Cache::get($cacheKey);
 
         if ($cachedToken) {
@@ -139,22 +157,20 @@ class UpsConnector extends Connector
             return $connector;
         }
 
-        // Cache miss — check stored token and refresh if needed
-        $token = Cache::lock($cacheKey.':lock', 10)->block(5, function () use ($settings, $cacheKey) {
-            // Double-check cache after acquiring lock
+        $token = Cache::lock($cacheKey.':lock', 10)->block(5, function () use ($settings, $cacheKey, $account) {
             $cached = Cache::get($cacheKey);
             if ($cached) {
                 return $cached;
             }
 
-            $accessToken = $settings->get('ups.oauth_access_token');
-            $expiresAt = $settings->get('ups.oauth_token_expires_at');
+            $accessToken = $account?->secret('oauth_token') ?? $settings->get('ups.oauth_access_token');
+            $expiresAt = $account?->secret('token_expires_at') ?? $settings->get('ups.oauth_token_expires_at');
 
             if (! $accessToken) {
-                throw new RuntimeException('UPS OAuth token not found. Please reconnect via Settings.');
+                $context = $account ? "account {$account->id}" : 'Settings';
+                throw new RuntimeException("UPS OAuth token not found. Please reconnect via {$context}.");
             }
 
-            // If token is still valid (with 10-minute buffer), cache and use it
             if ($expiresAt && Carbon::parse($expiresAt)->subMinutes(10)->isFuture()) {
                 $ttl = Carbon::parse($expiresAt)->subMinutes(10)->diffInSeconds(now());
                 Cache::put($cacheKey, $accessToken, (int) $ttl);
@@ -162,8 +178,7 @@ class UpsConnector extends Connector
                 return $accessToken;
             }
 
-            // Token expired — refresh it
-            return static::refreshOAuthToken($settings, $cacheKey);
+            return static::refreshOAuthToken($cacheKey, $account);
         });
 
         $connector->authenticate(new TokenAuthenticator($token));
@@ -174,9 +189,11 @@ class UpsConnector extends Connector
     /**
      * Refresh the OAuth access token via the broker.
      */
-    private static function refreshOAuthToken(SettingsService $settings, string $cacheKey): string
+    private static function refreshOAuthToken(string $cacheKey, ?CarrierAccount $account = null): string
     {
-        $data = app(OAuthService::class)->refreshToken('ups');
+        $data = $account
+            ? app(OAuthService::class)->refreshTokenForAccount('ups', $account)
+            : app(OAuthService::class)->refreshToken('ups');
 
         $newAccessToken = $data['access_token'] ?? null;
 
@@ -184,7 +201,6 @@ class UpsConnector extends Connector
             throw new RuntimeException('UPS token refresh response missing access_token.');
         }
 
-        // Cache with 10-minute buffer
         $expiresIn = (int) ($data['expires_in'] ?? 14400);
         $cacheTtl = max($expiresIn - 600, 60);
         Cache::put($cacheKey, $newAccessToken, $cacheTtl);

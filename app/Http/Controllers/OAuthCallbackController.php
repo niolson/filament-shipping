@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Role;
+use App\Models\CarrierAccount;
 use App\Services\OAuthService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -43,7 +44,21 @@ class OAuthCallbackController extends Controller
                 ]);
         }
 
+        $accountId = session()->pull("oauth_account_id.{$provider}");
+        $account = $accountId ? CarrierAccount::find($accountId) : null;
+
         try {
+            if ($account) {
+                $this->oauthService->handleReceiveForAccount($provider, $transferCode, $account);
+
+                return redirect()
+                    ->route('filament.app.resources.carrier-accounts.edit', $account->id)
+                    ->with('oauth_notification', [
+                        'status' => 'success',
+                        'title' => ucfirst($provider).' connected successfully.',
+                    ]);
+            }
+
             $this->oauthService->handleReceive($provider, $transferCode);
 
             return redirect()->route('filament.app.pages.settings')
@@ -56,11 +71,14 @@ class OAuthCallbackController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            return redirect()->route('filament.app.pages.settings')
-                ->with('oauth_notification', [
-                    'status' => 'danger',
-                    'title' => 'Connection failed: '.$e->getMessage(),
-                ]);
+            $redirectRoute = $account
+                ? redirect()->route('filament.app.resources.carrier-accounts.edit', $account->id)
+                : redirect()->route('filament.app.pages.settings');
+
+            return $redirectRoute->with('oauth_notification', [
+                'status' => 'danger',
+                'title' => 'Connection failed: '.$e->getMessage(),
+            ]);
         }
     }
 }

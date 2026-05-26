@@ -1,0 +1,210 @@
+<?php
+
+namespace App\Filament\Resources\CarrierAccounts\Schemas;
+
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
+use App\Services\OAuthService;
+use Carbon\Carbon;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
+use Illuminate\Support\HtmlString;
+
+class CarrierAccountForm
+{
+    public static function configure(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Section::make('Account Details')
+                    ->schema([
+                        Select::make('carrier_id')
+                            ->label('Carrier')
+                            ->options(fn () => Carrier::active()->pluck('name', 'id'))
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function (?string $state, Set $set, Get $get): void {
+                                if (! $state || filled($get('name'))) {
+                                    return;
+                                }
+
+                                $carrier = Carrier::find($state);
+
+                                if ($carrier && CarrierAccount::where('carrier_id', $state)->doesntExist()) {
+                                    $set('name', $carrier->name.' Default');
+                                }
+                            }),
+                        TextInput::make('name')
+                            ->label('Account Name')
+                            ->helperText('A label to identify this account, e.g. "3PL USPS" or "Client A FedEx".')
+                            ->required()
+                            ->maxLength(255),
+                        Toggle::make('active')
+                            ->default(true),
+                    ]),
+
+                // ── USPS ────────────────────────────────────────────────────────────
+
+                Section::make('USPS Credentials')
+                    ->description('Overrides the global USPS credentials for shipments assigned to this account.')
+                    ->schema([
+                        Placeholder::make('usps_oauth_status')
+                            ->label('OAuth Status')
+                            ->content(fn (?CarrierAccount $record) => static::renderAccountOauthStatus($record))
+                            ->columnSpanFull(),
+                        TextInput::make('credentials.crid')
+                            ->label('CRID')
+                            ->helperText('Customer Registration ID.')
+                            ->maxLength(50),
+                        TextInput::make('credentials.mid')
+                            ->label('MID')
+                            ->helperText('Mailer ID (9 digits).')
+                            ->maxLength(9),
+                        TextInput::make('credentials.eps_account')
+                            ->label('EPS Account')
+                            ->helperText('Leave blank to auto-populate from the OAuth token.')
+                            ->maxLength(50),
+                    ])
+                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'USPS')
+                    ->columns(2)
+                    ->collapsible(),
+
+                Section::make('Advanced / API App Credentials')
+                    ->description('Custom USPS developer app credentials. Most installations leave these empty and use the shared OAuth connection.')
+                    ->schema([
+                        TextInput::make('usps_adv_client_id')
+                            ->label('Client ID')
+                            ->password()
+                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->afterStateHydrated(fn ($component) => $component->state(null))
+                            ->dehydrated(fn ($state) => filled($state)),
+                        TextInput::make('usps_adv_client_secret')
+                            ->label('Client Secret')
+                            ->password()
+                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->afterStateHydrated(fn ($component) => $component->state(null))
+                            ->dehydrated(fn ($state) => filled($state)),
+                    ])
+                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'USPS')
+                    ->columns(2)
+                    ->collapsed()
+                    ->collapsible(),
+
+                // ── FedEx ───────────────────────────────────────────────────────────
+
+                Section::make('FedEx Account')
+                    ->description('FedEx account connection. Use the "Connect FedEx Account" action above to provision credentials.')
+                    ->schema([
+                        Placeholder::make('fedex_connection_status')
+                            ->label('Connection Status')
+                            ->content(fn (?CarrierAccount $record) => filled($record?->secret('child_key'))
+                                ? new HtmlString('<span class="text-success-600 dark:text-success-400 font-medium">Connected</span> — child credentials provisioned via Account Registration')
+                                : new HtmlString('<span class="text-gray-400 dark:text-gray-500">Not connected</span> — use the Connect FedEx Account action above'))
+                            ->columnSpanFull(),
+                        TextInput::make('fedex_account_number')
+                            ->label('Account Number')
+                            ->maxLength(50)
+                            ->readOnly(fn (?CarrierAccount $record) => filled($record?->secret('child_key')))
+                            ->afterStateHydrated(fn ($component, ?CarrierAccount $record) => $component->state($record?->credential('account_number'))),
+                    ])
+                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'FedEx')
+                    ->collapsible(),
+
+                Section::make('Advanced / API App Credentials')
+                    ->description('Custom FedEx developer app credentials. Leave empty to use the shared polybag-connect credentials.')
+                    ->schema([
+                        TextInput::make('fedex_adv_api_key')
+                            ->label('Production API Key')
+                            ->password()
+                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('api_key')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->afterStateHydrated(fn ($component) => $component->state(null))
+                            ->dehydrated(fn ($state) => filled($state)),
+                        TextInput::make('fedex_adv_api_secret')
+                            ->label('Production API Secret')
+                            ->password()
+                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('api_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->afterStateHydrated(fn ($component) => $component->state(null))
+                            ->dehydrated(fn ($state) => filled($state)),
+                        TextInput::make('fedex_adv_sandbox_api_key')
+                            ->label('Sandbox API Key')
+                            ->password()
+                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('sandbox_api_key')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->afterStateHydrated(fn ($component) => $component->state(null))
+                            ->dehydrated(fn ($state) => filled($state)),
+                        TextInput::make('fedex_adv_sandbox_api_secret')
+                            ->label('Sandbox API Secret')
+                            ->password()
+                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('sandbox_api_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->afterStateHydrated(fn ($component) => $component->state(null))
+                            ->dehydrated(fn ($state) => filled($state)),
+                    ])
+                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'FedEx')
+                    ->columns(2)
+                    ->collapsed()
+                    ->collapsible(),
+
+                // ── UPS ─────────────────────────────────────────────────────────────
+
+                Section::make('UPS Account')
+                    ->description('UPS account connection. Use the "Connect UPS" action above to authorize via OAuth.')
+                    ->schema([
+                        Placeholder::make('ups_oauth_status')
+                            ->label('OAuth Status')
+                            ->content(fn (?CarrierAccount $record) => static::renderAccountOauthStatus($record))
+                            ->columnSpanFull(),
+                        TextInput::make('ups_account_number')
+                            ->label('Account Number')
+                            ->maxLength(50)
+                            ->afterStateHydrated(fn ($component, ?CarrierAccount $record) => $component->state($record?->credential('account_number'))),
+                    ])
+                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'UPS')
+                    ->collapsible(),
+
+                Section::make('Advanced / API App Credentials')
+                    ->description('Custom UPS developer app credentials. Most installations leave these empty and use the shared OAuth connection.')
+                    ->schema([
+                        TextInput::make('ups_adv_client_id')
+                            ->label('Client ID')
+                            ->password()
+                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->afterStateHydrated(fn ($component) => $component->state(null))
+                            ->dehydrated(fn ($state) => filled($state)),
+                        TextInput::make('ups_adv_client_secret')
+                            ->label('Client Secret')
+                            ->password()
+                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->afterStateHydrated(fn ($component) => $component->state(null))
+                            ->dehydrated(fn ($state) => filled($state)),
+                    ])
+                    ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'UPS')
+                    ->columns(2)
+                    ->collapsed()
+                    ->collapsible(),
+            ]);
+    }
+
+    private static function renderAccountOauthStatus(?CarrierAccount $record): HtmlString
+    {
+        if (! $record?->exists) {
+            return new HtmlString('<span class="text-gray-400 dark:text-gray-500">Save the account first, then connect via OAuth.</span>');
+        }
+
+        if (app(OAuthService::class)->isAccountConnected($record)) {
+            $connectedAt = $record->credential('oauth_connected_at');
+            $time = $connectedAt ? Carbon::parse($connectedAt)->diffForHumans() : null;
+
+            return new HtmlString(
+                '<span class="text-success-600 dark:text-success-400 font-medium">Connected</span>'
+                    .($time ? " — {$time}" : '')
+            );
+        }
+
+        return new HtmlString('<span class="text-gray-400 dark:text-gray-500">Not connected</span>');
+    }
+}
