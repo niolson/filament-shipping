@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\CarrierAccounts\Pages;
 
 use App\Filament\Resources\CarrierAccounts\CarrierAccountResource;
+use App\Models\CarrierAccountScope;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateCarrierAccount extends CreateRecord
@@ -59,10 +61,23 @@ class CreateCarrierAccount extends CreateRecord
             $this->pendingSecrets = [];
         }
 
-        // Ensure a global (null,null) scope exists so resolveForShipment() returns
-        // this account when no location- or client-specific scope is configured.
-        if (! $this->record->scopes()->whereNull('location_id')->whereNull('client_id')->exists()) {
+        // Create a global (null,null) scope so resolveForShipment() can find this
+        // account, but only when no other account for the same carrier already
+        // holds the global default slot (unique constraint on carrier+location+client).
+        $globalTaken = CarrierAccountScope::whereNull('location_id')
+            ->whereNull('client_id')
+            ->where('carrier_id', $this->record->carrier_id)
+            ->exists();
+
+        if (! $globalTaken) {
             $this->record->scopes()->create(['location_id' => null, 'client_id' => null, 'rate_shop' => false]);
+        } else {
+            Notification::make()
+                ->warning()
+                ->title('No global scope assigned')
+                ->body('Another account is already the global default for this carrier. Use the Location Assignments section to assign this account to specific locations.')
+                ->persistent()
+                ->send();
         }
     }
 }

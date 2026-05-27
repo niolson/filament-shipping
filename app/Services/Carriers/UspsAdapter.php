@@ -76,7 +76,7 @@ class UspsAdapter implements CarrierAdapterInterface
         }
 
         $connector = USPSConnector::getAuthenticatedConnector(
-            $this->resolveAccount($request->locationId, null)
+            $this->resolveAccount($request->locationId, $request->clientId)
         );
         $apiRequest = $this->buildRateApiRequest($request);
 
@@ -103,7 +103,7 @@ class UspsAdapter implements CarrierAdapterInterface
         }
 
         $connector = USPSConnector::getAuthenticatedConnector(
-            $this->resolveAccount($request->locationId, null)
+            $this->resolveAccount($request->locationId, $request->clientId)
         );
         $apiRequest = $this->buildRateApiRequest($request);
         $pendingRequest = $connector->createPendingRequest($apiRequest);

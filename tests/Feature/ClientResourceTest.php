@@ -1,0 +1,135 @@
+<?php
+
+use App\Filament\Resources\Clients\Pages\CreateClient;
+use App\Filament\Resources\Clients\Pages\EditClient;
+use App\Filament\Resources\Clients\Pages\ListClients;
+use App\Models\Client;
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
+
+uses(RefreshDatabase::class);
+
+beforeEach(function (): void {
+    $this->actingAs(User::factory()->admin()->create());
+});
+
+it('can render the list page', function (): void {
+    Client::factory()->count(3)->create();
+
+    Livewire::test(ListClients::class)->assertSuccessful();
+});
+
+it('can render the create page', function (): void {
+    Livewire::test(CreateClient::class)->assertSuccessful();
+});
+
+it('can render the edit page', function (): void {
+    $client = Client::factory()->create();
+
+    Livewire::test(EditClient::class, ['record' => $client->id])->assertSuccessful();
+});
+
+it('can create a client', function (): void {
+    Livewire::test(CreateClient::class)
+        ->fillForm([
+            'name' => 'Acme Corp',
+            'code' => 'ACME',
+            'active' => true,
+            'is_default' => false,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors()
+        ->assertRedirect();
+
+    $this->assertDatabaseHas(Client::class, [
+        'name' => 'Acme Corp',
+        'code' => 'ACME',
+        'active' => true,
+        'is_default' => false,
+    ]);
+});
+
+it('can create a client with a return address', function (): void {
+    Livewire::test(CreateClient::class)
+        ->fillForm([
+            'name' => 'Acme Corp',
+            'code' => 'ACME',
+            'return_company' => 'Acme Corp',
+            'return_name' => 'Returns Dept',
+            'return_address1' => '123 Main St',
+            'return_city' => 'Springfield',
+            'return_state_or_province' => 'IL',
+            'return_postal_code' => '62701',
+            'return_country' => 'US',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors()
+        ->assertRedirect();
+
+    $this->assertDatabaseHas(Client::class, [
+        'name' => 'Acme Corp',
+        'return_address1' => '123 Main St',
+        'return_city' => 'Springfield',
+        'return_postal_code' => '62701',
+    ]);
+});
+
+it('requires name and code', function (): void {
+    Livewire::test(CreateClient::class)
+        ->fillForm(['name' => '', 'code' => ''])
+        ->call('create')
+        ->assertHasFormErrors(['name' => 'required', 'code' => 'required']);
+});
+
+it('enforces unique code', function (): void {
+    Client::factory()->create(['code' => 'ACME']);
+
+    Livewire::test(CreateClient::class)
+        ->fillForm(['name' => 'Other Corp', 'code' => 'ACME'])
+        ->call('create')
+        ->assertHasFormErrors(['code' => 'unique']);
+});
+
+it('can edit a client', function (): void {
+    $client = Client::factory()->create(['name' => 'Old Name']);
+
+    Livewire::test(EditClient::class, ['record' => $client->id])
+        ->fillForm(['name' => 'New Name'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $this->assertDatabaseHas(Client::class, [
+        'id' => $client->id,
+        'name' => 'New Name',
+    ]);
+});
+
+it('allows the same code on edit (ignores own record)', function (): void {
+    $client = Client::factory()->create(['code' => 'ACME']);
+
+    Livewire::test(EditClient::class, ['record' => $client->id])
+        ->fillForm(['name' => $client->name, 'code' => 'ACME'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+});
+
+it('making a client default clears the previous default', function (): void {
+    $original = Client::factory()->create(['is_default' => true]);
+    $new = Client::factory()->create(['is_default' => false]);
+
+    Livewire::test(EditClient::class, ['record' => $new->id])
+        ->fillForm(['is_default' => true])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($original->fresh()->is_default)->toBeFalse()
+        ->and($new->fresh()->is_default)->toBeTrue();
+});
+
+it('can see clients in the list', function (): void {
+    $clients = Client::factory()->count(3)->create();
+
+    Livewire::test(ListClients::class)
+        ->assertCanSeeTableRecords($clients);
+});

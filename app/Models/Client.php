@@ -17,7 +17,21 @@ class Client extends Model
         'code',
         'is_default',
         'active',
+        'return_company',
+        'return_name',
+        'return_address1',
+        'return_address2',
+        'return_city',
+        'return_state_or_province',
+        'return_postal_code',
+        'return_country',
+        'return_phone',
     ];
+
+    public function hasReturnAddress(): bool
+    {
+        return filled($this->return_address1) && filled($this->return_city) && filled($this->return_postal_code);
+    }
 
     protected $casts = [
         'is_default' => 'boolean',

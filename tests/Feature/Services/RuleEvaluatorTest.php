@@ -4,6 +4,7 @@ use App\Enums\ShippingRuleAction;
 use App\Models\Carrier;
 use App\Models\CarrierService;
 use App\Models\Channel;
+use App\Models\Client;
 use App\Models\Package;
 use App\Models\Product;
 use App\Models\Shipment;
@@ -600,6 +601,62 @@ it('passes unknown condition types (forward compatibility)', function (): void {
         'conditions' => [
             ['type' => 'future_condition_type', 'data' => ['foo' => 'bar']],
         ],
+    ]);
+
+    $result = app(RuleEvaluator::class)->evaluate($shipment);
+
+    expect($result->hasPreSelectedRate())->toBeTrue();
+});
+
+it('does not apply a client-specific rule to a shipment belonging to a different client', function (): void {
+    $carrier = Carrier::factory()->create(['name' => 'USPS']);
+    $service = CarrierService::factory()->uspsPriority()->create(['carrier_id' => $carrier->id]);
+
+    $clientA = Client::factory()->create();
+    $clientB = Client::factory()->create();
+
+    $shipment = Shipment::factory()->create(['client_id' => $clientB->id]);
+
+    ShippingRule::factory()->create([
+        'client_id' => $clientA->id,
+        'action' => ShippingRuleAction::UseService,
+        'carrier_service_id' => $service->id,
+    ]);
+
+    $result = app(RuleEvaluator::class)->evaluate($shipment);
+
+    expect($result->hasPreSelectedRate())->toBeFalse();
+});
+
+it('applies a global rule (null client_id) to shipments from any client', function (): void {
+    $carrier = Carrier::factory()->create(['name' => 'USPS']);
+    $service = CarrierService::factory()->uspsPriority()->create(['carrier_id' => $carrier->id]);
+
+    $client = Client::factory()->create();
+    $shipment = Shipment::factory()->create(['client_id' => $client->id]);
+
+    ShippingRule::factory()->create([
+        'client_id' => null,
+        'action' => ShippingRuleAction::UseService,
+        'carrier_service_id' => $service->id,
+    ]);
+
+    $result = app(RuleEvaluator::class)->evaluate($shipment);
+
+    expect($result->hasPreSelectedRate())->toBeTrue();
+});
+
+it('applies a client-specific rule only to shipments for that client', function (): void {
+    $carrier = Carrier::factory()->create(['name' => 'USPS']);
+    $service = CarrierService::factory()->uspsPriority()->create(['carrier_id' => $carrier->id]);
+
+    $client = Client::factory()->create();
+    $shipment = Shipment::factory()->create(['client_id' => $client->id]);
+
+    ShippingRule::factory()->create([
+        'client_id' => $client->id,
+        'action' => ShippingRuleAction::UseService,
+        'carrier_service_id' => $service->id,
     ]);
 
     $result = app(RuleEvaluator::class)->evaluate($shipment);

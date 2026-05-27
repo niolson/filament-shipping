@@ -117,6 +117,7 @@ class Settings extends Page
             'manual_shipping_enabled' => app(SettingsService::class)->get('manual_shipping_enabled', true),
             'picking_enabled' => app(SettingsService::class)->get('picking_enabled', false),
             'multi_location_enabled' => app(SettingsService::class)->get('multi_location_enabled', false),
+            'multi_client_enabled' => app(SettingsService::class)->get('multi_client_enabled', false),
             'carrier_api_timeout' => app(SettingsService::class)->get('carrier_api_timeout', 15),
             'import_source' => app(SettingsService::class)->get('import_source', 'database'),
             'audit_log_retention_days' => app(SettingsService::class)->get('audit_log_retention_days', 365),
@@ -284,6 +285,10 @@ class Settings extends Page
                             Toggle::make('multi_location_enabled')
                                 ->label('Multi-Location')
                                 ->helperText('When enabled, packages are tracked per warehouse and end-of-day processes run per location. Each user can be assigned a default location.')
+                                ->default(false),
+                            Toggle::make('multi_client_enabled')
+                                ->label('Multi-Client (3PL)')
+                                ->helperText('When enabled, shipments, products, and shipping rules are scoped per client. Client columns and selectors appear across the UI.')
                                 ->default(false),
                             Toggle::make('transparency_enabled')
                                 ->label('Amazon Transparency Program')
@@ -649,6 +654,7 @@ class Settings extends Page
             'manual_shipping_enabled' => $data['manual_shipping_enabled'] ?? true,
             'picking_enabled' => (bool) ($data['picking_enabled'] ?? false),
             'multi_location_enabled' => (bool) ($data['multi_location_enabled'] ?? false),
+            'multi_client_enabled' => (bool) ($data['multi_client_enabled'] ?? false),
             'carrier_api_timeout' => (int) ($data['carrier_api_timeout'] ?? 15),
             'import_source' => $data['import_source'] ?? 'database',
             'audit_log_retention_days' => (int) ($data['audit_log_retention_days'] ?? 365),

@@ -20,6 +20,10 @@ class RuleEvaluator
                 $query->whereNull('shipping_method_id')
                     ->orWhere('shipping_method_id', $shipment->shipping_method_id);
             })
+            ->where(function ($query) use ($shipment): void {
+                $query->whereNull('client_id')
+                    ->orWhere('client_id', $shipment->client_id);
+            })
             ->with('carrierService.carrier')
             ->get();
 

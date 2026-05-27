@@ -114,10 +114,7 @@ class LocationResource extends Resource
                                         ->get()
                                         ->mapWithKeys(fn ($a) => [$a->id => "[{$a->carrier->name}] {$a->name}"]))
                                     ->required(),
-                                Forms\Components\Toggle::make('rate_shop')
-                                    ->label('Rate shop with location default')
-                                    ->helperText('Reserved for future rate-shop support. When implemented, the cheapest rate across this account and the location default will be used automatically.')
-                                    ->default(false),
+
                             ])
                             ->defaultItems(0)
                             ->addActionLabel('Assign Account')

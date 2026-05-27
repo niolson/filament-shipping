@@ -4,12 +4,14 @@ namespace App\Filament\Resources\CarrierAccounts\Schemas;
 
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\Location;
 use App\Services\OAuthService;
 use Carbon\Carbon;
-use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
@@ -54,9 +56,9 @@ class CarrierAccountForm
                 Section::make('USPS Credentials')
                     ->description('Overrides the global USPS credentials for shipments assigned to this account.')
                     ->schema([
-                        Placeholder::make('usps_oauth_status')
+                        TextEntry::make('usps_oauth_status')
                             ->label('OAuth Status')
-                            ->content(fn (?CarrierAccount $record) => static::renderAccountOauthStatus($record))
+                            ->state(fn (?CarrierAccount $record) => static::renderAccountOauthStatus($record))
                             ->columnSpanFull(),
                         TextInput::make('credentials.crid')
                             ->label('CRID')
@@ -101,9 +103,9 @@ class CarrierAccountForm
                 Section::make('FedEx Account')
                     ->description('FedEx account connection. Use the "Connect FedEx Account" action above to provision credentials.')
                     ->schema([
-                        Placeholder::make('fedex_connection_status')
+                        TextEntry::make('fedex_connection_status')
                             ->label('Connection Status')
-                            ->content(fn (?CarrierAccount $record) => filled($record?->secret('child_key'))
+                            ->state(fn (?CarrierAccount $record) => filled($record?->secret('child_key'))
                                 ? new HtmlString('<span class="text-success-600 dark:text-success-400 font-medium">Connected</span> — child credentials provisioned via Account Registration')
                                 : new HtmlString('<span class="text-gray-400 dark:text-gray-500">Not connected</span> — use the Connect FedEx Account action above'))
                             ->columnSpanFull(),
@@ -149,14 +151,37 @@ class CarrierAccountForm
                     ->collapsed()
                     ->collapsible(),
 
+                // ── Location Assignments ─────────────────────────────────────────────
+
+                Section::make('Location Assignments')
+                    ->description('Control which locations use this account. A global assignment (all locations) is created automatically when the account is saved.')
+                    ->schema([
+                        Repeater::make('scopes')
+                            ->relationship()
+                            ->schema([
+                                Select::make('location_id')
+                                    ->label('Location')
+                                    ->options(fn () => Location::active()->pluck('name', 'id'))
+                                    ->placeholder('All locations (global default)')
+                                    ->nullable()
+                                    ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+
+                            ])
+                            ->defaultItems(0)
+                            ->addActionLabel('Add Location Assignment')
+                            ->columnSpanFull(),
+                    ])
+                    ->hidden(fn (?CarrierAccount $record) => ! $record?->exists)
+                    ->collapsible(),
+
                 // ── UPS ─────────────────────────────────────────────────────────────
 
                 Section::make('UPS Account')
                     ->description('UPS account connection. Use the "Connect UPS" action above to authorize via OAuth.')
                     ->schema([
-                        Placeholder::make('ups_oauth_status')
+                        TextEntry::make('ups_oauth_status')
                             ->label('OAuth Status')
-                            ->content(fn (?CarrierAccount $record) => static::renderAccountOauthStatus($record))
+                            ->state(fn (?CarrierAccount $record) => static::renderAccountOauthStatus($record))
                             ->columnSpanFull(),
                         TextInput::make('ups_account_number')
                             ->label('Account Number')

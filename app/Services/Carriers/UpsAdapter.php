@@ -105,7 +105,7 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function getRates(RateRequest $request, array $serviceCodes): Collection
     {
-        $this->currentAccount = $this->resolveAccount($request->locationId);
+        $this->currentAccount = $this->resolveAccount($request->locationId, $request->clientId);
 
         try {
             $prepared = $this->prepareRateRequest($request, $serviceCodes);
@@ -133,7 +133,7 @@ class UpsAdapter implements CarrierAdapterInterface
             return null;
         }
 
-        $this->currentAccount ??= $this->resolveAccount($request->locationId);
+        $this->currentAccount ??= $this->resolveAccount($request->locationId, $request->clientId);
         $connector = $this->resolveConnector();
         $apiRequest = $this->buildRateApiRequest($this->adjustRequestForSaturday($request, $serviceCodes));
         $pendingRequest = $connector->createPendingRequest($apiRequest);
@@ -196,7 +196,7 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function trackShipment(Package $package): TrackShipmentResponse
     {
-        $this->currentAccount = $this->resolveAccount($package->location_id);
+        $this->currentAccount = $this->resolveAccount($package->location_id, $package->shipment?->client_id);
         $connector = $this->resolveConnector();
         $trackRequest = new TrackShipment($package->tracking_number);
         $requestUri = rtrim($connector->resolveBaseUrl(), '/').$trackRequest->resolveEndpoint();
@@ -613,7 +613,7 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function cancelShipment(string $trackingNumber, Package $package): CancelResponse
     {
-        $this->currentAccount = $this->resolveAccount($package->location_id);
+        $this->currentAccount = $this->resolveAccount($package->location_id, $package->shipment?->client_id);
 
         try {
             $connector = $this->resolveConnector();

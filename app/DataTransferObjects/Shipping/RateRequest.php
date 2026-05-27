@@ -21,6 +21,7 @@ readonly class RateRequest
         public array $packages = [],
         public bool $saturdayDelivery = false,
         public ?int $locationId = null,
+        public ?int $clientId = null,
         public ?CarbonImmutable $shipDate = null,
     ) {}
 
@@ -51,6 +52,7 @@ readonly class RateRequest
             packages: [PackageData::fromPackage($package)],
             saturdayDelivery: (bool) $shippingMethod?->hasDefaultService('saturday_delivery'),
             locationId: $package->location_id,
+            clientId: $package->shipment->client_id,
         );
     }
 
@@ -67,6 +69,7 @@ readonly class RateRequest
             packages: $this->packages,
             saturdayDelivery: $this->saturdayDelivery,
             locationId: $this->locationId,
+            clientId: $this->clientId,
             shipDate: $date,
         );
     }

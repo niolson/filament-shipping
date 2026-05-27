@@ -140,7 +140,7 @@ class FedexAdapter implements CarrierAdapterInterface
         //     return $this->getMockInternationalRates($request, $internationalCodes);
         // }
 
-        $this->currentAccount = $this->resolveAccount($request->locationId);
+        $this->currentAccount = $this->resolveAccount($request->locationId, $request->clientId);
         $prepared = $this->prepareRateRequest($request, $serviceCodes);
 
         if (! $prepared) {
@@ -179,7 +179,7 @@ class FedexAdapter implements CarrierAdapterInterface
             return null;
         }
 
-        $this->currentAccount ??= $this->resolveAccount($request->locationId);
+        $this->currentAccount ??= $this->resolveAccount($request->locationId, $request->clientId);
         $connector = $this->resolveConnector();
         $apiRequest = $this->buildRateApiRequest($this->adjustRequestForSaturday($request, $serviceCodes), $serviceCodes);
         $pendingRequest = $connector->createPendingRequest($apiRequest);
@@ -624,7 +624,7 @@ class FedexAdapter implements CarrierAdapterInterface
 
     public function cancelShipment(string $trackingNumber, Package $package): CancelResponse
     {
-        $this->currentAccount = $this->resolveAccount($package->location_id);
+        $this->currentAccount = $this->resolveAccount($package->location_id, $package->shipment?->client_id);
 
         try {
             $connector = $this->resolveConnector();
@@ -661,7 +661,7 @@ class FedexAdapter implements CarrierAdapterInterface
             if (config('services.oauth.broker_url')) {
                 $connector = new FedexRegistrationProxyConnector;
             } else {
-                $this->currentAccount = $this->resolveAccount($package->location_id);
+                $this->currentAccount = $this->resolveAccount($package->location_id, $package->shipment?->client_id);
                 $connector = $this->resolveConnector();
             }
 
