@@ -95,8 +95,9 @@ beforeEach(function (): void {
     Setting::updateOrCreate(['key' => 'shopify.api_version'], ['value' => '2025-01', 'type' => 'string', 'group' => 'shopify']);
     app(SettingsService::class)->clearCache();
 
-    // Pre-seed cached token so the connector doesn't make a real HTTP call
-    Cache::put('shopify_access_token', 'shpat_test_token', 3600);
+    // Pre-seed cached token so the connector doesn't make a real HTTP call.
+    // Key format: shopify_access_token_ + md5(shop_domain)
+    Cache::put('shopify_access_token_'.md5('test-shop.myshopify.com'), 'shpat_test_token', 3600);
 });
 
 it('throws when shop domain is not configured', function (): void {

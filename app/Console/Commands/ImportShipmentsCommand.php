@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Contracts\ImportSourceInterface;
+use App\Services\ShipmentImport\ImportSourceFactory;
 use App\Services\ShipmentImport\RuntimeConfig;
 use App\Services\ShipmentImport\ShipmentImportService;
 use Illuminate\Console\Command;
@@ -11,6 +12,7 @@ class ImportShipmentsCommand extends Command
 {
     protected $signature = 'shipments:import
                             {--source= : The import source to use (defaults to config value)}
+                            {--all : Run every active ImportSource record}
                             {--dry-run : Preview what would be imported without making changes}
                             {--validate-only : Only validate the source configuration}';
 
@@ -18,6 +20,10 @@ class ImportShipmentsCommand extends Command
 
     public function handle(): int
     {
+        if ($this->option('all')) {
+            return $this->runAll();
+        }
+
         $sourceName = $this->option('source') ?? app(RuntimeConfig::class)->defaultSource();
 
         $this->info("Using import source: {$sourceName}");
@@ -71,6 +77,99 @@ class ImportShipmentsCommand extends Command
         }
 
         return $result->hasErrors() ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    private function runAll(): int
+    {
+        $sources = app(RuntimeConfig::class)->allActiveSources();
+
+        if ($sources->isEmpty()) {
+            // No DB-backed sources yet (fresh install or setup-wizard-only config).
+            // Fall back to the SettingsService/config-file default so importing keeps
+            // working without requiring a manual ImportSource row to be created first.
+            $sourceName = app(RuntimeConfig::class)->defaultSource();
+            $this->info("No active import sources in database; falling back to default: {$sourceName}");
+
+            try {
+                $source = $this->resolveSource($sourceName);
+            } catch (\Exception $e) {
+                $this->warn("No active import sources and no fallback configured: {$e->getMessage()}");
+
+                return Command::SUCCESS;
+            }
+
+            if ($this->option('validate-only')) {
+                return $this->validateSource($source);
+            }
+
+            if ($this->option('dry-run')) {
+                return $this->dryRun($source);
+            }
+
+            $service = ShipmentImportService::forSource($source);
+            $result = $service->import();
+
+            if ($result->hasErrors()) {
+                foreach ($result->errors as $error) {
+                    $this->error("  - {$error}");
+                }
+            }
+
+            return $result->hasErrors() ? Command::FAILURE : Command::SUCCESS;
+        }
+
+        $this->info("Running {$sources->count()} active import source(s)...");
+
+        $overallFailure = false;
+
+        foreach ($sources as $record) {
+            $this->newLine();
+            $this->info("▶ Source: {$record->config_key}".($record->client ? " (client: {$record->client->name})" : ''));
+
+            $source = app(ImportSourceFactory::class)->make($record);
+
+            if ($this->option('validate-only')) {
+                $exitCode = $this->validateSource($source);
+                if ($exitCode !== Command::SUCCESS) {
+                    $overallFailure = true;
+                }
+
+                continue;
+            }
+
+            if ($this->option('dry-run')) {
+                $exitCode = $this->dryRun($source);
+                if ($exitCode !== Command::SUCCESS) {
+                    $overallFailure = true;
+                }
+
+                continue;
+            }
+
+            $service = ShipmentImportService::forRecord($record);
+            $result = $service->import();
+
+            $this->table(
+                ['Metric', 'Count'],
+                [
+                    ['Shipments Created', $result->shipmentsCreated],
+                    ['Shipments Updated', $result->shipmentsUpdated],
+                    ['Items Created', $result->itemsCreated],
+                    ['Items Updated', $result->itemsUpdated],
+                    ['Duration', round($result->duration, 2).'s'],
+                ]
+            );
+
+            if ($result->hasErrors()) {
+                $overallFailure = true;
+                $this->warn('Errors:');
+                foreach ($result->errors as $error) {
+                    $this->error("  - {$error}");
+                }
+            }
+        }
+
+        return $overallFailure ? Command::FAILURE : Command::SUCCESS;
     }
 
     private function resolveSource(string $sourceName): ImportSourceInterface

@@ -16,24 +16,55 @@ class ShopifyConnector extends Connector
 
     public ?bool $useExponentialBackoff = true;
 
-    private const CACHE_KEY = 'shopify_access_token';
+    private const CACHE_KEY_PREFIX = 'shopify_access_token_';
 
     public function __construct(
         private readonly string $shopDomain,
         private readonly string $clientId,
         private readonly string $clientSecret,
         private readonly string $apiVersion = '2025-01',
+        private readonly ?string $accessToken = null,
     ) {}
 
     public static function fromConfig(): self
     {
-        $settings = app(SettingsService::class);
+        return self::fromSettings([]);
+    }
+
+    /**
+     * Build from a per-source settings array, falling back to tenant-level SettingsService
+     * for app credentials (client_id, client_secret) which are always shared.
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    public static function fromSettings(array $settings): self
+    {
+        $global = app(SettingsService::class);
+
+        $shopDomain = filled($settings['shop_domain'] ?? null)
+            ? (string) $settings['shop_domain']
+            : (string) $global->get('shopify.shop_domain', '');
+
+        // Manual access_token takes priority over OAuth token; both are per-source.
+        $accessToken = filled($settings['access_token'] ?? null)
+            ? (string) $settings['access_token']
+            : (filled($settings['oauth_access_token'] ?? null) ? (string) $settings['oauth_access_token'] : null);
+
+        // Per-source app credentials override tenant-level ones.
+        $clientId = filled($settings['client_id'] ?? null)
+            ? (string) $settings['client_id']
+            : (string) $global->get('shopify.client_id', '');
+
+        $clientSecret = filled($settings['client_secret'] ?? null)
+            ? (string) $settings['client_secret']
+            : (string) $global->get('shopify.client_secret', '');
 
         return new self(
-            shopDomain: (string) $settings->get('shopify.shop_domain', ''),
-            clientId: (string) $settings->get('shopify.client_id', ''),
-            clientSecret: (string) $settings->get('shopify.client_secret', ''),
-            apiVersion: (string) $settings->get('shopify.api_version', '2025-01'),
+            shopDomain: $shopDomain,
+            clientId: $clientId,
+            clientSecret: $clientSecret,
+            apiVersion: (string) $global->get('shopify.api_version', '2025-01'),
+            accessToken: $accessToken,
         );
     }
 
@@ -51,14 +82,17 @@ class ShopifyConnector extends Connector
     }
 
     /**
-     * Get a valid access token, checking OAuth token first then client credentials.
+     * Get a valid access token. Per-source injected tokens take priority,
+     * then global OAuth token, then client credentials flow.
      */
     private function getAccessToken(): string
     {
+        if ($this->accessToken !== null) {
+            return $this->accessToken;
+        }
+
         $settings = app(SettingsService::class);
 
-        // If connected via OAuth authorization code flow, use the stored token directly.
-        // Shopify offline tokens are non-expiring, so no cache/refresh needed.
         if ($settings->get('shopify.auth_mode') === 'authorization_code') {
             $oauthToken = $settings->get('shopify.oauth_access_token');
             if ($oauthToken) {
@@ -66,14 +100,12 @@ class ShopifyConnector extends Connector
             }
         }
 
-        // Fall back to client credentials flow
-        return Cache::get(self::CACHE_KEY) ?? $this->requestNewToken();
+        $cacheKey = self::CACHE_KEY_PREFIX.md5($this->shopDomain);
+
+        return Cache::get($cacheKey) ?? $this->requestNewToken($cacheKey);
     }
 
-    /**
-     * Request a new access token via the client credentials grant.
-     */
-    private function requestNewToken(): string
+    private function requestNewToken(string $cacheKey): string
     {
         $response = Http::asForm()->post(
             "https://{$this->shopDomain}/admin/oauth/access_token",
@@ -100,8 +132,7 @@ class ShopifyConnector extends Connector
             );
         }
 
-        // Cache with 10-minute buffer before expiry
-        Cache::put(self::CACHE_KEY, $token, $expiresIn - 600);
+        Cache::put($cacheKey, $token, $expiresIn - 600);
 
         return $token;
     }

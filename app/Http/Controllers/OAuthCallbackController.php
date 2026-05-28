@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\Role;
 use App\Models\CarrierAccount;
+use App\Models\ImportSource;
 use App\Services\OAuthService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -47,7 +48,21 @@ class OAuthCallbackController extends Controller
         $accountId = session()->pull("oauth_account_id.{$provider}");
         $account = $accountId ? CarrierAccount::find($accountId) : null;
 
+        $importSourceId = session()->pull("oauth_import_source_id.{$provider}");
+        $importSource = $importSourceId ? ImportSource::find($importSourceId) : null;
+
         try {
+            if ($importSource) {
+                $this->oauthService->handleReceiveForImportSource($provider, $transferCode, $importSource);
+
+                return redirect()
+                    ->route('filament.app.resources.import-sources.edit', $importSource->id)
+                    ->with('oauth_notification', [
+                        'status' => 'success',
+                        'title' => ucfirst($provider).' connected successfully.',
+                    ]);
+            }
+
             if ($account) {
                 $this->oauthService->handleReceiveForAccount($provider, $transferCode, $account);
 
@@ -70,6 +85,15 @@ class OAuthCallbackController extends Controller
             logger()->error("OAuth receive failed for {$provider}", [
                 'error' => $e->getMessage(),
             ]);
+
+            if ($importSource) {
+                return redirect()
+                    ->route('filament.app.resources.import-sources.edit', $importSource->id)
+                    ->with('oauth_notification', [
+                        'status' => 'danger',
+                        'title' => 'Connection failed: '.$e->getMessage(),
+                    ]);
+            }
 
             $redirectRoute = $account
                 ? redirect()->route('filament.app.resources.carrier-accounts.edit', $account->id)

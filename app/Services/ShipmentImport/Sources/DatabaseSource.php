@@ -28,9 +28,17 @@ class DatabaseSource implements ExportDestinationInterface, ImportSourceInterfac
     /**
      * Merge settings-based config over env/config values.
      * Settings take priority; env/config is the fallback.
+     * When config came from an ImportSource DB record the factory pre-builds
+     * all fields, so SettingsService overlays are skipped entirely.
      */
     private static function resolveConfigFromSettings(array $config): array
     {
+        if ($config['from_import_source_record'] ?? false) {
+            unset($config['from_import_source_record']);
+
+            return $config;
+        }
+
         $settings = app(SettingsService::class);
 
         // Check if any settings-based DB config exists
@@ -152,9 +160,20 @@ class DatabaseSource implements ExportDestinationInterface, ImportSourceInterfac
             $results = $query->get();
         }
 
+        $clientColumn = $this->config['client_column'] ?? null;
+
         // Map external fields to internal fields
-        return collect($results)->map(function ($row) {
-            return $this->fieldMapper->mapShipment($row);
+        return collect($results)->map(function ($row) use ($clientColumn) {
+            $mapped = $this->fieldMapper->mapShipment($row);
+
+            // Carry over the raw client column value so the importer can resolve
+            // the correct Client for per-row multi-client database imports.
+            if ($clientColumn) {
+                $rawRow = (array) $row;
+                $mapped['_client_column_value'] = $rawRow[$clientColumn] ?? null;
+            }
+
+            return $mapped;
         });
     }
 

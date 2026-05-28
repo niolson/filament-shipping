@@ -20,7 +20,7 @@ class PackagePolicy
 
     public function create(User $user): bool
     {
-        return $user->role->isAtLeast(Role::Manager);
+        return $user->role->isAtLeast(Role::Admin);
     }
 
     public function update(User $user, Package $package): bool

@@ -12,7 +12,6 @@ use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Setting;
-use App\Models\ShippingMethod;
 use App\Models\User;
 use App\Services\FedexRegistrationService;
 use App\Services\SettingsService;
@@ -129,100 +128,12 @@ it('does not clear API auth caches when sandbox_mode does not change', function 
         ->and(Cache::has('fedex_authenticator'))->toBeTrue();
 });
 
-it('escapes oauth scopes in the settings page', function (): void {
-    $payload = '<img src=x onerror=alert(\'pwnd\')>';
-
-    Setting::create(['key' => 'shopify.oauth_access_token', 'value' => 'token', 'type' => 'string', 'encrypted' => true, 'group' => 'shopify']);
-    Setting::create(['key' => 'shopify.oauth_connected_at', 'value' => now()->toIso8601String(), 'type' => 'string', 'group' => 'shopify']);
-    Setting::create(['key' => 'shopify.oauth_scopes', 'value' => $payload, 'type' => 'string', 'group' => 'shopify']);
-    app(SettingsService::class)->clearCache();
-
-    $this->get(Settings::getUrl())
-        ->assertOk()
-        ->assertSee(e($payload), false)
-        ->assertDontSee($payload, false);
-});
-
 it('shows the fedex eula confidentiality footer', function (): void {
     $renderedEula = Blade::render("@include('filament.pages.settings.fedex-eula')");
 
     expect($renderedEula)
         ->toContain('FedEx Confidential')
         ->toContain('FedEx Form No. 2002382 v 4 June 2024 Rev');
-});
-
-it('saves ssh server host key and writes a known_hosts file', function (): void {
-    $knownHostsPath = storage_path('app/private/ssh/import_known_hosts');
-    @unlink($knownHostsPath);
-
-    $hostKey = 'bastion.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBastionKeyExample';
-
-    Livewire::test(Settings::class)
-        ->fillForm([
-            'import_ssh_enabled' => true,
-            'import_ssh_host_key' => $hostKey,
-        ])
-        ->call('save')
-        ->assertNotified();
-
-    app(SettingsService::class)->clearCache();
-    expect(app(SettingsService::class)->get('import.ssh_host_key'))->toBe($hostKey);
-    expect(file_exists($knownHostsPath))->toBeTrue();
-    expect(trim((string) file_get_contents($knownHostsPath)))->toBe($hostKey);
-
-    @unlink($knownHostsPath);
-});
-
-it('saves tenant-managed import and marketplace settings', function (): void {
-    $shippingMethod = ShippingMethod::factory()->create();
-
-    Livewire::test(Settings::class)
-        ->fillForm([
-            'import_source' => 'shopify',
-            'shopify_import_enabled' => true,
-            'shopify_export_enabled' => true,
-            'shopify_channel_name' => 'Storefront',
-            'shopify_shipping_method' => (string) $shippingMethod->id,
-            'shopify_notify_customer' => true,
-            'amazon_import_enabled' => true,
-            'amazon_export_enabled' => true,
-            'amazon_channel_name' => 'Marketplace',
-            'amazon_shipping_method' => (string) $shippingMethod->id,
-            'amazon_lookback_days' => 14,
-        ])
-        ->call('save')
-        ->assertNotified();
-
-    app(SettingsService::class)->clearCache();
-
-    expect(app(SettingsService::class)->get('import_source'))->toBe('shopify')
-        ->and(app(SettingsService::class)->get('shopify.import_enabled'))->toBeTrue()
-        ->and(app(SettingsService::class)->get('shopify.export_enabled'))->toBeTrue()
-        ->and(app(SettingsService::class)->get('shopify.channel_name'))->toBe('Storefront')
-        ->and(app(SettingsService::class)->get('shopify.shipping_method'))->toBe((string) $shippingMethod->id)
-        ->and(app(SettingsService::class)->get('shopify.notify_customer'))->toBeTrue()
-        ->and(app(SettingsService::class)->get('amazon.import_enabled'))->toBeTrue()
-        ->and(app(SettingsService::class)->get('amazon.export_enabled'))->toBeTrue()
-        ->and(app(SettingsService::class)->get('amazon.channel_name'))->toBe('Marketplace')
-        ->and(app(SettingsService::class)->get('amazon.shipping_method'))->toBe((string) $shippingMethod->id)
-        ->and(app(SettingsService::class)->get('amazon.lookback_days'))->toBe(14);
-});
-
-it('saves database import and export sql queries', function (): void {
-    Livewire::test(Settings::class)
-        ->fillForm([
-            'import_shipments_query' => 'select * from shipments where exported = 0',
-            'import_shipment_items_query' => 'select * from shipment_items where shipment_id = :shipment_reference',
-            'import_export_query' => 'update orders set tracking_number = :tracking_number where id = :shipment_reference',
-        ])
-        ->call('save')
-        ->assertNotified();
-
-    app(SettingsService::class)->clearCache();
-
-    expect(app(SettingsService::class)->get('import.shipments_query'))->toBe('select * from shipments where exported = 0')
-        ->and(app(SettingsService::class)->get('import.shipment_items_query'))->toBe('select * from shipment_items where shipment_id = :shipment_reference')
-        ->and(app(SettingsService::class)->get('import.export_query'))->toBe('update orders set tracking_number = :tracking_number where id = :shipment_reference');
 });
 
 it('test usps connection shows CONTRACT success notification', function (): void {
@@ -310,12 +221,6 @@ function fedexCredentialsResponse(): array
         ],
     ];
 }
-
-it('fedex account status shows not connected when no child key stored', function (): void {
-    $this->get(Settings::getUrl())
-        ->assertOk()
-        ->assertSee('Not connected');
-});
 
 it('fedex account status is not shown on settings page (moved to carrier accounts)', function (): void {
     // FedEx connection status moved to the Carrier Accounts edit page.

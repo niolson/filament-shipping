@@ -2,6 +2,7 @@
 
 namespace App\Services\ShipmentImport;
 
+use App\Models\Client;
 use App\Models\ImportSource;
 use App\Services\AddressReferenceService;
 use App\Services\PhoneParserService;
@@ -13,7 +14,7 @@ class ShipmentRowPreparer
         private readonly ImportReferenceResolver $references,
     ) {}
 
-    public function prepare(array $data, ImportSource $importSource): PreparedShipmentRow
+    public function prepare(array $data, ImportSource $importSource, ?Client $clientOverride = null): PreparedShipmentRow
     {
         $data = $this->addressReference->normalizeAddressFields($data);
 
@@ -45,7 +46,7 @@ class ShipmentRowPreparer
             }
         }
 
-        $client = $importSource->client;
+        $client = $clientOverride ?? $importSource->client;
 
         return new PreparedShipmentRow(
             attributes: [

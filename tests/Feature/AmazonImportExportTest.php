@@ -107,7 +107,8 @@ beforeEach(function (): void {
         'services.amazon.sandbox_url' => 'https://sandbox.sellingpartnerapi-na.amazon.com',
     ]);
 
-    Cache::put('amazon_sp_api_access_token', 'test-access-token', 3600);
+    // Key format: amazon_sp_api_access_token_ + md5(refresh_token)
+    Cache::put('amazon_sp_api_access_token_'.md5('test-refresh-token'), 'test-access-token', 3600);
 });
 
 it('imports amazon orders into shipments table with metadata', function (): void {
@@ -404,4 +405,41 @@ it('calculates item unit prices correctly from proceeds breakdowns', function ()
     $lineItem = $shipment->shipmentItems->first();
     expect($lineItem->quantity)->toBe(3);
     expect((float) $lineItem->value)->toBe(10.0);
+});
+
+it('validates when per-source client_id and client_secret are present without tenant credentials', function (): void {
+    Setting::where('group', 'amazon')->delete();
+    app(SettingsService::class)->clearCache();
+
+    $source = new AmazonSource([
+        'config_key' => 'amazon_per_source',
+        'client_id' => 'per_source_client_id',
+        'client_secret' => 'per_source_client_secret',
+        'refresh_token' => 'per_source_refresh_token',
+        'marketplace_id' => 'ATVPDKIKX0DER',
+        'channel_name' => 'Amazon',
+        'export' => ['enabled' => false, 'field_mapping' => []],
+    ]);
+
+    $source->validateConfiguration();
+    expect(true)->toBeTrue();
+});
+
+it('fails validation when only per-source client_id but no client_secret and no tenant credentials', function (): void {
+    Setting::where('group', 'amazon')->delete();
+    app(SettingsService::class)->clearCache();
+
+    $source = new AmazonSource([
+        'config_key' => 'amazon_partial',
+        'client_id' => 'per_source_client_id',
+        'refresh_token' => 'per_source_refresh_token',
+        'marketplace_id' => 'ATVPDKIKX0DER',
+        'channel_name' => 'Amazon',
+        'export' => ['enabled' => false, 'field_mapping' => []],
+    ]);
+
+    // hasOwnCredentials is false (client_secret absent), so falls through to global check.
+    // Global client_id is also absent → "client ID" error fires first.
+    expect(fn () => $source->validateConfiguration())
+        ->toThrow(InvalidArgumentException::class, 'client ID');
 });

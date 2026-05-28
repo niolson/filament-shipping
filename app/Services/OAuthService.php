@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CarrierAccount;
+use App\Models\ImportSource;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -263,6 +264,152 @@ class OAuthService
     public function getAuthMode(string $providerKey): string
     {
         return $this->settings->get("{$providerKey}.auth_mode", 'client_credentials');
+    }
+
+    /**
+     * Generate the broker authorization URL for a specific ImportSource.
+     * Stores the ImportSource ID in session so the callback can route back to it.
+     */
+    public function initiateAuthorizationForImportSource(string $providerKey, ImportSource $importSource): string
+    {
+        $brokerUrl = config('services.oauth.broker_url');
+        $brokerSecret = config('services.oauth.broker_secret');
+        $instanceId = config('services.oauth.instance_id');
+
+        if (! $brokerUrl || ! $brokerSecret || ! $instanceId) {
+            throw new RuntimeException('OAuth broker is not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID.');
+        }
+
+        $nonce = Str::random(40);
+        session()->put("oauth_state.{$providerKey}", $nonce);
+        session()->put("oauth_import_source_id.{$providerKey}", $importSource->id);
+
+        $returnUrl = config('app.url');
+        $signature = hash_hmac('sha256', "{$providerKey}:{$instanceId}:{$returnUrl}:{$nonce}", $brokerSecret);
+
+        $brokerParams = $this->getBrokerParamsForImportSource($providerKey, $importSource);
+
+        $params = array_filter([
+            'return_url' => $returnUrl,
+            'instance_id' => $instanceId,
+            'nonce' => $nonce,
+            'signature' => $signature,
+            ...$brokerParams,
+        ]);
+
+        return rtrim($brokerUrl, '/')."/oauth/{$providerKey}/authorize?".http_build_query($params);
+    }
+
+    /**
+     * Handle the broker redirect for a per-ImportSource OAuth connection.
+     * Tokens are stored in the ImportSource settings JSON.
+     */
+    public function handleReceiveForImportSource(string $providerKey, string $transferCode, ImportSource $importSource): void
+    {
+        $brokerUrl = config('services.oauth.broker_url');
+        $brokerSecret = config('services.oauth.broker_secret');
+        $instanceId = config('services.oauth.instance_id');
+
+        $signature = hash_hmac('sha256', $transferCode, $brokerSecret);
+
+        $response = Http::post(rtrim($brokerUrl, '/').'/oauth/claim', [
+            'transfer_code' => $transferCode,
+            'instance_id' => $instanceId,
+            'signature' => $signature,
+        ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('Failed to claim tokens from broker: '.$response->body());
+        }
+
+        $data = $response->json();
+
+        $expectedNonce = session()->pull("oauth_state.{$providerKey}");
+
+        if (empty($expectedNonce) || ! hash_equals($expectedNonce, $data['nonce'] ?? '')) {
+            throw new RuntimeException('OAuth state mismatch. Please try again.');
+        }
+
+        $accessToken = $data['access_token'] ?? null;
+        if (empty($accessToken)) {
+            throw new RuntimeException('No access token received from broker.');
+        }
+
+        $importSource->mergeSecret('oauth_access_token', $accessToken);
+
+        $settings = $importSource->settings ?? [];
+        $settings['oauth_connected_at'] = now()->toIso8601String();
+        $settings['oauth_scopes'] = $data['extra']['scope'] ?? $data['scope'] ?? '';
+        $settings['auth_mode'] = 'authorization_code';
+        $importSource->settings = $settings;
+        $importSource->save();
+
+        // Bust the per-shop token cache so the new token is picked up immediately.
+        $shopDomain = $settings['shop_domain'] ?? '';
+        if ($shopDomain) {
+            Cache::forget('shopify_access_token_'.md5($shopDomain));
+        }
+    }
+
+    /**
+     * Disconnect an ImportSource's OAuth connection, clearing its token fields.
+     */
+    public function disconnectImportSource(string $providerKey, ImportSource $importSource): void
+    {
+        // Best-effort revocation
+        $token = $importSource->secret('oauth_access_token');
+        if ($token && $this->registry->has($providerKey)) {
+            try {
+                $this->registry->get($providerKey)->revokeToken($token);
+            } catch (\Throwable) {
+            }
+        }
+
+        $secrets = $importSource->secret_settings ?? [];
+        unset($secrets['oauth_access_token']);
+        $importSource->secret_settings = $secrets ?: null;
+
+        $settings = $importSource->settings ?? [];
+        foreach (['oauth_connected_at', 'oauth_scopes', 'auth_mode'] as $key) {
+            unset($settings[$key]);
+        }
+
+        $importSource->settings = $settings;
+        $importSource->save();
+
+        $shopDomain = $settings['shop_domain'] ?? '';
+        if ($shopDomain) {
+            Cache::forget('shopify_access_token_'.md5($shopDomain));
+        }
+    }
+
+    /**
+     * Check if an ImportSource is connected via OAuth.
+     */
+    public function isImportSourceConnected(ImportSource $importSource): bool
+    {
+        return filled($importSource->secret('oauth_access_token'));
+    }
+
+    /**
+     * Build provider-specific broker params for a per-ImportSource OAuth flow.
+     * For Shopify this overrides the shop domain with the per-source value.
+     *
+     * @return array<string, string>
+     */
+    private function getBrokerParamsForImportSource(string $providerKey, ImportSource $importSource): array
+    {
+        if ($providerKey === 'shopify') {
+            $shopDomain = $importSource->settings['shop_domain'] ?? null;
+
+            return array_filter(['shop' => $shopDomain]);
+        }
+
+        if ($this->registry->has($providerKey)) {
+            return $this->registry->get($providerKey)->getBrokerParams();
+        }
+
+        return [];
     }
 
     /**

@@ -7,17 +7,11 @@ use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Http\Integrations\USPS\USPSConnector;
 use App\Models\Location;
 use App\Models\Setting;
-use App\Models\ShippingMethod;
-use App\Services\OAuthService;
 use App\Services\SettingsService;
-use App\Services\SshTunnel;
 use BackedEnum;
-use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
@@ -29,8 +23,6 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\HtmlString;
 use Saloon\Exceptions\Request\Statuses\ForbiddenException;
 use UnitEnum;
 
@@ -61,53 +53,8 @@ class Settings extends Page
      */
     public ?array $data = [];
 
-    /**
-     * Encrypted credential fields and their setting keys.
-     *
-     * @var array<string, string>
-     */
-    private const ENCRYPTED_FIELDS = [
-        'shopify_client_id' => 'shopify.client_id',
-        'shopify_client_secret' => 'shopify.client_secret',
-        'amazon_client_id' => 'amazon.client_id',
-        'amazon_client_secret' => 'amazon.client_secret',
-        'amazon_refresh_token' => 'amazon.refresh_token',
-        'import_db_password' => 'import.db_password',
-    ];
-
-    /**
-     * Non-encrypted credential fields and their setting keys.
-     *
-     * @var array<string, string>
-     */
-    private const CREDENTIAL_FIELDS = [
-        'shopify_shop_domain' => 'shopify.shop_domain',
-        'shopify_api_version' => 'shopify.api_version',
-        'amazon_marketplace_id' => 'amazon.marketplace_id',
-        'import_db_driver' => 'import.db_driver',
-        'import_db_host' => 'import.db_host',
-        'import_db_port' => 'import.db_port',
-        'import_db_database' => 'import.db_database',
-        'import_db_username' => 'import.db_username',
-        'import_ssh_host' => 'import.ssh_host',
-        'import_ssh_port' => 'import.ssh_port',
-        'import_ssh_user' => 'import.ssh_user',
-        'import_ssh_remote_host' => 'import.ssh_remote_host',
-        'import_ssh_remote_port' => 'import.ssh_remote_port',
-        'import_ssh_host_key' => 'import.ssh_host_key',
-        'import_mark_exported_query' => 'import.mark_exported_query',
-    ];
-
     public function mount(): void
     {
-        // Show flash notification from OAuth callback redirect
-        if ($notification = session('oauth_notification')) {
-            Notification::make()
-                ->{$notification['status']}()
-                ->title($notification['title'])
-                ->send();
-        }
-
         $this->form->fill([
             'company_name' => app(SettingsService::class)->get('company_name', ''),
             'pack_slip_logo' => app(SettingsService::class)->get('pack_slip_logo'),
@@ -119,7 +66,6 @@ class Settings extends Page
             'multi_location_enabled' => app(SettingsService::class)->get('multi_location_enabled', false),
             'multi_client_enabled' => app(SettingsService::class)->get('multi_client_enabled', false),
             'carrier_api_timeout' => app(SettingsService::class)->get('carrier_api_timeout', 15),
-            'import_source' => app(SettingsService::class)->get('import_source', 'database'),
             'audit_log_retention_days' => app(SettingsService::class)->get('audit_log_retention_days', 365),
             'rate_quote_retention_days' => app(SettingsService::class)->get('rate_quote_retention_days', 60),
             'pii_retention_days' => app(SettingsService::class)->get('pii_retention_days', 90),
@@ -133,87 +79,7 @@ class Settings extends Page
             'google_sso_enabled' => app(SettingsService::class)->get('google_sso_enabled', false),
             'sandbox_mode' => app(SettingsService::class)->get('sandbox_mode', false),
             'suppress_printing' => app(SettingsService::class)->get('suppress_printing', false),
-
-            // Non-encrypted credential fields get their current values
-            'shopify_shop_domain' => app(SettingsService::class)->get('shopify.shop_domain', ''),
-            'shopify_api_version' => app(SettingsService::class)->get('shopify.api_version', '2025-01'),
-            'shopify_import_enabled' => app(SettingsService::class)->get('shopify.import_enabled', false),
-            'shopify_export_enabled' => app(SettingsService::class)->get('shopify.export_enabled', false),
-            'shopify_channel_name' => app(SettingsService::class)->get('shopify.channel_name', 'Shopify'),
-            'shopify_shipping_method' => app(SettingsService::class)->get('shopify.shipping_method', ''),
-            'shopify_notify_customer' => app(SettingsService::class)->get('shopify.notify_customer', false),
-            'amazon_marketplace_id' => app(SettingsService::class)->get('amazon.marketplace_id', 'ATVPDKIKX0DER'),
-            'amazon_import_enabled' => app(SettingsService::class)->get('amazon.import_enabled', false),
-            'amazon_export_enabled' => app(SettingsService::class)->get('amazon.export_enabled', false),
-            'amazon_channel_name' => app(SettingsService::class)->get('amazon.channel_name', 'Amazon'),
-            'amazon_shipping_method' => app(SettingsService::class)->get('amazon.shipping_method', ''),
-            'amazon_lookback_days' => app(SettingsService::class)->get('amazon.lookback_days', 30),
-
-            // Database import
-            'import_db_driver' => app(SettingsService::class)->get('import.db_driver', 'mysql'),
-            'import_db_host' => app(SettingsService::class)->get('import.db_host', ''),
-            'import_db_port' => app(SettingsService::class)->get('import.db_port', ''),
-            'import_db_database' => app(SettingsService::class)->get('import.db_database', ''),
-            'import_db_username' => app(SettingsService::class)->get('import.db_username', ''),
-            'import_shipments_query' => app(SettingsService::class)->get('import.shipments_query', ''),
-            'import_shipment_items_query' => app(SettingsService::class)->get('import.shipment_items_query', ''),
-            'import_export_query' => app(SettingsService::class)->get('import.export_query', ''),
-            'import_mark_exported_enabled' => (bool) app(SettingsService::class)->get('import.mark_exported_enabled', false),
-            'import_mark_exported_query' => app(SettingsService::class)->get('import.mark_exported_query', ''),
-            'import_ssh_enabled' => (bool) app(SettingsService::class)->get('import.ssh_enabled', false),
-            'import_ssh_host' => app(SettingsService::class)->get('import.ssh_host', ''),
-            'import_ssh_port' => app(SettingsService::class)->get('import.ssh_port', '22'),
-            'import_ssh_user' => app(SettingsService::class)->get('import.ssh_user', ''),
-            'import_ssh_remote_host' => app(SettingsService::class)->get('import.ssh_remote_host', ''),
-            'import_ssh_remote_port' => app(SettingsService::class)->get('import.ssh_remote_port', ''),
-            'import_ssh_host_key' => app(SettingsService::class)->get('import.ssh_host_key', ''),
-            'ssh_public_key' => $this->getSshPublicKey(),
-
-            // Encrypted fields are left empty — placeholder shows status
         ]);
-    }
-
-    private function shopifyCredentialFields(): array
-    {
-        $fields = [
-            TextInput::make('shopify_client_id')
-                ->label('Client ID')
-                ->password()
-                ->placeholder(fn () => $this->getCredentialPlaceholder('shopify.client_id', 'services.shopify.client_id')),
-            TextInput::make('shopify_client_secret')
-                ->label('Client Secret')
-                ->password()
-                ->placeholder(fn () => $this->getCredentialPlaceholder('shopify.client_secret', 'services.shopify.client_secret')),
-        ];
-
-        if (config('services.oauth.broker_url')) {
-            return [
-                Section::make('Custom App Credentials')
-                    ->description('Override the shared OAuth credentials with a custom app created in your Shopify admin.')
-                    ->collapsed()
-                    ->schema($fields)
-                    ->columns(2),
-            ];
-        }
-
-        return $fields;
-    }
-
-    private function isBrokerConfigured(): bool
-    {
-        return config('services.oauth.broker_url')
-            && config('services.oauth.broker_secret')
-            && config('services.oauth.instance_id');
-    }
-
-    /**
-     * Get the placeholder for an encrypted credential field.
-     */
-    private function getCredentialPlaceholder(string $settingKey, string $configKey): string
-    {
-        $value = app(SettingsService::class)->get($settingKey) ?? config($configKey);
-
-        return ! empty($value) ? 'Configured (leave empty to keep)' : 'Not configured';
     }
 
     public function form(Schema $schema): Schema
@@ -221,21 +87,6 @@ class Settings extends Page
         return $schema
             ->components([
                 Form::make([
-                    Section::make('Shipment Import')
-                        ->description('Choose which tenant-managed import source is used by default. Batch size and log channel remain deployment-level config.')
-                        ->schema([
-                            Select::make('import_source')
-                                ->label('Default Import Source')
-                                ->options([
-                                    'database' => 'Database',
-                                    'shopify' => 'Shopify',
-                                    'amazon' => 'Amazon',
-                                ])
-                                ->default('database')
-                                ->required(),
-                        ])
-                        ->columns(1),
-
                     Section::make('Company Information')
                         ->description('General company settings')
                         ->schema([
@@ -398,215 +249,6 @@ class Settings extends Page
                         ])
                         ->columns(2),
 
-                    Section::make('Shopify Integration')
-                        ->description('Connect your Shopify store via OAuth to import orders and export fulfillments.')
-                        ->schema([
-                            Placeholder::make('shopify_oauth_status')
-                                ->label('OAuth Status')
-                                ->content(fn () => $this->renderOauthStatus(
-                                    provider: 'shopify',
-                                    connectedAt: app(SettingsService::class)->get('shopify.oauth_connected_at'),
-                                    scopes: app(SettingsService::class)->get('shopify.oauth_scopes'),
-                                )),
-                            TextInput::make('shopify_shop_domain')
-                                ->label('Shop Domain')
-                                ->placeholder('mystore.myshopify.com')
-                                ->maxLength(255),
-                            TextInput::make('shopify_api_version')
-                                ->label('API Version')
-                                ->placeholder('2025-01')
-                                ->maxLength(20),
-                            Toggle::make('shopify_import_enabled')
-                                ->label('Enable Shopify Import'),
-                            Toggle::make('shopify_export_enabled')
-                                ->label('Enable Shopify Export'),
-                            TextInput::make('shopify_channel_name')
-                                ->label('Channel Name')
-                                ->placeholder('Shopify')
-                                ->maxLength(255),
-                            Select::make('shopify_shipping_method')
-                                ->label('Default Shipping Method')
-                                ->options(fn () => ShippingMethod::query()->orderBy('name')->pluck('name', 'id')->all())
-                                ->searchable()
-                                ->placeholder('None'),
-                            Toggle::make('shopify_notify_customer')
-                                ->label('Notify Customer on Export'),
-
-                            ...$this->shopifyCredentialFields(),
-                        ])
-                        ->footerActions([
-                            Action::make('shopify_connect')
-                                ->label(fn () => app(OAuthService::class)->isConnected('shopify') ? 'Reconnect' : 'Connect with OAuth')
-                                ->icon('heroicon-o-link')
-                                ->color(fn () => app(OAuthService::class)->isConnected('shopify') ? 'warning' : 'primary')
-                                ->disabled(fn () => ! $this->isBrokerConfigured())
-                                ->tooltip(fn () => ! $this->isBrokerConfigured() ? 'OAuth broker not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID in .env.' : null)
-                                ->requiresConfirmation()
-                                ->modalHeading(fn () => app(OAuthService::class)->isConnected('shopify') ? 'Reconnect Shopify' : 'Connect Shopify')
-                                ->modalDescription(fn () => app(OAuthService::class)->isConnected('shopify')
-                                    ? 'This will replace the existing OAuth token with a new one. You will be redirected to Shopify to re-authorize.'
-                                    : 'You will be redirected to Shopify to authorize access. Make sure Shop Domain is saved first.')
-                                ->action(function (): void {
-                                    $url = app(OAuthService::class)->initiateAuthorization('shopify');
-                                    $this->redirect($url, navigate: false);
-                                }),
-                            Action::make('shopify_disconnect')
-                                ->label('Disconnect')
-                                ->icon('heroicon-o-x-mark')
-                                ->color('danger')
-                                ->visible(fn () => app(OAuthService::class)->isConnected('shopify'))
-                                ->requiresConfirmation()
-                                ->modalHeading('Disconnect Shopify OAuth')
-                                ->modalDescription('This will remove the OAuth access token. You can reconnect anytime, or the app will fall back to client credentials if configured.')
-                                ->action(function (): void {
-                                    app(OAuthService::class)->disconnect('shopify');
-                                    Notification::make()->success()->title('Shopify disconnected.')->send();
-                                }),
-                        ])
-                        ->columns(2)
-                        ->collapsed(),
-
-                    Section::make('Amazon Integration')
-                        ->description('Credentials for importing orders from Amazon SP-API')
-                        ->schema([
-                            TextInput::make('amazon_client_id')
-                                ->label('Client ID')
-                                ->password()
-                                ->placeholder(fn () => $this->getCredentialPlaceholder('amazon.client_id', 'services.amazon.client_id')),
-                            TextInput::make('amazon_client_secret')
-                                ->label('Client Secret')
-                                ->password()
-                                ->placeholder(fn () => $this->getCredentialPlaceholder('amazon.client_secret', 'services.amazon.client_secret')),
-                            TextInput::make('amazon_refresh_token')
-                                ->label('Refresh Token')
-                                ->password()
-                                ->placeholder(fn () => $this->getCredentialPlaceholder('amazon.refresh_token', 'services.amazon.refresh_token')),
-                            TextInput::make('amazon_marketplace_id')
-                                ->label('Marketplace ID')
-                                ->placeholder('ATVPDKIKX0DER')
-                                ->maxLength(50),
-                            Toggle::make('amazon_import_enabled')
-                                ->label('Enable Amazon Import'),
-                            Toggle::make('amazon_export_enabled')
-                                ->label('Enable Amazon Export'),
-                            TextInput::make('amazon_channel_name')
-                                ->label('Channel Name')
-                                ->placeholder('Amazon')
-                                ->maxLength(255),
-                            Select::make('amazon_shipping_method')
-                                ->label('Default Shipping Method')
-                                ->options(fn () => ShippingMethod::query()->orderBy('name')->pluck('name', 'id')->all())
-                                ->searchable()
-                                ->placeholder('None'),
-                            TextInput::make('amazon_lookback_days')
-                                ->label('Lookback Days')
-                                ->numeric()
-                                ->default(30)
-                                ->minValue(1),
-                        ])
-                        ->columns(2)
-                        ->collapsed(),
-
-                    Section::make('Database Import')
-                        ->description('Configure the external database connection and optional SQL queries for importing shipments and exporting tracking updates.')
-                        ->schema([
-                            Select::make('import_db_driver')
-                                ->label('Driver')
-                                ->options([
-                                    'mysql' => 'MySQL / MariaDB',
-                                    'pgsql' => 'PostgreSQL',
-                                    'sqlsrv' => 'SQL Server',
-                                    'sqlite' => 'SQLite',
-                                ])
-                                ->default('mysql'),
-                            TextInput::make('import_db_host')
-                                ->label('Host'),
-                            TextInput::make('import_db_port')
-                                ->label('Port'),
-                            TextInput::make('import_db_database')
-                                ->label('Database'),
-                            TextInput::make('import_db_username')
-                                ->label('Username'),
-                            TextInput::make('import_db_password')
-                                ->label('Password')
-                                ->password()
-                                ->revealable()
-                                ->placeholder(fn () => $this->getCredentialPlaceholder('import.db_password', 'database.connections.import.password')),
-                            Textarea::make('import_shipments_query')
-                                ->label('Shipments Query')
-                                ->helperText('Optional custom SQL to fetch shipments. Leave blank to query the configured shipments table.')
-                                ->rows(4)
-                                ->columnSpanFull(),
-                            Textarea::make('import_shipment_items_query')
-                                ->label('Shipment Items Query')
-                                ->helperText('Optional custom SQL to fetch shipment items. Use :shipment_reference as the placeholder value.')
-                                ->rows(4)
-                                ->columnSpanFull(),
-                            Textarea::make('import_export_query')
-                                ->label('Export Query')
-                                ->helperText('Optional SQL used to export tracking data back to the external database. Leave blank to disable database export queries.')
-                                ->rows(4)
-                                ->columnSpanFull(),
-                            Toggle::make('import_mark_exported_enabled')
-                                ->label('Mark as Exported After Import')
-                                ->helperText('When enabled, runs the query below after each shipment is imported to mark it as processed in the source database.')
-                                ->columnSpanFull()
-                                ->live(),
-                            Textarea::make('import_mark_exported_query')
-                                ->label('Mark Exported Query')
-                                ->helperText('SQL to mark a shipment as exported. Use :shipment_reference as the placeholder for the shipment ID.')
-                                ->rows(3)
-                                ->columnSpanFull()
-                                ->visible(fn (Get $get) => (bool) $get('import_mark_exported_enabled')),
-                            Toggle::make('import_ssh_enabled')
-                                ->label('Connect via SSH Tunnel')
-                                ->columnSpanFull()
-                                ->live(),
-                            TextInput::make('import_ssh_host')
-                                ->label('SSH Host')
-                                ->visible(fn (Get $get) => (bool) $get('import_ssh_enabled')),
-                            TextInput::make('import_ssh_port')
-                                ->label('SSH Port')
-                                ->default('22')
-                                ->visible(fn (Get $get) => (bool) $get('import_ssh_enabled')),
-                            TextInput::make('import_ssh_user')
-                                ->label('SSH User')
-                                ->visible(fn (Get $get) => (bool) $get('import_ssh_enabled')),
-                            TextInput::make('import_ssh_remote_host')
-                                ->label('Remote Host')
-                                ->helperText('DB host as seen from the SSH server. Leave blank to use the DB host above.')
-                                ->visible(fn (Get $get) => (bool) $get('import_ssh_enabled')),
-                            TextInput::make('import_ssh_remote_port')
-                                ->label('Remote Port')
-                                ->helperText('DB port as seen from the SSH server. Leave blank to use the DB port above.')
-                                ->visible(fn (Get $get) => (bool) $get('import_ssh_enabled')),
-                            Textarea::make('import_ssh_host_key')
-                                ->label('SSH Server Host Key')
-                                ->helperText('Paste the SSH server host key so PolyBag can verify it is connecting to the correct server. Example: bastion.example.com ssh-ed25519 AAAA...')
-                                ->visible(fn (Get $get) => (bool) $get('import_ssh_enabled'))
-                                ->required(fn (Get $get) => (bool) $get('import_ssh_enabled'))
-                                ->rows(3)
-                                ->columnSpanFull(),
-                            TextInput::make('ssh_public_key')
-                                ->label('SSH Public Key')
-                                ->helperText('Add this to ~/.ssh/authorized_keys on the SSH host. Optionally append permitopen="host:port" to restrict forwarding to a specific server.')
-                                ->visible(fn (Get $get) => (bool) $get('import_ssh_enabled'))
-                                ->columnSpanFull()
-                                ->readOnly()
-                                ->copyable()
-                                ->dehydrated(false),
-                        ])
-                        ->columns(2)
-                        ->collapsed()
-                        ->footerActions([
-                            Action::make('test_import_connection')
-                                ->label('Test Connection')
-                                ->icon('heroicon-o-signal')
-                                ->action(function (): void {
-                                    $this->testImportConnection();
-                                }),
-                        ]),
-
                     Section::make('Testing')
                         ->description('Sandbox and testing settings')
                         ->schema([
@@ -656,7 +298,6 @@ class Settings extends Page
             'multi_location_enabled' => (bool) ($data['multi_location_enabled'] ?? false),
             'multi_client_enabled' => (bool) ($data['multi_client_enabled'] ?? false),
             'carrier_api_timeout' => (int) ($data['carrier_api_timeout'] ?? 15),
-            'import_source' => $data['import_source'] ?? 'database',
             'audit_log_retention_days' => (int) ($data['audit_log_retention_days'] ?? 365),
             'rate_quote_retention_days' => (int) ($data['rate_quote_retention_days'] ?? 60),
             'pii_retention_days' => (int) ($data['pii_retention_days'] ?? 90),
@@ -670,20 +311,6 @@ class Settings extends Page
             'google_sso_enabled' => (bool) ($data['google_sso_enabled'] ?? false),
             'sandbox_mode' => $sandboxMode,
             'suppress_printing' => $suppressPrinting,
-            'shopify.import_enabled' => (bool) ($data['shopify_import_enabled'] ?? false),
-            'shopify.export_enabled' => (bool) ($data['shopify_export_enabled'] ?? false),
-            'shopify.channel_name' => $data['shopify_channel_name'] ?? 'Shopify',
-            'shopify.shipping_method' => blank($data['shopify_shipping_method'] ?? null) ? null : (string) $data['shopify_shipping_method'],
-            'shopify.notify_customer' => (bool) ($data['shopify_notify_customer'] ?? false),
-            'amazon.import_enabled' => (bool) ($data['amazon_import_enabled'] ?? false),
-            'amazon.export_enabled' => (bool) ($data['amazon_export_enabled'] ?? false),
-            'amazon.channel_name' => $data['amazon_channel_name'] ?? 'Amazon',
-            'amazon.shipping_method' => blank($data['amazon_shipping_method'] ?? null) ? null : (string) $data['amazon_shipping_method'],
-            'amazon.lookback_days' => (int) ($data['amazon_lookback_days'] ?? 30),
-            'import.shipments_query' => blank($data['import_shipments_query'] ?? null) ? null : trim((string) $data['import_shipments_query']),
-            'import.shipment_items_query' => blank($data['import_shipment_items_query'] ?? null) ? null : trim((string) $data['import_shipment_items_query']),
-            'import.export_query' => blank($data['import_export_query'] ?? null) ? null : trim((string) $data['import_export_query']),
-            'import.mark_exported_enabled' => (bool) ($data['import_mark_exported_enabled'] ?? false),
         ];
 
         // Update each standard setting
@@ -706,35 +333,10 @@ class Settings extends Page
             }
         }
 
-        $credentialsChanged = false;
-
-        // Save encrypted credential fields (skip empty to preserve existing values)
-        foreach (self::ENCRYPTED_FIELDS as $formField => $settingKey) {
-            $value = $data[$formField] ?? '';
-            if ($value === '' || $value === null) {
-                continue;
-            }
-
-            $group = explode('.', $settingKey)[0];
-            app(SettingsService::class)->set($settingKey, $value, 'string', encrypted: true, group: $group);
-            $credentialsChanged = true;
-        }
-
-        // Save non-encrypted credential fields
-        foreach (self::CREDENTIAL_FIELDS as $formField => $settingKey) {
-            $value = $data[$formField] ?? '';
-            $group = explode('.', $settingKey)[0];
-            app(SettingsService::class)->set($settingKey, $value, 'string', group: $group);
-        }
-
-        // Save import SSH enabled as boolean
-        app(SettingsService::class)->set('import.ssh_enabled', (bool) ($data['import_ssh_enabled'] ?? false), 'boolean', group: 'import');
-        $this->writeImportSshKnownHostsFile($data['import_ssh_host_key'] ?? '');
-
         app(SettingsService::class)->clearCache();
 
-        // Clear cached OAuth tokens when sandbox mode or credentials change
-        if ($sandboxMode !== $previousSandboxMode || $credentialsChanged) {
+        // Clear cached carrier auth tokens when sandbox mode changes
+        if ($sandboxMode !== $previousSandboxMode) {
             Cache::forget('usps_authenticator');
             // Only the global fallback token (no CarrierAccount) is derived from Settings.
             // Per-account tokens are invalidated by CarrierAccount::clearTokenCaches() instead.
@@ -743,8 +345,6 @@ class Settings extends Page
             Cache::forget('fedex_authenticator_sandbox');
             Cache::forget('ups_authenticator');
             Cache::forget('ups_oauth_token');
-            Cache::forget('amazon_sp_api_access_token');
-            Cache::forget('shopify_access_token');
         }
 
         $this->rememberData();
@@ -753,56 +353,6 @@ class Settings extends Page
             ->success()
             ->title('Settings saved')
             ->send();
-    }
-
-    private function getSshPublicKey(): string
-    {
-        $pubKeyPath = storage_path('app/private/ssh/id_ed25519.pub');
-        if (! file_exists($pubKeyPath)) {
-            return 'SSH key not generated. Run: php artisan app:generate-ssh-key';
-        }
-
-        return 'restrict,port-forwarding '.trim(file_get_contents($pubKeyPath));
-    }
-
-    private function getImportSshKnownHostsPath(): string
-    {
-        return storage_path('app/private/ssh/import_known_hosts');
-    }
-
-    private function writeImportSshKnownHostsFile(?string $knownHostsEntry): void
-    {
-        $path = $this->getImportSshKnownHostsPath();
-        $entry = trim((string) $knownHostsEntry);
-
-        if ($entry === '') {
-            if (file_exists($path)) {
-                @unlink($path);
-            }
-
-            return;
-        }
-
-        $directory = dirname($path);
-        if (! is_dir($directory)) {
-            mkdir($directory, 0700, true);
-        }
-
-        file_put_contents($path, $entry.PHP_EOL);
-        chmod($path, 0600);
-    }
-
-    private function renderOauthStatus(string $provider, ?string $connectedAt = null, ?string $scopes = null): HtmlString
-    {
-        $oauthService = app(OAuthService::class);
-
-        return new HtmlString(
-            view('filament.pages.settings.oauth-status', [
-                'connected' => $oauthService->isConnected($provider),
-                'time' => $connectedAt ? Carbon::parse($connectedAt)->diffForHumans() : null,
-                'scopes' => $scopes,
-            ])->render()
-        );
     }
 
     public function testUspsConnection(): void
@@ -864,73 +414,6 @@ class Settings extends Page
                 ->title('USPS authenticated — rate test inconclusive')
                 ->body('Credentials are valid but the rate check failed: '.$e->getMessage())
                 ->send();
-        }
-    }
-
-    private function testImportConnection(): void
-    {
-        $data = $this->data;
-        $connection = 'import';
-
-        // Temporarily apply form values to the connection config
-        config([
-            "database.connections.{$connection}.driver" => $data['import_db_driver'] ?? 'mysql',
-            "database.connections.{$connection}.host" => $data['import_db_host'] ?? '127.0.0.1',
-            "database.connections.{$connection}.port" => $data['import_db_port'] ?? '3306',
-            "database.connections.{$connection}.database" => $data['import_db_database'] ?? '',
-            "database.connections.{$connection}.username" => $data['import_db_username'] ?? '',
-            "database.connections.{$connection}.password" => ! empty($data['import_db_password'])
-                ? $data['import_db_password']
-                : (app(SettingsService::class)->get('import.db_password') ?? config("database.connections.{$connection}.password")),
-        ]);
-
-        DB::purge($connection);
-
-        $sshConfig = null;
-        $tunnel = null;
-
-        try {
-            // Open SSH tunnel if enabled
-            if ($data['import_ssh_enabled'] ?? false) {
-                $keyPath = storage_path('app/private/ssh/id_ed25519');
-                if (! file_exists($keyPath)) {
-                    throw new \RuntimeException('SSH key not found. Run `php artisan app:generate-ssh-key` first.');
-                }
-
-                $tunnel = SshTunnel::fromConfig([
-                    'ssh_host' => $data['import_ssh_host'] ?? '',
-                    'ssh_port' => (int) ($data['import_ssh_port'] ?? 22),
-                    'ssh_user' => $data['import_ssh_user'] ?? '',
-                    'ssh_key' => $keyPath,
-                    'remote_host' => $data['import_ssh_remote_host'] ?: ($data['import_db_host'] ?? '127.0.0.1'),
-                    'remote_port' => (int) ($data['import_ssh_remote_port'] ?: ($data['import_db_port'] ?? 3306)),
-                    'known_hosts_entry' => $data['import_ssh_host_key'] ?? '',
-                    'known_hosts_file' => $this->getImportSshKnownHostsPath(),
-                ]);
-
-                $localPort = $tunnel->open();
-                config([
-                    "database.connections.{$connection}.host" => '127.0.0.1',
-                    "database.connections.{$connection}.port" => $localPort,
-                ]);
-                DB::purge($connection);
-            }
-
-            DB::connection($connection)->getPdo();
-
-            Notification::make()
-                ->success()
-                ->title('Connection successful')
-                ->send();
-        } catch (\Throwable $e) {
-            Notification::make()
-                ->danger()
-                ->title('Connection failed')
-                ->body($e->getMessage())
-                ->send();
-        } finally {
-            $tunnel?->close();
-            DB::purge($connection);
         }
     }
 }

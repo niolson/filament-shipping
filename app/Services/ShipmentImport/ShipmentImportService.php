@@ -3,6 +3,7 @@
 namespace App\Services\ShipmentImport;
 
 use App\Contracts\ImportSourceInterface;
+use App\Models\Client;
 use App\Models\ImportSource;
 use App\Models\Shipment;
 use App\Services\AddressReferenceService;
@@ -20,12 +21,15 @@ class ShipmentImportService
         private readonly ShipmentBatchWriter $batchWriter,
         private readonly ShipmentItemImporter $itemImporter,
         private readonly ImportRunRecorder $runRecorder,
+        ?ImportSource $importSource = null,
     ) {
-        $this->importSource = $this->references->importSourceFor($source);
+        // When a specific record is provided (e.g. from the --all path) use it directly
+        // so the correct client is used instead of ClientContext::default().
+        $this->importSource = $importSource ?? $this->references->importSourceFor($source);
     }
 
     /**
-     * Static factory method
+     * Build a service from a driver instance (single-source / legacy path).
      */
     public static function forSource(ImportSourceInterface $source): self
     {
@@ -38,6 +42,27 @@ class ShipmentImportService
             batchWriter: app(ShipmentBatchWriter::class),
             itemImporter: new ShipmentItemImporter($references),
             runRecorder: ImportRunRecorder::forSource($source),
+        );
+    }
+
+    /**
+     * Build a service directly from an ImportSource DB record, bypassing the
+     * ClientContext lookup so the source's owning client is always used.
+     * Used by the --all scheduler path.
+     */
+    public static function forRecord(ImportSource $record): self
+    {
+        $source = app(ImportSourceFactory::class)->make($record);
+        $references = app(ImportReferenceResolver::class);
+
+        return new self(
+            source: $source,
+            references: $references,
+            rowPreparer: new ShipmentRowPreparer(app(AddressReferenceService::class), $references),
+            batchWriter: app(ShipmentBatchWriter::class),
+            itemImporter: new ShipmentItemImporter($references),
+            runRecorder: ImportRunRecorder::forSource($source),
+            importSource: $record,
         );
     }
 
@@ -81,10 +106,16 @@ class ShipmentImportService
     {
         $preparedRows = [];
         $validDataBySourceRecord = [];
+        $clientColumn = $this->importSource->settings['client_column'] ?? null;
 
         foreach ($batch as $data) {
             try {
-                $prepared = $this->rowPreparer->prepare($data, $this->importSource);
+                $clientOverride = null;
+                if ($clientColumn && isset($data['_client_column_value'])) {
+                    $clientOverride = $this->resolveClientByName((string) $data['_client_column_value']);
+                }
+
+                $prepared = $this->rowPreparer->prepare($data, $this->importSource, $clientOverride);
 
                 if (! $prepared->isValid()) {
                     $this->runRecorder->addError("Validation errors for shipment {$data['shipment_reference']}: ".implode(', ', $prepared->errors));
@@ -122,6 +153,15 @@ class ShipmentImportService
 
             $this->markSourceRecordExported($sourceRecordId, $data);
         }
+    }
+
+    /**
+     * Look up a Client by name for multi-client database imports.
+     * Returns null (no client scoping) when the name doesn't match any record.
+     */
+    private function resolveClientByName(string $name): ?Client
+    {
+        return Client::whereRaw('LOWER(name) = ?', [strtolower(trim($name))])->first();
     }
 
     private function markSourceRecordExported(string $sourceRecordId, array $data): void

@@ -113,7 +113,7 @@ beforeEach(function (): void {
     Setting::updateOrCreate(['key' => 'shopify.api_version'], ['value' => '2025-01', 'type' => 'string', 'group' => 'shopify']);
     app(SettingsService::class)->clearCache();
 
-    Cache::put('shopify_access_token', 'shpat_test_token', 3600);
+    Cache::put('shopify_access_token_'.md5('test-shop.myshopify.com'), 'shpat_test_token', 3600);
 });
 
 it('imports shopify orders into shipments table with metadata', function (): void {

@@ -2,7 +2,9 @@
 
 namespace App\Services\ShipmentImport;
 
+use App\Models\ImportSource;
 use App\Services\SettingsService;
+use Illuminate\Support\Collection;
 
 class RuntimeConfig
 {
@@ -32,6 +34,18 @@ class RuntimeConfig
             'amazon' => $this->resolveAmazonConfig($config),
             default => $config,
         };
+    }
+
+    /**
+     * Return all active ImportSource records for the --all scheduler path.
+     * Callers should use ShipmentImportService::forRecord() to run each one,
+     * which guarantees the source's owning client is used rather than the default.
+     *
+     * @return Collection<int, ImportSource>
+     */
+    public function allActiveSources(): Collection
+    {
+        return ImportSource::where('active', true)->get();
     }
 
     /**

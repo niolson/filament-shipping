@@ -16,7 +16,7 @@ class AmazonSpApiConnector extends Connector
 
     public ?bool $useExponentialBackoff = true;
 
-    private const CACHE_KEY = 'amazon_sp_api_access_token';
+    private const CACHE_KEY_PREFIX = 'amazon_sp_api_access_token_';
 
     public function __construct(
         private readonly string $baseUrl,
@@ -28,14 +28,38 @@ class AmazonSpApiConnector extends Connector
 
     public static function fromConfig(): self
     {
-        $settings = app(SettingsService::class);
+        return self::fromSettings([]);
+    }
+
+    /**
+     * Build from a per-source settings array. refresh_token and marketplace_id are
+     * per-source; client_id/client_secret are always read from tenant-level SettingsService.
+     *
+     * @param  array<string, mixed>  $settings
+     */
+    public static function fromSettings(array $settings): self
+    {
+        $global = app(SettingsService::class);
+
+        $refreshToken = filled($settings['refresh_token'] ?? null)
+            ? (string) $settings['refresh_token']
+            : (string) $global->get('amazon.refresh_token', '');
+
+        // Per-source app credentials override tenant-level ones.
+        $clientId = filled($settings['client_id'] ?? null)
+            ? (string) $settings['client_id']
+            : (string) $global->get('amazon.client_id', '');
+
+        $clientSecret = filled($settings['client_secret'] ?? null)
+            ? (string) $settings['client_secret']
+            : (string) $global->get('amazon.client_secret', '');
 
         return new self(
             baseUrl: config('services.amazon.base_url') ?? 'https://sellingpartnerapi-na.amazon.com',
             sandboxUrl: config('services.amazon.sandbox_url') ?? 'https://sandbox.sellingpartnerapi-na.amazon.com',
-            clientId: (string) $settings->get('amazon.client_id', ''),
-            clientSecret: (string) $settings->get('amazon.client_secret', ''),
-            refreshToken: (string) $settings->get('amazon.refresh_token', ''),
+            clientId: $clientId,
+            clientSecret: $clientSecret,
+            refreshToken: $refreshToken,
         );
     }
 
@@ -56,10 +80,12 @@ class AmazonSpApiConnector extends Connector
 
     private function getAccessToken(): string
     {
-        return Cache::get(self::CACHE_KEY) ?? $this->requestNewToken();
+        $cacheKey = self::CACHE_KEY_PREFIX.md5($this->refreshToken);
+
+        return Cache::get($cacheKey) ?? $this->requestNewToken($cacheKey);
     }
 
-    private function requestNewToken(): string
+    private function requestNewToken(string $cacheKey): string
     {
         $response = Http::asForm()->post(
             'https://api.amazon.com/auth/o2/token',
@@ -87,7 +113,7 @@ class AmazonSpApiConnector extends Connector
         }
 
         // Token lasts 1 hour; cache for 50 minutes
-        Cache::put(self::CACHE_KEY, $token, 3000);
+        Cache::put($cacheKey, $token, 3000);
 
         return $token;
     }

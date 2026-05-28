@@ -69,7 +69,7 @@ class ShopifySource implements ExportDestinationInterface, ImportSourceInterface
     public function __construct(array $config)
     {
         $this->config = $config;
-        $this->connector = ShopifyConnector::fromConfig();
+        $this->connector = ShopifyConnector::fromSettings($config);
     }
 
     public function getSourceName(): string
@@ -79,16 +79,28 @@ class ShopifySource implements ExportDestinationInterface, ImportSourceInterface
 
     public function validateConfiguration(): void
     {
-        if (empty(app(SettingsService::class)->get('shopify.shop_domain'))) {
+        $shopDomain = filled($this->config['shop_domain'] ?? null)
+            ? $this->config['shop_domain']
+            : app(SettingsService::class)->get('shopify.shop_domain');
+
+        if (empty($shopDomain)) {
             throw new InvalidArgumentException('Shopify shop domain is not configured (SHOPIFY_SHOP_DOMAIN).');
         }
 
-        if (empty(app(SettingsService::class)->get('shopify.client_id'))) {
-            throw new InvalidArgumentException('Shopify client ID is not configured (SHOPIFY_CLIENT_ID).');
-        }
+        // Skip tenant-level credential check when the source has its own token or app credentials.
+        $hasOwnToken = filled($this->config['access_token'] ?? null)
+            || filled($this->config['oauth_access_token'] ?? null);
+        $hasOwnCredentials = filled($this->config['client_id'] ?? null)
+            && filled($this->config['client_secret'] ?? null);
 
-        if (empty(app(SettingsService::class)->get('shopify.client_secret'))) {
-            throw new InvalidArgumentException('Shopify client secret is not configured (SHOPIFY_CLIENT_SECRET).');
+        if (! $hasOwnToken && ! $hasOwnCredentials) {
+            if (empty(app(SettingsService::class)->get('shopify.client_id'))) {
+                throw new InvalidArgumentException('Shopify client ID is not configured (SHOPIFY_CLIENT_ID).');
+            }
+
+            if (empty(app(SettingsService::class)->get('shopify.client_secret'))) {
+                throw new InvalidArgumentException('Shopify client secret is not configured (SHOPIFY_CLIENT_SECRET).');
+            }
         }
 
         if (empty($this->config['channel_name'])) {
