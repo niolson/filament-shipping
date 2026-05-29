@@ -616,6 +616,12 @@ class UspsAdapter implements CarrierAdapterInterface
 
     public function isConfigured(): bool
     {
+        $carrierId = Carrier::where('name', 'USPS')->value('id');
+
+        if ($carrierId && CarrierAccount::active()->where('carrier_id', $carrierId)->exists()) {
+            return true;
+        }
+
         $settings = app(SettingsService::class);
 
         return filled($settings->get('usps.client_id'))
