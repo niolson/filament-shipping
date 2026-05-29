@@ -253,9 +253,29 @@
                 } catch (error) {
                     console.error('Failed to auto-connect scale:', error);
                 }
-            }
+            },
+
+            handleGlobalKey(e) {
+                if (this.showTransparencyModal) return;
+                if (document.activeElement === this.$refs.scanInput) return;
+
+                const el = document.activeElement;
+                const tag = el?.tagName ?? '';
+                const type = (el?.type ?? '').toLowerCase();
+                const isTextInput = (tag === 'INPUT' && !['radio', 'checkbox', 'button', 'submit', 'reset'].includes(type))
+                    || tag === 'TEXTAREA' || tag === 'SELECT';
+                if (isTextInput) return;
+
+                if (e.ctrlKey || e.altKey || e.metaKey) return;
+                if (e.key.length !== 1) return;
+
+                e.preventDefault();
+                this.input += e.key;
+                this.$refs.scanInput?.focus();
+            },
         }"
         @focus-scan-input.window="$nextTick(() => { input = ''; $refs.scanInput.focus(); })"
+        @keydown.window="handleGlobalKey($event)"
         @keydown.f12.window.prevent="shipPackage()"
     >
         {{-- Header buttons --}}

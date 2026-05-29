@@ -3,10 +3,47 @@
 
     @if($package)
         <div
-            x-init="
-                $wire.set('labelFormat', localStorage.getItem('labelFormat') || 'pdf');
-                $wire.set('labelDpi', parseInt(localStorage.getItem('labelDpi') || '203') || null);
-            "
+            x-data="{
+                _scanBuffer: '',
+                _scanTimeout: null,
+
+                init() {
+                    $wire.set('labelFormat', localStorage.getItem('labelFormat') || 'pdf');
+                    $wire.set('labelDpi', parseInt(localStorage.getItem('labelDpi') || '203') || null);
+                },
+
+                handleGlobalKey(e) {
+                    const el = document.activeElement;
+                    const tag = el?.tagName ?? '';
+                    const type = (el?.type ?? '').toLowerCase();
+                    const isTextInput = (tag === 'INPUT' && !['radio', 'checkbox', 'button', 'submit', 'reset'].includes(type))
+                        || tag === 'TEXTAREA' || tag === 'SELECT';
+                    if (isTextInput) return;
+
+                    if (e.key === 'Enter') {
+                        const trimmed = this._scanBuffer.trim();
+                        this._scanBuffer = '';
+                        clearTimeout(this._scanTimeout);
+                        if (trimmed.startsWith('*')) {
+                            this.executeCommand(trimmed.substring(1));
+                        }
+                        return;
+                    }
+
+                    if (e.key.length === 1) {
+                        this._scanBuffer += e.key;
+                        clearTimeout(this._scanTimeout);
+                        this._scanTimeout = setTimeout(() => { this._scanBuffer = ''; }, 1000);
+                    }
+                },
+
+                executeCommand(code) {
+                    if (code.toUpperCase() === '1') {
+                        $wire.ship();
+                    }
+                },
+            }"
+            @keydown.window="handleGlobalKey($event)"
             class="grid grid-cols-1 lg:grid-cols-2 gap-6"
         >
             <!-- Package Info -->
