@@ -4,6 +4,7 @@ use App\Http\Integrations\Amazon\Requests\ConfirmShipment;
 use App\Http\Integrations\Amazon\Requests\SearchOrders;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
+use App\Models\ImportSource;
 use App\Models\Package;
 use App\Models\Setting;
 use App\Models\Shipment;
@@ -109,6 +110,12 @@ beforeEach(function (): void {
 
     // Key format: amazon_sp_api_access_token_ + md5(refresh_token)
     Cache::put('amazon_sp_api_access_token_'.md5('test-refresh-token'), 'test-access-token', 3600);
+
+    $this->importSource = ImportSource::factory()->create([
+        'driver' => AmazonSource::class,
+        'name' => 'Amazon',
+        'settings' => ['channel_name' => 'Amazon'],
+    ]);
 });
 
 it('imports amazon orders into shipments table with metadata', function (): void {
@@ -127,7 +134,7 @@ it('imports amazon orders into shipments table with metadata', function (): void
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1);
     expect($result->itemsCreated)->toBe(2);
@@ -156,8 +163,24 @@ it('imports amazon orders into shipments table with metadata', function (): void
 it('exports package to amazon as shipment confirmation', function (): void {
     $channel = Channel::factory()->create(['name' => 'Amazon']);
 
+    $exportSource = ImportSource::factory()->create([
+        'driver' => AmazonSource::class,
+        'name' => 'Amazon Export',
+        'settings' => [
+            'channel_name' => 'Amazon',
+            'export_enabled' => true,
+            'export_field_mapping' => [
+                'tracking_number' => 'tracking_number',
+                'carrier' => 'carrier',
+                'shipment_reference' => 'shipment_reference',
+                'amazon_order_id' => 'amazon_order_id',
+            ],
+        ],
+    ]);
+
     $shipment = Shipment::factory()->create([
         'channel_id' => $channel->id,
+        'import_source_id' => $exportSource->id,
         'shipment_reference' => '111-2222222-3333333',
         'metadata' => [
             'amazon_order_id' => '111-2222222-3333333',
@@ -174,27 +197,6 @@ it('exports package to amazon as shipment confirmation', function (): void {
 
     Saloon::fake([
         ConfirmShipment::class => amazonConfirmShipmentResponse(),
-    ]);
-
-    config([
-        'shipment-import.sources.amazon' => [
-            'driver' => AmazonSource::class,
-            'enabled' => true,
-            'channel_name' => 'Amazon',
-            'lookback_days' => 30,
-            'export' => [
-                'enabled' => true,
-                'field_mapping' => [
-                    'tracking_number' => 'tracking_number',
-                    'carrier' => 'carrier',
-                    'shipment_reference' => 'shipment_reference',
-                    'amazon_order_id' => 'amazon_order_id',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            'Amazon' => ['amazon'],
-        ],
     ]);
 
     $service = new PackageExportService;
@@ -216,8 +218,24 @@ it('exports package to amazon as shipment confirmation', function (): void {
 it('handles package without amazon metadata gracefully in export', function (): void {
     $channel = Channel::factory()->create(['name' => 'Amazon']);
 
+    $exportSource = ImportSource::factory()->create([
+        'driver' => AmazonSource::class,
+        'name' => 'Amazon Export',
+        'settings' => [
+            'channel_name' => 'Amazon',
+            'export_enabled' => true,
+            'export_field_mapping' => [
+                'tracking_number' => 'tracking_number',
+                'carrier' => 'carrier',
+                'shipment_reference' => 'shipment_reference',
+                'amazon_order_id' => 'amazon_order_id',
+            ],
+        ],
+    ]);
+
     $shipment = Shipment::factory()->create([
         'channel_id' => $channel->id,
+        'import_source_id' => $exportSource->id,
         'shipment_reference' => '111-0000000-0000000',
         'metadata' => null,
     ]);
@@ -227,27 +245,6 @@ it('handles package without amazon metadata gracefully in export', function (): 
         'tracking_number' => 'TRACK456',
         'carrier' => 'USPS',
         'exported' => false,
-    ]);
-
-    config([
-        'shipment-import.sources.amazon' => [
-            'driver' => AmazonSource::class,
-            'enabled' => true,
-            'channel_name' => 'Amazon',
-            'lookback_days' => 30,
-            'export' => [
-                'enabled' => true,
-                'field_mapping' => [
-                    'tracking_number' => 'tracking_number',
-                    'carrier' => 'carrier',
-                    'shipment_reference' => 'shipment_reference',
-                    'amazon_order_id' => 'amazon_order_id',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            'Amazon' => ['amazon'],
-        ],
     ]);
 
     $service = new PackageExportService;
@@ -283,7 +280,7 @@ it('imports multiple pages of amazon orders', function (): void {
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(2);
     expect(Shipment::where('shipment_reference', '111-1111111-1111111')->exists())->toBeTrue();
@@ -345,7 +342,7 @@ it('imports sandbox order with full quantities even when already fulfilled', fun
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1);
 
@@ -394,7 +391,7 @@ it('calculates item unit prices correctly from proceeds breakdowns', function ()
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1);
 
@@ -412,7 +409,6 @@ it('validates when per-source client_id and client_secret are present without te
     app(SettingsService::class)->clearCache();
 
     $source = new AmazonSource([
-        'config_key' => 'amazon_per_source',
         'client_id' => 'per_source_client_id',
         'client_secret' => 'per_source_client_secret',
         'refresh_token' => 'per_source_refresh_token',
@@ -430,7 +426,6 @@ it('fails validation when only per-source client_id but no client_secret and no 
     app(SettingsService::class)->clearCache();
 
     $source = new AmazonSource([
-        'config_key' => 'amazon_partial',
         'client_id' => 'per_source_client_id',
         'refresh_token' => 'per_source_refresh_token',
         'marketplace_id' => 'ATVPDKIKX0DER',

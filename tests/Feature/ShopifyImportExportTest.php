@@ -114,6 +114,12 @@ beforeEach(function (): void {
     app(SettingsService::class)->clearCache();
 
     Cache::put('shopify_access_token_'.md5('test-shop.myshopify.com'), 'shpat_test_token', 3600);
+
+    $this->importSource = ImportSource::factory()->create([
+        'driver' => ShopifySource::class,
+        'name' => 'Shopify',
+        'settings' => ['channel_name' => 'Shopify', 'notify_customer' => false],
+    ]);
 });
 
 it('imports shopify orders into shipments table with metadata', function (): void {
@@ -132,7 +138,7 @@ it('imports shopify orders into shipments table with metadata', function (): voi
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1);
     expect($result->itemsCreated)->toBe(2);
@@ -150,7 +156,7 @@ it('imports shopify orders into shipments table with metadata', function (): voi
     expect($shipment->channel_id)->toBe($channel->id);
     expect($shipment->source_record_id)->toBe('gid://shopify/Order/1001');
     expect($shipment->importSource)->not->toBeNull();
-    expect($shipment->importSource->config_key)->toBe('shopify');
+    expect($shipment->importSource->id)->toBe($this->importSource->id);
 
     // Metadata stored correctly
     expect($shipment->metadata)->toBeArray();
@@ -164,8 +170,25 @@ it('imports shopify orders into shipments table with metadata', function (): voi
 it('exports package to shopify as fulfillment', function (): void {
     $channel = Channel::factory()->create(['name' => 'Shopify']);
 
+    $exportSource = ImportSource::factory()->create([
+        'driver' => ShopifySource::class,
+        'name' => 'Shopify Export',
+        'settings' => [
+            'channel_name' => 'Shopify',
+            'notify_customer' => false,
+            'export_enabled' => true,
+            'export_field_mapping' => [
+                'tracking_number' => 'tracking_number',
+                'carrier' => 'carrier',
+                'shipment_reference' => 'shipment_reference',
+                'fulfillment_order_id' => 'fulfillment_order_id',
+            ],
+        ],
+    ]);
+
     $shipment = Shipment::factory()->create([
         'channel_id' => $channel->id,
+        'import_source_id' => $exportSource->id,
         'shipment_reference' => '#1001',
         'metadata' => [
             'shopify_order_id' => 'gid://shopify/Order/1001',
@@ -183,27 +206,6 @@ it('exports package to shopify as fulfillment', function (): void {
 
     Saloon::fake([
         GraphQL::class => fulfillmentSuccessResponse(),
-    ]);
-
-    config([
-        'shipment-import.sources.shopify' => [
-            'driver' => ShopifySource::class,
-            'enabled' => true,
-            'channel_name' => 'Shopify',
-            'notify_customer' => false,
-            'export' => [
-                'enabled' => true,
-                'field_mapping' => [
-                    'tracking_number' => 'tracking_number',
-                    'carrier' => 'carrier',
-                    'shipment_reference' => 'shipment_reference',
-                    'fulfillment_order_id' => 'fulfillment_order_id',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            'Shopify' => ['shopify'],
-        ],
     ]);
 
     $service = new PackageExportService;
@@ -227,8 +229,25 @@ it('exports package to shopify as fulfillment', function (): void {
 it('handles package without metadata gracefully in export', function (): void {
     $channel = Channel::factory()->create(['name' => 'Shopify']);
 
+    $exportSource = ImportSource::factory()->create([
+        'driver' => ShopifySource::class,
+        'name' => 'Shopify Export',
+        'settings' => [
+            'channel_name' => 'Shopify',
+            'notify_customer' => false,
+            'export_enabled' => true,
+            'export_field_mapping' => [
+                'tracking_number' => 'tracking_number',
+                'carrier' => 'carrier',
+                'shipment_reference' => 'shipment_reference',
+                'fulfillment_order_id' => 'fulfillment_order_id',
+            ],
+        ],
+    ]);
+
     $shipment = Shipment::factory()->create([
         'channel_id' => $channel->id,
+        'import_source_id' => $exportSource->id,
         'shipment_reference' => '#2001',
         'metadata' => null,
     ]);
@@ -238,27 +257,6 @@ it('handles package without metadata gracefully in export', function (): void {
         'tracking_number' => 'TRACK456',
         'carrier' => 'USPS',
         'exported' => false,
-    ]);
-
-    config([
-        'shipment-import.sources.shopify' => [
-            'driver' => ShopifySource::class,
-            'enabled' => true,
-            'channel_name' => 'Shopify',
-            'notify_customer' => false,
-            'export' => [
-                'enabled' => true,
-                'field_mapping' => [
-                    'tracking_number' => 'tracking_number',
-                    'carrier' => 'carrier',
-                    'shipment_reference' => 'shipment_reference',
-                    'fulfillment_order_id' => 'fulfillment_order_id',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            'Shopify' => ['shopify'],
-        ],
     ]);
 
     $service = new PackageExportService;
@@ -293,7 +291,7 @@ it('imports multiple pages of orders', function (): void {
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(2);
     expect(Shipment::where('shipment_reference', '#1001')->exists())->toBeTrue();
@@ -319,13 +317,13 @@ it('deduplicates shopify imports by order id instead of displayed name', functio
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result1 = ShipmentImportService::forSource($source)->import();
+    $result1 = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     Saloon::fake([
         GraphQL::class => shopifyOrdersResponse([$secondOrder]),
     ]);
 
-    $result2 = ShipmentImportService::forSource($source)->import();
+    $result2 = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result1->shipmentsCreated)->toBe(1)
         ->and($result2->shipmentsUpdated)->toBe(1)
@@ -335,9 +333,6 @@ it('deduplicates shopify imports by order id instead of displayed name', functio
     $shipment = Shipment::first();
     expect($shipment->source_record_id)->toBe('gid://shopify/Order/1001')
         ->and($shipment->shipment_reference)->toBe('#1001-RENAMED')
-        ->and($shipment->channel_id)->toBe($channel->id);
-
-    $importSource = ImportSource::where('config_key', 'shopify')->first();
-    expect($importSource)->not->toBeNull()
-        ->and($shipment->import_source_id)->toBe($importSource->id);
+        ->and($shipment->channel_id)->toBe($channel->id)
+        ->and($shipment->import_source_id)->toBe($this->importSource->id);
 });

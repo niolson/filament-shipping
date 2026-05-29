@@ -3,6 +3,7 @@
 use App\Contracts\ExportDestinationInterface;
 use App\Contracts\ImportSourceInterface;
 use App\Models\Channel;
+use App\Models\ImportSource;
 use App\Models\Package;
 use App\Models\Shipment;
 use App\Services\ShipmentImport\PackageExportService;
@@ -13,7 +14,6 @@ uses(RefreshDatabase::class);
 
 function fakeExportSource(bool $exportEnabled = true, ?string $exportError = null): string
 {
-    // Return an anonymous class that implements both interfaces
     $class = new class([]) implements ExportDestinationInterface, ImportSourceInterface
     {
         public static bool $staticExportEnabled = true;
@@ -25,11 +25,6 @@ function fakeExportSource(bool $exportEnabled = true, ?string $exportError = nul
 
         public function __construct(array $config = []) // @phpstan-ignore constructor.unusedParameter
         {}
-
-        public function getSourceName(): string
-        {
-            return 'test';
-        }
 
         public function fetchShipments(): Collection
         {
@@ -82,10 +77,25 @@ function fakeExportSource(bool $exportEnabled = true, ?string $exportError = nul
     return $className;
 }
 
-function createShippedPackage(?Channel $channel = null): Package
+/**
+ * @param  array<string, string>  $fieldMapping
+ */
+function fakeImportSource(string $driverClass, array $fieldMapping = [], bool $exportEnabled = true): ImportSource
+{
+    return ImportSource::factory()->create([
+        'driver' => $driverClass,
+        'settings' => [
+            'export_enabled' => $exportEnabled,
+            'export_field_mapping' => $fieldMapping,
+        ],
+    ]);
+}
+
+function createShippedPackage(?Channel $channel = null, ?ImportSource $importSource = null): Package
 {
     $shipment = Shipment::factory()->create([
         'channel_id' => $channel?->id,
+        'import_source_id' => $importSource?->id,
         'shipment_reference' => 'REF-001',
     ]);
 
@@ -105,25 +115,12 @@ function createShippedPackage(?Channel $channel = null): Package
 it('exports package data using configured field mapping', function (): void {
     $driverClass = fakeExportSource();
     $channel = Channel::factory()->create(['name' => 'TestChannel']);
-    $package = createShippedPackage($channel);
-
-    config([
-        'shipment-import.sources.test_source' => [
-            'driver' => $driverClass,
-            'export' => [
-                'enabled' => true,
-                'query' => 'UPDATE orders SET tracking = :tracking WHERE id = :ref',
-                'field_mapping' => [
-                    'tracking_number' => 'tracking',
-                    'shipment_reference' => 'ref',
-                    'weight' => 'weight',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            'TestChannel' => ['test_source'],
-        ],
+    $importSource = fakeImportSource($driverClass, [
+        'tracking_number' => 'tracking',
+        'shipment_reference' => 'ref',
+        'weight' => 'weight',
     ]);
+    $package = createShippedPackage($channel, $importSource);
 
     $service = new PackageExportService;
     $result = $service->exportPackage($package);
@@ -139,45 +136,9 @@ it('exports package data using configured field mapping', function (): void {
     ]);
 });
 
-it('uses wildcard channel mapping as fallback', function (): void {
-    $driverClass = fakeExportSource();
-    $channel = Channel::factory()->create(['name' => 'UnmappedChannel']);
+it('skips export when shipment has no import source', function (): void {
+    $channel = Channel::factory()->create(['name' => 'UnlinkedChannel']);
     $package = createShippedPackage($channel);
-
-    config([
-        'shipment-import.sources.test_source' => [
-            'driver' => $driverClass,
-            'export' => [
-                'enabled' => true,
-                'query' => 'UPDATE orders SET tracking = :tracking WHERE id = :ref',
-                'field_mapping' => [
-                    'tracking_number' => 'tracking',
-                    'shipment_reference' => 'ref',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            '*' => ['test_source'],
-        ],
-    ]);
-
-    $service = new PackageExportService;
-    $result = $service->exportPackage($package);
-
-    expect($result->success)->toBeTrue();
-    expect($result->destinationsAttempted)->toBe(1);
-    expect($driverClass::$exportedData)->toHaveCount(1);
-});
-
-it('skips export when no channel mapping matches', function (): void {
-    $channel = Channel::factory()->create(['name' => 'UnmappedChannel']);
-    $package = createShippedPackage($channel);
-
-    config([
-        'shipment-import.export_channel_map' => [
-            'SomeOtherChannel' => ['test_source'],
-        ],
-    ]);
 
     $service = new PackageExportService;
     $result = $service->exportPackage($package);
@@ -187,27 +148,24 @@ it('skips export when no channel mapping matches', function (): void {
     expect($result->destinationsSucceeded)->toBe(0);
 });
 
+it('skips export when import source has export_enabled false', function (): void {
+    $driverClass = fakeExportSource();
+    $channel = Channel::factory()->create(['name' => 'TestChannel']);
+    $importSource = fakeImportSource($driverClass, exportEnabled: false);
+    $package = createShippedPackage($channel, $importSource);
+
+    $service = new PackageExportService;
+    $result = $service->exportPackage($package);
+
+    expect($result->success)->toBeTrue();
+    expect($result->destinationsAttempted)->toBe(0);
+});
+
 it('marks package as exported on success', function (): void {
     $driverClass = fakeExportSource();
     $channel = Channel::factory()->create(['name' => 'TestChannel']);
-    $package = createShippedPackage($channel);
-
-    config([
-        'shipment-import.sources.test_source' => [
-            'driver' => $driverClass,
-            'export' => [
-                'enabled' => true,
-                'query' => 'UPDATE orders SET tracking = :tracking WHERE id = :ref',
-                'field_mapping' => [
-                    'tracking_number' => 'tracking',
-                    'shipment_reference' => 'ref',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            'TestChannel' => ['test_source'],
-        ],
-    ]);
+    $importSource = fakeImportSource($driverClass, ['tracking_number' => 'tracking', 'shipment_reference' => 'ref']);
+    $package = createShippedPackage($channel, $importSource);
 
     $service = new PackageExportService;
     $service->exportPackage($package);
@@ -218,24 +176,8 @@ it('marks package as exported on success', function (): void {
 it('does not mark package as exported when a destination fails', function (): void {
     $driverClass = fakeExportSource(exportError: 'Connection refused');
     $channel = Channel::factory()->create(['name' => 'TestChannel']);
-    $package = createShippedPackage($channel);
-
-    config([
-        'shipment-import.sources.test_source' => [
-            'driver' => $driverClass,
-            'export' => [
-                'enabled' => true,
-                'query' => 'UPDATE orders SET tracking = :tracking WHERE id = :ref',
-                'field_mapping' => [
-                    'tracking_number' => 'tracking',
-                    'shipment_reference' => 'ref',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            'TestChannel' => ['test_source'],
-        ],
-    ]);
+    $importSource = fakeImportSource($driverClass, ['tracking_number' => 'tracking', 'shipment_reference' => 'ref']);
+    $package = createShippedPackage($channel, $importSource);
 
     $service = new PackageExportService;
     $result = $service->exportPackage($package);
@@ -246,27 +188,41 @@ it('does not mark package as exported when a destination fails', function (): vo
     expect($package->fresh()->exported)->toBeFalse();
 });
 
-it('skips disabled export sources', function (): void {
-    $driverClass = fakeExportSource();
-    $channel = Channel::factory()->create(['name' => 'TestChannel']);
-    $package = createShippedPackage($channel);
+it('skips export when driver does not implement ExportDestinationInterface', function (): void {
+    $importOnlyClass = new class([]) implements ImportSourceInterface
+    {
+        public function __construct(array $config = []) {}
 
-    config([
-        'shipment-import.sources.test_source' => [
-            'driver' => $driverClass,
-            'export' => [
-                'enabled' => false,
-                'query' => 'UPDATE orders SET tracking = :tracking WHERE id = :ref',
-                'field_mapping' => [
-                    'tracking_number' => 'tracking',
-                    'shipment_reference' => 'ref',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            'TestChannel' => ['test_source'],
-        ],
+        public function fetchShipments(): Collection
+        {
+            return collect();
+        }
+
+        public function fetchShipmentItems(string $sourceRecordId): Collection
+        {
+            return collect();
+        }
+
+        public function validateConfiguration(): void {}
+
+        public function getFieldMapping(): array
+        {
+            return [];
+        }
+
+        public function markExported(string $sourceRecordId): bool
+        {
+            return false;
+        }
+    };
+
+    $driverClass = get_class($importOnlyClass);
+    $channel = Channel::factory()->create(['name' => 'TestChannel']);
+    $importSource = ImportSource::factory()->create([
+        'driver' => $driverClass,
+        'settings' => ['export_enabled' => true],
     ]);
+    $package = createShippedPackage($channel, $importSource);
 
     $service = new PackageExportService;
     $result = $service->exportPackage($package);
@@ -278,44 +234,39 @@ it('skips disabled export sources', function (): void {
 it('exports unexported packages via exportUnexported', function (): void {
     $driverClass = fakeExportSource();
     $channel = Channel::factory()->create(['name' => 'TestChannel']);
+    $importSource = fakeImportSource($driverClass, ['tracking_number' => 'tracking', 'shipment_reference' => 'ref']);
 
-    // Create shipped but not exported packages
-    $shipment = Shipment::factory()->create(['channel_id' => $channel->id, 'shipment_reference' => 'REF-A']);
+    $shipment = Shipment::factory()->create([
+        'channel_id' => $channel->id,
+        'import_source_id' => $importSource->id,
+        'shipment_reference' => 'REF-A',
+    ]);
     $pkg1 = Package::factory()->shipped()->create([
         'shipment_id' => $shipment->id,
         'exported' => false,
         'tracking_number' => 'TRACK-A',
     ]);
 
-    $shipment2 = Shipment::factory()->create(['channel_id' => $channel->id, 'shipment_reference' => 'REF-B']);
+    $shipment2 = Shipment::factory()->create([
+        'channel_id' => $channel->id,
+        'import_source_id' => $importSource->id,
+        'shipment_reference' => 'REF-B',
+    ]);
     $pkg2 = Package::factory()->shipped()->create([
         'shipment_id' => $shipment2->id,
         'exported' => false,
         'tracking_number' => 'TRACK-B',
     ]);
 
-    // Create already exported package (should be skipped)
-    $shipment3 = Shipment::factory()->create(['channel_id' => $channel->id, 'shipment_reference' => 'REF-C']);
+    // Already exported — should be skipped
+    $shipment3 = Shipment::factory()->create([
+        'channel_id' => $channel->id,
+        'import_source_id' => $importSource->id,
+        'shipment_reference' => 'REF-C',
+    ]);
     Package::factory()->exported()->create([
         'shipment_id' => $shipment3->id,
         'tracking_number' => 'TRACK-C',
-    ]);
-
-    config([
-        'shipment-import.sources.test_source' => [
-            'driver' => $driverClass,
-            'export' => [
-                'enabled' => true,
-                'query' => 'UPDATE orders SET tracking = :tracking WHERE id = :ref',
-                'field_mapping' => [
-                    'tracking_number' => 'tracking',
-                    'shipment_reference' => 'ref',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            'TestChannel' => ['test_source'],
-        ],
     ]);
 
     $service = new PackageExportService;
@@ -342,53 +293,8 @@ it('runs export command with dry-run option', function (): void {
         ->assertExitCode(0);
 });
 
-it('runs export command with validate-only when no channel map configured', function (): void {
-    config(['shipment-import.export_channel_map' => []]);
-
+it('runs export command with validate-only when no export-enabled sources', function (): void {
     $this->artisan('packages:export', ['--validate-only' => true])
-        ->expectsOutputToContain('No export channel mappings configured')
+        ->expectsOutputToContain('No export-enabled import sources configured')
         ->assertExitCode(0);
-});
-
-it('handles multiple destinations per channel', function (): void {
-    $driverClass = fakeExportSource();
-    $channel = Channel::factory()->create(['name' => 'MultiChannel']);
-    $package = createShippedPackage($channel);
-
-    config([
-        'shipment-import.sources.dest_a' => [
-            'driver' => $driverClass,
-            'export' => [
-                'enabled' => true,
-                'query' => 'UPDATE a SET tracking = :tracking WHERE id = :ref',
-                'field_mapping' => [
-                    'tracking_number' => 'tracking',
-                    'shipment_reference' => 'ref',
-                ],
-            ],
-        ],
-        'shipment-import.sources.dest_b' => [
-            'driver' => $driverClass,
-            'export' => [
-                'enabled' => true,
-                'query' => 'UPDATE b SET tracking = :tracking WHERE id = :ref',
-                'field_mapping' => [
-                    'tracking_number' => 'tracking',
-                    'shipment_reference' => 'ref',
-                ],
-            ],
-        ],
-        'shipment-import.export_channel_map' => [
-            'MultiChannel' => ['dest_a', 'dest_b'],
-        ],
-    ]);
-
-    $service = new PackageExportService;
-    $result = $service->exportPackage($package);
-
-    expect($result->success)->toBeTrue();
-    expect($result->destinationsAttempted)->toBe(2);
-    expect($result->destinationsSucceeded)->toBe(2);
-    // Both destinations used the same class, so static data has both exports
-    expect($driverClass::$exportedData)->toHaveCount(2);
 });

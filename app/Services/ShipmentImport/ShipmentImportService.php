@@ -12,8 +12,6 @@ use Illuminate\Support\Facades\DB;
 
 class ShipmentImportService
 {
-    private ImportSource $importSource;
-
     public function __construct(
         private readonly ImportSourceInterface $source,
         private readonly ImportReferenceResolver $references,
@@ -21,17 +19,14 @@ class ShipmentImportService
         private readonly ShipmentBatchWriter $batchWriter,
         private readonly ShipmentItemImporter $itemImporter,
         private readonly ImportRunRecorder $runRecorder,
-        ?ImportSource $importSource = null,
-    ) {
-        // When a specific record is provided (e.g. from the --all path) use it directly
-        // so the correct client is used instead of ClientContext::default().
-        $this->importSource = $importSource ?? $this->references->importSourceFor($source);
-    }
+        private readonly ImportSource $importSource,
+    ) {}
 
     /**
-     * Build a service from a driver instance (single-source / legacy path).
+     * Build a service with an explicit driver instance and record.
+     * Callers must supply a real ImportSource record — no auto-creation.
      */
-    public static function forSource(ImportSourceInterface $source): self
+    public static function forSource(ImportSourceInterface $source, ImportSource $record): self
     {
         $references = app(ImportReferenceResolver::class);
 
@@ -41,14 +36,13 @@ class ShipmentImportService
             rowPreparer: new ShipmentRowPreparer(app(AddressReferenceService::class), $references),
             batchWriter: app(ShipmentBatchWriter::class),
             itemImporter: new ShipmentItemImporter($references),
-            runRecorder: ImportRunRecorder::forSource($source),
+            runRecorder: ImportRunRecorder::forRecord($record),
+            importSource: $record,
         );
     }
 
     /**
-     * Build a service directly from an ImportSource DB record, bypassing the
-     * ClientContext lookup so the source's owning client is always used.
-     * Used by the --all scheduler path.
+     * Build a service directly from an ImportSource DB record.
      */
     public static function forRecord(ImportSource $record): self
     {
@@ -61,7 +55,7 @@ class ShipmentImportService
             rowPreparer: new ShipmentRowPreparer(app(AddressReferenceService::class), $references),
             batchWriter: app(ShipmentBatchWriter::class),
             itemImporter: new ShipmentItemImporter($references),
-            runRecorder: ImportRunRecorder::forSource($source),
+            runRecorder: ImportRunRecorder::forRecord($record),
             importSource: $record,
         );
     }
@@ -148,7 +142,7 @@ class ShipmentImportService
                 continue;
             }
 
-            $this->runRecorder->addStats($this->itemImporter->import($shipment, $this->source));
+            $this->runRecorder->addStats($this->itemImporter->import($shipment, $this->source, $this->importSource));
             $this->runRecorder->recordShipmentEvent($shipment, $writeResult->wasExisting($sourceRecordId));
 
             $this->markSourceRecordExported($sourceRecordId, $data);

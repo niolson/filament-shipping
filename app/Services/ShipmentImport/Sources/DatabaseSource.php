@@ -4,7 +4,6 @@ namespace App\Services\ShipmentImport\Sources;
 
 use App\Contracts\ExportDestinationInterface;
 use App\Contracts\ImportSourceInterface;
-use App\Services\SettingsService;
 use App\Services\ShipmentImport\FieldMapper;
 use App\Services\SshTunnel;
 use Illuminate\Support\Collection;
@@ -21,95 +20,8 @@ class DatabaseSource implements ExportDestinationInterface, ImportSourceInterfac
 
     public function __construct(array $config)
     {
-        $this->config = self::resolveConfigFromSettings($config);
+        $this->config = $config;
         $this->fieldMapper = new FieldMapper($this->config['field_mapping'] ?? []);
-    }
-
-    /**
-     * Merge settings-based config over env/config values.
-     * Settings take priority; env/config is the fallback.
-     * When config came from an ImportSource DB record the factory pre-builds
-     * all fields, so SettingsService overlays are skipped entirely.
-     */
-    private static function resolveConfigFromSettings(array $config): array
-    {
-        if ($config['from_import_source_record'] ?? false) {
-            unset($config['from_import_source_record']);
-
-            return $config;
-        }
-
-        $settings = app(SettingsService::class);
-
-        // Check if any settings-based DB config exists
-        $dbHost = $settings->get('import.db_host');
-        if ($dbHost !== null) {
-            $connection = $config['connection'] ?? 'import';
-
-            config([
-                "database.connections.{$connection}.driver" => $settings->get('import.db_driver') ?? config("database.connections.{$connection}.driver"),
-                "database.connections.{$connection}.host" => $dbHost,
-                "database.connections.{$connection}.port" => $settings->get('import.db_port') ?? config("database.connections.{$connection}.port"),
-                "database.connections.{$connection}.database" => $settings->get('import.db_database') ?? config("database.connections.{$connection}.database"),
-                "database.connections.{$connection}.username" => $settings->get('import.db_username') ?? config("database.connections.{$connection}.username"),
-                "database.connections.{$connection}.password" => $settings->get('import.db_password') ?? config("database.connections.{$connection}.password"),
-            ]);
-
-            DB::purge($connection);
-        }
-
-        // Override mark_exported config from settings if present
-        $markExportedEnabled = $settings->get('import.mark_exported_enabled');
-        if ($markExportedEnabled !== null) {
-            $markExportedQuery = $settings->get('import.mark_exported_query');
-            $config['mark_exported'] = [
-                'enabled' => (bool) $markExportedEnabled,
-                'query' => $markExportedQuery,
-            ];
-        }
-
-        // Override SSH config from settings if present
-        $sshEnabled = $settings->get('import.ssh_enabled');
-        if ($sshEnabled !== null) {
-            $sshHost = $settings->get('import.ssh_host') ?: ($config['ssh']['host'] ?? null);
-            $sshUser = $settings->get('import.ssh_user') ?: ($config['ssh']['user'] ?? null);
-            $remoteHost = $settings->get('import.ssh_remote_host') ?: ($config['ssh']['remote_host'] ?? null);
-            $remotePort = $settings->get('import.ssh_remote_port') ?: ($config['ssh']['remote_port'] ?? null);
-            $hostKey = $settings->get('import.ssh_host_key') ?: ($config['ssh']['host_key'] ?? null);
-
-            $config['ssh'] = [
-                'enabled' => $sshEnabled,
-                'host' => $sshHost,
-                'port' => (int) ($settings->get('import.ssh_port') ?: ($config['ssh']['port'] ?? 22)),
-                'user' => $sshUser,
-                'key' => storage_path('app/private/ssh/id_ed25519'),
-                'remote_host' => $remoteHost,
-                'remote_port' => $remotePort,
-                'host_key' => $hostKey,
-                'known_hosts_file' => storage_path('app/private/ssh/import_known_hosts'),
-            ];
-        }
-
-        return $config;
-    }
-
-    /**
-     * Static factory method
-     */
-    public static function make(string $sourceName = 'database'): self
-    {
-        $config = config("shipment-import.sources.{$sourceName}");
-
-        if (! $config) {
-            throw new InvalidArgumentException("Import source '{$sourceName}' is not configured.");
-        }
-
-        return new self($config);
-    }
-
-    public function getSourceName(): string
-    {
-        return $this->config['config_key'] ?? 'database';
     }
 
     public function validateConfiguration(): void

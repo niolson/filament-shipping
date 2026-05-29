@@ -2,24 +2,28 @@
 
 namespace App\Filament\Resources\ImportSources\Schemas;
 
+use App\Enums\ScheduleInterval;
 use App\Models\Client;
 use App\Models\ImportSource;
 use App\Services\OAuthService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
+use App\Services\SshTunnel;
 use Carbon\Carbon;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
-use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
-use Illuminate\Support\Str;
 
 class ImportSourceForm
 {
@@ -36,22 +40,7 @@ class ImportSourceForm
                 ->schema([
                     TextInput::make('name')
                         ->required()
-                        ->maxLength(255)
-                        ->live(onBlur: true)
-                        ->afterStateUpdated(function (Set $set, Get $get, ?string $state): void {
-                            if (filled($get('config_key'))) {
-                                return;
-                            }
-                            $set('config_key', Str::slug($state ?? '', '_'));
-                        }),
-
-                    TextInput::make('config_key')
-                        ->label('Config Key')
-                        ->required()
-                        ->maxLength(100)
-                        ->helperText('Unique identifier used in logs and Artisan commands. Lowercase, underscores only.')
-                        ->rules(['regex:/^[a-z0-9_]+$/'])
-                        ->readOnly(fn (?ImportSource $record) => $record?->exists),
+                        ->maxLength(255),
 
                     Select::make('client_id')
                         ->label('Client')
@@ -70,6 +59,13 @@ class ImportSourceForm
 
                     Toggle::make('active')
                         ->default(true),
+
+                    Select::make('schedule_interval')
+                        ->label('Import Schedule')
+                        ->options(ScheduleInterval::class)
+                        ->nullable()
+                        ->placeholder('Disabled (manual only)')
+                        ->helperText('How often this source should automatically run.'),
                 ])
                 ->columns(2),
 
@@ -248,6 +244,82 @@ class ImportSourceForm
                         ->placeholder(fn (?ImportSource $record) => filled($record?->secret('db_password') ?? $record?->settings['db_password'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state)),
+                ])
+                ->footerActions([
+                    Action::make('test_db_connection')
+                        ->label('Test Connection')
+                        ->icon(Heroicon::Signal)
+                        ->color('gray')
+                        ->visible(fn (?ImportSource $record): bool => (bool) $record?->exists)
+                        ->action(function (Get $get, ?ImportSource $record): void {
+                            if (! $record) {
+                                return;
+                            }
+
+                            $connName = 'import_test_'.$record->id;
+                            $password = filled($get('settings.db_password'))
+                                ? $get('settings.db_password')
+                                : ($record->secret('db_password') ?? $record->settings['db_password'] ?? null);
+
+                            config([
+                                "database.connections.{$connName}.driver" => $get('settings.db_driver') ?? 'mysql',
+                                "database.connections.{$connName}.host" => $get('settings.db_host') ?? '127.0.0.1',
+                                "database.connections.{$connName}.port" => (int) ($get('settings.db_port') ?? 3306),
+                                "database.connections.{$connName}.database" => $get('settings.db_database') ?? null,
+                                "database.connections.{$connName}.username" => $get('settings.db_username') ?? null,
+                                "database.connections.{$connName}.password" => $password,
+                                "database.connections.{$connName}.charset" => 'utf8mb4',
+                                "database.connections.{$connName}.collation" => 'utf8mb4_unicode_ci',
+                                "database.connections.{$connName}.prefix" => '',
+                                "database.connections.{$connName}.strict" => true,
+                            ]);
+                            DB::purge($connName);
+
+                            $tunnel = null;
+
+                            try {
+                                if ($get('settings.ssh_enabled')) {
+                                    $keyPath = storage_path('app/private/ssh/id_ed25519');
+                                    if (! file_exists($keyPath)) {
+                                        throw new \RuntimeException('SSH key not found. Run `php artisan app:generate-ssh-key` first.');
+                                    }
+
+                                    $tunnel = SshTunnel::fromConfig([
+                                        'ssh_host' => $get('settings.ssh_host') ?? '',
+                                        'ssh_port' => (int) ($get('settings.ssh_port') ?? 22),
+                                        'ssh_user' => $get('settings.ssh_user') ?? '',
+                                        'ssh_key' => $keyPath,
+                                        'remote_host' => $get('settings.ssh_remote_host') ?: ($get('settings.db_host') ?? '127.0.0.1'),
+                                        'remote_port' => (int) ($get('settings.ssh_remote_port') ?: ($get('settings.db_port') ?? 3306)),
+                                        'known_hosts_entry' => $get('settings.ssh_host_key') ?? '',
+                                        'known_hosts_file' => storage_path('app/private/ssh/import_known_hosts'),
+                                    ]);
+
+                                    $localPort = $tunnel->open();
+                                    config([
+                                        "database.connections.{$connName}.host" => '127.0.0.1',
+                                        "database.connections.{$connName}.port" => $localPort,
+                                    ]);
+                                    DB::purge($connName);
+                                }
+
+                                DB::connection($connName)->getPdo();
+
+                                Notification::make()
+                                    ->success()
+                                    ->title('Connection successful')
+                                    ->send();
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('Connection failed')
+                                    ->body($e->getMessage())
+                                    ->send();
+                            } finally {
+                                $tunnel?->close();
+                                DB::purge($connName);
+                            }
+                        }),
                 ])
                 ->visible(fn (Get $get): bool => $get('driver') === DatabaseSource::class)
                 ->columns(2),

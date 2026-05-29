@@ -10,60 +10,57 @@ use Illuminate\Support\Facades\Log;
 class PackageExportService
 {
     /**
-     * Export a shipped package's data to configured external destinations.
+     * Export a shipped package's data to the import source that created its shipment.
      */
     public function exportPackage(Package $package): ExportResult
     {
-        $package->loadMissing('shipment.channel');
+        $package->loadMissing('shipment.importSource');
+        $importSource = $package->shipment?->importSource;
 
-        $channelName = $package->shipment?->channel?->name;
-        $channelMap = app(RuntimeConfig::class)->exportChannelMap();
-
-        // Resolve which sources to export to
-        $sourceNames = $channelMap[$channelName] ?? $channelMap['*'] ?? null;
-
-        if (! $sourceNames) {
+        if (! $importSource || ! ($importSource->settings['export_enabled'] ?? false)) {
             return new ExportResult(success: true);
         }
 
-        $attempted = 0;
-        $succeeded = 0;
-        $errors = [];
+        $driver = app(ImportSourceFactory::class)->make($importSource);
 
-        foreach ($sourceNames as $sourceName) {
-            $sourceConfig = app(RuntimeConfig::class)->sourceConfig($sourceName);
-
-            if (! $sourceConfig || empty($sourceConfig['export']['enabled'])) {
-                continue;
-            }
-
-            $attempted++;
-
-            try {
-                $destination = $this->resolveDestination($sourceName, $sourceConfig);
-                $data = $this->buildExportData($package, $sourceConfig['export']['field_mapping'] ?? []);
-                $destination->exportPackage($data);
-                $succeeded++;
-            } catch (\Exception $e) {
-                $errors[] = "{$sourceName}: {$e->getMessage()}";
-
-                $this->log('error', "Export to {$sourceName} failed", [
-                    'package_id' => $package->id,
-                    'error' => $e->getMessage(),
-                ]);
-            }
+        if (! $driver instanceof ExportDestinationInterface) {
+            return new ExportResult(success: true);
         }
 
-        if ($attempted > 0 && $succeeded === $attempted) {
+        $fieldMapping = $importSource->settings['export_field_mapping'] ?? [
+            'tracking_number' => 'tracking_number',
+            'carrier' => 'carrier',
+            'service' => 'service',
+            'weight' => 'weight',
+            'shipment_reference' => 'shipment_reference',
+            'fulfillment_order_id' => 'fulfillment_order_id',
+            'amazon_order_id' => 'amazon_order_id',
+        ];
+
+        $data = $this->buildExportData($package, $fieldMapping);
+
+        try {
+            $driver->exportPackage($data);
             $package->update(['exported' => true]);
-        }
 
-        return new ExportResult(
-            success: empty($errors),
-            destinationsAttempted: $attempted,
-            destinationsSucceeded: $succeeded,
-            errors: $errors,
-        );
+            return new ExportResult(
+                success: true,
+                destinationsAttempted: 1,
+                destinationsSucceeded: 1,
+            );
+        } catch (\Exception $e) {
+            $this->log('error', "Export to {$importSource->name} failed", [
+                'package_id' => $package->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return new ExportResult(
+                success: false,
+                destinationsAttempted: 1,
+                destinationsSucceeded: 0,
+                errors: ["{$importSource->name}: {$e->getMessage()}"],
+            );
+        }
     }
 
     /**
@@ -75,7 +72,7 @@ class PackageExportService
     {
         $packages = Package::where('status', PackageStatus::Shipped)
             ->where('exported', false)
-            ->with('shipment.channel')
+            ->with('shipment.importSource')
             ->get();
 
         $results = [];
@@ -85,23 +82,6 @@ class PackageExportService
         }
 
         return $results;
-    }
-
-    private function resolveDestination(string $sourceName, array $config): ExportDestinationInterface
-    {
-        $driverClass = $config['driver'] ?? null;
-
-        if (! $driverClass || ! class_exists($driverClass)) {
-            throw new \InvalidArgumentException("Driver class for source '{$sourceName}' is not valid.");
-        }
-
-        $driver = new $driverClass($config);
-
-        if (! $driver instanceof ExportDestinationInterface) {
-            throw new \InvalidArgumentException("Driver for '{$sourceName}' does not support export.");
-        }
-
-        return $driver;
     }
 
     /**

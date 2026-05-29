@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ImportSources\Tables;
 
+use App\Enums\ScheduleInterval;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
@@ -39,10 +40,11 @@ class ImportSourcesTable
                     ->badge()
                     ->color('gray'),
 
-                TextColumn::make('config_key')
-                    ->label('Key')
-                    ->searchable()
-                    ->fontFamily('mono'),
+                TextColumn::make('schedule_interval')
+                    ->label('Schedule')
+                    ->formatStateUsing(fn (?ScheduleInterval $state): string => $state?->getLabel() ?? '—')
+                    ->badge()
+                    ->color('info'),
 
                 IconColumn::make('active')
                     ->boolean()

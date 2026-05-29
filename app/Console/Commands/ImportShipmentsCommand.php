@@ -2,16 +2,15 @@
 
 namespace App\Console\Commands;
 
-use App\Contracts\ImportSourceInterface;
+use App\Models\ImportSource;
 use App\Services\ShipmentImport\ImportSourceFactory;
-use App\Services\ShipmentImport\RuntimeConfig;
 use App\Services\ShipmentImport\ShipmentImportService;
 use Illuminate\Console\Command;
 
 class ImportShipmentsCommand extends Command
 {
     protected $signature = 'shipments:import
-                            {--source= : The import source to use (defaults to config value)}
+                            {--source-id= : Run a single import source by ID}
                             {--all : Run every active ImportSource record}
                             {--dry-run : Preview what would be imported without making changes}
                             {--validate-only : Only validate the source configuration}';
@@ -20,40 +19,78 @@ class ImportShipmentsCommand extends Command
 
     public function handle(): int
     {
+        if ($this->option('source-id')) {
+            return $this->runById((int) $this->option('source-id'));
+        }
+
         if ($this->option('all')) {
             return $this->runAll();
         }
 
-        $sourceName = $this->option('source') ?? app(RuntimeConfig::class)->defaultSource();
+        $this->error('Specify --source-id=N or --all.');
 
-        $this->info("Using import source: {$sourceName}");
+        return Command::FAILURE;
+    }
 
-        try {
-            $source = $this->resolveSource($sourceName);
-        } catch (\Exception $e) {
-            $this->error("Failed to initialize source: {$e->getMessage()}");
+    private function runById(int $id): int
+    {
+        $record = ImportSource::find($id);
+
+        if (! $record) {
+            $this->error("Import source #{$id} not found.");
 
             return Command::FAILURE;
         }
 
-        // Validate-only mode
+        if (! $record->active) {
+            $this->warn("Import source '{$record->name}' is inactive.");
+
+            return Command::SUCCESS;
+        }
+
+        return $this->runRecord($record);
+    }
+
+    private function runAll(): int
+    {
+        $sources = ImportSource::where('active', true)->get();
+
+        if ($sources->isEmpty()) {
+            $this->warn('No active import sources found.');
+
+            return Command::SUCCESS;
+        }
+
+        $this->info("Running {$sources->count()} active import source(s)...");
+
+        $overallFailure = false;
+
+        foreach ($sources as $record) {
+            $this->newLine();
+            $this->info("▶ Source: {$record->name}".($record->client ? " (client: {$record->client->name})" : ''));
+
+            $exitCode = $this->runRecord($record);
+            if ($exitCode !== Command::SUCCESS) {
+                $overallFailure = true;
+            }
+        }
+
+        return $overallFailure ? Command::FAILURE : Command::SUCCESS;
+    }
+
+    private function runRecord(ImportSource $record): int
+    {
         if ($this->option('validate-only')) {
-            return $this->validateSource($source);
+            return $this->validateRecord($record);
         }
 
-        // Dry-run mode
         if ($this->option('dry-run')) {
-            return $this->dryRun($source);
+            return $this->dryRunRecord($record);
         }
 
-        // Run the import
-        $this->info('Starting import...');
-
-        $service = ShipmentImportService::forSource($source);
+        $service = ShipmentImportService::forRecord($record);
         $result = $service->import();
 
-        $this->newLine();
-        $this->info('Import completed!');
         $this->table(
             ['Metric', 'Count'],
             [
@@ -79,135 +116,14 @@ class ImportShipmentsCommand extends Command
         return $result->hasErrors() ? Command::FAILURE : Command::SUCCESS;
     }
 
-    private function runAll(): int
+    private function validateRecord(ImportSource $record): int
     {
-        $sources = app(RuntimeConfig::class)->allActiveSources();
-
-        if ($sources->isEmpty()) {
-            // No DB-backed sources yet (fresh install or setup-wizard-only config).
-            // Fall back to the SettingsService/config-file default so importing keeps
-            // working without requiring a manual ImportSource row to be created first.
-            $sourceName = app(RuntimeConfig::class)->defaultSource();
-            $this->info("No active import sources in database; falling back to default: {$sourceName}");
-
-            try {
-                $source = $this->resolveSource($sourceName);
-            } catch (\Exception $e) {
-                $this->warn("No active import sources and no fallback configured: {$e->getMessage()}");
-
-                return Command::SUCCESS;
-            }
-
-            if ($this->option('validate-only')) {
-                return $this->validateSource($source);
-            }
-
-            if ($this->option('dry-run')) {
-                return $this->dryRun($source);
-            }
-
-            $service = ShipmentImportService::forSource($source);
-            $result = $service->import();
-
-            if ($result->hasErrors()) {
-                foreach ($result->errors as $error) {
-                    $this->error("  - {$error}");
-                }
-            }
-
-            return $result->hasErrors() ? Command::FAILURE : Command::SUCCESS;
-        }
-
-        $this->info("Running {$sources->count()} active import source(s)...");
-
-        $overallFailure = false;
-
-        foreach ($sources as $record) {
-            $this->newLine();
-            $this->info("▶ Source: {$record->config_key}".($record->client ? " (client: {$record->client->name})" : ''));
-
-            $source = app(ImportSourceFactory::class)->make($record);
-
-            if ($this->option('validate-only')) {
-                $exitCode = $this->validateSource($source);
-                if ($exitCode !== Command::SUCCESS) {
-                    $overallFailure = true;
-                }
-
-                continue;
-            }
-
-            if ($this->option('dry-run')) {
-                $exitCode = $this->dryRun($source);
-                if ($exitCode !== Command::SUCCESS) {
-                    $overallFailure = true;
-                }
-
-                continue;
-            }
-
-            $service = ShipmentImportService::forRecord($record);
-            $result = $service->import();
-
-            $this->table(
-                ['Metric', 'Count'],
-                [
-                    ['Shipments Created', $result->shipmentsCreated],
-                    ['Shipments Updated', $result->shipmentsUpdated],
-                    ['Items Created', $result->itemsCreated],
-                    ['Items Updated', $result->itemsUpdated],
-                    ['Duration', round($result->duration, 2).'s'],
-                ]
-            );
-
-            if ($result->hasErrors()) {
-                $overallFailure = true;
-                $this->warn('Errors:');
-                foreach ($result->errors as $error) {
-                    $this->error("  - {$error}");
-                }
-            }
-        }
-
-        return $overallFailure ? Command::FAILURE : Command::SUCCESS;
-    }
-
-    private function resolveSource(string $sourceName): ImportSourceInterface
-    {
-        $config = app(RuntimeConfig::class)->sourceConfig($sourceName);
-
-        if (! $config) {
-            throw new \InvalidArgumentException(
-                "Import source '{$sourceName}' is not configured."
-            );
-        }
-
-        if (! ($config['enabled'] ?? true)) {
-            throw new \InvalidArgumentException(
-                "Import source '{$sourceName}' is disabled."
-            );
-        }
-
-        $driverClass = $config['driver'] ?? null;
-
-        if (! $driverClass || ! class_exists($driverClass)) {
-            throw new \InvalidArgumentException(
-                "Driver class for source '{$sourceName}' is not valid."
-            );
-        }
-
-        $config['config_key'] = $sourceName;
-
-        return new $driverClass($config);
-    }
-
-    private function validateSource(ImportSourceInterface $source): int
-    {
-        $this->info('Validating source configuration...');
+        $this->info("Validating source '{$record->name}'...");
 
         try {
+            $source = app(ImportSourceFactory::class)->make($record);
             $source->validateConfiguration();
-            $this->info('Source configuration is valid!');
+            $this->info('Configuration is valid.');
 
             return Command::SUCCESS;
         } catch (\Exception $e) {
@@ -217,42 +133,29 @@ class ImportShipmentsCommand extends Command
         }
     }
 
-    private function dryRun(ImportSourceInterface $source): int
+    private function dryRunRecord(ImportSource $record): int
     {
-        $this->info('Running in dry-run mode (no changes will be made)...');
+        $this->info("Dry-run for source '{$record->name}'...");
 
         try {
+            $source = app(ImportSourceFactory::class)->make($record);
             $source->validateConfiguration();
             $shipments = $source->fetchShipments();
 
-            $this->info("Found {$shipments->count()} shipments to import");
+            $this->info("Found {$shipments->count()} shipments to import.");
 
-            if ($shipments->isEmpty()) {
-                $this->warn('No shipments found.');
-
-                return Command::SUCCESS;
-            }
-
-            // Show sample of first 5 shipments
-            $this->newLine();
-            $this->info('Sample shipments (first 5):');
-
-            $sample = $shipments->take(5)->map(function ($s) {
-                return [
+            if ($shipments->isNotEmpty()) {
+                $sample = $shipments->take(5)->map(fn ($s) => [
                     $s['shipment_reference'] ?? 'N/A',
                     trim(($s['first_name'] ?? '').' '.($s['last_name'] ?? '')),
                     $s['city'] ?? 'N/A',
                     $s['state_or_province'] ?? 'N/A',
-                ];
-            })->toArray();
+                ])->toArray();
 
-            $this->table(
-                ['Reference', 'Name', 'City', 'State'],
-                $sample
-            );
+                $this->table(['Reference', 'Name', 'City', 'State'], $sample);
+            }
 
             return Command::SUCCESS;
-
         } catch (\Exception $e) {
             $this->error("Dry run failed: {$e->getMessage()}");
 

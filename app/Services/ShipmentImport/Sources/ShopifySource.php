@@ -72,11 +72,6 @@ class ShopifySource implements ExportDestinationInterface, ImportSourceInterface
         $this->connector = ShopifyConnector::fromSettings($config);
     }
 
-    public function getSourceName(): string
-    {
-        return $this->config['config_key'] ?? 'shopify';
-    }
-
     public function validateConfiguration(): void
     {
         $shopDomain = filled($this->config['shop_domain'] ?? null)

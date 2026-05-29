@@ -34,11 +34,6 @@ class AmazonSource implements ExportDestinationInterface, ImportSourceInterface
         $this->connector = AmazonSpApiConnector::fromSettings($config);
     }
 
-    public function getSourceName(): string
-    {
-        return $this->config['config_key'] ?? 'amazon';
-    }
-
     public function validateConfiguration(): void
     {
         // Per-source client_id/client_secret override tenant-level credentials.

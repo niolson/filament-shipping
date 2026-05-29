@@ -4,9 +4,10 @@ namespace App\Console\Commands;
 
 use App\Contracts\ExportDestinationInterface;
 use App\Enums\PackageStatus;
+use App\Models\ImportSource;
 use App\Models\Package;
+use App\Services\ShipmentImport\ImportSourceFactory;
 use App\Services\ShipmentImport\PackageExportService;
-use App\Services\ShipmentImport\RuntimeConfig;
 use Illuminate\Console\Command;
 
 class ExportPackagesCommand extends Command
@@ -68,56 +69,34 @@ class ExportPackagesCommand extends Command
     {
         $this->info('Validating export destination configurations...');
 
-        $channelMap = app(RuntimeConfig::class)->exportChannelMap();
+        $sources = ImportSource::where('active', true)
+            ->whereJsonContains('settings->export_enabled', true)
+            ->get();
 
-        if (empty($channelMap)) {
-            $this->warn('No export channel mappings configured.');
+        if ($sources->isEmpty()) {
+            $this->warn('No export-enabled import sources configured.');
 
             return Command::SUCCESS;
         }
 
-        $sourceNames = collect($channelMap)->flatten()->unique();
         $hasErrors = false;
+        $factory = app(ImportSourceFactory::class);
 
-        foreach ($sourceNames as $sourceName) {
-            $config = app(RuntimeConfig::class)->sourceConfig($sourceName);
-
-            if (! $config) {
-                $this->error("Source '{$sourceName}' is not configured.");
-                $hasErrors = true;
-
-                continue;
-            }
-
-            if (empty($config['export']['enabled'])) {
-                $this->warn("Source '{$sourceName}' export is disabled.");
-
-                continue;
-            }
-
-            $driverClass = $config['driver'] ?? null;
-
-            if (! $driverClass || ! class_exists($driverClass)) {
-                $this->error("Driver class for '{$sourceName}' is not valid.");
-                $hasErrors = true;
-
-                continue;
-            }
-
-            $driver = new $driverClass($config);
-
-            if (! $driver instanceof ExportDestinationInterface) {
-                $this->error("Driver for '{$sourceName}' does not support export.");
-                $hasErrors = true;
-
-                continue;
-            }
-
+        foreach ($sources as $importSource) {
             try {
+                $driver = $factory->make($importSource);
+
+                if (! $driver instanceof ExportDestinationInterface) {
+                    $this->error("  {$importSource->name}: driver does not support export.");
+                    $hasErrors = true;
+
+                    continue;
+                }
+
                 $driver->validateExportConfiguration();
-                $this->info("  {$sourceName}: OK");
+                $this->info("  {$importSource->name}: OK");
             } catch (\Exception $e) {
-                $this->error("  {$sourceName}: {$e->getMessage()}");
+                $this->error("  {$importSource->name}: {$e->getMessage()}");
                 $hasErrors = true;
             }
         }

@@ -10,7 +10,7 @@ uses(RefreshDatabase::class);
 it('--all --dry-run does not run real imports', function (): void {
     // Create an active ImportSource backed by a mock driver that would fail if import() ran
     ImportSource::factory()->create([
-        'config_key' => 'test_source',
+
         'driver' => ShopifySource::class,
         'active' => true,
         'settings' => [
@@ -33,7 +33,7 @@ it('--all --dry-run does not run real imports', function (): void {
 
 it('--all --validate-only does not run real imports', function (): void {
     ImportSource::factory()->create([
-        'config_key' => 'validate_source',
+
         'driver' => ShopifySource::class,
         'active' => true,
         'settings' => [
@@ -54,7 +54,7 @@ it('--all --validate-only does not run real imports', function (): void {
 
 it('--all without flags runs real imports (not dry-run) for each source', function (): void {
     ImportSource::factory()->create([
-        'config_key' => 'real_source',
+
         'driver' => ShopifySource::class,
         'active' => true,
         'settings' => [

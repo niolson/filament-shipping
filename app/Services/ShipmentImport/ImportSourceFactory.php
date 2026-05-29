@@ -16,18 +16,17 @@ class ImportSourceFactory
 
         if (! $driver || ! class_exists($driver)) {
             throw new InvalidArgumentException(
-                "Import source '{$importSource->config_key}' has an invalid driver class: {$driver}"
+                "Import source '{$importSource->name}' has an invalid driver class: {$driver}"
             );
         }
 
         $config = array_merge(
             $importSource->settings ?? [],
             $importSource->secret_settings ?? [],
-            ['config_key' => $importSource->config_key],
         );
 
         if ($driver === DatabaseSource::class) {
-            $config = $this->buildDatabaseConfig($importSource->config_key, $config);
+            $config = $this->buildDatabaseConfig($importSource->id, $config);
         }
 
         return new $driver($config);
@@ -41,9 +40,9 @@ class ImportSourceFactory
      * @param  array<string, mixed>  $settings
      * @return array<string, mixed>
      */
-    private function buildDatabaseConfig(string $configKey, array $settings): array
+    private function buildDatabaseConfig(int $sourceId, array $settings): array
     {
-        $connectionName = 'import_'.$configKey;
+        $connectionName = 'import_'.$sourceId;
 
         if (isset($settings['db_host'])) {
             config([
@@ -62,8 +61,6 @@ class ImportSourceFactory
         }
 
         return [
-            'from_import_source_record' => true,
-            'config_key' => $configKey,
             'connection' => $connectionName,
             'enabled' => true,
             'shipments_table' => $settings['shipments_table'] ?? 'shipments',

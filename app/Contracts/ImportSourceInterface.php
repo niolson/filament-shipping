@@ -7,11 +7,6 @@ use Illuminate\Support\Collection;
 interface ImportSourceInterface
 {
     /**
-     * Get the source identifier (e.g., 'database', 'shopify', 'amazon')
-     */
-    public function getSourceName(): string;
-
-    /**
      * Fetch shipments from the external source
      * Returns a collection of normalized shipment data arrays
      */

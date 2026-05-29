@@ -19,20 +19,18 @@ use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
-function fakeSource(Collection $shipments, Collection $items = new Collection, string $sourceName = 'test'): ImportSourceInterface
+beforeEach(function (): void {
+    $this->importSource = ImportSource::factory()->create();
+});
+
+function fakeSource(Collection $shipments, Collection $items = new Collection): ImportSourceInterface
 {
-    return new class($shipments, $items, $sourceName) implements ImportSourceInterface
+    return new class($shipments, $items) implements ImportSourceInterface
     {
         public function __construct(
             private Collection $shipments,
             private Collection $items,
-            private string $sourceName,
         ) {}
-
-        public function getSourceName(): string
-        {
-            return $this->sourceName;
-        }
 
         public function fetchShipments(): Collection
         {
@@ -58,9 +56,9 @@ function fakeSource(Collection $shipments, Collection $items = new Collection, s
     };
 }
 
-function fakeSourceWithExportTracking(Collection $shipments, Collection $items = new Collection, string $sourceName = 'test'): ImportSourceInterface
+function fakeSourceWithExportTracking(Collection $shipments, Collection $items = new Collection): ImportSourceInterface
 {
-    return new class($shipments, $items, $sourceName) implements ImportSourceInterface
+    return new class($shipments, $items) implements ImportSourceInterface
     {
         /** @var array<string> */
         public array $exportedReferences = [];
@@ -68,13 +66,7 @@ function fakeSourceWithExportTracking(Collection $shipments, Collection $items =
         public function __construct(
             private Collection $shipments,
             private Collection $items,
-            private string $sourceName,
         ) {}
-
-        public function getSourceName(): string
-        {
-            return $this->sourceName;
-        }
 
         public function fetchShipments(): Collection
         {
@@ -102,20 +94,14 @@ function fakeSourceWithExportTracking(Collection $shipments, Collection $items =
     };
 }
 
-function fakeSourceWithExportFailure(Collection $shipments, Collection $items = new Collection, string $sourceName = 'test'): ImportSourceInterface
+function fakeSourceWithExportFailure(Collection $shipments, Collection $items = new Collection): ImportSourceInterface
 {
-    return new class($shipments, $items, $sourceName) implements ImportSourceInterface
+    return new class($shipments, $items) implements ImportSourceInterface
     {
         public function __construct(
             private Collection $shipments,
             private Collection $items,
-            private string $sourceName,
         ) {}
-
-        public function getSourceName(): string
-        {
-            return $this->sourceName;
-        }
 
         public function fetchShipments(): Collection
         {
@@ -164,7 +150,7 @@ it('imports a shipment with a matching shipping method', function (): void {
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -176,7 +162,7 @@ it('imports a shipment with a matching shipping method', function (): void {
         ->and($shipment->channel_reference)->toBe('web')
         ->and($shipment->source_record_id)->toBe('ORD-001')
         ->and($shipment->importSource)->not->toBeNull()
-        ->and($shipment->importSource->config_key)->toBe('test');
+        ->and($shipment->importSource->id)->toBe($this->importSource->id);
 });
 
 it('resolves shipping references and products inside the active client context', function (): void {
@@ -219,6 +205,8 @@ it('resolves shipping references and products inside the active client context',
         'name' => 'Client A Existing Product',
     ]);
 
+    $importSourceB = ImportSource::factory()->create(['client_id' => $clientB->id]);
+
     $source = fakeSource(
         collect([
             [
@@ -241,10 +229,9 @@ it('resolves shipping references and products inside the active client context',
                 'quantity' => 1,
             ],
         ]),
-        'client_b_source',
     );
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $importSourceB)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->productsCreated)->toBe(1)
@@ -279,7 +266,7 @@ it('imports a shipment when shipping method reference does not match', function 
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -312,7 +299,7 @@ it('stores the raw shipping method reference even when resolved', function (): v
         ],
     ]));
 
-    ShipmentImportService::forSource($source)->import();
+    ShipmentImportService::forSource($source, $this->importSource)->import();
 
     $shipment = Shipment::where('shipment_reference', 'ORD-003')->first();
     expect($shipment->shipping_method_reference)->toBe('ground');
@@ -335,7 +322,7 @@ it('normalizes imported country and subdivision values before saving', function 
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -371,7 +358,7 @@ it('resolves shipping method via alias', function (): void {
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -399,7 +386,7 @@ it('returns null when neither alias nor direct match exists', function (): void 
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     $shipment = Shipment::where('shipment_reference', 'ORD-NONE-001')->first();
     expect($shipment->shipping_method_id)->toBeNull()
@@ -423,7 +410,7 @@ it('imports a shipment with no shipping method reference at all', function (): v
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1);
 
@@ -460,7 +447,7 @@ it('calls markExported for each successfully imported shipment', function (): vo
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(2)
         ->and($result->shipmentsExported)->toBe(2)
@@ -484,7 +471,7 @@ it('continues importing when markExported fails', function (): void {
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->shipmentsExported)->toBe(0)
@@ -513,7 +500,7 @@ it('imports shipment with phone extension and stores them separately', function 
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -544,7 +531,7 @@ it('imports shipment with invalid phone number and stores warning', function ():
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -575,7 +562,7 @@ it('imports shipment with invalid email and stores warning', function (): void {
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -605,7 +592,7 @@ it('imports shipment with both invalid phone and email', function (): void {
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -638,7 +625,7 @@ it('imports shipment with valid phone and email without warnings', function (): 
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -670,7 +657,7 @@ it('imports shipment with separate phone_extension field from source', function 
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -700,7 +687,7 @@ it('uses separate phone_extension field over parsed extension', function (): voi
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     $shipment = Shipment::where('shipment_reference', 'ORD-EXT-002')->first();
     // Separate field takes precedence over parsed extension
@@ -730,7 +717,7 @@ it('resolves channel via alias', function (): void {
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -755,7 +742,7 @@ it('imports shipment with unmapped channel reference', function (): void {
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->hasErrors())->toBeFalse();
@@ -781,11 +768,11 @@ it('deduplicates unmapped channel shipments on re-import', function (): void {
     ]));
 
     // First import
-    $result1 = ShipmentImportService::forSource($source)->import();
+    $result1 = ShipmentImportService::forSource($source, $this->importSource)->import();
     expect($result1->shipmentsCreated)->toBe(1);
 
     // Second import (re-import same data)
-    $result2 = ShipmentImportService::forSource($source)->import();
+    $result2 = ShipmentImportService::forSource($source, $this->importSource)->import();
     expect($result2->shipmentsUpdated)->toBe(1)
         ->and($result2->shipmentsCreated)->toBe(0);
 
@@ -808,14 +795,14 @@ it('does not duplicate a shipment when channel is manually assigned between impo
         ],
     ]));
 
-    ShipmentImportService::forSource($source)->import();
+    ShipmentImportService::forSource($source, $this->importSource)->import();
 
     $channel = Channel::factory()->create(['name' => 'Manual Channel']);
 
     $shipment = Shipment::where('shipment_reference', 'ORD-CH-006')->first();
     $shipment->update(['channel_id' => $channel->id]);
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsUpdated)->toBe(1)
         ->and($result->shipmentsCreated)->toBe(0)
@@ -853,7 +840,7 @@ it('allows the same displayed shipment reference to exist twice for one source w
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(2)
         ->and(Shipment::where('shipment_reference', 'ORD-DUP-DISPLAY')->count())->toBe(2);
@@ -876,20 +863,18 @@ it('allows the same displayed shipment reference from two different import sourc
         ],
     ]);
 
-    $resultA = ShipmentImportService::forSource(fakeSource($shipments, sourceName: 'source_a'))->import();
-    $resultB = ShipmentImportService::forSource(fakeSource($shipments, sourceName: 'source_b'))->import();
+    $recordA = ImportSource::factory()->create(['name' => 'Source A']);
+    $recordB = ImportSource::factory()->create(['name' => 'Source B']);
+
+    $resultA = ShipmentImportService::forSource(fakeSource($shipments), $recordA)->import();
+    $resultB = ShipmentImportService::forSource(fakeSource($shipments), $recordB)->import();
 
     expect($resultA->shipmentsCreated)->toBe(1)
         ->and($resultB->shipmentsCreated)->toBe(1)
         ->and(Shipment::where('shipment_reference', 'ORD-CROSS-001')->count())->toBe(2);
 
-    $sourceA = ImportSource::where('config_key', 'source_a')->first();
-    $sourceB = ImportSource::where('config_key', 'source_b')->first();
-
-    expect($sourceA)->not->toBeNull()
-        ->and($sourceB)->not->toBeNull()
-        ->and(Shipment::where('shipment_reference', 'ORD-CROSS-001')->where('import_source_id', $sourceA->id)->exists())->toBeTrue()
-        ->and(Shipment::where('shipment_reference', 'ORD-CROSS-001')->where('import_source_id', $sourceB->id)->exists())->toBeTrue();
+    expect(Shipment::where('shipment_reference', 'ORD-CROSS-001')->where('import_source_id', $recordA->id)->exists())->toBeTrue()
+        ->and(Shipment::where('shipment_reference', 'ORD-CROSS-001')->where('import_source_id', $recordB->id)->exists())->toBeTrue();
 });
 
 it('stores channel_reference even when channel is resolved', function (): void {
@@ -909,7 +894,7 @@ it('stores channel_reference even when channel is resolved', function (): void {
         ],
     ]));
 
-    ShipmentImportService::forSource($source)->import();
+    ShipmentImportService::forSource($source, $this->importSource)->import();
 
     $shipment = Shipment::where('shipment_reference', 'ORD-CH-004')->first();
     expect($shipment->channel_id)->toBe($channel->id)
@@ -930,7 +915,7 @@ it('imports shipment with no channel reference at all', function (): void {
         ],
     ]));
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1);
 
@@ -940,18 +925,13 @@ it('imports shipment with no channel reference at all', function (): void {
 });
 
 it('can import shipments without fetching shipment items when item import is disabled for the source', function (): void {
-    config(['shipment-import.sources.test.shipment_items.enabled' => false]);
+    $record = ImportSource::factory()->create(['settings' => ['shipment_items_enabled' => false]]);
 
     $source = new class(collect([['shipment_reference' => 'ORD-NO-ITEMS-001', 'first_name' => 'No', 'last_name' => 'Items', 'address1' => '100 Header Only Way', 'city' => 'Seattle', 'state_or_province' => 'WA', 'postal_code' => '98101', 'country' => 'US']])) implements ImportSourceInterface
     {
         public function __construct(
             private Collection $shipments,
         ) {}
-
-        public function getSourceName(): string
-        {
-            return 'test';
-        }
 
         public function fetchShipments(): Collection
         {
@@ -976,7 +956,7 @@ it('can import shipments without fetching shipment items when item import is dis
         }
     };
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $record)->import();
 
     expect($result->shipmentsCreated)->toBe(1)
         ->and($result->itemsCreated)->toBe(0)
@@ -991,11 +971,6 @@ it('returns an error result and notifies admins when fetchShipments throws', fun
 
     $source = new class implements ImportSourceInterface
     {
-        public function getSourceName(): string
-        {
-            return 'test';
-        }
-
         public function fetchShipments(): Collection
         {
             throw new RuntimeException('You have an error in your SQL syntax near \'FROM\'');
@@ -1019,7 +994,7 @@ it('returns an error result and notifies admins when fetchShipments throws', fun
         }
     };
 
-    $result = ShipmentImportService::forSource($source)->import();
+    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
 
     expect($result->hasErrors())->toBeTrue()
         ->and($result->errors[0])->toContain('SQL syntax');

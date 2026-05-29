@@ -2,11 +2,11 @@
 
 namespace App\Services\ShipmentImport;
 
-use App\Contracts\ImportSourceInterface;
 use App\Enums\Role;
 use App\Events\ImportCompleted;
 use App\Events\ShipmentImported;
 use App\Events\ShipmentUpdated;
+use App\Models\ImportSource;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Notifications\ImportCompleted as ImportCompletedNotification;
@@ -32,9 +32,9 @@ class ImportRunRecorder
         private readonly string $sourceName,
     ) {}
 
-    public static function forSource(ImportSourceInterface $source): self
+    public static function forRecord(ImportSource $record): self
     {
-        return new self($source->getSourceName());
+        return new self($record->name);
     }
 
     public function configurationFailed(string $message, float $duration): ImportResult

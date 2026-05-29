@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ScheduleInterval;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,16 +17,17 @@ class ImportSource extends Model
 
     protected $fillable = [
         'client_id',
-        'config_key',
         'name',
         'driver',
         'active',
+        'schedule_interval',
         'settings',
         'secret_settings',
     ];
 
     protected $casts = [
         'active' => 'boolean',
+        'schedule_interval' => ScheduleInterval::class,
         'settings' => 'array',
         'secret_settings' => 'encrypted:array',
     ];

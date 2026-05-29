@@ -21,7 +21,6 @@ class ImportSourceFactory extends Factory
     {
         return [
             'name' => fake()->words(2, true),
-            'config_key' => fake()->unique()->slug(2, '_'),
             'driver' => DatabaseSource::class,
             'active' => true,
             'settings' => [],
