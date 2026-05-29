@@ -55,7 +55,7 @@ class DatabaseSource implements ExportDestinationInterface, ImportSourceInterfac
         // Use custom query if provided
         if (! empty($this->config['shipments_query'])) {
             $results = DB::connection($connection)
-                ->select($this->config['shipments_query']);
+                ->select($this->normalizeQuery($this->config['shipments_query']));
         } else {
             $query = DB::connection($connection)
                 ->table($this->config['shipments_table']);
@@ -96,7 +96,7 @@ class DatabaseSource implements ExportDestinationInterface, ImportSourceInterfac
         // Use custom query if provided
         if (! empty($this->config['shipment_items_query'])) {
             $results = DB::connection($connection)
-                ->select($this->config['shipment_items_query'], [
+                ->select($this->normalizeQuery($this->config['shipment_items_query']), [
                     'shipment_reference' => $sourceRecordId,
                 ]);
         } else {
@@ -126,7 +126,7 @@ class DatabaseSource implements ExportDestinationInterface, ImportSourceInterfac
         }
 
         DB::connection($this->config['connection'])
-            ->statement($markExported['query'], [
+            ->statement($this->normalizeQuery($markExported['query']), [
                 'shipment_reference' => $sourceRecordId,
             ]);
 
@@ -146,7 +146,7 @@ class DatabaseSource implements ExportDestinationInterface, ImportSourceInterfac
             throw new InvalidArgumentException('Export query is not configured for database source.');
         }
 
-        $query = $exportConfig['query'];
+        $query = $this->normalizeQuery($exportConfig['query']);
 
         // Only pass parameters that the query actually references,
         // so the field_mapping can be a superset of what the query needs.
@@ -190,6 +190,15 @@ class DatabaseSource implements ExportDestinationInterface, ImportSourceInterfac
 
             throw new InvalidArgumentException('Cannot connect to export database. Check connection settings.');
         }
+    }
+
+    /**
+     * Replace non-breaking spaces and other Unicode whitespace variants with
+     * ASCII spaces so the query executes correctly on MySQL/MariaDB.
+     */
+    private function normalizeQuery(string $query): string
+    {
+        return str_replace("\u{00A0}", ' ', $query);
     }
 
     /**

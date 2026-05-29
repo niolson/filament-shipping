@@ -256,54 +256,11 @@ class ImportSourceForm
                                 return;
                             }
 
-                            $connName = 'import_test_'.$record->id;
-                            $password = filled($get('settings.db_password'))
-                                ? $get('settings.db_password')
-                                : ($record->secret('db_password') ?? $record->settings['db_password'] ?? null);
-
-                            config([
-                                "database.connections.{$connName}.driver" => $get('settings.db_driver') ?? 'mysql',
-                                "database.connections.{$connName}.host" => $get('settings.db_host') ?? '127.0.0.1',
-                                "database.connections.{$connName}.port" => (int) ($get('settings.db_port') ?? 3306),
-                                "database.connections.{$connName}.database" => $get('settings.db_database') ?? null,
-                                "database.connections.{$connName}.username" => $get('settings.db_username') ?? null,
-                                "database.connections.{$connName}.password" => $password,
-                                "database.connections.{$connName}.charset" => 'utf8mb4',
-                                "database.connections.{$connName}.collation" => 'utf8mb4_unicode_ci',
-                                "database.connections.{$connName}.prefix" => '',
-                                "database.connections.{$connName}.strict" => true,
-                            ]);
-                            DB::purge($connName);
-
                             $tunnel = null;
+                            $connName = null;
 
                             try {
-                                if ($get('settings.ssh_enabled')) {
-                                    $keyPath = storage_path('app/private/ssh/id_ed25519');
-                                    if (! file_exists($keyPath)) {
-                                        throw new \RuntimeException('SSH key not found. Run `php artisan app:generate-ssh-key` first.');
-                                    }
-
-                                    $tunnel = SshTunnel::fromConfig([
-                                        'ssh_host' => $get('settings.ssh_host') ?? '',
-                                        'ssh_port' => (int) ($get('settings.ssh_port') ?? 22),
-                                        'ssh_user' => $get('settings.ssh_user') ?? '',
-                                        'ssh_key' => $keyPath,
-                                        'remote_host' => $get('settings.ssh_remote_host') ?: ($get('settings.db_host') ?? '127.0.0.1'),
-                                        'remote_port' => (int) ($get('settings.ssh_remote_port') ?: ($get('settings.db_port') ?? 3306)),
-                                        'known_hosts_entry' => $get('settings.ssh_host_key') ?? '',
-                                        'known_hosts_file' => storage_path('app/private/ssh/import_known_hosts'),
-                                    ]);
-
-                                    $localPort = $tunnel->open();
-                                    config([
-                                        "database.connections.{$connName}.host" => '127.0.0.1',
-                                        "database.connections.{$connName}.port" => $localPort,
-                                    ]);
-                                    DB::purge($connName);
-                                }
-
-                                DB::connection($connName)->getPdo();
+                                ['tunnel' => $tunnel, 'conn_name' => $connName] = self::openTestConnection($get, $record);
 
                                 Notification::make()
                                     ->success()
@@ -317,7 +274,9 @@ class ImportSourceForm
                                     ->send();
                             } finally {
                                 $tunnel?->close();
-                                DB::purge($connName);
+                                if ($connName) {
+                                    DB::purge($connName);
+                                }
                             }
                         }),
                 ])
@@ -348,6 +307,7 @@ class ImportSourceForm
                         ->nullable()
                         ->rows(3)
                         ->helperText('Optional. Overrides table + filters. Leave blank to use table-based query.')
+                        ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace("\u{00A0}", ' ', $state) : $state)
                         ->columnSpanFull(),
 
                     Textarea::make('settings.shipment_items_query')
@@ -355,6 +315,7 @@ class ImportSourceForm
                         ->nullable()
                         ->rows(3)
                         ->helperText('Use :shipment_reference as the placeholder. Leave blank to query by shipment_id.')
+                        ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace("\u{00A0}", ' ', $state) : $state)
                         ->columnSpanFull(),
 
                     Toggle::make('settings.mark_exported_enabled')
@@ -365,8 +326,85 @@ class ImportSourceForm
                         ->nullable()
                         ->rows(2)
                         ->helperText('Use :shipment_reference as placeholder.')
+                        ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace("\u{00A0}", ' ', $state) : $state)
                         ->columnSpanFull()
                         ->visible(fn (Get $get): bool => (bool) $get('settings.mark_exported_enabled')),
+                ])
+                ->footerActions([
+                    Action::make('test_queries')
+                        ->label('Test Queries')
+                        ->icon(Heroicon::CheckCircle)
+                        ->color('gray')
+                        ->visible(fn (?ImportSource $record): bool => (bool) $record?->exists)
+                        ->action(function (Get $get, ?ImportSource $record): void {
+                            if (! $record) {
+                                return;
+                            }
+
+                            $tunnel = null;
+                            $connName = null;
+
+                            try {
+                                ['pdo' => $pdo, 'tunnel' => $tunnel, 'conn_name' => $connName] = self::openTestConnection($get, $record);
+
+                                if (($get('settings.db_driver') ?? 'mysql') === 'mysql') {
+                                    $pdo->setAttribute(\PDO::ATTR_EMULATE_PREPARES, false);
+                                }
+
+                                $queries = array_filter([
+                                    'Shipments query' => $get('settings.shipments_query'),
+                                    'Items query' => $get('settings.shipment_items_query'),
+                                    'Mark exported query' => $get('settings.mark_exported_query'),
+                                    'Export query' => $get('settings.export_query'),
+                                ]);
+
+                                if (empty($queries)) {
+                                    Notification::make()->info()->title('No queries configured')->send();
+
+                                    return;
+                                }
+
+                                $errors = [];
+
+                                foreach ($queries as $label => $sql) {
+                                    try {
+                                        $pdo->prepare(str_replace("\u{00A0}", ' ', $sql));
+                                    } catch (\PDOException $e) {
+                                        $errors[$label] = $e->getMessage();
+                                    }
+                                }
+
+                                if (empty($errors)) {
+                                    Notification::make()
+                                        ->success()
+                                        ->title('All queries valid')
+                                        ->send();
+                                } else {
+                                    $body = implode("\n", array_map(
+                                        fn (string $label, string $msg) => "{$label}: {$msg}",
+                                        array_keys($errors),
+                                        $errors,
+                                    ));
+
+                                    Notification::make()
+                                        ->danger()
+                                        ->title('Query validation failed')
+                                        ->body($body)
+                                        ->send();
+                                }
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('Connection failed')
+                                    ->body($e->getMessage())
+                                    ->send();
+                            } finally {
+                                $tunnel?->close();
+                                if ($connName) {
+                                    DB::purge($connName);
+                                }
+                            }
+                        }),
                 ])
                 ->visible(fn (Get $get): bool => $get('driver') === DatabaseSource::class)
                 ->columns(2),
@@ -383,6 +421,7 @@ class ImportSourceForm
                         ->nullable()
                         ->rows(3)
                         ->helperText('Available parameters: :tracking_number, :carrier, :service, :weight, :cost, :shipment_reference')
+                        ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace("\u{00A0}", ' ', $state) : $state)
                         ->columnSpanFull()
                         ->visible(fn (Get $get): bool => (bool) $get('settings.export_enabled')),
                 ])
@@ -438,6 +477,66 @@ class ImportSourceForm
                 ->collapsible()
                 ->collapsed(),
         ]);
+    }
+
+    /**
+     * Open a temporary PDO connection from the current form state, including an
+     * SSH tunnel if configured. Returns the PDO, optional tunnel, and connection name.
+     * The caller is responsible for closing the tunnel and purging the connection.
+     *
+     * @return array{pdo: \PDO, tunnel: ?SshTunnel, conn_name: string}
+     */
+    private static function openTestConnection(Get $get, ImportSource $record): array
+    {
+        $connName = 'import_test_'.$record->id;
+        $password = filled($get('settings.db_password'))
+            ? $get('settings.db_password')
+            : ($record->secret('db_password') ?? $record->settings['db_password'] ?? null);
+
+        config([
+            "database.connections.{$connName}.driver" => $get('settings.db_driver') ?? 'mysql',
+            "database.connections.{$connName}.host" => $get('settings.db_host') ?? '127.0.0.1',
+            "database.connections.{$connName}.port" => (int) ($get('settings.db_port') ?? 3306),
+            "database.connections.{$connName}.database" => $get('settings.db_database') ?? null,
+            "database.connections.{$connName}.username" => $get('settings.db_username') ?? null,
+            "database.connections.{$connName}.password" => $password,
+            "database.connections.{$connName}.charset" => 'utf8mb4',
+            "database.connections.{$connName}.collation" => 'utf8mb4_unicode_ci',
+            "database.connections.{$connName}.prefix" => '',
+            "database.connections.{$connName}.strict" => true,
+        ]);
+        DB::purge($connName);
+
+        $tunnel = null;
+
+        if ($get('settings.ssh_enabled')) {
+            $keyPath = storage_path('app/private/ssh/id_ed25519');
+            if (! file_exists($keyPath)) {
+                throw new \RuntimeException('SSH key not found. Run `php artisan app:generate-ssh-key` first.');
+            }
+
+            $tunnel = SshTunnel::fromConfig([
+                'ssh_host' => $get('settings.ssh_host') ?? '',
+                'ssh_port' => (int) ($get('settings.ssh_port') ?? 22),
+                'ssh_user' => $get('settings.ssh_user') ?? '',
+                'ssh_key' => $keyPath,
+                'remote_host' => $get('settings.ssh_remote_host') ?: ($get('settings.db_host') ?? '127.0.0.1'),
+                'remote_port' => (int) ($get('settings.ssh_remote_port') ?: ($get('settings.db_port') ?? 3306)),
+                'known_hosts_entry' => $get('settings.ssh_host_key') ?? '',
+                'known_hosts_file' => storage_path('app/private/ssh/import_known_hosts'),
+            ]);
+
+            $localPort = $tunnel->open();
+            config([
+                "database.connections.{$connName}.host" => '127.0.0.1',
+                "database.connections.{$connName}.port" => $localPort,
+            ]);
+            DB::purge($connName);
+        }
+
+        $pdo = DB::connection($connName)->getPdo();
+
+        return ['pdo' => $pdo, 'tunnel' => $tunnel, 'conn_name' => $connName];
     }
 
     private static function renderShopifyOAuthStatus(?ImportSource $record): HtmlString
