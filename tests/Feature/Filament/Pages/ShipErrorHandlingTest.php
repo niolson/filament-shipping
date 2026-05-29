@@ -95,9 +95,8 @@ function setUpShipComponentWithRate(Package $package): Testable
             'metadata' => [],
         ],
     ]);
-    $component->set('formRateOptionLabels', [0 => '[USPS] USPS Ground Advantage']);
     $component->set('formRateOptionDescriptions', [0 => '$8.50 - 2-5 Business Days']);
-    $component->fillForm(['rateOptions' => 0]);
+    $component->set('selectedRateIndex', 0);
 
     return $component;
 }

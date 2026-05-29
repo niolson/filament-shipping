@@ -110,8 +110,7 @@ it('applies the selected rate index from the workflow to the form on mount', fun
 
     $component = Livewire::test(Ship::class, ['package_id' => $package->id]);
 
-    $component->assertFormFieldExists('rateOptions')
-        ->assertSet('data.rateOptions', 0);
+    $component->assertSet('selectedRateIndex', 0);
 });
 
 it('dispatches print-label event when suppress_printing is off', function (): void {
@@ -146,9 +145,8 @@ it('dispatches print-label event when suppress_printing is off', function (): vo
             ],
         ],
     ]);
-    $component->set('formRateOptionLabels', [0 => '[USPS] USPS Ground Advantage']);
     $component->set('formRateOptionDescriptions', [0 => '$8.50 - 2-5 Business Days']);
-    $component->fillForm(['rateOptions' => 0]);
+    $component->set('selectedRateIndex', 0);
 
     $component->call('ship')
         ->assertDispatched('print-label');
@@ -192,9 +190,8 @@ it('does not dispatch print-label event when suppress_printing is on', function 
             ],
         ],
     ]);
-    $component->set('formRateOptionLabels', [0 => '[USPS] USPS Ground Advantage']);
     $component->set('formRateOptionDescriptions', [0 => '$8.50 - 2-5 Business Days']);
-    $component->fillForm(['rateOptions' => 0]);
+    $component->set('selectedRateIndex', 0);
 
     $component->call('ship')
         ->assertNotDispatched('print-label')

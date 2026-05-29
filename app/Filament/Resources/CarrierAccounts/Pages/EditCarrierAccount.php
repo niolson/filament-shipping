@@ -111,12 +111,17 @@ class EditCarrierAccount extends EditRecord
             $data['credentials'] = array_merge($this->record->credentials ?? [], $data['credentials']);
         }
 
-        // Virtual account_number fields for FedEx and UPS
-        foreach (['fedex_account_number', 'ups_account_number'] as $field) {
+        // Virtual credential fields for FedEx and UPS (stored in credentials JSON)
+        $credentialFieldMap = [
+            'fedex_account_number' => 'account_number',
+            'ups_account_number' => 'account_number',
+        ];
+
+        foreach ($credentialFieldMap as $field => $credentialKey) {
             if (array_key_exists($field, $data)) {
                 $data['credentials'] = array_merge(
                     $data['credentials'] ?? $this->record->credentials ?? [],
-                    ['account_number' => $data[$field]]
+                    [$credentialKey => $data[$field]]
                 );
                 unset($data[$field]);
             }

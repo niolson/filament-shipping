@@ -95,9 +95,42 @@
                                 </div>
                             </div>
                         @endif
-                        <form wire:submit="ship">
-                            {{ $this->form }}
-                        </form>
+                        <div class="space-y-2">
+                            @foreach($rateOptions as $index => $rate)
+                                @php
+                                    $logoFile = match(strtolower($rate['carrier'] ?? '')) {
+                                        'usps' => 'usps-logo.svg',
+                                        'fedex' => 'fedex-logo.svg',
+                                        'ups' => 'ups-logo.svg',
+                                        default => null,
+                                    };
+                                @endphp
+                                <label
+                                    wire:key="rate-{{ $index }}"
+                                    class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors {{ $selectedRateIndex == $index ? 'border-primary-500 bg-primary-50 dark:bg-primary-950 dark:border-primary-500' : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600' }}"
+                                >
+                                    <input
+                                        type="radio"
+                                        wire:model.live="selectedRateIndex"
+                                        value="{{ $index }}"
+                                        class="text-primary-600 focus:ring-primary-500"
+                                    >
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 font-medium text-sm text-gray-900 dark:text-white">
+                                            @if($logoFile)
+                                                <img src="{{ asset('images/' . $logoFile) }}" class="h-5 w-auto flex-shrink-0" alt="{{ $rate['carrier'] }}">
+                                            @else
+                                                <span>{{ $rate['carrier'] }}</span>
+                                            @endif
+                                            <span>{{ $rate['serviceName'] }}</span>
+                                        </div>
+                                        @if(!empty($formRateOptionDescriptions[$index]))
+                                            <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ $formRateOptionDescriptions[$index] }}</div>
+                                        @endif
+                                    </div>
+                                </label>
+                            @endforeach
+                        </div>
                     @endif
                 </x-filament::section>
             </div>

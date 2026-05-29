@@ -12,16 +12,11 @@ use App\Filament\Concerns\PrintsLabels;
 use App\Models\Package;
 use BackedEnum;
 use Filament\Actions\Action;
-use Filament\Forms\Components\Radio;
-use Filament\Forms\Concerns\InteractsWithForms;
-use Filament\Forms\Contracts\HasForms;
 use Filament\Pages\Page;
-use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Session;
 
-class Ship extends Page implements HasForms
+class Ship extends Page
 {
-    use InteractsWithForms;
     use NotifiesUser;
     use PrintsLabels;
 
@@ -43,8 +38,6 @@ class Ship extends Page implements HasForms
     /** @var array<int, array<string, mixed>> */
     public array $rateOptions = [];
 
-    public array $formRateOptionLabels = [];
-
     public array $formRateOptionDescriptions = [];
 
     public ?string $deliverByDate = null;
@@ -55,7 +48,7 @@ class Ship extends Page implements HasForms
 
     public ?int $labelDpi = null;
 
-    public ?array $data = [];
+    public ?int $selectedRateIndex = null;
 
     public string $returnUrl = '/pack';
 
@@ -89,14 +82,10 @@ class Ship extends Page implements HasForms
         }
 
         $this->rateOptions = $options->rateOptions;
-        $this->formRateOptionLabels = $options->rateOptionLabels;
         $this->formRateOptionDescriptions = $options->rateOptionDescriptions;
         $this->deliverByDate = $options->deliverByDate;
         $this->allRatesLate = $options->allRatesLate;
-
-        if ($options->selectedRateIndex !== null) {
-            $this->form->fill(['rateOptions' => $options->selectedRateIndex]);
-        }
+        $this->selectedRateIndex = $options->selectedRateIndex;
     }
 
     protected function getHeaderActions(): array
@@ -110,25 +99,12 @@ class Ship extends Page implements HasForms
                 ->action(fn () => $this->ship())
                 ->icon('heroicon-o-printer')
                 ->keybindings(['f12'])
-                ->disabled(fn () => empty($this->rateOptions)),
+                ->disabled(fn () => empty($this->rateOptions) || $this->selectedRateIndex === null),
             Action::make('Back')
                 ->action(fn () => $this->redirect($this->returnUrl))
                 ->icon('heroicon-o-arrow-left')
                 ->color('gray'),
         ];
-    }
-
-    public function form(Schema $form): Schema
-    {
-        return $form
-            ->schema([
-                Radio::make('rateOptions')
-                    ->label('Select Shipping Rate')
-                    ->options($this->formRateOptionLabels)
-                    ->descriptions($this->formRateOptionDescriptions)
-                    ->required(),
-            ])
-            ->statePath('data');
     }
 
     public function refreshRates(): void
@@ -140,22 +116,21 @@ class Ship extends Page implements HasForms
         $options = app(PackageShippingWorkflow::class)->prepareRates($this->package);
 
         $this->rateOptions = $options->rateOptions;
-        $this->formRateOptionLabels = $options->rateOptionLabels;
         $this->formRateOptionDescriptions = $options->rateOptionDescriptions;
         $this->deliverByDate = $options->deliverByDate;
         $this->allRatesLate = $options->allRatesLate;
-
-        if ($options->selectedRateIndex !== null) {
-            $this->form->fill(['rateOptions' => $options->selectedRateIndex]);
-        }
+        $this->selectedRateIndex = $options->selectedRateIndex;
     }
 
     public function ship(): void
     {
-        $formData = $this->form->getState();
-        $selectedOptionKey = $formData['rateOptions'];
-        $rate = $this->rateOptions[$selectedOptionKey];
+        if ($this->selectedRateIndex === null || ! isset($this->rateOptions[$this->selectedRateIndex])) {
+            $this->notifyError('No Rate Selected', 'Please select a shipping rate.');
 
+            return;
+        }
+
+        $rate = $this->rateOptions[$this->selectedRateIndex];
         $selectedRate = RateResponse::fromArray($rate);
 
         $result = app(PackageShippingWorkflow::class)->ship(

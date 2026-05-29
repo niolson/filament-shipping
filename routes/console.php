@@ -16,7 +16,7 @@ try {
         ->each(function (ImportSource $source): void {
             Schedule::command('shipments:import', ['--source-id' => $source->id])
                 ->cron($source->schedule_interval->toCron())
-                ->withoutOverlapping("import-source-{$source->id}")
+                ->withoutOverlapping()
                 ->runInBackground()
                 ->appendOutputTo(storage_path('logs/import.log'));
         });
