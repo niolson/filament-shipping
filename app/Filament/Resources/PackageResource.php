@@ -9,8 +9,10 @@ use App\Filament\Concerns\InteractsWithScoutSearch;
 use App\Filament\Resources\PackageResource\Pages;
 use App\Filament\Resources\PackageResource\RelationManagers\PackageItemsRelationManager;
 use App\Filament\Support\CarrierLogoColumn;
+use App\Models\Client;
 use App\Models\Location;
 use App\Models\Package;
+use App\Services\SettingsService;
 use App\Services\TrackingService;
 use BackedEnum;
 use Filament\Actions;
@@ -155,7 +157,11 @@ class PackageResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with('shipment'))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(array_filter([
+                'shipment',
+                app(SettingsService::class)->get('multi_client_enabled', false) ? 'shipment.client' : null,
+                app(SettingsService::class)->get('multi_location_enabled', false) ? 'location' : null,
+            ])))
             ->searchable()
             ->searchUsing(function (Builder $query, string $search): void {
                 $ids = Package::search($search)->keys()->all();
@@ -177,6 +183,14 @@ class PackageResource extends Resource
                     ->fontFamily('mono')
                     ->size('sm')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('shipment.client.name')
+                    ->label('Client')
+                    ->placeholder('—')
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
+                Tables\Columns\TextColumn::make('location.name')
+                    ->label('Location')
+                    ->placeholder('—')
+                    ->visible(fn () => app(SettingsService::class)->get('multi_location_enabled', false)),
                 Tables\Columns\TextColumn::make('tracking_number')
                     ->fontFamily('mono')
                     ->size('sm')
@@ -209,6 +223,19 @@ class PackageResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('client')
+                    ->label('Client')
+                    ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['value'] ?? null,
+                        fn ($q, $value) => $q->whereHas('shipment', fn ($q) => $q->where('client_id', $value))
+                    ))
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
+                Tables\Filters\SelectFilter::make('location')
+                    ->relationship('location', 'name')
+                    ->label('Location')
+                    ->preload()
+                    ->visible(fn () => app(SettingsService::class)->get('multi_location_enabled', false)),
                 Tables\Filters\SelectFilter::make('status')
                     ->options(PackageStatus::class),
                 Tables\Filters\SelectFilter::make('tracking_status')

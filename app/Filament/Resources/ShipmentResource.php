@@ -176,7 +176,7 @@ class ShipmentResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['shippingMethod', 'channel']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['shippingMethod', 'channel', 'client']))
             ->searchable()
             ->searchUsing(function (Builder $query, string $search): void {
                 static::applyGlobalSearchAttributeConstraints($query, $search);
@@ -189,6 +189,10 @@ class ShipmentResource extends Resource
                     ->fontFamily('mono')
                     ->size('sm')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('client.name')
+                    ->label('Client')
+                    ->placeholder('—')
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
                 Tables\Columns\TextColumn::make('channel.name')
                     ->label('Channel')
                     ->icon(fn (Shipment $record): ?string => $record->channel?->icon)
@@ -236,6 +240,11 @@ class ShipmentResource extends Resource
                 Tables\Filters\SelectFilter::make('deliverability')
                     ->options(Deliverability::class)
                     ->label('Deliverability'),
+                Tables\Filters\SelectFilter::make('client')
+                    ->relationship('client', 'name')
+                    ->label('Client')
+                    ->preload()
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
                 Tables\Filters\SelectFilter::make('channel')
                     ->relationship('channel', 'name')
                     ->label('Channel')
@@ -272,11 +281,12 @@ class ShipmentResource extends Resource
             ], layout: FiltersLayout::Dropdown)
             ->deferFilters(false)
             ->filtersFormColumns(4)
-            ->filtersFormSchema(fn (array $filters): array => [
+            ->filtersFormSchema(fn (array $filters): array => array_values(array_filter([
+                app(SettingsService::class)->get('multi_client_enabled', false) ? $filters['client'] : null,
                 $filters['channel'],
                 $filters['shipping_method'],
                 $filters['created_at'],
-            ])
+            ])))
             ->defaultSort('created_at', 'desc')
             ->recordActions([])
             ->toolbarActions([
@@ -420,6 +430,10 @@ class ShipmentResource extends Resource
                             ->iconPosition('after'),
                         TextEntry::make('status')
                             ->badge(),
+                        TextEntry::make('client.name')
+                            ->label('Client')
+                            ->placeholder('—')
+                            ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
                         TextEntry::make('channel.name')
                             ->label('Channel')
                             ->icon(fn (Shipment $record): ?string => $record->channel?->icon)

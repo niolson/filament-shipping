@@ -7,6 +7,7 @@ use App\Enums\PackageStatus;
 use App\Filament\Resources\PackageResource;
 use App\Filament\Resources\ShipmentResource;
 use App\Models\Location;
+use App\Services\SettingsService;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -92,6 +93,10 @@ class ViewPackage extends ViewRecord
                         TextEntry::make('shipment.shipment_reference')
                             ->label('Shipment Reference')
                             ->url(fn ($record) => ShipmentResource::getUrl('view', ['record' => $record->shipment_id])),
+                        TextEntry::make('shipment.client.name')
+                            ->label('Client')
+                            ->placeholder('—')
+                            ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
                         TextEntry::make('tracking_number')
                             ->icon('heroicon-o-clipboard')
                             ->iconPosition('after')
