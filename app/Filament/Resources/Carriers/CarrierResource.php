@@ -19,7 +19,7 @@ class CarrierResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-building-office';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Settings';
+    protected static \UnitEnum|string|null $navigationGroup = 'Shipping Config';
 
     protected static ?string $recordTitleAttribute = 'name';
 

@@ -20,7 +20,7 @@ class ChannelResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-globe-alt';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Settings';
+    protected static \UnitEnum|string|null $navigationGroup = 'Integrations';
 
     public static function form(Schema $form): Schema
     {

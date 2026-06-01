@@ -68,7 +68,7 @@ class AppPanelProvider extends PanelProvider
             ->pages([
                 Dashboard::class,
             ])
-            ->navigationGroups(['Ship', 'Manage', 'Reports', 'Settings'])
+            ->navigationGroups(['Ship', 'Manage', 'Reports', 'Shipping Config', 'Integrations', 'Admin'])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->databaseNotifications()
             ->widgets([])

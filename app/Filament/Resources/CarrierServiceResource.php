@@ -20,7 +20,7 @@ class CarrierServiceResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-bolt';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Settings';
+    protected static \UnitEnum|string|null $navigationGroup = 'Shipping Config';
 
     public static function form(Schema $form): Schema
     {

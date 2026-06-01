@@ -22,7 +22,7 @@ class LocationResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-building-office-2';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Settings';
+    protected static \UnitEnum|string|null $navigationGroup = 'Admin';
 
     protected static function hasActiveFedexCarrier(): bool
     {

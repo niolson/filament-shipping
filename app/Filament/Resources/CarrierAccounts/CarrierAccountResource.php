@@ -20,7 +20,7 @@ class CarrierAccountResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedKey;
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Settings';
+    protected static \UnitEnum|string|null $navigationGroup = 'Shipping Config';
 
     protected static ?string $recordTitleAttribute = 'name';
 

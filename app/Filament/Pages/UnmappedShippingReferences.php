@@ -26,7 +26,7 @@ class UnmappedShippingReferences extends Page implements HasTable
 
     protected static ?string $navigationLabel = 'Map Shipping References';
 
-    protected static UnitEnum|string|null $navigationGroup = 'Settings';
+    protected static UnitEnum|string|null $navigationGroup = 'Integrations';
 
     protected static ?int $navigationSort = 90;
 

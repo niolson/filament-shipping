@@ -26,7 +26,7 @@ class ImportSourceResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedArrowDownTray;
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Settings';
+    protected static \UnitEnum|string|null $navigationGroup = 'Integrations';
 
     protected static ?string $recordTitleAttribute = 'name';
 

@@ -40,7 +40,7 @@ class AuditLogResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Audit Logs';
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Settings';
+    protected static \UnitEnum|string|null $navigationGroup = 'Admin';
 
     protected static ?int $navigationSort = 10;
 
