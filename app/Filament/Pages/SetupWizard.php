@@ -346,7 +346,7 @@ class SetupWizard extends Page
                             ->visible(fn () => ShippingMethod::exists())
                             ->content(fn () => new HtmlString(
                                 view('filament.pages.setup-wizard.existing-methods', [
-                                    'methods' => ShippingMethod::with(['aliases', 'carrierServices'])->get(),
+                                    'methods' => ShippingMethod::with(['aliases', 'carrierServices.carrier'])->get(),
                                 ])->render()
                             )),
                         Forms\Components\Placeholder::make('alias_hint')
