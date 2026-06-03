@@ -76,6 +76,7 @@ class UnmappedChannelReferences extends Page implements HasTable
                         $channelId = $data['channel_id'];
 
                         ChannelAlias::create([
+                            'client_id' => $record->client_id,
                             'reference' => $reference,
                             'channel_id' => $channelId,
                         ]);

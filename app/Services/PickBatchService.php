@@ -9,6 +9,7 @@ use App\Models\PickBatch;
 use App\Models\PickBatchShipment;
 use App\Models\Shipment;
 use App\Models\User;
+use DomainException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +21,7 @@ class PickBatchService
      *
      * @param  Collection<int, Shipment>  $shipments
      */
-    public function createFromShipments(Collection $shipments, User $user): ?PickBatch
+    public function createFromShipments(Collection $shipments, User $user, ?int $clientId = null): ?PickBatch
     {
         $shipmentIds = $shipments->pluck('id')->filter()->values();
 
@@ -28,11 +29,12 @@ class PickBatchService
             return null;
         }
 
-        return DB::transaction(function () use ($shipmentIds, $user) {
+        return DB::transaction(function () use ($shipmentIds, $user, $clientId) {
             $eligible = Shipment::query()
                 ->whereKey($shipmentIds)
                 ->where('picking_status', PickingStatus::Pending)
                 ->where('status', ShipmentStatus::Open)
+                ->when($clientId, fn ($query) => $query->where('client_id', $clientId))
                 ->lockForUpdate()
                 ->get()
                 ->sortBy(fn (Shipment $shipment) => $shipmentIds->search($shipment->id))
@@ -42,8 +44,11 @@ class PickBatchService
                 return null;
             }
 
+            $resolvedClientId = $this->resolveClientIdForBatch($eligible, $clientId);
+
             $batch = PickBatch::create([
                 'user_id' => $user->id,
+                'client_id' => $resolvedClientId,
                 'status' => PickBatchStatus::InProgress,
                 'total_shipments' => $eligible->count(),
             ]);
@@ -72,11 +77,13 @@ class PickBatchService
         ?int $channelId,
         ?int $shippingMethodId,
         User $user,
+        ?int $clientId = null,
     ): ?PickBatch {
         $query = Shipment::where('picking_status', PickingStatus::Pending)
             ->where('status', ShipmentStatus::Open)
             ->when($channelId, fn ($q) => $q->where('channel_id', $channelId))
-            ->when($shippingMethodId, fn ($q) => $q->where('shipping_method_id', $shippingMethodId));
+            ->when($shippingMethodId, fn ($q) => $q->where('shipping_method_id', $shippingMethodId))
+            ->when($clientId, fn ($q) => $q->where('client_id', $clientId));
 
         if ($prioritizeExpedited) {
             $query->leftJoin('shipping_methods', 'shipments.shipping_method_id', '=', 'shipping_methods.id')
@@ -89,7 +96,25 @@ class PickBatchService
 
         $shipments = $query->limit($batchSize)->get();
 
-        return $this->createFromShipments($shipments, $user);
+        return $this->createFromShipments($shipments, $user, $clientId);
+    }
+
+    /**
+     * @param  Collection<int, Shipment>  $eligible
+     */
+    private function resolveClientIdForBatch(Collection $eligible, ?int $clientId): int
+    {
+        if ($clientId !== null) {
+            return $clientId;
+        }
+
+        $clientIds = $eligible->pluck('client_id')->filter()->unique()->values();
+
+        if ($clientIds->count() !== 1) {
+            throw new DomainException('Pick batches can only include shipments for one client.');
+        }
+
+        return (int) $clientIds->first();
     }
 
     /**

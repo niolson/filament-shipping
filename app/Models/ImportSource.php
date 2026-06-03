@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ScheduleInterval;
+use App\Models\Concerns\HasDefaultClient;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ImportSource extends Model
 {
-    use HasFactory;
+    use HasDefaultClient, HasFactory;
 
     /** @var list<string> Keys that belong in the encrypted secret_settings column. */
     public const SECRET_SETTINGS_KEYS = ['access_token', 'oauth_access_token', 'client_id', 'client_secret', 'refresh_token', 'db_password'];

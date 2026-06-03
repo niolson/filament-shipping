@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Enums\Role;
 use App\Filament\Resources\PickBatches\PickBatchResource;
 use App\Models\Channel;
+use App\Models\Client;
 use App\Models\ShippingMethod;
 use App\Services\PickBatchService;
 use App\Services\SettingsService;
@@ -47,6 +48,15 @@ class GeneratePickBatch extends Page implements HasForms
             && app(SettingsService::class)->get('picking_enabled', false);
     }
 
+    private function defaultClientId(): ?int
+    {
+        return Client::query()
+            ->where('active', true)
+            ->orderByDesc('is_default')
+            ->orderBy('name')
+            ->value('id');
+    }
+
     public function mount(): void
     {
         $this->form->fill([
@@ -54,6 +64,7 @@ class GeneratePickBatch extends Page implements HasForms
             'prioritize_expedited' => true,
             'channel_id' => null,
             'shipping_method_id' => null,
+            'client_id' => $this->defaultClientId(),
         ]);
     }
 
@@ -75,6 +86,14 @@ class GeneratePickBatch extends Page implements HasForms
                             ->label('Expedited First')
                             ->helperText('Place orders with expedited shipping methods at the top of the queue.')
                             ->default(true),
+                        Select::make('client_id')
+                            ->label('Client')
+                            ->options(fn () => Client::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->placeholder('Select a client')
+                            ->default(fn () => $this->defaultClientId())
+                            ->required(fn () => app(SettingsService::class)->get('multi_client_enabled', false))
+                            ->searchable()
+                            ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
                         Select::make('channel_id')
                             ->label('Channel')
                             ->options(fn () => Channel::query()->orderBy('name')->pluck('name', 'id'))
@@ -105,6 +124,7 @@ class GeneratePickBatch extends Page implements HasForms
             channelId: $data['channel_id'] ? (int) $data['channel_id'] : null,
             shippingMethodId: $data['shipping_method_id'] ? (int) $data['shipping_method_id'] : null,
             user: auth()->user(),
+            clientId: $data['client_id'] ? (int) $data['client_id'] : null,
         );
 
         if ($batch === null) {

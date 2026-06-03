@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\HazmatClass;
+use App\Models\Concerns\HasDefaultClient;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,7 +13,7 @@ use Laravel\Scout\Searchable;
 
 class Product extends Model
 {
-    use HasFactory, Searchable;
+    use HasDefaultClient, HasFactory, Searchable;
 
     protected $fillable = [
         'client_id',

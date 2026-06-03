@@ -76,6 +76,7 @@ class UnmappedShippingReferences extends Page implements HasTable
                         $shippingMethodId = $data['shipping_method_id'];
 
                         ShippingMethodAlias::create([
+                            'client_id' => $record->client_id,
                             'reference' => $reference,
                             'shipping_method_id' => $shippingMethodId,
                         ]);

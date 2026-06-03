@@ -5,6 +5,7 @@ namespace App\Filament\Resources\PickBatches\Pages;
 use App\Enums\PickBatchStatus;
 use App\Filament\Resources\PickBatches\PickBatchResource;
 use App\Models\Location;
+use App\Models\PickBatch;
 use App\Services\GotenbergService;
 use App\Services\PickBatchService;
 use App\Services\SettingsService;
@@ -75,7 +76,7 @@ class ViewPickBatch extends ViewRecord
                         'pickBatch' => $this->record,
                         'pivotRows' => $this->record->pickBatchShipments->sortBy('tote_code'),
                         'generator' => new BarcodeGeneratorSVG,
-                        'logoDataUri' => $this->resolveLogoDataUri(),
+                        'logoDataUri' => $this->resolveLogoDataUri($this->record),
                         'defaultLocation' => Location::getDefault(),
                     ], function (): void {
                         $this->record->pickBatchShipments()->update(['pack_slip_printed_at' => now()]);
@@ -116,16 +117,23 @@ class ViewPickBatch extends ViewRecord
         ];
     }
 
-    private function resolveLogoDataUri(): ?string
+    private function resolveLogoDataUri(PickBatch $pickBatch): ?string
     {
-        $path = app(SettingsService::class)->get('pack_slip_logo');
+        $path = $pickBatch->client?->logo
+            ?? app(SettingsService::class)->get('pack_slip_logo');
 
         if (blank($path) || ! Storage::disk('public')->exists($path)) {
             return null;
         }
 
         $content = Storage::disk('public')->get($path);
-        $mimeType = Storage::disk('public')->mimeType($path) ?: 'image/png';
+        $mimeType = match (strtolower(pathinfo($path, PATHINFO_EXTENSION))) {
+            'svg' => 'image/svg+xml',
+            'jpg', 'jpeg' => 'image/jpeg',
+            'gif' => 'image/gif',
+            'webp' => 'image/webp',
+            default => 'image/png',
+        };
 
         return 'data:'.$mimeType.';base64,'.base64_encode($content);
     }

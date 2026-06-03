@@ -15,6 +15,7 @@ class Client extends Model
     protected $fillable = [
         'name',
         'code',
+        'logo',
         'is_default',
         'active',
         'return_company',

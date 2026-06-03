@@ -50,7 +50,7 @@ class ShipmentRowPreparer
 
         return new PreparedShipmentRow(
             attributes: [
-                'client_id' => $client?->id,
+                'client_id' => $client?->id ?? Client::where('is_default', true)->value('id'),
                 'import_source_id' => $importSource->id,
                 'source_record_id' => $data['source_record_id'] ?? $data['shipment_reference'],
                 'shipment_reference' => $data['shipment_reference'],

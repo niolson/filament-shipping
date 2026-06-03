@@ -4,6 +4,7 @@ use App\Enums\PickBatchStatus;
 use App\Enums\PickingStatus;
 use App\Enums\ShipmentStatus;
 use App\Models\Channel;
+use App\Models\Client;
 use App\Models\PickBatch;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
@@ -63,6 +64,39 @@ it('does not create a batch when no selected shipments are eligible', function (
     $batch = $this->service->createFromShipments(collect([$batched, $shipped]), $this->user);
 
     expect($batch)->toBeNull();
+    assertDatabaseCount('pick_batches', 0);
+});
+
+it('assigns the shipment client when selected shipments share one client', function (): void {
+    $client = Client::factory()->create();
+    $shipments = Shipment::factory()->count(2)->create([
+        'client_id' => $client->id,
+        'picking_status' => PickingStatus::Pending,
+    ]);
+
+    $batch = $this->service->createFromShipments($shipments, $this->user);
+
+    expect($batch->client_id)->toBe($client->id);
+});
+
+it('rejects selected shipments from multiple clients', function (): void {
+    $clientA = Client::factory()->create();
+    $clientB = Client::factory()->create();
+
+    $shipments = collect([
+        Shipment::factory()->create([
+            'client_id' => $clientA->id,
+            'picking_status' => PickingStatus::Pending,
+        ]),
+        Shipment::factory()->create([
+            'client_id' => $clientB->id,
+            'picking_status' => PickingStatus::Pending,
+        ]),
+    ]);
+
+    expect(fn () => $this->service->createFromShipments($shipments, $this->user))
+        ->toThrow(DomainException::class, 'Pick batches can only include shipments for one client.');
+
     assertDatabaseCount('pick_batches', 0);
 });
 
@@ -182,6 +216,34 @@ it('filters by shipping method', function (): void {
 
     $included = $batch->pickBatchShipments()->pluck('shipment_id')->all();
     expect($included)->toContain($targetShipment->id)
+        ->and($included)->toHaveCount(1);
+});
+
+it('filters generated batches by client', function (): void {
+    $clientA = Client::factory()->create();
+    $clientB = Client::factory()->create();
+
+    Shipment::factory()->create([
+        'client_id' => $clientA->id,
+        'picking_status' => PickingStatus::Pending,
+    ]);
+    $targetShipment = Shipment::factory()->create([
+        'client_id' => $clientB->id,
+        'picking_status' => PickingStatus::Pending,
+    ]);
+
+    $batch = $this->service->autoGenerate(
+        batchSize: 10,
+        prioritizeExpedited: false,
+        channelId: null,
+        shippingMethodId: null,
+        user: $this->user,
+        clientId: $clientB->id,
+    );
+
+    $included = $batch->pickBatchShipments()->pluck('shipment_id')->all();
+    expect($batch->client_id)->toBe($clientB->id)
+        ->and($included)->toContain($targetShipment->id)
         ->and($included)->toHaveCount(1);
 });
 

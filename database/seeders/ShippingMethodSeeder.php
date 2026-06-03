@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\CarrierService;
+use App\Models\Client;
 use App\Models\ShippingMethod;
 use App\Models\ShippingMethodAlias;
 use Illuminate\Database\Seeder;
@@ -14,13 +15,15 @@ class ShippingMethodSeeder extends Seeder
      */
     public function run(): void
     {
+        $defaultClientId = Client::where('is_default', true)->value('id');
+
         // Standard Ground - USPS Ground Advantage, FedEx Home Delivery
         $standardGround = ShippingMethod::firstOrCreate(
             ['name' => 'Standard Ground'],
             ['commitment_days' => 5, 'active' => true],
         );
         ShippingMethodAlias::firstOrCreate(
-            ['reference' => '1'],
+            ['client_id' => $defaultClientId, 'reference' => '1'],
             ['shipping_method_id' => $standardGround->id],
         );
         $standardGround->carrierServices()->syncWithoutDetaching(
@@ -36,7 +39,7 @@ class ShippingMethodSeeder extends Seeder
             ['commitment_days' => 2, 'active' => true],
         );
         ShippingMethodAlias::firstOrCreate(
-            ['reference' => '2'],
+            ['client_id' => $defaultClientId, 'reference' => '2'],
             ['shipping_method_id' => $twoDay->id],
         );
         $twoDay->carrierServices()->syncWithoutDetaching(
@@ -53,7 +56,7 @@ class ShippingMethodSeeder extends Seeder
             ['commitment_days' => 5, 'active' => true],
         );
         ShippingMethodAlias::firstOrCreate(
-            ['reference' => '3'],
+            ['client_id' => $defaultClientId, 'reference' => '3'],
             ['shipping_method_id' => $internationalEconomy->id],
         );
         $internationalEconomy->carrierServices()->syncWithoutDetaching(
@@ -69,7 +72,7 @@ class ShippingMethodSeeder extends Seeder
             ['commitment_days' => 1, 'active' => true],
         );
         ShippingMethodAlias::firstOrCreate(
-            ['reference' => '4'],
+            ['client_id' => $defaultClientId, 'reference' => '4'],
             ['shipping_method_id' => $overnight->id],
         );
         $overnight->carrierServices()->syncWithoutDetaching(

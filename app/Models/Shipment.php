@@ -6,6 +6,7 @@ use App\Enums\Deliverability;
 use App\Enums\PackageStatus;
 use App\Enums\PickingStatus;
 use App\Enums\ShipmentStatus;
+use App\Models\Concerns\HasDefaultClient;
 use App\Services\AddressReferenceService;
 use App\Services\AddressValidationService;
 use App\Services\PhoneParserService;
@@ -20,7 +21,7 @@ use Laravel\Scout\Searchable;
 
 class Shipment extends Model
 {
-    use HasFactory, Searchable;
+    use HasDefaultClient, HasFactory, Searchable;
 
     protected $fillable = [
         'client_id',

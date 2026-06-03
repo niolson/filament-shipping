@@ -15,6 +15,7 @@ class PickBatch extends Model
 
     protected $fillable = [
         'user_id',
+        'client_id',
         'status',
         'total_shipments',
         'completed_at',
@@ -41,6 +42,11 @@ class PickBatch extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function client(): BelongsTo
+    {
+        return $this->belongsTo(Client::class);
     }
 
     public function pickBatchShipments(): HasMany

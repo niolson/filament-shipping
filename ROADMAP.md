@@ -183,27 +183,34 @@ Enables a single PolyBag installation to serve a third-party logistics provider 
 
 **Foundations (completed 2026-05-19):** `Client` model + migration, nullable `client_id` on shipments, products, import\_sources, shipping\_method\_aliases, channel\_aliases, and shipping\_rules. `ClientContext` service resolves the active client. `ImportReferenceResolver` warms per-client alias caches so the same reference string (e.g. "standard", "web") can resolve to different targets per client. Import pipeline propagates `client_id` from import source → shipment → shipment items → products.
 
+**Also completed:** `multi_client_enabled` toggle in App Settings. `ClientResource` (list, create, edit — name, code, active flag). Client column and filter on ShipmentResource and PackageResource (hidden when mode is off). Return address fields on `Client` model (2026-05-27).
+
 **Optional mode:** Multi-client is off by default. A `multi_client_enabled` setting controls it. When disabled, all records silently use the default client and no client UI is shown — no client column in tables, no client selector on any page or resource. Single-brand operators never see client as a concept. When enabled, client becomes visible across the UI and the full 3PL workflow surfaces.
 
 **Remaining work:**
 
-**Core UI & management:**
-- `multi_client_enabled` setting + client UI visibility gating
-- `Client` Filament resource (list, create, edit) — name, code, active flag
-- Client selector on shipment/product resources (only when `multi_client_enabled`)
-- Client column in shipment and product tables (hidden when mode is off)
+**Operational UI:**
+- Client filter on pick batch generation (`GeneratePickBatch` page) — pick lists should be scoped to a single client
+- Open shipments per client widget — table widget on the dashboard showing pending shipment count per client (only when `multi_client_enabled`)
+- Client indicator on the Pack page — when packing a shipment, surface the client name so the operator knows whose order they're packing
+- Product scan scoping on Pack page — barcode lookups should match only products belonging to the shipment's client, not across all clients
 
 **Per-client shipping configuration:**
 - Per-client shipping method mapping UI — same method name can map to different carrier services per client
 - Per-client shipping rules (the `client_id` column exists; surfacing it in the rules UI)
-- Per-client return address (ship-from on labels should show the brand's address, not the warehouse)
+- Per-client return address wired to label generation — `Client` model has the return address fields; `LabelGenerationService` needs to use them when a client is set (ship-from on labels shows the brand's address, not the warehouse)
 
 **Per-client import & export:**
 - Import source management UI with client assignment
 - Per-client outbound webhook/export configuration (notify each client's system on ship; see Phase 2.1)
-- Packing slip branding per client (logo, custom message, return instructions)
+
+**Packing slip branding:**
+- `logo` and `company_name` fields on `Client` model (logo stored as a file upload)
+- Custom message and return instructions fields per client
+- Packing slip template renders client logo, company name, and custom message when a client is set
 
 **Reporting & invoicing:**
+- Per-client filter on existing report pages (`VolumeReport`, `UserShipmentsReport`, etc.)
 - Per-client summary report: order count, package count, postage cost, weight shipped — filterable by date range
 - Billable event log: postage at cost, per-order handling fees, special handling (configurable rate card per client)
 - Export to CSV for invoicing

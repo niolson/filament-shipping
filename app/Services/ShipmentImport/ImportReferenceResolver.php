@@ -31,20 +31,12 @@ class ImportReferenceResolver
         $this->shippingMethodCache = [];
         $this->productCache = [];
 
-        ChannelAlias::whereNull('client_id')->get()->each(function (ChannelAlias $alias): void {
-            $this->channelCache[$alias->reference] = $alias->channel_id;
-        });
-
         ChannelAlias::where('client_id', $client->id)->get()->each(function (ChannelAlias $alias): void {
             $this->channelCache[$alias->reference] = $alias->channel_id;
         });
 
         Channel::pluck('id')->each(function (int $id): void {
             $this->channelCache[(string) $id] = $id;
-        });
-
-        ShippingMethodAlias::whereNull('client_id')->get()->each(function (ShippingMethodAlias $alias): void {
-            $this->shippingMethodCache[$alias->reference] = $alias->shipping_method_id;
         });
 
         ShippingMethodAlias::where('client_id', $client->id)->get()->each(function (ShippingMethodAlias $alias): void {

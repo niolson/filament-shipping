@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Clients\Schemas;
 
 use App\Services\AddressReferenceService;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -32,6 +33,17 @@ class ClientForm
                             ->label('Default client')
                             ->helperText('Shipments with no client assigned use this client.')
                             ->default(false),
+                        FileUpload::make('logo')
+                            ->label('Pack Slip Logo')
+                            ->helperText('Logo printed on pack slips for this client. Recommended: landscape image, PNG or JPG.')
+                            ->disk('public')
+                            ->directory('logos')
+                            ->visibility('public')
+                            ->image()
+                            ->panelLayout('grid')
+                            ->maxSize(10240)
+                            ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
 

@@ -22,6 +22,7 @@ use App\Services\BatchLabelService;
 use App\Services\PickBatchService;
 use App\Services\SettingsService;
 use BackedEnum;
+use DomainException;
 use Filament\Actions;
 use Filament\Forms;
 use Filament\Infolists\Components\TextEntry;
@@ -363,16 +364,26 @@ class ShipmentResource extends Resource
                     ->modalDescription('Create a pick batch from the selected shipments. Only pending shipments will be included.')
                     ->modalSubmitActionLabel('Create Batch')
                     ->action(function (Collection $records): void {
-                        $batch = app(PickBatchService::class)->createFromShipments(
-                            $records,
-                            auth()->user(),
-                        );
+                        try {
+                            $batch = app(PickBatchService::class)->createFromShipments(
+                                $records,
+                                auth()->user(),
+                            );
+                        } catch (DomainException $exception) {
+                            Notification::make()
+                                ->warning()
+                                ->title('Select shipments for one client')
+                                ->body($exception->getMessage())
+                                ->send();
 
-                        if ($batch->total_shipments === 0) {
+                            return;
+                        }
+
+                        if ($batch === null) {
                             Notification::make()
                                 ->warning()
                                 ->title('No eligible shipments')
-                                ->body('Only shipments with pending picking status can be added to a pick batch.')
+                                ->body('Only open shipments with pending picking status can be added to a pick batch.')
                                 ->send();
 
                             return;
