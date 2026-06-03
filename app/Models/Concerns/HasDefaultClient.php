@@ -2,7 +2,7 @@
 
 namespace App\Models\Concerns;
 
-use App\Models\Client;
+use App\Services\ClientContext;
 
 trait HasDefaultClient
 {
@@ -10,7 +10,7 @@ trait HasDefaultClient
     {
         static::creating(function (self $model): void {
             if ($model->client_id === null) {
-                $model->client_id = Client::where('is_default', true)->value('id');
+                $model->client_id = app(ClientContext::class)->id();
             }
         });
     }

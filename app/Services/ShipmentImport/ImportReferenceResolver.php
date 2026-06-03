@@ -47,10 +47,6 @@ class ImportReferenceResolver
             $this->shippingMethodCache[(string) $id] = $id;
         });
 
-        Product::whereNull('client_id')->pluck('id', 'sku')->each(function (int $id, string $sku): void {
-            $this->productCache[$sku] = $id;
-        });
-
         Product::where('client_id', $client->id)->pluck('id', 'sku')->each(function (int $id, string $sku): void {
             $this->productCache[$sku] = $id;
         });

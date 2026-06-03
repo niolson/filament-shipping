@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Channel;
+use App\Models\Client;
 use App\Models\Product;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
@@ -508,6 +509,8 @@ class ShipmentSeeder extends Seeder
             ],
         ];
 
+        $defaultClientId = Client::where('is_default', true)->value('id');
+
         foreach ($shipments as $shipmentData) {
             $items = $shipmentData['items'] ?? [];
             unset($shipmentData['items'], $shipmentData['notes']);
@@ -516,6 +519,7 @@ class ShipmentSeeder extends Seeder
                 ['shipment_reference' => $shipmentData['shipment_reference']],
                 [
                     ...$shipmentData,
+                    'client_id' => $defaultClientId,
                     'shipping_method_id' => $shippingMethod?->id,
                     'channel_id' => $channel->id,
                 ],
@@ -531,6 +535,7 @@ class ShipmentSeeder extends Seeder
                 $product = Product::firstOrCreate(
                     ['sku' => $sku],
                     [
+                        'client_id' => $defaultClientId,
                         'name' => $item['description'],
                         'barcode' => $sku,
                         'description' => $item['description'],

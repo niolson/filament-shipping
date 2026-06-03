@@ -7,6 +7,7 @@ use App\Filament\Concerns\InteractsWithScoutSearch;
 use App\Filament\Resources\ProductResource\Pages;
 use App\Models\Location;
 use App\Models\Product;
+use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
@@ -54,6 +55,10 @@ class ProductResource extends Resource
     {
         return $form
             ->schema([
+                Forms\Components\Select::make('client_id')
+                    ->relationship('client', 'name')
+                    ->required()
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
                 Forms\Components\TextInput::make('name')
                     ->required()
                     ->maxLength(255),
@@ -118,6 +123,10 @@ class ProductResource extends Resource
                 $query->whereKey($ids);
             })
             ->columns([
+                Tables\Columns\TextColumn::make('client.name')
+                    ->label('Client')
+                    ->sortable()
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
                 Tables\Columns\TextColumn::make('name'),
                 Tables\Columns\TextColumn::make('sku'),
                 Tables\Columns\TextColumn::make('bin_location')
@@ -149,6 +158,9 @@ class ProductResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Tables\Filters\SelectFilter::make('client')
+                    ->relationship('client', 'name')
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
                 Tables\Filters\TernaryFilter::make('active')
                     ->label('Active')
                     ->trueLabel('Active')
