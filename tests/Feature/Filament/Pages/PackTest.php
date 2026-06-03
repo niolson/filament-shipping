@@ -4,6 +4,7 @@ use App\Enums\PackageStatus;
 use App\Enums\Role;
 use App\Filament\Pages\Pack;
 use App\Models\BoxSize;
+use App\Models\Client;
 use App\Models\Package;
 use App\Models\PackageItem;
 use App\Models\Product;
@@ -389,6 +390,69 @@ it('downgrades auto-ship to manual ship for non-admin users', function (): void 
     $package = Package::where('shipment_id', $shipment->id)->first();
     expect($package)->not->toBeNull()
         ->and($package->status)->toBe(PackageStatus::Unshipped);
+});
+
+it('shows client name when multi_client_enabled is true', function (): void {
+    $client = Client::factory()->create(['name' => 'Acme Corp']);
+    $shipment = Shipment::factory()->create(['client_id' => $client->id]);
+
+    Setting::create(['key' => 'multi_client_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertSet('multiClientEnabled', true)
+        ->assertSet('clientName', 'Acme Corp');
+})->after(fn () => app(SettingsService::class)->clearCache());
+
+it('does not expose client name when multi_client_enabled is false', function (): void {
+    $client = Client::factory()->create(['name' => 'Acme Corp']);
+    $shipment = Shipment::factory()->create(['client_id' => $client->id]);
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertSet('multiClientEnabled', false);
+});
+
+it('scopes product loading to the shipment client', function (): void {
+    $clientA = Client::factory()->create();
+    $clientB = Client::factory()->create();
+
+    $product = Product::factory()->create([
+        'client_id' => $clientA->id,
+        'barcode' => '1111111111111',
+    ]);
+
+    // Shipment belongs to Client A — product is correctly from Client A
+    $shipment = Shipment::factory()->create(['client_id' => $clientA->id]);
+    ShipmentItem::factory()->create([
+        'shipment_id' => $shipment->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertSet('packingItems.0.barcode', '1111111111111');
+});
+
+it('does not load product when it belongs to a different client', function (): void {
+    $clientA = Client::factory()->create();
+    $clientB = Client::factory()->create();
+
+    // Product belongs to Client B
+    $product = Product::factory()->create([
+        'client_id' => $clientB->id,
+        'barcode' => '9999999999999',
+    ]);
+
+    // Shipment belongs to Client A but item points to Client B's product (data inconsistency)
+    $shipment = Shipment::factory()->create(['client_id' => $clientA->id]);
+    ShipmentItem::factory()->create([
+        'shipment_id' => $shipment->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertSet('packingItems.0.barcode', null);
 });
 
 it('deletes orphaned package items when cleaning up unshipped packages', function (): void {

@@ -400,6 +400,9 @@
             Shipment: {{ $shipment->shipment_reference }}
         </x-slot>
         <x-slot name="description">
+            @if($multiClientEnabled && $clientName)
+                <x-filament::badge color="primary" class="mr-2">{{ $clientName }}</x-filament::badge>
+            @endif
             {{ $shipment->first_name }} {{ $shipment->last_name }} - {{ $shipment->city }}, {{ $shipment->state_or_province }}
         </x-slot>
 

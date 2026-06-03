@@ -52,6 +52,10 @@ class Pack extends Page
 
     public ?Shipment $shipment = null;
 
+    public ?string $clientName = null;
+
+    public bool $multiClientEnabled = false;
+
     public array $packingItems = [];
 
     public array $boxSizes = [];
@@ -71,13 +75,23 @@ class Pack extends Page
     public function mount($shipment_id = null): void
     {
         $this->transparencyEnabled = (bool) app(SettingsService::class)->get('transparency_enabled', true);
+        $this->multiClientEnabled = (bool) app(SettingsService::class)->get('multi_client_enabled', false);
 
         // Load box sizes for client-side lookup (cached)
         $this->boxSizes = app(CacheService::class)->getBoxSizesForPacking();
 
         if ($shipment_id) {
-            $this->shipment = Shipment::with('shipmentItems.product')
-                ->findOrFail($shipment_id);
+            $this->shipment = Shipment::with('client')->findOrFail($shipment_id);
+            $this->clientName = $this->multiClientEnabled
+                ? $this->shipment->client?->name
+                : null;
+
+            $clientId = $this->shipment->client_id;
+            $this->shipment->load(['shipmentItems.product' => function ($query) use ($clientId): void {
+                if ($clientId) {
+                    $query->where('client_id', $clientId);
+                }
+            }]);
 
             $draft = app(PackageDraftWorkflow::class)->resumeForShipment($this->shipment);
             $packedItems = collect($draft->items)->keyBy('shipmentItemId');
