@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
 use App\Models\ShippingMethodAlias;
+use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
@@ -16,6 +17,7 @@ use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use UnitEnum;
 
 class UnmappedShippingReferences extends Page implements HasTable
@@ -39,19 +41,29 @@ class UnmappedShippingReferences extends Page implements HasTable
 
     public function table(Table $table): Table
     {
+        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
+
         return $table
             ->query(
                 Shipment::query()
-                    ->selectRaw('MIN(id) as id, shipping_method_reference, COUNT(*) as shipment_count')
+                    ->selectRaw('MIN(id) as id, shipping_method_reference, client_id, COUNT(*) as shipment_count')
                     ->whereNotNull('shipping_method_reference')
                     ->where('shipping_method_reference', '!=', '')
                     ->whereNull('shipping_method_id')
-                    ->whereNotIn('shipping_method_reference', ShippingMethodAlias::query()->select('reference'))
-                    ->groupBy('shipping_method_reference')
+                    ->whereNotExists(function ($query): void {
+                        $query->select(DB::raw(1))
+                            ->from('shipping_method_aliases')
+                            ->whereColumn('shipping_method_aliases.reference', 'shipments.shipping_method_reference')
+                            ->whereColumn('shipping_method_aliases.client_id', 'shipments.client_id');
+                    })
+                    ->groupBy('shipping_method_reference', 'client_id')
             )
             ->defaultSort('shipping_method_reference')
             ->defaultKeySort(false)
             ->columns([
+                Tables\Columns\TextColumn::make('client.name')
+                    ->label('Client')
+                    ->visible($multiClient),
                 Tables\Columns\TextColumn::make('shipping_method_reference')
                     ->label('Reference')
                     ->searchable()
@@ -82,6 +94,7 @@ class UnmappedShippingReferences extends Page implements HasTable
                         ]);
 
                         $updated = Shipment::where('shipping_method_reference', $reference)
+                            ->where('client_id', $record->client_id)
                             ->whereNull('shipping_method_id')
                             ->update(['shipping_method_id' => $shippingMethodId]);
 
