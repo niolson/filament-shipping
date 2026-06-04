@@ -283,6 +283,7 @@ class ShipmentResource extends Resource
             ->deferFilters(false)
             ->filtersFormColumns(4)
             ->filtersFormSchema(fn (array $filters): array => array_values(array_filter([
+                app(SettingsService::class)->get('picking_enabled', false) ? $filters['picking_status'] : null,
                 app(SettingsService::class)->get('multi_client_enabled', false) ? $filters['client'] : null,
                 $filters['channel'],
                 $filters['shipping_method'],
@@ -441,6 +442,9 @@ class ShipmentResource extends Resource
                             ->iconPosition('after'),
                         TextEntry::make('status')
                             ->badge(),
+                        TextEntry::make('picking_status')
+                            ->badge()
+                            ->visible(fn () => app(SettingsService::class)->get('picking_enabled', false)),
                         TextEntry::make('client.name')
                             ->label('Client')
                             ->placeholder('—')
