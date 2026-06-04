@@ -51,6 +51,8 @@ class ManualShip extends Page implements HasForms
 
     public bool $autoShipEnabled = false;
 
+    public bool $scanToAddEnabled = false;
+
     public string $labelFormat = 'pdf';
 
     public ?int $labelDpi = null;
@@ -77,6 +79,8 @@ class ManualShip extends Page implements HasForms
 
     public function mount(): void
     {
+        $this->scanToAddEnabled = (bool) app(SettingsService::class)->get('scan_to_add_enabled', false);
+
         $this->form->fill([
             'country' => 'US',
             'label_format' => 'pdf',
@@ -202,6 +206,12 @@ class ManualShip extends Page implements HasForms
         }
 
         try {
+            if ($this->scanToAddEnabled) {
+                $this->packFromManual($data);
+
+                return;
+            }
+
             if ($this->autoShipEnabled) {
                 $this->autoShip($data);
 
@@ -212,6 +222,15 @@ class ManualShip extends Page implements HasForms
         } catch (PackageDraftIncompleteException|PackageDraftInvalidException $e) {
             $this->notifyError('Not Ready', $e->getMessage());
         }
+    }
+
+    private function packFromManual(array $data): void
+    {
+        ['shipment' => $shipment] = $this->createShipmentAndPackage($data);
+
+        Session::put('pack_auto_ship_override', $this->autoShipEnabled);
+        Session::put('ship_return_url', '/manual-ship');
+        $this->redirect('/pack/'.$shipment->id);
     }
 
     private function manualShip(array $data): void

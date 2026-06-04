@@ -59,6 +59,7 @@ class Settings extends Page
             'company_name' => app(SettingsService::class)->get('company_name', ''),
             'pack_slip_logo' => app(SettingsService::class)->get('pack_slip_logo'),
             'packing_validation_enabled' => app(SettingsService::class)->get('packing_validation_enabled', true),
+            'scan_to_add_enabled' => app(SettingsService::class)->get('scan_to_add_enabled', false),
             'transparency_enabled' => app(SettingsService::class)->get('transparency_enabled', true),
             'batch_shipping_enabled' => app(SettingsService::class)->get('batch_shipping_enabled', true),
             'manual_shipping_enabled' => app(SettingsService::class)->get('manual_shipping_enabled', true),
@@ -121,6 +122,10 @@ class Settings extends Page
                                 ->label('Packing Validation')
                                 ->helperText('When enabled, all items must be scanned before shipping. When disabled, only weight and dimensions are required.')
                                 ->default(true),
+                            Toggle::make('scan_to_add_enabled')
+                                ->label('Scan-to-Add Mode')
+                                ->helperText('When enabled, shipments that arrive without line-item data can be packed by scanning products to record what was actually packed. Shipments with items always use the standard validate mode.')
+                                ->default(false),
                             Toggle::make('batch_shipping_enabled')
                                 ->label('Batch Shipping')
                                 ->helperText('When enabled, admins can select multiple shipments and generate labels in bulk.')
@@ -291,6 +296,7 @@ class Settings extends Page
             'company_name' => $data['company_name'] ?? '',
             'pack_slip_logo' => $data['pack_slip_logo'] ?? null,
             'packing_validation_enabled' => $data['packing_validation_enabled'] ?? true,
+            'scan_to_add_enabled' => (bool) ($data['scan_to_add_enabled'] ?? false),
             'transparency_enabled' => $data['transparency_enabled'] ?? true,
             'batch_shipping_enabled' => $data['batch_shipping_enabled'] ?? true,
             'manual_shipping_enabled' => $data['manual_shipping_enabled'] ?? true,

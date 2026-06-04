@@ -15,6 +15,7 @@
             labelDpi: parseInt(localStorage.getItem('labelDpi') || '203') || null,
             packingItems: @js($packingItems),
             transparencyEnabled: @js($transparencyEnabled),
+            scanToAddMode: @js($scanToAddMode),
             boxSizes: @js($boxSizes),
             boxSizeId: null,
             weight: '',
@@ -30,9 +31,15 @@
             isShipping: false,
 
             init() {
-                const stored = localStorage.getItem('autoShipEnabled');
-                if (stored !== null) {
-                    this.autoShipEnabled = stored === 'true';
+                const phpAutoShip = @js($autoShipOverride);
+                if (phpAutoShip !== null) {
+                    this.autoShipEnabled = phpAutoShip;
+                    localStorage.setItem('autoShipEnabled', phpAutoShip ? 'true' : 'false');
+                } else {
+                    const stored = localStorage.getItem('autoShipEnabled');
+                    if (stored !== null) {
+                        this.autoShipEnabled = stored === 'true';
+                    }
                 }
 
                 this.$watch('autoShipEnabled', (value) => {
@@ -65,19 +72,28 @@
                     return;
                 }
 
-                const len = trimmed.length;
-
                 const isBoxCode = !!this.boxSizes[trimmed];
-                const isProduct = this.packingItems.some(item => item.barcode === trimmed || item.sku === trimmed);
                 const hasDimensions = this.height && this.width && this.length;
 
-                if (isBoxCode && isProduct) {
-                    // Collision: prefer box code if dimensions aren't set, product if they are
-                    hasDimensions ? this.scanProduct(trimmed) : this.scanBox(trimmed);
-                } else if (isBoxCode) {
-                    this.scanBox(trimmed);
+                if (this.scanToAddMode) {
+                    // In scan-to-add mode, prefer box scan when dimensions aren't set yet;
+                    // otherwise always try to look up as a product
+                    if (isBoxCode && !hasDimensions) {
+                        this.scanBox(trimmed);
+                    } else {
+                        $wire.addItemByScan(trimmed);
+                    }
                 } else {
-                    this.scanProduct(trimmed);
+                    const isProduct = this.packingItems.some(item => item.barcode === trimmed || item.sku === trimmed);
+
+                    if (isBoxCode && isProduct) {
+                        // Collision: prefer box code if dimensions aren't set, product if they are
+                        hasDimensions ? this.scanProduct(trimmed) : this.scanBox(trimmed);
+                    } else if (isBoxCode) {
+                        this.scanBox(trimmed);
+                    } else {
+                        this.scanProduct(trimmed);
+                    }
                 }
 
                 this.input = '';
@@ -159,6 +175,38 @@
                 }
             },
 
+            addScannedProduct(product) {
+                const existingIdx = this.packingItems.findIndex(item => item.product_id === product.product_id);
+                if (existingIdx !== -1) {
+                    this.packingItems[existingIdx].packed++;
+                    this.packingItems[existingIdx].quantity++;
+                } else {
+                    this.packingItems.push({
+                        product_id: product.product_id,
+                        sku: product.sku,
+                        barcode: product.barcode,
+                        name: product.name,
+                        quantity: 1,
+                        packed: 1,
+                        transparency_codes: [],
+                    });
+                }
+            },
+
+            incrementItem(idx) {
+                this.packingItems[idx].packed++;
+                this.packingItems[idx].quantity++;
+            },
+
+            decrementItem(idx) {
+                if (this.packingItems[idx].packed <= 1) {
+                    this.packingItems.splice(idx, 1);
+                } else {
+                    this.packingItems[idx].packed--;
+                    this.packingItems[idx].quantity--;
+                }
+            },
+
             submitTransparency() {
                 if (this.pendingTransparencyKey === null) {
                     this.closeTransparencyModal();
@@ -203,6 +251,10 @@
                 const d = parseFloat(this.length);
 
                 if (!w || w <= 0 || !h || h <= 0 || !wi || wi <= 0 || !d || d <= 0) {
+                    return false;
+                }
+
+                if (this.scanToAddMode && this.packingItems.length === 0) {
                     return false;
                 }
 
@@ -277,6 +329,8 @@
         @focus-scan-input.window="$nextTick(() => { input = ''; $refs.scanInput.focus(); })"
         @keydown.window="handleGlobalKey($event)"
         @keydown.f12.window.prevent="shipPackage()"
+        @scan-to-add-found.window="addScannedProduct($event.detail.product)"
+        @scan-to-add-not-found.window="new FilamentNotification().title('Product not found').body(`No product found for '${$event.detail.barcode}'`).danger().send()"
     >
         {{-- Header buttons --}}
         <div class="flex items-center justify-between gap-3 mb-4">
@@ -403,78 +457,137 @@
             @if($multiClientEnabled && $clientName)
                 <x-filament::badge color="primary" class="mr-2">{{ $clientName }}</x-filament::badge>
             @endif
+            @if($scanToAddMode)
+                <x-filament::badge color="warning" class="mr-2">Scan-to-Add</x-filament::badge>
+            @endif
             {{ $shipment->first_name }} {{ $shipment->last_name }} - {{ $shipment->city }}, {{ $shipment->state_or_province }}
         </x-slot>
 
         <div class="w-full overflow-x-auto">
-            <table class="fi-ta-table w-full">
-                <thead>
-                    <tr class="bg-gray-50 dark:bg-white/5">
-                        <th class="px-3 py-3.5 text-center text-sm font-semibold text-gray-950 dark:text-white">Qty</th>
-                        <th class="px-3 py-3.5 text-center text-sm font-semibold text-gray-950 dark:text-white">Packed</th>
-                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-950 dark:text-white">SKU</th>
-                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-950 dark:text-white">Barcode</th>
-                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-950 dark:text-white">Name</th>
-                        @if($transparencyEnabled)
-                        <th class="px-3 py-3.5 text-center text-sm font-semibold text-gray-950 dark:text-white">Transparency</th>
-                        @endif
-                        <th class="px-3 py-3.5 text-center text-sm font-semibold text-gray-950 dark:text-white">Status</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 dark:divide-white/5">
-                    <template x-for="(packingItem, index) in packingItems" :key="packingItem.id">
-                        <tr>
-                            <td class="px-3 py-4 text-center text-sm text-gray-950 dark:text-white" x-text="packingItem.quantity"></td>
-                            <td class="px-3 py-4 text-center text-sm text-gray-950 dark:text-white" x-text="packingItem.packed"></td>
-                            <td class="px-3 py-4 text-sm text-gray-950 dark:text-white" x-text="packingItem.sku"></td>
-                            <td class="px-3 py-4 text-sm text-gray-950 dark:text-white" x-text="packingItem.barcode"></td>
-                            <td class="px-3 py-4 text-sm text-gray-950 dark:text-white max-w-xs truncate" x-text="packingItem.name" x-bind:title="packingItem.name"></td>
+            {{-- Scan-to-add table: accumulated count with ± controls --}}
+            <template x-if="scanToAddMode">
+                <table class="fi-ta-table w-full">
+                    <thead>
+                        <tr class="bg-gray-50 dark:bg-white/5">
+                            <th class="px-3 py-3.5 text-center text-sm font-semibold text-gray-950 dark:text-white w-32">Qty Packed</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-950 dark:text-white">SKU</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-950 dark:text-white">Barcode</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-950 dark:text-white">Name</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-white/5">
+                        <template x-if="packingItems.length === 0">
+                            <tr>
+                                <td colspan="4" class="px-3 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                                    Scan a product barcode to begin recording what's packed
+                                </td>
+                            </tr>
+                        </template>
+                        <template x-for="(packingItem, index) in packingItems" :key="packingItem.product_id">
+                            <tr>
+                                <td class="px-3 py-3 text-center">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button
+                                            type="button"
+                                            @click="decrementItem(index)"
+                                            class="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/20 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10"
+                                        >
+                                            <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+                                            </svg>
+                                        </button>
+                                        <span class="min-w-[1.5rem] text-center text-sm font-semibold text-gray-950 dark:text-white" x-text="packingItem.packed"></span>
+                                        <button
+                                            type="button"
+                                            @click="incrementItem(index)"
+                                            class="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/20 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10"
+                                        >
+                                            <svg class="h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td class="px-3 py-4 text-sm text-gray-950 dark:text-white" x-text="packingItem.sku"></td>
+                                <td class="px-3 py-4 text-sm text-gray-950 dark:text-white" x-text="packingItem.barcode"></td>
+                                <td class="px-3 py-4 text-sm text-gray-950 dark:text-white max-w-xs truncate" x-text="packingItem.name" x-bind:title="packingItem.name"></td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </template>
+
+            {{-- Validate-mode table: expected vs packed with status badges --}}
+            <template x-if="!scanToAddMode">
+                <table class="fi-ta-table w-full">
+                    <thead>
+                        <tr class="bg-gray-50 dark:bg-white/5">
+                            <th class="px-3 py-3.5 text-center text-sm font-semibold text-gray-950 dark:text-white">Qty</th>
+                            <th class="px-3 py-3.5 text-center text-sm font-semibold text-gray-950 dark:text-white">Packed</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-950 dark:text-white">SKU</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-950 dark:text-white">Barcode</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-950 dark:text-white">Name</th>
                             @if($transparencyEnabled)
-                            <td class="px-3 py-4 text-center">
-                                <template x-if="packingItem.transparency">
-                                    <template x-if="(packingItem.transparency_codes || []).length >= packingItem.quantity">
-                                        <svg class="h-5 w-5 text-success-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                    </template>
-                                </template>
-                                <template x-if="packingItem.transparency && (packingItem.transparency_codes || []).length < packingItem.quantity">
-                                    <svg class="h-5 w-5 text-warning-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
-                                </template>
-                            </td>
+                            <th class="px-3 py-3.5 text-center text-sm font-semibold text-gray-950 dark:text-white">Transparency</th>
                             @endif
-                            <td class="px-3 py-4 text-center">
-                                <template x-if="packingItem.packed < packingItem.quantity">
-                                    <span class="fi-badge flex items-center justify-center gap-x-1 rounded-md text-xs font-medium ring-1 ring-inset px-2 min-w-[theme(spacing.6)] py-1 fi-color-custom bg-custom-50 text-custom-600 ring-custom-600/10 dark:bg-custom-400/10 dark:text-custom-400 dark:ring-custom-400/30 fi-color-warning" style="--c-50:var(--warning-50);--c-400:var(--warning-400);--c-600:var(--warning-600);">
-                                        <svg class="fi-badge-icon h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                            <th class="px-3 py-3.5 text-center text-sm font-semibold text-gray-950 dark:text-white">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 dark:divide-white/5">
+                        <template x-for="(packingItem, index) in packingItems" :key="packingItem.id">
+                            <tr>
+                                <td class="px-3 py-4 text-center text-sm text-gray-950 dark:text-white" x-text="packingItem.quantity"></td>
+                                <td class="px-3 py-4 text-center text-sm text-gray-950 dark:text-white" x-text="packingItem.packed"></td>
+                                <td class="px-3 py-4 text-sm text-gray-950 dark:text-white" x-text="packingItem.sku"></td>
+                                <td class="px-3 py-4 text-sm text-gray-950 dark:text-white" x-text="packingItem.barcode"></td>
+                                <td class="px-3 py-4 text-sm text-gray-950 dark:text-white max-w-xs truncate" x-text="packingItem.name" x-bind:title="packingItem.name"></td>
+                                @if($transparencyEnabled)
+                                <td class="px-3 py-4 text-center">
+                                    <template x-if="packingItem.transparency">
+                                        <template x-if="(packingItem.transparency_codes || []).length >= packingItem.quantity">
+                                            <svg class="h-5 w-5 text-success-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                        </template>
+                                    </template>
+                                    <template x-if="packingItem.transparency && (packingItem.transparency_codes || []).length < packingItem.quantity">
+                                        <svg class="h-5 w-5 text-warning-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
-                                        <span>Not Packed</span>
-                                    </span>
-                                </template>
-                                <template x-if="packingItem.packed == packingItem.quantity">
-                                    <span class="fi-badge flex items-center justify-center gap-x-1 rounded-md text-xs font-medium ring-1 ring-inset px-2 min-w-[theme(spacing.6)] py-1 fi-color-custom bg-custom-50 text-custom-600 ring-custom-600/10 dark:bg-custom-400/10 dark:text-custom-400 dark:ring-custom-400/30 fi-color-success" style="--c-50:var(--success-50);--c-400:var(--success-400);--c-600:var(--success-600);">
-                                        <svg class="fi-badge-icon h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <span>Packed</span>
-                                    </span>
-                                </template>
-                                <template x-if="packingItem.packed > packingItem.quantity">
-                                    <span class="fi-badge flex items-center justify-center gap-x-1 rounded-md text-xs font-medium ring-1 ring-inset px-2 min-w-[theme(spacing.6)] py-1 fi-color-custom bg-custom-50 text-custom-600 ring-custom-600/10 dark:bg-custom-400/10 dark:text-custom-400 dark:ring-custom-400/30 fi-color-danger" style="--c-50:var(--danger-50);--c-400:var(--danger-400);--c-600:var(--danger-600);">
-                                        <svg class="fi-badge-icon h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <span>Over Packed</span>
-                                    </span>
-                                </template>
-                            </td>
-                        </tr>
-                    </template>
-                </tbody>
-            </table>
+                                    </template>
+                                </td>
+                                @endif
+                                <td class="px-3 py-4 text-center">
+                                    <template x-if="packingItem.packed < packingItem.quantity">
+                                        <span class="fi-badge flex items-center justify-center gap-x-1 rounded-md text-xs font-medium ring-1 ring-inset px-2 min-w-[theme(spacing.6)] py-1 fi-color-custom bg-custom-50 text-custom-600 ring-custom-600/10 dark:bg-custom-400/10 dark:text-custom-400 dark:ring-custom-400/30 fi-color-warning" style="--c-50:var(--warning-50);--c-400:var(--warning-400);--c-600:var(--warning-600);">
+                                            <svg class="fi-badge-icon h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span>Not Packed</span>
+                                        </span>
+                                    </template>
+                                    <template x-if="packingItem.packed == packingItem.quantity">
+                                        <span class="fi-badge flex items-center justify-center gap-x-1 rounded-md text-xs font-medium ring-1 ring-inset px-2 min-w-[theme(spacing.6)] py-1 fi-color-custom bg-custom-50 text-custom-600 ring-custom-600/10 dark:bg-custom-400/10 dark:text-custom-400 dark:ring-custom-400/30 fi-color-success" style="--c-50:var(--success-50);--c-400:var(--success-400);--c-600:var(--success-600);">
+                                            <svg class="fi-badge-icon h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span>Packed</span>
+                                        </span>
+                                    </template>
+                                    <template x-if="packingItem.packed > packingItem.quantity">
+                                        <span class="fi-badge flex items-center justify-center gap-x-1 rounded-md text-xs font-medium ring-1 ring-inset px-2 min-w-[theme(spacing.6)] py-1 fi-color-custom bg-custom-50 text-custom-600 ring-custom-600/10 dark:bg-custom-400/10 dark:text-custom-400 dark:ring-custom-400/30 fi-color-danger" style="--c-50:var(--danger-50);--c-400:var(--danger-400);--c-600:var(--danger-600);">
+                                            <svg class="fi-badge-icon h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                            </svg>
+                                            <span>Over Packed</span>
+                                        </span>
+                                    </template>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </template>
         </div>
     </x-filament::section>
     @else

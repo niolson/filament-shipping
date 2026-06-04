@@ -11,6 +11,7 @@ use App\Events\PackageCreated;
 use App\Exceptions\PackageDraftIncompleteException;
 use App\Exceptions\PackageDraftInvalidException;
 use App\Models\BoxSize;
+use App\Models\Client;
 use App\Models\Package;
 use App\Models\PackageItem;
 use App\Models\Product;
@@ -302,6 +303,82 @@ it('rejects batch package drafts when an active package draft already exists', f
         new BatchPackageDraftInput(BoxSize::factory()->create()),
     );
 })->throws(PackageDraftInvalidException::class, 'already has an active package draft');
+
+it('saves scan-to-add items with null shipment_item_id when shipment has no items', function (): void {
+    $shipment = Shipment::factory()->create();
+    $product = Product::factory()->create();
+
+    $snapshot = app(PackageDraftWorkflow::class)->saveForShipment($shipment, new PackageDraftInput(
+        measurements: new Measurements(2, 10, 8, 6),
+        boxSizeId: null,
+        items: [
+            new PackageDraftItemInput(null, $product->id, 3),
+        ],
+    ), new PackageDraftOptions(requireCompletePackedItems: false));
+
+    $package = Package::with('packageItems')->findOrFail($snapshot->packageDraftId);
+    expect($package->packageItems)->toHaveCount(1)
+        ->and($package->packageItems->first()->shipment_item_id)->toBeNull()
+        ->and($package->packageItems->first()->product_id)->toBe($product->id)
+        ->and($package->packageItems->first()->quantity)->toBe(3);
+});
+
+it('is ready to ship with scan-to-add items and no shipment items', function (): void {
+    $shipment = Shipment::factory()->create();
+    $product = Product::factory()->create();
+
+    $snapshot = app(PackageDraftWorkflow::class)->saveForShipment($shipment, new PackageDraftInput(
+        measurements: new Measurements(2, 10, 8, 6),
+        boxSizeId: null,
+        items: [
+            new PackageDraftItemInput(null, $product->id, 2),
+        ],
+    ), new PackageDraftOptions(requireCompletePackedItems: false));
+
+    $ready = app(PackageDraftWorkflow::class)->assertReadyToShip($shipment, $snapshot->packageDraftId, new PackageDraftOptions(requireCompletePackedItems: false));
+
+    expect($ready->snapshot->readyToShip)->toBeTrue();
+});
+
+it('rejects scan-to-add items when the product does not exist', function (): void {
+    $shipment = Shipment::factory()->create();
+
+    app(PackageDraftWorkflow::class)->saveForShipment($shipment, new PackageDraftInput(
+        measurements: new Measurements(1, 2, 3, 4),
+        boxSizeId: null,
+        items: [
+            new PackageDraftItemInput(null, 99999, 1),
+        ],
+    ));
+})->throws(PackageDraftInvalidException::class, 'Product not found for scan-to-add item');
+
+it('rejects scan-to-add items when the shipment already has line items', function (): void {
+    $shipment = Shipment::factory()->create();
+    $product = Product::factory()->create();
+    ShipmentItem::factory()->create(['shipment_id' => $shipment->id, 'product_id' => $product->id]);
+
+    app(PackageDraftWorkflow::class)->saveForShipment($shipment, new PackageDraftInput(
+        measurements: new Measurements(1, 2, 3, 4),
+        boxSizeId: null,
+        items: [
+            new PackageDraftItemInput(null, $product->id, 1),
+        ],
+    ));
+})->throws(PackageDraftInvalidException::class, 'Scan-to-add items are only allowed for shipments without line items');
+
+it('rejects scan-to-add items when the product does not belong to the shipment client', function (): void {
+    $client = Client::factory()->create();
+    $shipment = Shipment::factory()->create(['client_id' => $client->id]);
+    $productFromOtherClient = Product::factory()->create();
+
+    app(PackageDraftWorkflow::class)->saveForShipment($shipment, new PackageDraftInput(
+        measurements: new Measurements(1, 2, 3, 4),
+        boxSizeId: null,
+        items: [
+            new PackageDraftItemInput(null, $productFromOtherClient->id, 1),
+        ],
+    ));
+})->throws(PackageDraftInvalidException::class, 'Product not found for scan-to-add item');
 
 it('rejects batch package drafts when a shipment item is missing product weight', function (): void {
     $shipment = Shipment::factory()->create();

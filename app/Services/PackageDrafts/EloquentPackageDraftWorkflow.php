@@ -18,6 +18,7 @@ use App\Exceptions\PackageDraftInvalidException;
 use App\Models\BoxSize;
 use App\Models\Location;
 use App\Models\Package;
+use App\Models\Product;
 use App\Models\Shipment;
 use Illuminate\Support\Facades\DB;
 
@@ -204,16 +205,31 @@ class EloquentPackageDraftWorkflow implements PackageDraftWorkflow
      */
     private function validateItems(Shipment $shipment, array $items): void
     {
-        $validItems = $shipment->shipmentItems()
+        $validShipmentItems = $shipment->shipmentItems()
             ->pluck('product_id', 'id');
 
         foreach ($items as $item) {
-            if (! $validItems->has($item->shipmentItemId)) {
-                throw new PackageDraftInvalidException('Package draft item does not belong to this shipment.');
-            }
+            if ($item->shipmentItemId === null) {
+                if ($validShipmentItems->isNotEmpty()) {
+                    throw new PackageDraftInvalidException('Scan-to-add items are only allowed for shipments without line items.');
+                }
 
-            if ($validItems[$item->shipmentItemId] !== $item->productId) {
-                throw new PackageDraftInvalidException('Product mismatch detected in package draft item.');
+                // Scan-to-add item: verify the product exists and belongs to the correct client
+                $query = Product::where('id', $item->productId);
+                if ($shipment->client_id) {
+                    $query->where('client_id', $shipment->client_id);
+                }
+                if (! $query->exists()) {
+                    throw new PackageDraftInvalidException('Product not found for scan-to-add item.');
+                }
+            } else {
+                if (! $validShipmentItems->has($item->shipmentItemId)) {
+                    throw new PackageDraftInvalidException('Package draft item does not belong to this shipment.');
+                }
+
+                if ($validShipmentItems[$item->shipmentItemId] !== $item->productId) {
+                    throw new PackageDraftInvalidException('Product mismatch detected in package draft item.');
+                }
             }
 
             if ($item->quantity < 0 || $item->quantity > 10000) {

@@ -18,6 +18,7 @@ use App\Exceptions\PackageDraftInvalidException;
 use App\Filament\Concerns\NotifiesUser;
 use App\Filament\Concerns\PrintsLabels;
 use App\Models\Package;
+use App\Models\Product;
 use App\Models\Shipment;
 use App\Services\CacheService;
 use App\Services\SettingsService;
@@ -72,10 +73,21 @@ class Pack extends Page
 
     public bool $transparencyEnabled = true;
 
+    public bool $scanToAddEnabled = false;
+
+    public bool $scanToAddMode = false;
+
+    public ?bool $autoShipOverride = null;
+
     public function mount($shipment_id = null): void
     {
         $this->transparencyEnabled = (bool) app(SettingsService::class)->get('transparency_enabled', true);
         $this->multiClientEnabled = (bool) app(SettingsService::class)->get('multi_client_enabled', false);
+        $this->scanToAddEnabled = (bool) app(SettingsService::class)->get('scan_to_add_enabled', false);
+
+        if (Session::has('pack_auto_ship_override')) {
+            $this->autoShipOverride = (bool) Session::pull('pack_auto_ship_override');
+        }
 
         // Load box sizes for client-side lookup (cached)
         $this->boxSizes = app(CacheService::class)->getBoxSizesForPacking();
@@ -93,18 +105,42 @@ class Pack extends Page
                 }
             }]);
 
-            $draft = app(PackageDraftWorkflow::class)->resumeForShipment($this->shipment);
-            $packedItems = collect($draft->items)->keyBy('shipmentItemId');
+            $this->scanToAddMode = $this->scanToAddEnabled && $this->shipment->shipmentItems->isEmpty();
 
-            foreach ($this->shipment->shipmentItems as $shipmentItem) {
-                $packedItem = $packedItems->get($shipmentItem->id);
-                $packingItem = $shipmentItem->toArray();
-                $packingItem['sku'] = $shipmentItem->product?->sku;
-                $packingItem['barcode'] = $shipmentItem->product?->barcode;
-                $packingItem['name'] = $shipmentItem->product?->name;
-                $packingItem['packed'] = $packedItem?->quantity ?? 0;
-                $packingItem['transparency_codes'] = $packedItem?->transparencyCodes ?? [];
-                $this->packingItems[] = $packingItem;
+            $draft = app(PackageDraftWorkflow::class)->resumeForShipment($this->shipment);
+
+            if ($this->scanToAddMode) {
+                $productIds = collect($draft->items)->pluck('productId')->unique()->filter();
+                $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
+
+                foreach ($draft->items as $draftItem) {
+                    $product = $products->get($draftItem->productId);
+                    if (! $product) {
+                        continue;
+                    }
+                    $this->packingItems[] = [
+                        'product_id' => $product->id,
+                        'sku' => $product->sku,
+                        'barcode' => $product->barcode,
+                        'name' => $product->name,
+                        'quantity' => $draftItem->quantity,
+                        'packed' => $draftItem->quantity,
+                        'transparency_codes' => $draftItem->transparencyCodes,
+                    ];
+                }
+            } else {
+                $packedItems = collect($draft->items)->keyBy('shipmentItemId');
+
+                foreach ($this->shipment->shipmentItems as $shipmentItem) {
+                    $packedItem = $packedItems->get($shipmentItem->id);
+                    $packingItem = $shipmentItem->toArray();
+                    $packingItem['sku'] = $shipmentItem->product?->sku;
+                    $packingItem['barcode'] = $shipmentItem->product?->barcode;
+                    $packingItem['name'] = $shipmentItem->product?->name;
+                    $packingItem['packed'] = $packedItem?->quantity ?? 0;
+                    $packingItem['transparency_codes'] = $packedItem?->transparencyCodes ?? [];
+                    $this->packingItems[] = $packingItem;
+                }
             }
 
             $this->boxSizeId = $draft->boxSizeId;
@@ -113,6 +149,39 @@ class Pack extends Page
             $this->width = (string) ($draft->measurements->width ?? '');
             $this->length = (string) ($draft->measurements->length ?? '');
         }
+    }
+
+    /**
+     * Look up a product by barcode or SKU and dispatch it back to Alpine for scan-to-add mode.
+     */
+    public function addItemByScan(string $barcode): void
+    {
+        if (! $this->shipment || ! $this->scanToAddMode) {
+            return;
+        }
+
+        $query = Product::query();
+
+        if ($this->shipment->client_id) {
+            $query->where('client_id', $this->shipment->client_id);
+        }
+
+        $product = $query->where(function ($q) use ($barcode): void {
+            $q->where('barcode', $barcode)->orWhere('sku', $barcode);
+        })->first();
+
+        if (! $product) {
+            $this->dispatch('scan-to-add-not-found', barcode: $barcode);
+
+            return;
+        }
+
+        $this->dispatch('scan-to-add-found', product: [
+            'product_id' => $product->id,
+            'sku' => $product->sku,
+            'barcode' => $product->barcode,
+            'name' => $product->name,
+        ]);
     }
 
     /**
@@ -201,7 +270,8 @@ class Pack extends Page
     private function saveReadyPackageDraft(): ReadyPackageDraft
     {
         $options = new PackageDraftOptions(
-            requireCompletePackedItems: (bool) app(SettingsService::class)->get('packing_validation_enabled', true),
+            requireCompletePackedItems: ! $this->scanToAddMode
+                && (bool) app(SettingsService::class)->get('packing_validation_enabled', true),
         );
 
         $draft = app(PackageDraftWorkflow::class)->saveForShipment(
@@ -227,7 +297,7 @@ class Pack extends Page
     private function mapPackingItems(): array
     {
         return array_map(fn (array $item) => new PackageDraftItemInput(
-            shipmentItemId: $item['id'],
+            shipmentItemId: $this->scanToAddMode ? null : $item['id'],
             productId: $item['product_id'],
             quantity: (int) $item['packed'],
             transparencyCodes: $item['transparency_codes'] ?? [],

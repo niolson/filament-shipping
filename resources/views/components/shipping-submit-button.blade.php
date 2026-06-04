@@ -3,6 +3,7 @@
     'loadingType' => 'alpine',
     'loadingVariable' => 'isShipping',
     'loadingTarget' => null,
+    'label' => null,
 ])
 
 @php
@@ -20,12 +21,20 @@
         @if ($loadingTarget)
             <x-filament::icon wire:loading.remove wire:target="{{ $loadingTarget }}" icon="heroicon-o-paper-airplane" class="fi-btn-icon h-5 w-5" />
             <x-filament::loading-indicator wire:loading wire:target="{{ $loadingTarget }}" class="h-5 w-5" />
-            <span wire:loading.remove wire:target="{{ $loadingTarget }}" x-text="{{ $enabledVariable }} ? 'Auto Ship' : 'Ship'"></span>
+            @if ($label)
+                <span wire:loading.remove wire:target="{{ $loadingTarget }}">{{ $label }}</span>
+            @else
+                <span wire:loading.remove wire:target="{{ $loadingTarget }}" x-text="{{ $enabledVariable }} ? 'Auto Ship' : 'Ship'"></span>
+            @endif
             <span wire:loading wire:target="{{ $loadingTarget }}">Working...</span>
         @else
             <x-filament::icon wire:loading.remove icon="heroicon-o-paper-airplane" class="fi-btn-icon h-5 w-5" />
             <x-filament::loading-indicator wire:loading class="h-5 w-5" />
-            <span wire:loading.remove x-text="{{ $enabledVariable }} ? 'Auto Ship' : 'Ship'"></span>
+            @if ($label)
+                <span wire:loading.remove>{{ $label }}</span>
+            @else
+                <span wire:loading.remove x-text="{{ $enabledVariable }} ? 'Auto Ship' : 'Ship'"></span>
+            @endif
             <span wire:loading>Working...</span>
         @endif
     @else
@@ -38,6 +47,10 @@
                 class="fi-btn-icon h-5 w-5"
             />
         </template>
-        <span x-text="{{ $enabledVariable }} ? 'Auto Ship' : 'Ship'"></span>
+        @if ($label)
+            <span>{{ $label }}</span>
+        @else
+            <span x-text="{{ $enabledVariable }} ? 'Auto Ship' : 'Ship'"></span>
+        @endif
     @endif
 </button>

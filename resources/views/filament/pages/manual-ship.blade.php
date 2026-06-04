@@ -92,6 +92,7 @@
                 wire:target="ship"
                 loading-type="wire"
                 loading-target="ship"
+                :label="$scanToAddEnabled ? 'Pack' : null"
             />
             </div>
         </div>
