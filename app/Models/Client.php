@@ -32,6 +32,9 @@ class Client extends Model
         'return_country',
         'return_phone',
         'export_import_source_id',
+        'pick_fee_first_item',
+        'pick_fee_additional_item',
+        'label_fee_per_package',
     ];
 
     public function hasReturnAddress(): bool
@@ -42,6 +45,9 @@ class Client extends Model
     protected $casts = [
         'is_default' => 'boolean',
         'active' => 'boolean',
+        'pick_fee_first_item' => 'decimal:2',
+        'pick_fee_additional_item' => 'decimal:2',
+        'label_fee_per_package' => 'decimal:2',
     ];
 
     protected static function booted(): void

@@ -4,10 +4,13 @@ namespace App\Filament\Pages\Reports;
 
 use App\Enums\PackageStatus;
 use App\Enums\Role;
+use App\Models\Client;
 use App\Models\Package;
 use App\Models\User;
+use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Pages\Page;
 use Filament\Tables;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -83,16 +86,50 @@ class UserShipmentsReport extends Page implements HasTable
 
     private function allUsersTable(Table $table): Table
     {
+        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
+
         $query = Package::query()
             ->where('packages.status', PackageStatus::Shipped->value)
-            ->whereNotNull('shipped_by_user_id')
+            ->whereNotNull('packages.shipped_by_user_id')
             ->join('users', 'packages.shipped_by_user_id', '=', 'users.id')
+            ->join('shipments', 'packages.shipment_id', '=', 'shipments.id')
             ->select([
                 DB::raw('users.name as user_name'),
                 DB::raw('COUNT(*) as shipment_count'),
                 DB::raw('MIN(packages.id) as id'),
             ])
             ->groupBy('users.name');
+
+        $filters = [
+            Tables\Filters\Filter::make('date_range')
+                ->form([
+                    DatePicker::make('from')
+                        ->default(now()->subDays(30)->format('Y-m-d')),
+                    DatePicker::make('until'),
+                ])
+                ->columns(2)
+                ->default()
+                ->query(function ($query, array $data) {
+                    return $query
+                        ->when($data['from'], fn ($q, $date) => $q->where('packages.shipped_at', '>=', $date))
+                        ->when($data['until'], fn ($q, $date) => $q->where('packages.shipped_at', '<=', $date.' 23:59:59'));
+                }),
+        ];
+
+        if ($multiClient) {
+            $filters[] = Tables\Filters\Filter::make('client')
+                ->form([
+                    Select::make('client_id')
+                        ->label('Client')
+                        ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
+                        ->native(false)
+                        ->placeholder('All clients'),
+                ])
+                ->query(fn ($query, array $data) => $query->when(
+                    $data['client_id'],
+                    fn ($q, $id) => $q->where('shipments.client_id', $id)
+                ));
+        }
 
         return $table
             ->query($query)
@@ -106,27 +143,15 @@ class UserShipmentsReport extends Page implements HasTable
                     ->label('Shipments')
                     ->sortable(),
             ])
-            ->filters([
-                Tables\Filters\Filter::make('date_range')
-                    ->form([
-                        DatePicker::make('from')
-                            ->default(now()->subDays(30)->format('Y-m-d')),
-                        DatePicker::make('until'),
-                    ])
-                    ->columns(2)
-                    ->default()
-                    ->query(function ($query, array $data) {
-                        return $query
-                            ->when($data['from'], fn ($q, $date) => $q->where('packages.shipped_at', '>=', $date))
-                            ->when($data['until'], fn ($q, $date) => $q->where('packages.shipped_at', '<=', $date.' 23:59:59'));
-                    }),
-            ], layout: FiltersLayout::AboveContent)
+            ->filters($filters, layout: FiltersLayout::AboveContent)
             ->deferFilters(false)
             ->filtersFormColumns(2);
     }
 
     private function userDetailTable(Table $table): Table
     {
+        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
+
         $groupExpr = match ($this->period) {
             'week' => $this->weekGroupExpression(),
             'month' => $this->monthGroupExpression(),
@@ -134,15 +159,47 @@ class UserShipmentsReport extends Page implements HasTable
         };
 
         $query = Package::query()
-            ->where('status', PackageStatus::Shipped)
-            ->where('shipped_by_user_id', $this->userId)
+            ->where('packages.status', PackageStatus::Shipped)
+            ->where('packages.shipped_by_user_id', $this->userId)
+            ->join('shipments', 'packages.shipment_id', '=', 'shipments.id')
             ->select([
                 DB::raw($groupExpr),
                 DB::raw('COUNT(*) as shipment_count'),
-                DB::raw('MIN(id) as id'),
+                DB::raw('MIN(packages.id) as id'),
             ])
             ->groupBy('period_label')
             ->orderByDesc('period_label');
+
+        $filters = [
+            Tables\Filters\Filter::make('date_range')
+                ->form([
+                    DatePicker::make('from')
+                        ->default(now()->subDays(30)->format('Y-m-d')),
+                    DatePicker::make('until'),
+                ])
+                ->columns(2)
+                ->default()
+                ->query(function ($query, array $data) {
+                    return $query
+                        ->when($data['from'], fn ($q, $date) => $q->where('packages.shipped_at', '>=', $date))
+                        ->when($data['until'], fn ($q, $date) => $q->where('packages.shipped_at', '<=', $date.' 23:59:59'));
+                }),
+        ];
+
+        if ($multiClient) {
+            $filters[] = Tables\Filters\Filter::make('client')
+                ->form([
+                    Select::make('client_id')
+                        ->label('Client')
+                        ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
+                        ->native(false)
+                        ->placeholder('All clients'),
+                ])
+                ->query(fn ($query, array $data) => $query->when(
+                    $data['client_id'],
+                    fn ($q, $id) => $q->where('shipments.client_id', $id)
+                ));
+        }
 
         return $table
             ->query($query)
@@ -155,21 +212,7 @@ class UserShipmentsReport extends Page implements HasTable
                     ->label('Shipments')
                     ->sortable(),
             ])
-            ->filters([
-                Tables\Filters\Filter::make('date_range')
-                    ->form([
-                        DatePicker::make('from')
-                            ->default(now()->subDays(30)->format('Y-m-d')),
-                        DatePicker::make('until'),
-                    ])
-                    ->columns(2)
-                    ->default()
-                    ->query(function ($query, array $data) {
-                        return $query
-                            ->when($data['from'], fn ($q, $date) => $q->where('shipped_at', '>=', $date))
-                            ->when($data['until'], fn ($q, $date) => $q->where('shipped_at', '<=', $date.' 23:59:59'));
-                    }),
-            ], layout: FiltersLayout::AboveContent)
+            ->filters($filters, layout: FiltersLayout::AboveContent)
             ->deferFilters(false)
             ->filtersFormColumns(2);
     }

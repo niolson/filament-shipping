@@ -7,10 +7,13 @@ use App\Enums\LabelBatchItemStatus;
 use App\Enums\PackageStatus;
 use App\Enums\Role;
 use App\Filament\Support\CarrierLogoColumn;
+use App\Models\Client;
 use App\Models\LabelBatchItem;
 use App\Models\Package;
+use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
 use Filament\Pages\Page;
 use Filament\Tables;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -57,18 +60,54 @@ class PackingValidationReport extends Page implements HasTable
 
     private function weightMismatchTable(Table $table): Table
     {
+        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
+
         // Uses the pre-computed weight_mismatch flag (set at pack time,
         // backfilled via packages:backfill-weight-mismatch). No JOINs needed.
+        $query = Package::query()
+            ->where('packages.status', PackageStatus::Shipped)
+            ->where('packages.weight_mismatch', true)
+            ->join('shipments', 'packages.shipment_id', '=', 'shipments.id')
+            ->select('packages.*', 'shipments.shipment_reference', 'shipments.client_id')
+            ->with('packageItems.product');
+
+        $filters = [
+            Tables\Filters\Filter::make('date_range')
+                ->form([
+                    DatePicker::make('from')
+                        ->default(now()->subDays(7)->format('Y-m-d')),
+                    DatePicker::make('until'),
+                ])
+                ->columns(2)
+                ->default()
+                ->query(function ($query, array $data) {
+                    return $query
+                        ->when($data['from'], fn ($q, $date) => $q->where('packages.shipped_at', '>=', $date))
+                        ->when($data['until'], fn ($q, $date) => $q->where('packages.shipped_at', '<=', $date));
+                }),
+        ];
+
+        if ($multiClient) {
+            $filters[] = Tables\Filters\Filter::make('client')
+                ->form([
+                    Select::make('client_id')
+                        ->label('Client')
+                        ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
+                        ->native(false)
+                        ->placeholder('All clients'),
+                ])
+                ->query(fn ($query, array $data) => $query->when(
+                    $data['client_id'],
+                    fn ($q, $id) => $q->where('shipments.client_id', $id)
+                ));
+        }
+
         return $table
-            ->query(
-                Package::query()
-                    ->where('status', PackageStatus::Shipped)
-                    ->where('weight_mismatch', true)
-                    ->with('shipment')
-            )
-            ->defaultSort('shipped_at', 'desc')
+            ->query($query)
+            ->defaultSort('packages.shipped_at', 'desc')
+            ->defaultKeySort(false)
             ->columns([
-                Tables\Columns\TextColumn::make('shipment.shipment_reference')
+                Tables\Columns\TextColumn::make('shipment_reference')
                     ->label('Reference'),
                 Tables\Columns\TextColumn::make('shipped_at')
                     ->label('Date')
@@ -97,34 +136,56 @@ class PackingValidationReport extends Page implements HasTable
                 CarrierLogoColumn::make('carrier')
                     ->sortable(),
             ])
-            ->filters([
-                Tables\Filters\Filter::make('date_range')
-                    ->form([
-                        DatePicker::make('from')
-                            ->default(now()->subDays(7)->format('Y-m-d')),
-                        DatePicker::make('until'),
-                    ])
-                    ->columns(2)
-                    ->default()
-                    ->query(function ($query, array $data) {
-                        return $query
-                            ->when($data['from'], fn ($q, $date) => $q->where('shipped_at', '>=', $date))
-                            ->when($data['until'], fn ($q, $date) => $q->where('shipped_at', '<=', $date));
-                    }),
-            ], layout: FiltersLayout::AboveContent)
+            ->filters($filters, layout: FiltersLayout::AboveContent)
             ->deferFilters(false)
             ->filtersFormColumns(2);
     }
 
     private function batchFailuresTable(Table $table): Table
     {
+        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
+
+        $query = LabelBatchItem::query()
+            ->where('label_batch_items.status', LabelBatchItemStatus::Failed)
+            ->join('shipments', 'label_batch_items.shipment_id', '=', 'shipments.id')
+            ->select('label_batch_items.*', 'shipments.client_id')
+            ->with(['shipment', 'labelBatch']);
+
+        $filters = [
+            Tables\Filters\Filter::make('date_range')
+                ->form([
+                    DatePicker::make('from')
+                        ->default(now()->subDays(7)->format('Y-m-d')),
+                    DatePicker::make('until'),
+                ])
+                ->columns(2)
+                ->default()
+                ->query(function ($query, array $data) {
+                    return $query
+                        ->when($data['from'], fn ($q, $date) => $q->where('label_batch_items.created_at', '>=', $date))
+                        ->when($data['until'], fn ($q, $date) => $q->where('label_batch_items.created_at', '<=', $date));
+                }),
+        ];
+
+        if ($multiClient) {
+            $filters[] = Tables\Filters\Filter::make('client')
+                ->form([
+                    Select::make('client_id')
+                        ->label('Client')
+                        ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
+                        ->native(false)
+                        ->placeholder('All clients'),
+                ])
+                ->query(fn ($query, array $data) => $query->when(
+                    $data['client_id'],
+                    fn ($q, $id) => $q->where('shipments.client_id', $id)
+                ));
+        }
+
         return $table
-            ->query(
-                LabelBatchItem::query()
-                    ->where('status', LabelBatchItemStatus::Failed)
-                    ->with(['shipment', 'labelBatch'])
-            )
-            ->defaultSort('created_at', 'desc')
+            ->query($query)
+            ->defaultSort('label_batch_items.created_at', 'desc')
+            ->defaultKeySort(false)
             ->columns([
                 Tables\Columns\TextColumn::make('shipment.shipment_reference')
                     ->label('Reference')
@@ -140,44 +201,64 @@ class PackingValidationReport extends Page implements HasTable
                     ->limit(80)
                     ->tooltip(fn ($record) => $record->error_message),
             ])
-            ->filters([
-                Tables\Filters\Filter::make('date_range')
-                    ->form([
-                        DatePicker::make('from')
-                            ->default(now()->subDays(7)->format('Y-m-d')),
-                        DatePicker::make('until'),
-                    ])
-                    ->columns(2)
-                    ->default()
-                    ->query(function ($query, array $data) {
-                        return $query
-                            ->when($data['from'], fn ($q, $date) => $q->where('created_at', '>=', $date))
-                            ->when($data['until'], fn ($q, $date) => $q->where('created_at', '<=', $date));
-                    }),
-            ], layout: FiltersLayout::AboveContent)
+            ->filters($filters, layout: FiltersLayout::AboveContent)
             ->deferFilters(false)
             ->filtersFormColumns(2);
     }
 
     private function validationIssuesTable(Table $table): Table
     {
+        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
+
+        $query = Package::query()
+            ->where('packages.status', PackageStatus::Shipped->value)
+            ->join('shipments', 'packages.shipment_id', '=', 'shipments.id')
+            ->where('shipments.deliverability', '!=', Deliverability::Yes)
+            ->select([
+                'packages.id',
+                'packages.shipment_id',
+                'packages.shipped_at',
+                'packages.carrier',
+                'packages.tracking_number',
+                'shipments.shipment_reference',
+                'shipments.deliverability',
+                'shipments.validation_message',
+                'shipments.client_id',
+            ]);
+
+        $filters = [
+            Tables\Filters\Filter::make('date_range')
+                ->form([
+                    DatePicker::make('from')
+                        ->default(now()->subDays(7)->format('Y-m-d')),
+                    DatePicker::make('until'),
+                ])
+                ->columns(2)
+                ->default()
+                ->query(function ($query, array $data) {
+                    return $query
+                        ->when($data['from'], fn ($q, $date) => $q->where('packages.shipped_at', '>=', $date))
+                        ->when($data['until'], fn ($q, $date) => $q->where('packages.shipped_at', '<=', $date));
+                }),
+        ];
+
+        if ($multiClient) {
+            $filters[] = Tables\Filters\Filter::make('client')
+                ->form([
+                    Select::make('client_id')
+                        ->label('Client')
+                        ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
+                        ->native(false)
+                        ->placeholder('All clients'),
+                ])
+                ->query(fn ($query, array $data) => $query->when(
+                    $data['client_id'],
+                    fn ($q, $id) => $q->where('shipments.client_id', $id)
+                ));
+        }
+
         return $table
-            ->query(
-                Package::query()
-                    ->where('packages.status', PackageStatus::Shipped->value)
-                    ->join('shipments', 'packages.shipment_id', '=', 'shipments.id')
-                    ->where('shipments.deliverability', '!=', Deliverability::Yes)
-                    ->select([
-                        'packages.id',
-                        'packages.shipment_id',
-                        'packages.shipped_at',
-                        'packages.carrier',
-                        'packages.tracking_number',
-                        'shipments.shipment_reference',
-                        'shipments.deliverability',
-                        'shipments.validation_message',
-                    ])
-            )
+            ->query($query)
             ->defaultSort('shipped_at', 'desc')
             ->defaultKeySort(false)
             ->columns([
@@ -198,21 +279,7 @@ class PackingValidationReport extends Page implements HasTable
                 Tables\Columns\TextColumn::make('tracking_number')
                     ->label('Tracking'),
             ])
-            ->filters([
-                Tables\Filters\Filter::make('date_range')
-                    ->form([
-                        DatePicker::make('from')
-                            ->default(now()->subDays(7)->format('Y-m-d')),
-                        DatePicker::make('until'),
-                    ])
-                    ->columns(2)
-                    ->default()
-                    ->query(function ($query, array $data) {
-                        return $query
-                            ->when($data['from'], fn ($q, $date) => $q->where('packages.shipped_at', '>=', $date))
-                            ->when($data['until'], fn ($q, $date) => $q->where('packages.shipped_at', '<=', $date));
-                    }),
-            ], layout: FiltersLayout::AboveContent)
+            ->filters($filters, layout: FiltersLayout::AboveContent)
             ->deferFilters(false)
             ->filtersFormColumns(2);
     }

@@ -215,6 +215,35 @@ Enables a single PolyBag installation to serve a third-party logistics provider 
 - Billable event log: postage at cost, per-order handling fees, special handling (configurable rate card per client)
 - Export to CSV for invoicing
 
+**Rate card model (for billing report):**
+
+The 3PL charges clients for pick-and-pack labor, packaging materials, and special handling on top of postage at cost. The rate card lives on the `Client` model and on individual models for packaging and products:
+
+- `Client.pick_fee_first_item` — flat per-shipment base pick fee (covers the first item)
+- `Client.pick_fee_additional_item` — per item after the first in a shipment
+- `Client.label_fee_per_package` — per-label charge (when not bundled with carrier cost)
+- `BoxSize.materials_cost` — packaging material cost for that box size, recorded per package at ship time
+- `Product.handling_surcharge` — per-unit surcharge for items that require special handling (fragile, hazmat, kitting, oversize, etc.)
+
+Billing line total = postage + label fee + first pick fee + (extra items × per-item rate) + materials + Σ(item qty × product surcharge)
+
+When a shipment has no `ShipmentItem` records (imported without line-item data), per-item and product-level charges are omitted from the invoice with a "no item data" indicator. Those clients must reconcile per-item charges from their WMS. See "Pack-Without-Validation / Scan-to-Add" below for a path to capturing item data at pack time.
+
+**Pack-Without-Validation / Scan-to-Add Mode:**
+
+A toggleable mode (`scan_to_add_enabled` in Settings) that allows the Pack page to record what was packed without validating against an expected item list. Designed for shipments that arrive without `ShipmentItem` records (no WMS line-item feed), and also used by Manual Ship (which never has an item list).
+
+The Pack page gains two distinct modes:
+- **Validate mode** (default, current behavior): expected items list drives the workflow; scanning validates against `ShipmentItem` records; all items must be confirmed before shipping is allowed
+- **Scan-to-add mode**: no expected list; scanning accumulates `PackageItem` rows; operator taps "Done" to finalize; no pass/fail logic
+
+Benefits:
+- Enables per-item and product-level billing charges for clients whose orders arrive without line-item data
+- Feeds customs declarations (`PackageItem` records already drive international customs content declarations)
+- Provides an accurate packing record for 3PLs that need it for chargebacks or compliance
+
+When `scan_to_add_enabled` is off (default), the Pack page behaves exactly as today. Manual Ship always uses scan-to-add mode regardless of the setting.
+
 **Carrier accounts (when per-client accounts are needed):**
 - `CarrierAccount` model with encrypted credentials, nullable `client_id` and `location_id`
 - Resolution hierarchy at label-purchase time: client + location → client → location → default (3PL account)

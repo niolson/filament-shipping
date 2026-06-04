@@ -28,6 +28,7 @@ class BoxSize extends Model
         'code',
         'type',
         'fedex_package_type',
+        'materials_cost',
     ];
 
     protected $casts = [
@@ -38,5 +39,6 @@ class BoxSize extends Model
         'empty_weight' => 'decimal:2',
         'type' => BoxSizeType::class,
         'fedex_package_type' => FedexPackageType::class,
+        'materials_cost' => 'decimal:2',
     ];
 }

@@ -6,6 +6,7 @@ use App\Enums\BoxSizeType;
 use App\Enums\FedexPackageType;
 use App\Filament\Resources\BoxSizeResource\Pages;
 use App\Models\BoxSize;
+use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
@@ -78,6 +79,18 @@ class BoxSizeResource extends Resource
                         Forms\Components\Select::make('fedex_package_type')
                             ->options(FedexPackageType::class),
                     ]),
+                Components\Section::make('Billing')
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false))
+                    ->schema([
+                        Forms\Components\TextInput::make('materials_cost')
+                            ->label('Materials Cost')
+                            ->numeric()
+                            ->prefix('$')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->placeholder('0.00')
+                            ->helperText('Packaging material cost charged per shipment using this box.'),
+                    ]),
             ]);
     }
 
@@ -106,6 +119,12 @@ class BoxSizeResource extends Resource
                 Tables\Columns\TextColumn::make('empty_weight')
                     ->numeric()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('materials_cost')
+                    ->label('Materials Cost')
+                    ->money('USD')
+                    ->sortable()
+                    ->placeholder('—')
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('type')

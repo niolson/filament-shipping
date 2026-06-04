@@ -89,6 +89,19 @@ class ProductResource extends Resource
                     ->helperText('Warehouse bin location (e.g. A-01-3). Used to sort picking summaries.'),
                 Forms\Components\Toggle::make('active')
                     ->default(true),
+                Section::make('Billing')
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false))
+                    ->schema([
+                        Forms\Components\TextInput::make('handling_surcharge')
+                            ->label('Special Handling Surcharge')
+                            ->numeric()
+                            ->prefix('$')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->placeholder('0.00')
+                            ->helperText('Per-unit surcharge for items requiring special handling (fragile, hazmat, kitting, oversize, etc.).')
+                            ->columnSpanFull(),
+                    ]),
                 Section::make('Compliance')
                     ->description('Flags that trigger special carrier handling requirements.')
                     // ->collapsed()
@@ -137,6 +150,12 @@ class ProductResource extends Resource
                 Tables\Columns\TextColumn::make('weight')
                     ->numeric()
                     ->sortable(),
+                Tables\Columns\TextColumn::make('handling_surcharge')
+                    ->label('Surcharge')
+                    ->money('USD')
+                    ->sortable()
+                    ->placeholder('—')
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
                 Tables\Columns\IconColumn::make('contains_alcohol')
                     ->label('Alcohol')
                     ->boolean()

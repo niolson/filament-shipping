@@ -22,6 +22,7 @@ class Product extends Model
         'barcode',
         'description',
         'weight',
+        'handling_surcharge',
         'hs_tariff_number',
         'country_of_origin',
         'active',
@@ -34,6 +35,7 @@ class Product extends Model
     {
         return [
             'weight' => 'decimal:2',
+            'handling_surcharge' => 'decimal:2',
             'active' => 'boolean',
             'contains_alcohol' => 'boolean',
             'hazmat_class' => HazmatClass::class,

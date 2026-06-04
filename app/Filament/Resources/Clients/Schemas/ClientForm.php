@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Clients\Schemas;
 
 use App\Models\ImportSource;
 use App\Services\AddressReferenceService;
+use App\Services\SettingsService;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -73,6 +74,39 @@ class ClientForm
                     ->collapsible()
                     ->collapsed(fn (?object $record): bool => blank($record?->company_name) && blank($record?->custom_message) && blank($record?->return_instructions))
                     ->columns(2),
+
+                Section::make('Billing / Rate Card')
+                    ->description('Fees charged to this client per billing period. Used in the Client Billing report.')
+                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false))
+                    ->schema([
+                        TextInput::make('pick_fee_first_item')
+                            ->label('Pick Fee (first item)')
+                            ->numeric()
+                            ->prefix('$')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->placeholder('0.00')
+                            ->helperText('Flat per-order base pick fee covering the first item.'),
+                        TextInput::make('pick_fee_additional_item')
+                            ->label('Pick Fee (each additional item)')
+                            ->numeric()
+                            ->prefix('$')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->placeholder('0.00')
+                            ->helperText('Per-item charge for each item after the first in an order.'),
+                        TextInput::make('label_fee_per_package')
+                            ->label('Label Fee per Package')
+                            ->numeric()
+                            ->prefix('$')
+                            ->step(0.01)
+                            ->minValue(0)
+                            ->placeholder('0.00')
+                            ->helperText('Per-label charge when not bundled with carrier cost.'),
+                    ])
+                    ->collapsible()
+                    ->collapsed(fn (?object $record): bool => blank($record?->pick_fee_first_item) && blank($record?->pick_fee_additional_item) && blank($record?->label_fee_per_package))
+                    ->columns(3),
 
                 Section::make('Export')
                     ->description('Where shipping data is sent after a package ships. Leave blank to export back to the originating import source (symmetrical default).')
