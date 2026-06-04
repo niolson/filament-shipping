@@ -72,6 +72,11 @@
         .items-table td { padding: 3px 4px; border-bottom: 1px solid #e8e8e8; vertical-align: top; }
         .items-table tr:last-child td { border-bottom: none; }
 
+        /* Row 5: Footer (custom message / return instructions) */
+        .row-footer { margin-top: 0.08in; padding-top: 0.06in; border-top: 1px solid #ccc; font-size: 7pt; color: #444; line-height: 1.4; }
+        .row-footer .footer-label { font-weight: bold; color: #111; margin-bottom: 1px; }
+        .row-footer .footer-block + .footer-block { margin-top: 0.05in; }
+
         .actions { padding: 0.5cm; }
         @media print { .actions { display: none; } }
     </style>
@@ -95,7 +100,20 @@
                 @endif
             </div>
             <div class="return-address-cell">
-                @if ($defaultLocation)
+                @if ($client?->hasReturnAddress())
+                    @php $displayName = $client->return_company ?: ($client->company_name ?: $client->name); @endphp
+                    <span class="co">{{ $displayName }}</span><br>
+                    @if ($client->return_name)
+                        {{ $client->return_name }}<br>
+                    @endif
+                    {{ $client->return_address1 }}<br>
+                    @if ($client->return_address2)
+                        {{ $client->return_address2 }}<br>
+                    @endif
+                    {{ $client->return_city }}, {{ $client->return_state_or_province }} {{ $client->return_postal_code }}
+                @elseif ($client?->company_name || $client?->name)
+                    <span class="co">{{ $client->company_name ?: $client->name }}</span>
+                @elseif ($defaultLocation)
                     @if ($defaultLocation->company)
                         <span class="co">{{ $defaultLocation->company }}</span><br>
                     @elseif ($defaultLocation->first_name || $defaultLocation->last_name)
@@ -161,6 +179,21 @@
                 @endforeach
             </tbody>
         </table>
+
+        {{-- Row 5: Custom message / return instructions --}}
+        @if ($client?->custom_message || $client?->return_instructions)
+        <div class="row-footer">
+            @if ($client->custom_message)
+            <div class="footer-block">{{ $client->custom_message }}</div>
+            @endif
+            @if ($client->return_instructions)
+            <div class="footer-block">
+                <div class="footer-label">Returns</div>
+                {{ $client->return_instructions }}
+            </div>
+            @endif
+        </div>
+        @endif
     </div>
     @endforeach
 </body>

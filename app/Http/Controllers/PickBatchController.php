@@ -27,8 +27,9 @@ class PickBatchController extends Controller
         $pivotRows = $pickBatch->pickBatchShipments->sortBy('tote_code');
         $logoDataUri = $this->resolveLogoDataUri($pickBatch);
         $defaultLocation = Location::getDefault();
+        $client = $pickBatch->client;
 
-        return view('pick-batches.pack-slips', compact('pickBatch', 'pivotRows', 'generator', 'logoDataUri', 'defaultLocation'));
+        return view('pick-batches.pack-slips', compact('pickBatch', 'pivotRows', 'generator', 'logoDataUri', 'defaultLocation', 'client'));
     }
 
     private function resolveLogoDataUri(PickBatch $pickBatch): ?string

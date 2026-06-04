@@ -127,6 +127,27 @@ it('making a client default clears the previous default', function (): void {
         ->and($new->fresh()->is_default)->toBeTrue();
 });
 
+it('can create a client with pack slip branding fields', function (): void {
+    Livewire::test(CreateClient::class)
+        ->fillForm([
+            'name' => 'Acme Corp',
+            'code' => 'ACME',
+            'company_name' => 'ACME Corporation',
+            'custom_message' => 'Thank you for your order!',
+            'return_instructions' => 'Send returns to our warehouse.',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors()
+        ->assertRedirect();
+
+    $this->assertDatabaseHas(Client::class, [
+        'name' => 'Acme Corp',
+        'company_name' => 'ACME Corporation',
+        'custom_message' => 'Thank you for your order!',
+        'return_instructions' => 'Send returns to our warehouse.',
+    ]);
+});
+
 it('can see clients in the list', function (): void {
     $clients = Client::factory()->count(3)->create();
 

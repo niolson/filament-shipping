@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Clients\Schemas;
 use App\Services\AddressReferenceService;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
@@ -45,6 +46,31 @@ class ClientForm
                             ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'])
                             ->columnSpanFull(),
                     ])
+                    ->columns(2),
+
+                Section::make('Pack Slip')
+                    ->description('Branding and messaging printed on pack slips for this client.')
+                    ->schema([
+                        TextInput::make('company_name')
+                            ->label('Company Name')
+                            ->maxLength(255)
+                            ->helperText('Name shown in the return address on pack slips. Defaults to client name if blank.')
+                            ->columnSpanFull(),
+                        Textarea::make('custom_message')
+                            ->label('Custom Message')
+                            ->rows(3)
+                            ->maxLength(500)
+                            ->helperText('Optional message printed at the bottom of each pack slip.')
+                            ->columnSpanFull(),
+                        Textarea::make('return_instructions')
+                            ->label('Return Instructions')
+                            ->rows(3)
+                            ->maxLength(500)
+                            ->helperText('Optional return instructions printed at the bottom of each pack slip.')
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->collapsed(fn (?object $record): bool => blank($record?->company_name) && blank($record?->custom_message) && blank($record?->return_instructions))
                     ->columns(2),
 
                 Section::make('Return Address')
