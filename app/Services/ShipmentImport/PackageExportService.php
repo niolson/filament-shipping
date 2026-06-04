@@ -14,8 +14,11 @@ class PackageExportService
      */
     public function exportPackage(Package $package): ExportResult
     {
-        $package->loadMissing('shipment.importSource');
-        $importSource = $package->shipment?->importSource;
+        $package->loadMissing('shipment.client.exportSource', 'shipment.importSource');
+        $shipment = $package->shipment;
+
+        // Client-level override takes priority; fall back to the originating import source.
+        $importSource = $shipment?->client?->exportSource ?? $shipment?->importSource;
 
         if (! $importSource || ! ($importSource->settings['export_enabled'] ?? false)) {
             return new ExportResult(success: true);
@@ -72,7 +75,7 @@ class PackageExportService
     {
         $packages = Package::where('status', PackageStatus::Shipped)
             ->where('exported', false)
-            ->with('shipment.importSource')
+            ->with('shipment.client.exportSource', 'shipment.importSource')
             ->get();
 
         $results = [];

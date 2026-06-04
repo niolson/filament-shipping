@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\ClientFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Client extends Model
@@ -30,6 +31,7 @@ class Client extends Model
         'return_postal_code',
         'return_country',
         'return_phone',
+        'export_import_source_id',
     ];
 
     public function hasReturnAddress(): bool
@@ -51,6 +53,11 @@ class Client extends Model
                     ->update(['is_default' => false]);
             }
         });
+    }
+
+    public function exportSource(): BelongsTo
+    {
+        return $this->belongsTo(ImportSource::class, 'export_import_source_id');
     }
 
     public function shipments(): HasMany

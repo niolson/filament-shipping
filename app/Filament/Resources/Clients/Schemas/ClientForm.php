@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Clients\Schemas;
 
+use App\Models\ImportSource;
 use App\Services\AddressReferenceService;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
@@ -71,6 +72,22 @@ class ClientForm
                     ])
                     ->collapsible()
                     ->collapsed(fn (?object $record): bool => blank($record?->company_name) && blank($record?->custom_message) && blank($record?->return_instructions))
+                    ->columns(2),
+
+                Section::make('Export')
+                    ->description('Where shipping data is sent after a package ships. Leave blank to export back to the originating import source (symmetrical default).')
+                    ->schema([
+                        Select::make('export_import_source_id')
+                            ->label('Export Destination')
+                            ->options(fn () => ImportSource::where('active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->nullable()
+                            ->searchable()
+                            ->native(false)
+                            ->helperText('Override the default. Only needed when the export destination differs from the import source.')
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->collapsed(fn (?object $record): bool => blank($record?->export_import_source_id))
                     ->columns(2),
 
                 Section::make('Return Address')

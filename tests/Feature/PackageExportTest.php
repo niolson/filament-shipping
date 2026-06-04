@@ -3,6 +3,7 @@
 use App\Contracts\ExportDestinationInterface;
 use App\Contracts\ImportSourceInterface;
 use App\Models\Channel;
+use App\Models\Client;
 use App\Models\ImportSource;
 use App\Models\Package;
 use App\Models\Shipment;
@@ -275,6 +276,78 @@ it('exports unexported packages via exportUnexported', function (): void {
     expect($results)->toHaveCount(2);
     expect($pkg1->fresh()->exported)->toBeTrue();
     expect($pkg2->fresh()->exported)->toBeTrue();
+});
+
+it('uses client export source override instead of shipment import source', function (): void {
+    $driverClass = fakeExportSource();
+
+    // Distinguish which source was used by giving each a unique field mapping key.
+    $importSource = fakeImportSource($driverClass, ['tracking_number' => 'import_tracking']);
+    $overrideSource = fakeImportSource($driverClass, ['tracking_number' => 'override_tracking']);
+
+    $client = Client::factory()->create(['export_import_source_id' => $overrideSource->id]);
+
+    $shipment = Shipment::factory()->create([
+        'client_id' => $client->id,
+        'import_source_id' => $importSource->id,
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'OVERRIDE-TRACK',
+    ]);
+
+    $service = new PackageExportService;
+    $result = $service->exportPackage($package);
+
+    expect($result->success)->toBeTrue();
+    expect($driverClass::$exportedData)->toHaveCount(1);
+    // The override source's field mapping was used, not the import source's.
+    expect($driverClass::$exportedData[0])->toHaveKey('override_tracking')
+        ->and($driverClass::$exportedData[0])->not->toHaveKey('import_tracking');
+});
+
+it('falls back to import source when client has no export override', function (): void {
+    $driverClass = fakeExportSource();
+    $importSource = fakeImportSource($driverClass, ['tracking_number' => 'tracking']);
+
+    $client = Client::factory()->create(['export_import_source_id' => null]);
+
+    $shipment = Shipment::factory()->create([
+        'client_id' => $client->id,
+        'import_source_id' => $importSource->id,
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'FALLBACK-TRACK',
+    ]);
+
+    $service = new PackageExportService;
+    $result = $service->exportPackage($package);
+
+    expect($result->success)->toBeTrue();
+    expect($driverClass::$exportedData)->toHaveCount(1);
+});
+
+it('exports using client override source even when shipment has no import source', function (): void {
+    $driverClass = fakeExportSource();
+    $overrideSource = fakeImportSource($driverClass, ['tracking_number' => 'tracking']);
+
+    $client = Client::factory()->create(['export_import_source_id' => $overrideSource->id]);
+
+    $shipment = Shipment::factory()->create([
+        'client_id' => $client->id,
+        'import_source_id' => null,
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'MANUAL-TRACK',
+    ]);
+
+    $service = new PackageExportService;
+    $result = $service->exportPackage($package);
+
+    expect($result->success)->toBeTrue();
+    expect($driverClass::$exportedData)->toHaveCount(1);
 });
 
 it('runs export command with dry-run option', function (): void {
