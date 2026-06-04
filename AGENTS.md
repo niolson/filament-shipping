@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-PolyBag is a Laravel 13 application with Filament 5 admin pages for shipping, batch labels, carrier integrations, imports, and operational setup. Core PHP code lives in `app/`, including `Models/`, `Services/`, `Filament/`, `Http/Integrations/`, `Jobs/`, `Events/`, `Policies/`, `Data/`, and `DataTransferObjects/`. Blade views and frontend entrypoints live under `resources/views`, `resources/js`, and `resources/css`, with assets compiled by Vite and Tailwind CSS 4. Database migrations, factories, and seeders live in `database/`. Pest tests are grouped under `tests/Feature`, `tests/Unit`, and `tests/External` for carrier/reference flows. Browser coverage is in `e2e/`. Deployment and local infrastructure files are in `docker/`, `infra/`, and `scripts/`.
+PolyBag is a Laravel 13 application with Filament 5 admin pages for barcode-driven packing, shipping, batch labels, carrier integrations, shipment imports/exports, multi-client/3PL setup, and workstation hardware configuration. Core PHP code lives in `app/`, including `Models/`, `Services/`, `Contracts/`, `Filament/`, `Http/Integrations/`, `Console/Commands/`, `Jobs/`, `Events/`, `Listeners/`, `Policies/`, `Enums/`, and `DataTransferObjects/`. Blade views and frontend entrypoints live under `resources/views`, `resources/js`, and `resources/css`, with QZ Tray, barcode, and scale browser code in `resources/js`. Carrier reference data and FedEx test cases live under `resources/data/`. Database migrations, factories, and seeders live in `database/`. Pest tests are grouped under `tests/Feature` and `tests/Unit`; explicit external/reference carrier runs are covered by command tests and the `composer run test:external` scripts when `tests/External` exists. Browser coverage is in `e2e/`. Deployment, tenant, workstation, and server setup docs/scripts live in `docs/`, `docker/`, `infra/`, and `scripts/`.
 
 ## Build, Test, and Development Commands
 Use the repo scripts instead of ad hoc commands when possible:
@@ -9,23 +9,23 @@ Use the repo scripts instead of ad hoc commands when possible:
 - `composer run setup` installs PHP and Node dependencies, creates `.env`, generates the app key, runs migrations, and builds assets.
 - `composer run dev` starts the Laravel server, queue worker, scheduler, and Vite dev server together.
 - `composer run test` clears config and runs the application test suite.
-- `composer run test:external` runs external integration/reference tests, and `composer run test:fedex-reference` narrows that suite to FedEx reference cases.
+- `composer run test:external` runs external integration/reference tests when present, and `composer run test:fedex-reference` narrows that suite to FedEx reference cases.
 - `npm run test:e2e` runs Playwright flows from `e2e/`.
 - `npm run test:e2e:ui` and `npm run test:e2e:headed` run the same Playwright wrapper in UI or headed mode.
 - `composer run format` runs Rector, PHPStan, and Pint in sequence.
 - `npm run build` creates production frontend assets.
 
 ## Coding Style & Naming Conventions
-Follow PSR-12 with 4-space indentation for PHP. Run `vendor/bin/pint` before opening a PR. Keep class names singular and descriptive (`ShipmentImportService`, `RateResponse`), and mirror Laravel conventions for models, migrations, and seeders. Use `PascalCase` for PHP classes, `camelCase` for methods, and kebab-case for Blade view filenames where appropriate. Prefer small service classes over controller-heavy logic.
+Follow PSR-12 with 4-space indentation for PHP. Run `vendor/bin/pint` before opening a PR. Keep class names singular and descriptive (`ShipmentImportService`, `PackageShippingResult`), and mirror Laravel conventions for models, migrations, and seeders. Use `PascalCase` for PHP classes, `camelCase` for methods, and kebab-case for Blade view filenames where appropriate. Prefer small service classes over controller-heavy logic. Preserve domain terms from `CONTEXT.md`: use **Shipment**, **Package**, and **Package Draft** consistently.
 
 ## Testing Guidelines
-This repo uses Pest 4 on top of PHPUnit 12. Add unit tests in `tests/Unit` for isolated services, enums, factories, integrations, and DTOs, and feature tests in `tests/Feature` for Filament pages, jobs, events, middleware, API/HTTP flows, and service workflows. Use `tests/External` only for explicit external carrier/reference coverage. Name test files with a `*Test.php` suffix. For browser workflows, add or update Playwright specs in `e2e/*.spec.ts`. Cover new behavior and regressions before merging.
+This repo uses Pest 4 on top of PHPUnit 12. Add unit tests in `tests/Unit` for isolated services, enums, factories, integrations, and DTOs, and feature tests in `tests/Feature` for Filament pages, jobs, events, middleware, API/HTTP flows, import/export flows, package draft/label/shipping workflows, carrier account routing, client scoping, and service orchestration. Use `tests/External` only for explicit external carrier/reference coverage. Name test files with a `*Test.php` suffix. For browser workflows, add or update Playwright specs in `e2e/*.spec.ts`. Cover new behavior and regressions before merging.
 
 ## Commit & Pull Request Guidelines
-Recent commits use short, imperative subjects such as `Add setup wizard for guided first-run configuration`. Keep commits focused and descriptive; avoid mixed-purpose changes. PRs should explain the user-visible impact, note schema or config changes, link related issues, and include screenshots for Filament/UI updates. Mention any required follow-up steps such as migrations, seeders, or workstation hardware setup.
+Recent commits use short, imperative subjects such as `Add per-client export destination override to PackageExportService`. Keep commits focused and descriptive; avoid mixed-purpose changes. PRs should explain the user-visible impact, note schema or config changes, link related issues, and include screenshots for Filament/UI updates. Mention any required follow-up steps such as migrations, seeders, or workstation hardware setup.
 
 ## Security & Configuration Tips
-Do not commit secrets from `.env`, carrier credentials, or private QZ signing keys. Use `.env` for infrastructure settings and the App Settings UI for encrypted operational credentials. If you touch printing, scale, or OAuth flows, document workstation or callback URL requirements in the PR.
+Do not commit secrets from `.env`, carrier credentials, import source credentials, OAuth tokens, database connection strings, or private QZ signing keys. Use `.env` for infrastructure/base URLs and the App Settings, Carrier Accounts, and Import Sources UIs for encrypted operational credentials. Carrier credentials now usually live on `CarrierAccount` records and may be scoped by location/client through `CarrierAccountScope`; import/export credentials live on `ImportSource` records and may be overridden per client. If you touch printing, scale, OAuth, pack slips, or carrier account routing, document workstation, callback URL, certificate, or client-scope requirements in the PR.
 
 ===
 
@@ -42,7 +42,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 
 - php - 8.4
 - filament/filament (FILAMENT) - v5.6.2
-- laravel/framework (LARAVEL) - v13.7.0
+- laravel/framework (LARAVEL) - v13.13.0
 - laravel/prompts (PROMPTS) - v0.3.17
 - laravel/scout (SCOUT) - v10.25.0
 - laravel/socialite (SOCIALITE) - v5.27.0
@@ -58,7 +58,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - rector/rector (RECTOR) - v2.4.2
 - saloonphp/laravel-plugin (SALOON_LARAVEL) - v4.3.0
 - saloonphp/saloon (SALOON) - v4.0.0
-- tailwindcss (TAILWINDCSS) - v4.2.4
+- tailwindcss (TAILWINDCSS) - v4.3.0
 
 ## Conventions
 
@@ -74,9 +74,12 @@ This application is a Laravel application and its main Laravel ecosystems packag
 
 - Stick to existing directory structure; don't create new base folders without approval.
 - Do not change the application's dependencies without approval.
-- Carrier API SDK code belongs in `app/Http/Integrations/` using Saloon v4 connectors, requests, responses, and shared concerns.
+- Carrier and marketplace API SDK code belongs in `app/Http/Integrations/` using Saloon v4 connectors, requests, responses, OAuth providers, and shared concerns.
 - Business workflows belong in small service classes under `app/Services/`; keep Filament resources focused on UI configuration and orchestration.
-- Use typed DTOs from `app/DataTransferObjects/` or `app/Data/` for structured data crossing service and integration boundaries.
+- Package preparation, label reprint/void, and shipment purchase flows should use the workflow contracts in `app/Contracts/` with implementations under `app/Services/PackageDrafts/`, `app/Services/PackageLabels/`, and `app/Services/PackageShipping/`.
+- Import/export flows should use `ImportSourceInterface`, `ExportDestinationInterface`, `ImportSourceFactory`, and source classes under `app/Services/ShipmentImport/Sources/`.
+- Multi-client/3PL code must preserve `client_id` scoping for shipments, products, aliases, import sources, shipping rules, pick batches, and carrier account resolution. Use `ClientContext` and existing `HasDefaultClient` patterns instead of ad hoc defaults.
+- Use typed DTOs from `app/DataTransferObjects/` for structured data crossing service and integration boundaries.
 
 ## Frontend Bundling
 

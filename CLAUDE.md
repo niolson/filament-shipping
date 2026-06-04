@@ -71,23 +71,28 @@ Each tenant's `default` network is isolated. The `shared` network connects app/q
 
 ## Domain Model
 
-- **Shipment** — Order to be shipped (address, items, validation status)
+- **Shipment** — Order to be shipped (address, items, validation status); scoped to a `Client`
 - **ShipmentItem** — Line items in a shipment
-- **Package** — Physical package with tracking, label, dimensions
+- **Package** — Physical package with tracking, label, dimensions; scoped to a `Location`
 - **PackageItem** — Items packed in a package (with transparency codes)
 - **ShippingMethod** — Available shipping options
 - **Carrier** / **CarrierService** — USPS, FedEx, UPS and their services
+- **CarrierAccount** — Per-carrier API credentials; supports multiple accounts per carrier with OAuth
+- **CarrierAccountScope** — Routes a `CarrierAccount` to a specific `Location` and/or `Client` combination with priority-based resolution
 - **BoxSize** — Predefined box dimensions (scanned by code)
 - **Channel** — Sales channel source (Shopify, Amazon, database import)
-- **Product** — Product catalog with barcodes and weights
+- **Product** — Product catalog with barcodes and weights; scoped to a `Client`
+- **ImportSource** — Configurable shipment import source (Database/Shopify/Amazon) with per-client assignment, encrypted secrets, and per-source scheduling
+- **Location** — Warehouse / fulfillment center with address, timezone, and carrier associations
+- **Client** — 3PL brand/retailer; scopes shipments, products, import sources, and shipping rules; carries return address and pack slip branding fields
 
 ## Key Workflows
 
-1. **Packing** (`/pack/{shipment_id}`) — Scan box code, scan items, read weight from scale
-2. **Shipping** (`/ship/{package_id}`) — Get rates, buy postage, print label
+1. **Packing** (`/pack/{shipment_id}`) — Scan box code, scan items, read weight from scale; shows client indicator when multi-client is enabled
+2. **Shipping** (`/ship/{package_id}`) — Get rates, buy postage, print label; rate requests are scoped by location and client
 3. **Manual Ship** (`/manual-ship`) — Ship without a pre-existing shipment
 4. **Batch Ship** — Generate labels for multiple packages
-5. **End of Day** (`/end-of-day`) — Create USPS SCAN forms / manifests
+5. **End of Day** (`/end-of-day`) — Create USPS SCAN forms / manifests; location-scoped when multi-location is enabled
 6. **Update Weight** (`/update-weight`) — Scan product barcode, read scale, update product weight
 
 ## Hardware Integration
@@ -113,17 +118,21 @@ Each tenant's `default` network is isolated. The `shared` network connects app/q
 - **FedEx** — Rate quotes and shipment creation (via Saloon)
 - **UPS** — Rate quotes and shipment creation (via Saloon)
 
-Carrier adapters: `app/Services/Shipping/` — `UspsAdapter`, `FedexAdapter`, `UpsAdapter`, `FakeCarrierAdapter`
+Carrier adapters: `app/Services/Carriers/` — `UspsAdapter`, `FedexAdapter`, `UpsAdapter`, `FakeCarrierAdapter`
+
+Rate/label/track/cancel paths resolve carrier accounts via `CarrierAccount::resolveForShipment()` using the package's `location_id` and shipment's `client_id`.
 
 ## Data Import / Export
 
-Shipment import supports multiple sources (configured via `.env`):
-- **Database** — Custom SQL queries against an external database
-- **Shopify** — Via Shopify API (client credentials in `.env`)
-- **Amazon** — Via SP-API (client credentials + refresh token in `.env`)
+Shipment import sources are configured as `ImportSource` records in the database (Integrations nav group), not in `.env`. Each source can be assigned to a `Client` and has its own encrypted credentials and schedule.
 
-Import sources: `app/Services/Import/` — `DatabaseSource`, `ShopifySource`, `AmazonSource`
-Export: `app/Services/PackageExportService.php`
+Supported drivers:
+- **Database** — Custom SQL queries against MySQL, SQL Server, or PostgreSQL
+- **Shopify** — Via Shopify Admin API with per-source OAuth
+- **Amazon** — Via SP-API with per-source client credentials + refresh token
+
+Import sources: `app/Services/ShipmentImport/Sources/` — `DatabaseSource`, `ShopifySource`, `AmazonSource`
+Export: `app/Services/ShipmentImport/PackageExportService.php` — supports per-client export destination overrides
 
 ## Commands
 
@@ -165,11 +174,10 @@ php artisan app:create-user                   # Create admin user
 ### Service Layer
 - `app/Services/CacheService.php` — Centralized caching for box sizes and carrier services (1-hour TTL)
 - `app/Services/SettingsService.php` — Key-value settings stored in DB
+- `app/Services/ClientContext.php` — Resolves the default `Client` for the current request
 - `app/Services/ShippingRateService.php` — Multi-carrier rate comparison
-- `app/Services/LabelGenerationService.php` — Label purchase and generation
-- `app/Services/AddressValidationService.php` — USPS address validation
 - `app/Services/BatchLabelService.php` — Batch label generation
-- `app/Services/ManifestService.php` — USPS SCAN form / end-of-day manifests
+- `app/Services/ManifestService.php` — USPS SCAN form / end-of-day manifests; location-scoped
 
 ### UI (Filament)
 - Auto-discovers resources from `app/Filament/Resources/`
@@ -189,8 +197,12 @@ php artisan app:create-user                   # Create admin user
 - `app/Filament/Pages/Pack.php` — Packing workflow with scale integration
 - `app/Filament/Pages/Ship.php` — Label generation and print dispatch
 - `app/Filament/Pages/DeviceSettings.php` — Printer/scale/label format configuration
-- `app/Services/Shipping/CarrierRegistry.php` — Carrier adapter registration
+- `app/Services/Carriers/CarrierRegistry.php` — Carrier adapter registration
 - `app/Services/CacheService.php` — Box size and carrier service caching
+- `app/Models/CarrierAccount.php` — Per-carrier credentials with `resolveForShipment()` priority logic
+- `app/Filament/Resources/Clients/ClientResource.php` — 3PL client management (Admin nav group)
+- `app/Filament/Resources/LocationResource.php` — Warehouse location management (Admin nav group)
+- `app/Filament/Resources/ImportSources/ImportSourceResource.php` — Import source management (Integrations nav group)
 - `docker-compose.yml` — Production container orchestration
 - `docker/entrypoint.sh` — Container startup (migrate + optimize)
 - `scripts/provision-tenant.sh` — Multi-tenant provisioning

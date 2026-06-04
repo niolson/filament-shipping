@@ -12,12 +12,15 @@ Built with **Laravel 13**, **Filament 5**, and **Tailwind CSS 4**.
 - **Manual shipping** — Create ad-hoc shipments without a prior import
 - **Address validation** — USPS address verification with DPV confirmation and correction suggestions
 - **Multi-carrier support** — USPS, FedEx, and UPS rate quotes and label generation via Saloon
+- **Multi-account carriers** — Multiple carrier accounts per carrier with per-account OAuth, scoped by location and/or client
 - **Shipping rules** — Pre-select or exclude carrier services per shipping method based on configurable conditions
-- **End of Day** — Generate carrier manifests (USPS scan forms, FedEx/UPS close-out), mark packages as manifested
+- **End of Day** — Generate carrier manifests (USPS scan forms, FedEx/UPS close-out), mark packages as manifested; location-scoped when multi-location is enabled
 - **Product weight management** — Scan a product barcode, place it on the scale, and update its stored weight
-- **Shipment import** — Import from external databases, Shopify, or Amazon SP-API with automatic channel/method mapping
-- **Package export** — Export shipped package data back to external systems
-- **Dashboard** — Shipping volume trends, carrier breakdown, cost-per-package analysis, and exception tracking
+- **Shipment import** — Import from external databases, Shopify, or Amazon SP-API with automatic channel/method mapping; sources are per-client with individual schedules
+- **Package export** — Export shipped package data back to external systems; supports per-client destination overrides
+- **Multi-location** — Ship from multiple warehouse locations, each with its own carrier credentials and manifests (optional, toggled in Settings)
+- **Multi-client / 3PL** — Manage shipments for multiple brands or retailers, with per-client return addresses, pack slip branding, import sources, and carrier account routing (optional, toggled in Settings)
+- **Dashboard** — Shipping volume trends, carrier breakdown, cost-per-package analysis, open shipments per client, and exception tracking
 - **Role-based access control** — User, Manager, and Admin roles with policy-based authorization
 
 ## Hardware Integration
@@ -170,11 +173,13 @@ The `.env` file also supports shipment import source configuration (database con
 Most operational configuration is managed through the **App Settings** page (`/app/settings`), accessible to admins:
 
 - **Company info** — Company name and ship-from address (used on labels)
-- **Carrier API credentials** — USPS, FedEx, UPS (stored encrypted in the database)
-- **Marketplace credentials** — Shopify and Amazon SP-API (stored encrypted)
-- **Feature flags** — Packing validation, transparency codes, batch shipping, manual shipping
+- **Feature flags** — Packing validation, transparency codes, batch shipping, manual shipping, multi-location, multi-client
 - **Sandbox mode** — Use carrier test endpoints with optional print suppression
 - **Carrier API timeout** — Configurable request timeout (5–60 seconds)
+
+Carrier API credentials are managed under **Carrier Accounts** (Shipping Config nav group) — each account stores its own OAuth tokens and credentials, and can be scoped to specific locations and/or clients via account scopes.
+
+Import source credentials (Shopify, Amazon, database connection strings) are managed under **Import Sources** (Integrations nav group) — each source stores encrypted secrets and can be assigned to a client with its own schedule.
 
 ## Artisan Commands
 
@@ -205,19 +210,21 @@ php artisan app:generate-test-data --cleanup    # Remove all test data (TD- pref
 
 ## Shipment Import
 
-Shipments are imported from external data sources using a pluggable source system defined by `ImportSourceInterface`.
+Shipments are imported from external data sources using a pluggable source system defined by `ImportSourceInterface`. Sources are configured as **Import Source** records in the database (Integrations nav group) with encrypted credentials and per-source schedules.
 
-**Supported sources:**
+**Supported drivers:**
 
-| Source | Description |
+| Driver | Description |
 |---|---|
 | **Database** | Custom SQL queries against MySQL, SQL Server, or PostgreSQL |
 | **Shopify** | Native integration via Shopify Admin API |
 | **Amazon** | Native integration via Amazon SP-API |
 
+Each import source can be assigned to a **Client**, so in a 3PL setup each brand's orders import under the correct client automatically.
+
 During import:
-- Fields are mapped from external to internal names via `config/shipment-import.php`
-- Channels and shipping methods are resolved through alias tables (configure in the UI under Map Shipping References / Map Channel References)
+- Fields are mapped from external to internal names
+- Channels and shipping methods are resolved through alias tables (configure in the UI under Map Shipping References / Map Channel References); aliases are per-client when multi-client is enabled
 - Phone numbers are parsed and extensions extracted automatically
 - Products are auto-created from imported SKU data (if enabled)
 - Records can optionally be marked as exported in the source database
@@ -253,7 +260,11 @@ The USPS-corrected address is stored alongside the original so operators can com
 | **Product** | Product catalog with SKU, barcode, and weight |
 | **LabelBatch** / **LabelBatchItem** | Batch label generation jobs and their per-shipment results |
 | **Manifest** | End-of-day carrier manifests with stored images |
-| **Location** | Warehouse / fulfillment center addresses |
+| **CarrierAccount** | Per-carrier API credentials; supports multiple accounts per carrier |
+| **CarrierAccountScope** | Routes a `CarrierAccount` to a specific location and/or client, with priority-based resolution |
+| **ImportSource** | Configurable shipment import source (Database/Shopify/Amazon) with encrypted credentials and per-source scheduling |
+| **Location** | Warehouse / fulfillment center with address, timezone, and carrier associations |
+| **Client** | 3PL brand/retailer; scopes shipments, products, import sources, and shipping rules; stores return address and pack slip branding |
 | **Setting** | Encrypted key-value store for app configuration |
 
 ## Authorization
@@ -272,6 +283,8 @@ Three roles with hierarchical permissions:
 | Box Sizes, Products, Shipping Methods | — | CRUD | CRUD |
 | Batch Shipping | — | — | Y |
 | Users, Carriers, Carrier Services, Channels | — | — | CRUD |
+| Carrier Accounts, Import Sources | — | — | CRUD |
+| Clients, Locations | — | — | CRUD |
 | App Settings | — | — | Y |
 
 ## License
