@@ -4,6 +4,7 @@ namespace App\Filament\Resources\CarrierAccounts\Tables;
 
 use App\Models\CarrierAccount;
 use App\Models\Location;
+use App\Services\SettingsService;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -40,7 +41,9 @@ class CarrierAccountsTable
                     ->label('Assigned To')
                     ->counts('scopes')
                     ->suffix(fn (int $state): string => $state === 1 ? ' scope' : ' scopes')
-                    ->sortable(),
+                    ->sortable()
+                    ->visible(fn () => app(SettingsService::class)->get('multi_location_enabled', false)
+                        || app(SettingsService::class)->get('multi_client_enabled', false)),
                 IconColumn::make('active')
                     ->boolean()
                     ->sortable(),

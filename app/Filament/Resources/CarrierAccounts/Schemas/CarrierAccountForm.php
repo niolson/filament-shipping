@@ -4,8 +4,10 @@ namespace App\Filament\Resources\CarrierAccounts\Schemas;
 
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\Client;
 use App\Models\Location;
 use App\Services\OAuthService;
+use App\Services\SettingsService;
 use Carbon\Carbon;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -153,8 +155,8 @@ class CarrierAccountForm
 
                 // ── Location Assignments ─────────────────────────────────────────────
 
-                Section::make('Location Assignments')
-                    ->description('Control which locations use this account. A global assignment (all locations) is created automatically when the account is saved.')
+                Section::make('Assignments')
+                    ->description('Scope this account to specific locations and/or clients. A global assignment (no restrictions) is created automatically when the account is saved.')
                     ->schema([
                         Repeater::make('scopes')
                             ->relationship()
@@ -162,16 +164,25 @@ class CarrierAccountForm
                                 Select::make('location_id')
                                     ->label('Location')
                                     ->options(fn () => Location::active()->pluck('name', 'id'))
-                                    ->placeholder('All locations (global default)')
+                                    ->placeholder('All locations')
                                     ->nullable()
-                                    ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
-
+                                    ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                                    ->visible(fn () => app(SettingsService::class)->get('multi_location_enabled', false)),
+                                Select::make('client_id')
+                                    ->label('Client')
+                                    ->options(fn () => Client::where('active', true)->pluck('name', 'id'))
+                                    ->placeholder('All clients')
+                                    ->nullable()
+                                    ->disableOptionsWhenSelectedInSiblingRepeaterItems()
+                                    ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
                             ])
                             ->defaultItems(0)
-                            ->addActionLabel('Add Location Assignment')
+                            ->addActionLabel('Add Assignment')
                             ->columnSpanFull(),
                     ])
-                    ->hidden(fn (?CarrierAccount $record) => ! $record?->exists)
+                    ->hidden(fn (?CarrierAccount $record) => ! $record?->exists
+                        || (! app(SettingsService::class)->get('multi_location_enabled', false)
+                            && ! app(SettingsService::class)->get('multi_client_enabled', false)))
                     ->collapsible(),
 
                 // ── UPS ─────────────────────────────────────────────────────────────
