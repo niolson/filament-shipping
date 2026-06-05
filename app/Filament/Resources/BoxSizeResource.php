@@ -88,6 +88,7 @@ class BoxSizeResource extends Resource
                             ->prefix('$')
                             ->step(0.01)
                             ->minValue(0)
+                            ->rules(['min:0'])
                             ->placeholder('0.00')
                             ->helperText('Packaging material cost charged per shipment using this box.'),
                     ]),

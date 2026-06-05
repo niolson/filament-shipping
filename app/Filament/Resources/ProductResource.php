@@ -98,6 +98,7 @@ class ProductResource extends Resource
                             ->prefix('$')
                             ->step(0.01)
                             ->minValue(0)
+                            ->rules(['min:0'])
                             ->placeholder('0.00')
                             ->helperText('Per-unit surcharge for items requiring special handling (fragile, hazmat, kitting, oversize, etc.).')
                             ->columnSpanFull(),

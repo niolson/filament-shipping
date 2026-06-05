@@ -171,6 +171,61 @@ it('excludes inactive clients from the summary', function (): void {
     expect($row)->toBeNull();
 });
 
+it('resets clientId to null when set to a nonexistent client id', function (): void {
+    Livewire::test(ClientBillingReport::class)
+        ->set('clientId', 999999)
+        ->assertSet('clientId', null);
+});
+
+it('resets clientId to null when set to an inactive client id', function (): void {
+    $inactive = Client::factory()->create(['is_default' => false, 'active' => false]);
+
+    Livewire::test(ClientBillingReport::class)
+        ->set('clientId', $inactive->id)
+        ->assertSet('clientId', null);
+});
+
+it('exports summary CSV with correct headers', function (): void {
+    $client = Client::factory()->create(['is_default' => false]);
+
+    $response = Livewire::test(ClientBillingReport::class)
+        ->set('viewMode', 'summary')
+        ->call('exportCsv')
+        ->instance()
+        ->exportCsv();
+
+    $content = '';
+    ob_start();
+    $response->sendContent();
+    $content = ob_get_clean();
+
+    $firstLine = explode("\n", trim($content))[0];
+    expect($firstLine)->toContain('Client')
+        ->toContain('Orders')
+        ->toContain('Total Billable');
+});
+
+it('exports detail CSV with correct headers', function (): void {
+    $client = Client::factory()->create(['is_default' => false]);
+    $shipment = Shipment::factory()->create(['client_id' => $client->id]);
+    Package::factory()->shipped()->create(['shipment_id' => $shipment->id]);
+
+    $response = Livewire::test(ClientBillingReport::class)
+        ->set('viewMode', 'detail')
+        ->set('clientId', $client->id)
+        ->instance()
+        ->exportCsv();
+
+    $content = '';
+    ob_start();
+    $response->sendContent();
+    $content = ob_get_clean();
+
+    $firstLine = explode("\n", trim($content))[0];
+    expect($firstLine)->toContain('Reference')
+        ->toContain('Line Total');
+});
+
 it('does not include another clients shipments in billing row', function (): void {
     $clientA = Client::factory()->create([
         'is_default' => false,

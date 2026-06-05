@@ -229,6 +229,7 @@ class ManualShip extends Page implements HasForms
         ['shipment' => $shipment] = $this->createShipmentAndPackage($data);
 
         Session::put('pack_auto_ship_override', $this->autoShipEnabled);
+        Session::put('pack_scan_to_add_override', true);
         Session::put('ship_return_url', '/manual-ship');
         $this->redirect('/pack/'.$shipment->id);
     }

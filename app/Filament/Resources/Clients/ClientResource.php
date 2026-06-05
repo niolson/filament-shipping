@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Clients;
 
+use App\Enums\Role;
 use App\Filament\Resources\Clients\Pages\CreateClient;
 use App\Filament\Resources\Clients\Pages\EditClient;
 use App\Filament\Resources\Clients\Pages\ListClients;
@@ -23,6 +24,11 @@ class ClientResource extends Resource
     protected static \UnitEnum|string|null $navigationGroup = 'Admin';
 
     protected static ?string $recordTitleAttribute = 'name';
+
+    public static function canAccess(): bool
+    {
+        return auth()->user()?->role->isAtLeast(Role::Admin) ?? false;
+    }
 
     public static function form(Schema $schema): Schema
     {

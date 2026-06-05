@@ -85,6 +85,7 @@ class ClientForm
                             ->prefix('$')
                             ->step(0.01)
                             ->minValue(0)
+                            ->rules(['min:0'])
                             ->placeholder('0.00')
                             ->helperText('Flat per-order base pick fee covering the first item.'),
                         TextInput::make('pick_fee_additional_item')
@@ -93,6 +94,7 @@ class ClientForm
                             ->prefix('$')
                             ->step(0.01)
                             ->minValue(0)
+                            ->rules(['min:0'])
                             ->placeholder('0.00')
                             ->helperText('Per-item charge for each item after the first in an order.'),
                         TextInput::make('label_fee_per_package')
@@ -101,6 +103,7 @@ class ClientForm
                             ->prefix('$')
                             ->step(0.01)
                             ->minValue(0)
+                            ->rules(['min:0'])
                             ->placeholder('0.00')
                             ->helperText('Per-label charge when not bundled with carrier cost.'),
                     ])

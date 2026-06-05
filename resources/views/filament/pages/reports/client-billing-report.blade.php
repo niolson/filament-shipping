@@ -22,7 +22,7 @@
                 wire:model.live="clientId"
                 class="fi-select-input rounded-lg border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5 dark:text-white text-sm"
             >
-                @foreach ($this->getClientOptions() as $id => $name)
+                @foreach ($this->clientOptions as $id => $name)
                     <option value="{{ $id }}">{{ $name }}</option>
                 @endforeach
             </select>

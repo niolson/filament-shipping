@@ -208,18 +208,23 @@ class EloquentPackageDraftWorkflow implements PackageDraftWorkflow
         $validShipmentItems = $shipment->shipmentItems()
             ->pluck('product_id', 'id');
 
+        $scanToAddProductIds = collect($items)
+            ->filter(fn (PackageDraftItemInput $item) => $item->shipmentItemId === null)
+            ->pluck('productId');
+
+        $validScanToAddProductIds = $scanToAddProductIds->isNotEmpty()
+            ? Product::whereIn('id', $scanToAddProductIds)
+                ->when($shipment->client_id, fn ($q) => $q->where('client_id', $shipment->client_id))
+                ->pluck('id')
+            : collect();
+
         foreach ($items as $item) {
             if ($item->shipmentItemId === null) {
                 if ($validShipmentItems->isNotEmpty()) {
                     throw new PackageDraftInvalidException('Scan-to-add items are only allowed for shipments without line items.');
                 }
 
-                // Scan-to-add item: verify the product exists and belongs to the correct client
-                $query = Product::where('id', $item->productId);
-                if ($shipment->client_id) {
-                    $query->where('client_id', $shipment->client_id);
-                }
-                if (! $query->exists()) {
+                if (! $validScanToAddProductIds->contains($item->productId)) {
                     throw new PackageDraftInvalidException('Product not found for scan-to-add item.');
                 }
             } else {

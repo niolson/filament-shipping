@@ -19,6 +19,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\Computed;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use UnitEnum;
 
@@ -52,7 +53,7 @@ class ClientBillingReport extends Page implements HasTable
     public function updatedViewMode(): void
     {
         if ($this->viewMode === 'detail' && ! $this->clientId) {
-            $this->clientId = Client::orderBy('name')->first()?->id;
+            $this->clientId = Client::where('active', true)->orderBy('name')->first()?->id;
         }
 
         $this->resetTable();
@@ -60,6 +61,10 @@ class ClientBillingReport extends Page implements HasTable
 
     public function updatedClientId(): void
     {
+        if ($this->clientId !== null && ! Client::where('id', $this->clientId)->where('active', true)->exists()) {
+            $this->clientId = null;
+        }
+
         $this->resetTable();
     }
 
@@ -75,13 +80,14 @@ class ClientBillingReport extends Page implements HasTable
     public function resolveTableRecord(?string $key): ?Model
     {
         if ($this->viewMode === 'detail') {
-            return Shipment::find($key);
+            return Shipment::where('id', $key)->where('client_id', $this->clientId)->first();
         }
 
         return Client::find($key);
     }
 
-    public function getClientOptions(): array
+    #[Computed]
+    public function clientOptions(): array
     {
         return Client::orderBy('name')->pluck('name', 'id')->toArray();
     }
@@ -215,8 +221,7 @@ class ClientBillingReport extends Page implements HasTable
                     ->label('')
                     ->badge()
                     ->color('warning')
-                    ->formatStateUsing(fn ($state) => $state ? null : 'No item data')
-                    ->placeholder(''),
+                    ->formatStateUsing(fn ($state) => $state ? null : 'No item data'),
                 Tables\Columns\TextColumn::make('line_total')
                     ->label('Line Total')
                     ->money('USD')
@@ -267,36 +272,14 @@ class ClientBillingReport extends Page implements HasTable
 
     private function detailQuery(int $clientId, ?Client $client): Builder
     {
-        $firstItemFee = (float) ($client?->pick_fee_first_item ?? 0);
-        $additionalItemFee = (float) ($client?->pick_fee_additional_item ?? 0);
-        $labelFee = (float) ($client?->label_fee_per_package ?? 0);
-
-        $pkgSub = DB::table('packages as p')
-            ->leftJoin('box_sizes as bs', 'p.box_size_id', '=', 'bs.id')
-            ->where('p.status', PackageStatus::Shipped->value)
-            ->select([
-                'p.shipment_id',
-                DB::raw('MIN(p.shipped_at) as shipped_at'),
-                DB::raw('COUNT(p.id) as package_count'),
-                DB::raw('COALESCE(SUM(p.cost), 0) as postage'),
-                DB::raw('COALESCE(SUM(p.weight), 0) as weight'),
-                DB::raw('COALESCE(SUM(COALESCE(bs.materials_cost, 0)), 0) as materials'),
-            ])
-            ->groupBy('p.shipment_id');
-
-        $itemSub = DB::table('shipment_items as si')
-            ->leftJoin('products as pr', 'si.product_id', '=', 'pr.id')
-            ->select([
-                'si.shipment_id',
-                DB::raw('SUM(si.quantity) as total_qty'),
-                DB::raw('COALESCE(SUM(si.quantity * COALESCE(pr.handling_surcharge, 0)), 0) as product_surcharges'),
-            ])
-            ->groupBy('si.shipment_id');
+        $firstItemFee = number_format((float) ($client?->pick_fee_first_item ?? 0), 2, '.', '');
+        $additionalItemFee = number_format((float) ($client?->pick_fee_additional_item ?? 0), 2, '.', '');
+        $labelFee = number_format((float) ($client?->label_fee_per_package ?? 0), 2, '.', '');
 
         return Shipment::query()
             ->where('shipments.client_id', $clientId)
-            ->joinSub($pkgSub, 'pkg', 'shipments.id', '=', 'pkg.shipment_id')
-            ->leftJoinSub($itemSub, 'itm', 'shipments.id', '=', 'itm.shipment_id')
+            ->joinSub($this->buildPackageSubquery(), 'pkg', 'shipments.id', '=', 'pkg.shipment_id')
+            ->leftJoinSub($this->buildItemSubquery(), 'itm', 'shipments.id', '=', 'itm.shipment_id')
             ->select([
                 'shipments.id',
                 'shipments.shipment_reference',
@@ -321,9 +304,9 @@ class ClientBillingReport extends Page implements HasTable
             ]);
     }
 
-    private function buildBillingBase(): \Illuminate\Database\Query\Builder
+    private function buildPackageSubquery(): \Illuminate\Database\Query\Builder
     {
-        $pkgSub = DB::table('packages as p')
+        return DB::table('packages as p')
             ->leftJoin('box_sizes as bs', 'p.box_size_id', '=', 'bs.id')
             ->where('p.status', PackageStatus::Shipped->value)
             ->select([
@@ -335,8 +318,11 @@ class ClientBillingReport extends Page implements HasTable
                 DB::raw('COALESCE(SUM(COALESCE(bs.materials_cost, 0)), 0) as materials'),
             ])
             ->groupBy('p.shipment_id');
+    }
 
-        $itemSub = DB::table('shipment_items as si')
+    private function buildItemSubquery(): \Illuminate\Database\Query\Builder
+    {
+        return DB::table('shipment_items as si')
             ->leftJoin('products as pr', 'si.product_id', '=', 'pr.id')
             ->select([
                 'si.shipment_id',
@@ -344,11 +330,14 @@ class ClientBillingReport extends Page implements HasTable
                 DB::raw('COALESCE(SUM(si.quantity * COALESCE(pr.handling_surcharge, 0)), 0) as product_surcharges'),
             ])
             ->groupBy('si.shipment_id');
+    }
 
+    private function buildBillingBase(): \Illuminate\Database\Query\Builder
+    {
         return DB::table('shipments as s')
             ->join('clients as c', 's.client_id', '=', 'c.id')
-            ->joinSub($pkgSub, 'pkg', 's.id', '=', 'pkg.shipment_id')
-            ->leftJoinSub($itemSub, 'itm', 's.id', '=', 'itm.shipment_id')
+            ->joinSub($this->buildPackageSubquery(), 'pkg', 's.id', '=', 'pkg.shipment_id')
+            ->leftJoinSub($this->buildItemSubquery(), 'itm', 's.id', '=', 'itm.shipment_id')
             ->select([
                 's.id as shipment_id',
                 's.client_id',

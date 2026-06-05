@@ -89,6 +89,10 @@ class Pack extends Page
             $this->autoShipOverride = (bool) Session::pull('pack_auto_ship_override');
         }
 
+        if (Session::pull('pack_scan_to_add_override', false)) {
+            $this->scanToAddEnabled = true;
+        }
+
         // Load box sizes for client-side lookup (cached)
         $this->boxSizes = app(CacheService::class)->getBoxSizesForPacking();
 

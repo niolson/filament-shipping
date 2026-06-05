@@ -6,14 +6,12 @@ use App\Enums\Deliverability;
 use App\Enums\LabelBatchItemStatus;
 use App\Enums\PackageStatus;
 use App\Enums\Role;
+use App\Filament\Concerns\HasMultiClientFilter;
 use App\Filament\Support\CarrierLogoColumn;
-use App\Models\Client;
 use App\Models\LabelBatchItem;
 use App\Models\Package;
-use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Select;
 use Filament\Pages\Page;
 use Filament\Tables;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -25,6 +23,7 @@ use UnitEnum;
 
 class PackingValidationReport extends Page implements HasTable
 {
+    use HasMultiClientFilter;
     use InteractsWithTable;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-shield-check';
@@ -60,8 +59,6 @@ class PackingValidationReport extends Page implements HasTable
 
     private function weightMismatchTable(Table $table): Table
     {
-        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
-
         // Uses the pre-computed weight_mismatch flag (set at pack time,
         // backfilled via packages:backfill-weight-mismatch). No JOINs needed.
         $query = Package::query()
@@ -87,19 +84,8 @@ class PackingValidationReport extends Page implements HasTable
                 }),
         ];
 
-        if ($multiClient) {
-            $filters[] = Tables\Filters\Filter::make('client')
-                ->form([
-                    Select::make('client_id')
-                        ->label('Client')
-                        ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
-                        ->native(false)
-                        ->placeholder('All clients'),
-                ])
-                ->query(fn ($query, array $data) => $query->when(
-                    $data['client_id'],
-                    fn ($q, $id) => $q->where('shipments.client_id', $id)
-                ));
+        if ($filter = $this->buildClientFilter()) {
+            $filters[] = $filter;
         }
 
         return $table
@@ -143,8 +129,6 @@ class PackingValidationReport extends Page implements HasTable
 
     private function batchFailuresTable(Table $table): Table
     {
-        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
-
         $query = LabelBatchItem::query()
             ->where('label_batch_items.status', LabelBatchItemStatus::Failed)
             ->join('shipments', 'label_batch_items.shipment_id', '=', 'shipments.id')
@@ -167,19 +151,8 @@ class PackingValidationReport extends Page implements HasTable
                 }),
         ];
 
-        if ($multiClient) {
-            $filters[] = Tables\Filters\Filter::make('client')
-                ->form([
-                    Select::make('client_id')
-                        ->label('Client')
-                        ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
-                        ->native(false)
-                        ->placeholder('All clients'),
-                ])
-                ->query(fn ($query, array $data) => $query->when(
-                    $data['client_id'],
-                    fn ($q, $id) => $q->where('shipments.client_id', $id)
-                ));
+        if ($filter = $this->buildClientFilter()) {
+            $filters[] = $filter;
         }
 
         return $table
@@ -208,8 +181,6 @@ class PackingValidationReport extends Page implements HasTable
 
     private function validationIssuesTable(Table $table): Table
     {
-        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
-
         $query = Package::query()
             ->where('packages.status', PackageStatus::Shipped->value)
             ->join('shipments', 'packages.shipment_id', '=', 'shipments.id')
@@ -242,19 +213,8 @@ class PackingValidationReport extends Page implements HasTable
                 }),
         ];
 
-        if ($multiClient) {
-            $filters[] = Tables\Filters\Filter::make('client')
-                ->form([
-                    Select::make('client_id')
-                        ->label('Client')
-                        ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
-                        ->native(false)
-                        ->placeholder('All clients'),
-                ])
-                ->query(fn ($query, array $data) => $query->when(
-                    $data['client_id'],
-                    fn ($q, $id) => $q->where('shipments.client_id', $id)
-                ));
+        if ($filter = $this->buildClientFilter()) {
+            $filters[] = $filter;
         }
 
         return $table

@@ -4,13 +4,11 @@ namespace App\Filament\Pages\Reports;
 
 use App\Enums\PackageStatus;
 use App\Enums\Role;
-use App\Models\Client;
+use App\Filament\Concerns\HasMultiClientFilter;
 use App\Models\Package;
 use App\Models\User;
-use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Select;
 use Filament\Pages\Page;
 use Filament\Tables;
 use Filament\Tables\Concerns\InteractsWithTable;
@@ -23,6 +21,7 @@ use UnitEnum;
 
 class UserShipmentsReport extends Page implements HasTable
 {
+    use HasMultiClientFilter;
     use InteractsWithTable;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-users';
@@ -86,8 +85,6 @@ class UserShipmentsReport extends Page implements HasTable
 
     private function allUsersTable(Table $table): Table
     {
-        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
-
         $query = Package::query()
             ->where('packages.status', PackageStatus::Shipped->value)
             ->whereNotNull('packages.shipped_by_user_id')
@@ -116,19 +113,8 @@ class UserShipmentsReport extends Page implements HasTable
                 }),
         ];
 
-        if ($multiClient) {
-            $filters[] = Tables\Filters\Filter::make('client')
-                ->form([
-                    Select::make('client_id')
-                        ->label('Client')
-                        ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
-                        ->native(false)
-                        ->placeholder('All clients'),
-                ])
-                ->query(fn ($query, array $data) => $query->when(
-                    $data['client_id'],
-                    fn ($q, $id) => $q->where('shipments.client_id', $id)
-                ));
+        if ($filter = $this->buildClientFilter()) {
+            $filters[] = $filter;
         }
 
         return $table
@@ -150,8 +136,6 @@ class UserShipmentsReport extends Page implements HasTable
 
     private function userDetailTable(Table $table): Table
     {
-        $multiClient = app(SettingsService::class)->get('multi_client_enabled', false);
-
         $groupExpr = match ($this->period) {
             'week' => $this->weekGroupExpression(),
             'month' => $this->monthGroupExpression(),
@@ -186,19 +170,8 @@ class UserShipmentsReport extends Page implements HasTable
                 }),
         ];
 
-        if ($multiClient) {
-            $filters[] = Tables\Filters\Filter::make('client')
-                ->form([
-                    Select::make('client_id')
-                        ->label('Client')
-                        ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
-                        ->native(false)
-                        ->placeholder('All clients'),
-                ])
-                ->query(fn ($query, array $data) => $query->when(
-                    $data['client_id'],
-                    fn ($q, $id) => $q->where('shipments.client_id', $id)
-                ));
+        if ($filter = $this->buildClientFilter()) {
+            $filters[] = $filter;
         }
 
         return $table

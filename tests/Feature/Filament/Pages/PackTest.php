@@ -555,3 +555,30 @@ it('deletes orphaned package items when cleaning up unshipped packages', functio
 
     expect(PackageItem::find($orphanItem->id))->toBeNull();
 });
+
+it('scan-to-add mode is false when shipment has line items even when setting is enabled', function (): void {
+    Setting::create(['key' => 'scan_to_add_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    $shipment = Shipment::factory()->create();
+    $product = Product::factory()->create(['barcode' => '1234567890123']);
+    ShipmentItem::factory()->create([
+        'shipment_id' => $shipment->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertSet('scanToAddMode', false);
+})->after(fn () => app(SettingsService::class)->clearCache());
+
+it('scan-to-add mode is forced on when redirected from manual ship even if setting is disabled', function (): void {
+    // scan_to_add_enabled is NOT set (defaults false)
+    $shipment = Shipment::factory()->create();
+    // No ShipmentItems — manual ship shipments have no line items
+
+    Session::put('pack_scan_to_add_override', true);
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertSet('scanToAddMode', true);
+});
