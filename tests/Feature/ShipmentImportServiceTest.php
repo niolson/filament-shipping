@@ -166,11 +166,10 @@ it('imports a shipment with a matching shipping method', function (): void {
 });
 
 it('resolves shipping references and products inside the active client context', function (): void {
-    $clientA = Client::where('code', 'default')->firstOrFail();
+    $clientA = Client::factory()->default()->create();
     $clientB = Client::factory()->create([
         'name' => 'Second Client',
-        'code' => 'second-client',
-        'is_default' => true,
+        'is_default' => false,
     ]);
 
     $methodA = ShippingMethod::factory()->create(['name' => 'Client A Standard']);

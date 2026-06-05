@@ -21,9 +21,6 @@ class ClientsTable
                 TextColumn::make('name')
                     ->sortable()
                     ->searchable(),
-                TextColumn::make('code')
-                    ->sortable()
-                    ->searchable(),
                 TextColumn::make('return_address_summary')
                     ->label('Return Address')
                     ->state(fn (Client $record): string => $record->hasReturnAddress()

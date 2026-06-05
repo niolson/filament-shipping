@@ -34,7 +34,6 @@ it('can create a client', function (): void {
     Livewire::test(CreateClient::class)
         ->fillForm([
             'name' => 'Acme Corp',
-            'code' => 'ACME',
             'active' => true,
             'is_default' => false,
         ])
@@ -44,7 +43,6 @@ it('can create a client', function (): void {
 
     $this->assertDatabaseHas(Client::class, [
         'name' => 'Acme Corp',
-        'code' => 'ACME',
         'active' => true,
         'is_default' => false,
     ]);
@@ -54,7 +52,6 @@ it('can create a client with a return address', function (): void {
     Livewire::test(CreateClient::class)
         ->fillForm([
             'name' => 'Acme Corp',
-            'code' => 'ACME',
             'return_company' => 'Acme Corp',
             'return_name' => 'Returns Dept',
             'return_address1' => '123 Main St',
@@ -75,20 +72,11 @@ it('can create a client with a return address', function (): void {
     ]);
 });
 
-it('requires name and code', function (): void {
+it('requires name', function (): void {
     Livewire::test(CreateClient::class)
-        ->fillForm(['name' => '', 'code' => ''])
+        ->fillForm(['name' => ''])
         ->call('create')
-        ->assertHasFormErrors(['name' => 'required', 'code' => 'required']);
-});
-
-it('enforces unique code', function (): void {
-    Client::factory()->create(['code' => 'ACME']);
-
-    Livewire::test(CreateClient::class)
-        ->fillForm(['name' => 'Other Corp', 'code' => 'ACME'])
-        ->call('create')
-        ->assertHasFormErrors(['code' => 'unique']);
+        ->assertHasFormErrors(['name' => 'required']);
 });
 
 it('can edit a client', function (): void {
@@ -103,15 +91,6 @@ it('can edit a client', function (): void {
         'id' => $client->id,
         'name' => 'New Name',
     ]);
-});
-
-it('allows the same code on edit (ignores own record)', function (): void {
-    $client = Client::factory()->create(['code' => 'ACME']);
-
-    Livewire::test(EditClient::class, ['record' => $client->id])
-        ->fillForm(['name' => $client->name, 'code' => 'ACME'])
-        ->call('save')
-        ->assertHasNoFormErrors();
 });
 
 it('making a client default clears the previous default', function (): void {
@@ -131,7 +110,6 @@ it('can create a client with pack slip branding fields', function (): void {
     Livewire::test(CreateClient::class)
         ->fillForm([
             'name' => 'Acme Corp',
-            'code' => 'ACME',
             'company_name' => 'ACME Corporation',
             'custom_message' => 'Thank you for your order!',
             'return_instructions' => 'Send returns to our warehouse.',

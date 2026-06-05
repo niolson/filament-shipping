@@ -19,7 +19,6 @@ class ClientFactory extends Factory
     {
         return [
             'name' => fake()->company(),
-            'code' => fake()->unique()->slug(2),
             'is_default' => false,
             'active' => true,
         ];
@@ -29,7 +28,6 @@ class ClientFactory extends Factory
     {
         return $this->state(fn () => [
             'name' => 'Default Client',
-            'code' => 'default',
             'is_default' => true,
             'active' => true,
         ]);

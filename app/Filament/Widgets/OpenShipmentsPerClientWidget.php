@@ -45,10 +45,6 @@ class OpenShipmentsPerClientWidget extends BaseWidget
                     ->label('Client')
                     ->url(fn (Client $record) => ClientResource::getUrl('edit', ['record' => $record]))
                     ->weight('medium'),
-                TextColumn::make('code')
-                    ->label('Code')
-                    ->badge()
-                    ->color('gray'),
                 TextColumn::make('open_shipments_count')
                     ->label('Open Shipments')
                     ->numeric()

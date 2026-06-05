@@ -25,11 +25,6 @@ class ClientForm
                         TextInput::make('name')
                             ->required()
                             ->maxLength(255),
-                        TextInput::make('code')
-                            ->required()
-                            ->maxLength(50)
-                            ->unique(ignoreRecord: true)
-                            ->helperText('Short identifier used in imports and exports, e.g. "ACME".'),
                         Toggle::make('active')
                             ->default(true),
                         Toggle::make('is_default')
