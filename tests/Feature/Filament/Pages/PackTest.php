@@ -414,7 +414,6 @@ it('does not expose client name when multi_client_enabled is false', function ()
 
 it('scopes product loading to the shipment client', function (): void {
     $clientA = Client::factory()->create();
-    $clientB = Client::factory()->create();
 
     $product = Product::factory()->create([
         'client_id' => $clientA->id,
@@ -453,6 +452,61 @@ it('does not load product when it belongs to a different client', function (): v
 
     Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
         ->assertSet('packingItems.0.barcode', null);
+});
+
+it('addItemByScan dispatches scan-to-add-found when product barcode matches shipment client', function (): void {
+    Setting::create(['key' => 'scan_to_add_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    $client = Client::factory()->create();
+    $product = Product::factory()->create(['client_id' => $client->id, 'barcode' => '111222333444']);
+    $shipment = Shipment::factory()->create(['client_id' => $client->id]);
+    // No shipment items — activates scan-to-add mode
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertSet('scanToAddMode', true)
+        ->call('addItemByScan', '111222333444')
+        ->assertDispatched('scan-to-add-found');
+})->after(fn () => app(SettingsService::class)->clearCache());
+
+it('addItemByScan dispatches scan-to-add-found when product SKU matches', function (): void {
+    Setting::create(['key' => 'scan_to_add_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    $client = Client::factory()->create();
+    $product = Product::factory()->create(['client_id' => $client->id, 'sku' => 'SKU-ALPHA-001']);
+    $shipment = Shipment::factory()->create(['client_id' => $client->id]);
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->call('addItemByScan', 'SKU-ALPHA-001')
+        ->assertDispatched('scan-to-add-found');
+})->after(fn () => app(SettingsService::class)->clearCache());
+
+it('addItemByScan dispatches scan-to-add-not-found for a product belonging to a different client', function (): void {
+    Setting::create(['key' => 'scan_to_add_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    $clientA = Client::factory()->create();
+    $clientB = Client::factory()->create();
+    Product::factory()->create(['client_id' => $clientB->id, 'barcode' => '999888777666']);
+    $shipment = Shipment::factory()->create(['client_id' => $clientA->id]);
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->call('addItemByScan', '999888777666')
+        ->assertDispatched('scan-to-add-not-found')
+        ->assertNotDispatched('scan-to-add-found');
+})->after(fn () => app(SettingsService::class)->clearCache());
+
+it('addItemByScan does nothing when scan-to-add setting is disabled', function (): void {
+    $client = Client::factory()->create();
+    Product::factory()->create(['client_id' => $client->id, 'barcode' => '111111111111']);
+    $shipment = Shipment::factory()->create(['client_id' => $client->id]);
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertSet('scanToAddEnabled', false)
+        ->call('addItemByScan', '111111111111')
+        ->assertNotDispatched('scan-to-add-found')
+        ->assertNotDispatched('scan-to-add-not-found');
 });
 
 it('deletes orphaned package items when cleaning up unshipped packages', function (): void {
