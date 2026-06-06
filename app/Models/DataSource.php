@@ -4,23 +4,28 @@ namespace App\Models;
 
 use App\Enums\ScheduleInterval;
 use App\Models\Concerns\HasDefaultClient;
+use Database\Factories\DataSourceFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class ImportSource extends Model
+class DataSource extends Model
 {
+    /** @use HasFactory<DataSourceFactory> */
     use HasDefaultClient, HasFactory;
 
     /** @var list<string> Keys that belong in the encrypted secret_settings column. */
     public const SECRET_SETTINGS_KEYS = ['access_token', 'oauth_access_token', 'client_id', 'client_secret', 'refresh_token', 'db_password'];
+
+    protected $table = 'data_sources';
 
     protected $fillable = [
         'client_id',
         'name',
         'driver',
         'active',
+        'global_export',
         'schedule_interval',
         'settings',
         'secret_settings',
@@ -28,6 +33,7 @@ class ImportSource extends Model
 
     protected $casts = [
         'active' => 'boolean',
+        'global_export' => 'boolean',
         'schedule_interval' => ScheduleInterval::class,
         'settings' => 'array',
         'secret_settings' => 'encrypted:array',

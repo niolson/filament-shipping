@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\ImportSource;
+use App\Models\DataSource;
 use App\Models\Shipment;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -8,8 +8,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 it('--all --dry-run does not run real imports', function (): void {
-    // Create an active ImportSource backed by a mock driver that would fail if import() ran
-    ImportSource::factory()->create([
+    // Create an active DataSource backed by a mock driver that would fail if import() ran
+    DataSource::factory()->create([
 
         'driver' => ShopifySource::class,
         'active' => true,
@@ -32,7 +32,7 @@ it('--all --dry-run does not run real imports', function (): void {
 });
 
 it('--all --validate-only does not run real imports', function (): void {
-    ImportSource::factory()->create([
+    DataSource::factory()->create([
 
         'driver' => ShopifySource::class,
         'active' => true,
@@ -53,7 +53,7 @@ it('--all --validate-only does not run real imports', function (): void {
 });
 
 it('--all without flags runs real imports (not dry-run) for each source', function (): void {
-    ImportSource::factory()->create([
+    DataSource::factory()->create([
 
         'driver' => ShopifySource::class,
         'active' => true,

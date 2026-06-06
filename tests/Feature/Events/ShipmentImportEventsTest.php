@@ -1,12 +1,12 @@
 <?php
 
-use App\Contracts\ImportSourceInterface;
+use App\Contracts\DataSourceInterface;
 use App\Events\ImportCompleted;
 use App\Events\ShipmentImported;
 use App\Events\ShipmentUpdated;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
-use App\Models\ImportSource;
+use App\Models\DataSource;
 use App\Models\Shipment;
 use App\Services\ShipmentImport\ShipmentImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -16,12 +16,12 @@ use Illuminate\Support\Facades\Event;
 uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
-    $this->importSource = ImportSource::factory()->create(['name' => 'Test Source']);
+    $this->dataSource = DataSource::factory()->create(['name' => 'Test Source']);
 });
 
-function importTestSource(Collection $shipments, Collection $items = new Collection): ImportSourceInterface
+function importTestSource(Collection $shipments, Collection $items = new Collection): DataSourceInterface
 {
-    return new class($shipments, $items) implements ImportSourceInterface
+    return new class($shipments, $items) implements DataSourceInterface
     {
         public function __construct(
             private Collection $shipments,
@@ -71,7 +71,7 @@ it('dispatches ShipmentImported for new shipments', function (): void {
         ],
     ]));
 
-    ShipmentImportService::forSource($source, $this->importSource)->import();
+    ShipmentImportService::forSource($source, $this->dataSource)->import();
 
     Event::assertDispatched(ShipmentImported::class, function (ShipmentImported $event): bool {
         return $event->shipment->shipment_reference === 'NEW-001';
@@ -88,7 +88,7 @@ it('dispatches ShipmentUpdated for existing shipments', function (): void {
     Shipment::factory()->create([
         'shipment_reference' => 'EXISTING-001',
         'source_record_id' => 'EXISTING-001',
-        'import_source_id' => $this->importSource->id,
+        'data_source_id' => $this->dataSource->id,
         'channel_id' => $channel->id,
     ]);
 
@@ -106,7 +106,7 @@ it('dispatches ShipmentUpdated for existing shipments', function (): void {
         ],
     ]));
 
-    ShipmentImportService::forSource($source, $this->importSource)->import();
+    ShipmentImportService::forSource($source, $this->dataSource)->import();
 
     Event::assertDispatched(ShipmentUpdated::class, function (ShipmentUpdated $event): bool {
         return $event->shipment->shipment_reference === 'EXISTING-001';
@@ -134,7 +134,7 @@ it('dispatches ImportCompleted after import finishes', function (): void {
         ],
     ]));
 
-    ShipmentImportService::forSource($source, $this->importSource)->import();
+    ShipmentImportService::forSource($source, $this->dataSource)->import();
 
     Event::assertDispatched(ImportCompleted::class, function (ImportCompleted $event): bool {
         return $event->sourceName === 'Test Source'

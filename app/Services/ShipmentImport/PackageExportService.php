@@ -4,66 +4,90 @@ namespace App\Services\ShipmentImport;
 
 use App\Contracts\ExportDestinationInterface;
 use App\Enums\PackageStatus;
+use App\Models\DataSource;
 use App\Models\Package;
 use Illuminate\Support\Facades\Log;
 
 class PackageExportService
 {
     /**
-     * Export a shipped package's data to the import source that created its shipment.
+     * Export a shipped package's data to all configured destinations:
+     *  1. The client's explicit export override, or the shipment's originating data source.
+     *  2. Every active data source with global_export enabled (fan-out; deduped against #1).
      */
     public function exportPackage(Package $package): ExportResult
     {
-        $package->loadMissing('shipment.client.exportSource', 'shipment.importSource');
+        $package->loadMissing('shipment.client.exportDataSource', 'shipment.dataSource');
         $shipment = $package->shipment;
 
-        // Client-level override takes priority; fall back to the originating import source.
-        $importSource = $shipment?->client?->exportSource ?? $shipment?->importSource;
+        $primary = $shipment?->client?->exportDataSource ?? $shipment?->dataSource;
 
-        if (! $importSource || ! ($importSource->settings['export_enabled'] ?? false)) {
+        $globalSources = DataSource::where('global_export', true)
+            ->where('active', true)
+            ->whereJsonContains('settings->export_enabled', true)
+            ->get()
+            ->reject(fn (DataSource $s) => $primary && $s->id === $primary->id);
+
+        $destinations = collect();
+
+        if ($primary && ($primary->settings['export_enabled'] ?? false)) {
+            $destinations->push($primary);
+        }
+
+        $destinations = $destinations->merge($globalSources);
+
+        if ($destinations->isEmpty()) {
             return new ExportResult(success: true);
         }
 
-        $driver = app(ImportSourceFactory::class)->make($importSource);
+        $attempted = 0;
+        $succeeded = 0;
+        $errors = [];
 
-        if (! $driver instanceof ExportDestinationInterface) {
-            return new ExportResult(success: true);
+        foreach ($destinations as $source) {
+            $driver = app(DataSourceFactory::class)->make($source);
+
+            if (! $driver instanceof ExportDestinationInterface) {
+                continue;
+            }
+
+            $fieldMapping = $source->settings['export_field_mapping'] ?? [
+                'tracking_number' => 'tracking_number',
+                'carrier' => 'carrier',
+                'service' => 'service',
+                'weight' => 'weight',
+                'shipment_reference' => 'shipment_reference',
+                'fulfillment_order_id' => 'fulfillment_order_id',
+                'amazon_order_id' => 'amazon_order_id',
+            ];
+
+            $data = $this->buildExportData($package, $fieldMapping);
+            $attempted++;
+
+            try {
+                $driver->exportPackage($data);
+                $succeeded++;
+            } catch (\Exception $e) {
+                $this->log('error', "Export to {$source->name} failed", [
+                    'package_id' => $package->id,
+                    'error' => $e->getMessage(),
+                ]);
+                $errors[] = "{$source->name}: {$e->getMessage()}";
+            }
         }
 
-        $fieldMapping = $importSource->settings['export_field_mapping'] ?? [
-            'tracking_number' => 'tracking_number',
-            'carrier' => 'carrier',
-            'service' => 'service',
-            'weight' => 'weight',
-            'shipment_reference' => 'shipment_reference',
-            'fulfillment_order_id' => 'fulfillment_order_id',
-            'amazon_order_id' => 'amazon_order_id',
-        ];
+        $success = empty($errors);
 
-        $data = $this->buildExportData($package, $fieldMapping);
-
-        try {
-            $driver->exportPackage($data);
+        if ($success) {
             $package->update(['exported' => true]);
-
-            return new ExportResult(
-                success: true,
-                destinationsAttempted: 1,
-                destinationsSucceeded: 1,
-            );
-        } catch (\Exception $e) {
-            $this->log('error', "Export to {$importSource->name} failed", [
-                'package_id' => $package->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return new ExportResult(
-                success: false,
-                destinationsAttempted: 1,
-                destinationsSucceeded: 0,
-                errors: ["{$importSource->name}: {$e->getMessage()}"],
-            );
         }
+
+        return new ExportResult(
+            success: $success,
+            destinationsAttempted: $attempted,
+            destinationsSucceeded: $succeeded,
+            errors: $errors,
+        );
     }
 
     /**
@@ -75,7 +99,7 @@ class PackageExportService
     {
         $packages = Package::where('status', PackageStatus::Shipped)
             ->where('exported', false)
-            ->with('shipment.client.exportSource', 'shipment.importSource')
+            ->with('shipment.client.exportDataSource', 'shipment.dataSource')
             ->get();
 
         $results = [];

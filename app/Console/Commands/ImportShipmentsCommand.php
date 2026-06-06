@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\ImportSource;
-use App\Services\ShipmentImport\ImportSourceFactory;
+use App\Models\DataSource;
+use App\Services\ShipmentImport\DataSourceFactory;
 use App\Services\ShipmentImport\ShipmentImportService;
 use Illuminate\Console\Command;
 
@@ -11,7 +11,7 @@ class ImportShipmentsCommand extends Command
 {
     protected $signature = 'shipments:import
                             {--source-id= : Run a single import source by ID}
-                            {--all : Run every active ImportSource record}
+                            {--all : Run every active DataSource record}
                             {--dry-run : Preview what would be imported without making changes}
                             {--validate-only : Only validate the source configuration}';
 
@@ -34,7 +34,7 @@ class ImportShipmentsCommand extends Command
 
     private function runById(int $id): int
     {
-        $record = ImportSource::find($id);
+        $record = DataSource::find($id);
 
         if (! $record) {
             $this->error("Import source #{$id} not found.");
@@ -53,7 +53,7 @@ class ImportShipmentsCommand extends Command
 
     private function runAll(): int
     {
-        $sources = ImportSource::where('active', true)->get();
+        $sources = DataSource::where('active', true)->get();
 
         if ($sources->isEmpty()) {
             $this->warn('No active import sources found.');
@@ -78,7 +78,7 @@ class ImportShipmentsCommand extends Command
         return $overallFailure ? Command::FAILURE : Command::SUCCESS;
     }
 
-    private function runRecord(ImportSource $record): int
+    private function runRecord(DataSource $record): int
     {
         if ($this->option('validate-only')) {
             return $this->validateRecord($record);
@@ -116,12 +116,12 @@ class ImportShipmentsCommand extends Command
         return $result->hasErrors() ? Command::FAILURE : Command::SUCCESS;
     }
 
-    private function validateRecord(ImportSource $record): int
+    private function validateRecord(DataSource $record): int
     {
         $this->info("Validating source '{$record->name}'...");
 
         try {
-            $source = app(ImportSourceFactory::class)->make($record);
+            $source = app(DataSourceFactory::class)->make($record);
             $source->validateConfiguration();
             $this->info('Configuration is valid.');
 
@@ -133,12 +133,12 @@ class ImportShipmentsCommand extends Command
         }
     }
 
-    private function dryRunRecord(ImportSource $record): int
+    private function dryRunRecord(DataSource $record): int
     {
         $this->info("Dry-run for source '{$record->name}'...");
 
         try {
-            $source = app(ImportSourceFactory::class)->make($record);
+            $source = app(DataSourceFactory::class)->make($record);
             $source->validateConfiguration();
             $shipments = $source->fetchShipments();
 

@@ -2,38 +2,38 @@
 
 namespace App\Services\ShipmentImport;
 
-use App\Contracts\ImportSourceInterface;
-use App\Models\ImportSource;
+use App\Contracts\DataSourceInterface;
+use App\Models\DataSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
-class ImportSourceFactory
+class DataSourceFactory
 {
-    public function make(ImportSource $importSource): ImportSourceInterface
+    public function make(DataSource $dataSource): DataSourceInterface
     {
-        $driver = $importSource->driver;
+        $driver = $dataSource->driver;
 
         if (! $driver || ! class_exists($driver)) {
             throw new InvalidArgumentException(
-                "Import source '{$importSource->name}' has an invalid driver class: {$driver}"
+                "Data source '{$dataSource->name}' has an invalid driver class: {$driver}"
             );
         }
 
         $config = array_merge(
-            $importSource->settings ?? [],
-            $importSource->secret_settings ?? [],
+            $dataSource->settings ?? [],
+            $dataSource->secret_settings ?? [],
         );
 
         if ($driver === DatabaseSource::class) {
-            $config = $this->buildDatabaseConfig($importSource->id, $config);
+            $config = $this->buildDatabaseConfig($dataSource->id, $config);
         }
 
         return new $driver($config);
     }
 
     /**
-     * Build a fully-structured DatabaseSource config from flat ImportSource settings
+     * Build a fully-structured DatabaseSource config from flat DataSource settings
      * and register a per-source dynamic DB connection so multiple database sources
      * can run concurrently without overwriting each other's connection config.
      *

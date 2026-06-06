@@ -2,15 +2,15 @@
 
 namespace App\Services\ShipmentImport\Sources;
 
+use App\Contracts\DataSourceInterface;
 use App\Contracts\ExportDestinationInterface;
-use App\Contracts\ImportSourceInterface;
 use App\Services\ShipmentImport\FieldMapper;
 use App\Services\SshTunnel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
-class DatabaseSource implements ExportDestinationInterface, ImportSourceInterface
+class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
 {
     private array $config;
 

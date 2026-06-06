@@ -2,8 +2,8 @@
 
 namespace App\Services\ShipmentImport;
 
-use App\Contracts\ImportSourceInterface;
-use App\Models\ImportSource;
+use App\Contracts\DataSourceInterface;
+use App\Models\DataSource;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
 
@@ -16,7 +16,7 @@ class ShipmentItemImporter
     /**
      * @return array{items_created: int, items_updated: int, products_created: int, products_updated: int}
      */
-    public function import(Shipment $shipment, ImportSourceInterface $source, ImportSource $record): array
+    public function import(Shipment $shipment, DataSourceInterface $source, DataSource $record): array
     {
         if (! $this->isEnabledFor($record)) {
             return $this->emptyStats();
@@ -63,7 +63,7 @@ class ShipmentItemImporter
         return $stats;
     }
 
-    private function isEnabledFor(ImportSource $record): bool
+    private function isEnabledFor(DataSource $record): bool
     {
         return (bool) ($record->settings['shipment_items_enabled'] ?? true);
     }

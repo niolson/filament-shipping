@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources\ImportSources\Tables;
+namespace App\Filament\Resources\DataSources\Tables;
 
 use App\Enums\ScheduleInterval;
 use App\Services\ShipmentImport\Sources\AmazonSource;
@@ -13,7 +13,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
-class ImportSourcesTable
+class DataSourcesTable
 {
     private const DRIVER_LABELS = [
         DatabaseSource::class => 'Database',
@@ -45,6 +45,11 @@ class ImportSourcesTable
                     ->formatStateUsing(fn (?ScheduleInterval $state): string => $state?->getLabel() ?? '—')
                     ->badge()
                     ->color('info'),
+
+                IconColumn::make('global_export')
+                    ->label('Global Export')
+                    ->boolean()
+                    ->sortable(),
 
                 IconColumn::make('active')
                     ->boolean()

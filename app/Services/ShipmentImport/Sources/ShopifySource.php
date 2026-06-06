@@ -2,8 +2,8 @@
 
 namespace App\Services\ShipmentImport\Sources;
 
+use App\Contracts\DataSourceInterface;
 use App\Contracts\ExportDestinationInterface;
-use App\Contracts\ImportSourceInterface;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Http\Integrations\Shopify\ShopifyConnector;
 use App\Services\SettingsService;
@@ -11,7 +11,7 @@ use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use RuntimeException;
 
-class ShopifySource implements ExportDestinationInterface, ImportSourceInterface
+class ShopifySource implements DataSourceInterface, ExportDestinationInterface
 {
     private array $config;
 

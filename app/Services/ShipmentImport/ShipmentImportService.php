@@ -2,9 +2,9 @@
 
 namespace App\Services\ShipmentImport;
 
-use App\Contracts\ImportSourceInterface;
+use App\Contracts\DataSourceInterface;
 use App\Models\Client;
-use App\Models\ImportSource;
+use App\Models\DataSource;
 use App\Models\Shipment;
 use App\Services\AddressReferenceService;
 use Illuminate\Support\Collection;
@@ -13,20 +13,20 @@ use Illuminate\Support\Facades\DB;
 class ShipmentImportService
 {
     public function __construct(
-        private readonly ImportSourceInterface $source,
+        private readonly DataSourceInterface $source,
         private readonly ImportReferenceResolver $references,
         private readonly ShipmentRowPreparer $rowPreparer,
         private readonly ShipmentBatchWriter $batchWriter,
         private readonly ShipmentItemImporter $itemImporter,
         private readonly ImportRunRecorder $runRecorder,
-        private readonly ImportSource $importSource,
+        private readonly DataSource $importSource,
     ) {}
 
     /**
      * Build a service with an explicit driver instance and record.
-     * Callers must supply a real ImportSource record — no auto-creation.
+     * Callers must supply a real DataSource record — no auto-creation.
      */
-    public static function forSource(ImportSourceInterface $source, ImportSource $record): self
+    public static function forSource(DataSourceInterface $source, DataSource $record): self
     {
         $references = app(ImportReferenceResolver::class);
 
@@ -42,11 +42,11 @@ class ShipmentImportService
     }
 
     /**
-     * Build a service directly from an ImportSource DB record.
+     * Build a service directly from an DataSource DB record.
      */
-    public static function forRecord(ImportSource $record): self
+    public static function forRecord(DataSource $record): self
     {
-        $source = app(ImportSourceFactory::class)->make($record);
+        $source = app(DataSourceFactory::class)->make($record);
         $references = app(ImportReferenceResolver::class);
 
         return new self(

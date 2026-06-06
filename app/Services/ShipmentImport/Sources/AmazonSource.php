@@ -2,8 +2,8 @@
 
 namespace App\Services\ShipmentImport\Sources;
 
+use App\Contracts\DataSourceInterface;
 use App\Contracts\ExportDestinationInterface;
-use App\Contracts\ImportSourceInterface;
 use App\Http\Integrations\Amazon\AmazonSpApiConnector;
 use App\Http\Integrations\Amazon\Requests\ConfirmShipment;
 use App\Http\Integrations\Amazon\Requests\SearchOrders;
@@ -12,7 +12,7 @@ use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use RuntimeException;
 
-class AmazonSource implements ExportDestinationInterface, ImportSourceInterface
+class AmazonSource implements DataSourceInterface, ExportDestinationInterface
 {
     private array $config;
 

@@ -4,28 +4,28 @@ namespace App\Contracts;
 
 use Illuminate\Support\Collection;
 
-interface ImportSourceInterface
+interface DataSourceInterface
 {
     /**
-     * Fetch shipments from the external source
-     * Returns a collection of normalized shipment data arrays
+     * Fetch shipments from the external source.
+     * Returns a collection of normalized shipment data arrays.
      */
     public function fetchShipments(): Collection;
 
     /**
-     * Fetch shipment items for a specific shipment reference
-     * Returns a collection of normalized item data arrays
+     * Fetch shipment items for a specific shipment reference.
+     * Returns a collection of normalized item data arrays.
      */
     public function fetchShipmentItems(string $sourceRecordId): Collection;
 
     /**
-     * Validate the source configuration
-     * Throws exception if invalid
+     * Validate the source configuration.
+     * Throws exception if invalid.
      */
     public function validateConfiguration(): void;
 
     /**
-     * Get the field mapping for this source
+     * Get the field mapping for this source.
      */
     public function getFieldMapping(): array;
 

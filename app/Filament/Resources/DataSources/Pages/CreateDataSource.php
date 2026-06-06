@@ -1,14 +1,14 @@
 <?php
 
-namespace App\Filament\Resources\ImportSources\Pages;
+namespace App\Filament\Resources\DataSources\Pages;
 
-use App\Filament\Resources\ImportSources\ImportSourceResource;
-use App\Models\ImportSource;
+use App\Filament\Resources\DataSources\DataSourceResource;
+use App\Models\DataSource;
 use Filament\Resources\Pages\CreateRecord;
 
-class CreateImportSource extends CreateRecord
+class CreateDataSource extends CreateRecord
 {
-    protected static string $resource = ImportSourceResource::class;
+    protected static string $resource = DataSourceResource::class;
 
     /**
      * @param  array<string, mixed>  $data
@@ -19,7 +19,7 @@ class CreateImportSource extends CreateRecord
         $submitted = $data['settings'] ?? [];
         $secrets = [];
 
-        foreach (ImportSource::SECRET_SETTINGS_KEYS as $key) {
+        foreach (DataSource::SECRET_SETTINGS_KEYS as $key) {
             if (array_key_exists($key, $submitted) && filled($submitted[$key])) {
                 $secrets[$key] = $submitted[$key];
             }

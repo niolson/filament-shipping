@@ -30,7 +30,7 @@ class Client extends Model
         'return_postal_code',
         'return_country',
         'return_phone',
-        'export_import_source_id',
+        'export_data_source_id',
         'pick_fee_first_item',
         'pick_fee_additional_item',
         'label_fee_per_package',
@@ -60,9 +60,9 @@ class Client extends Model
         });
     }
 
-    public function exportSource(): BelongsTo
+    public function exportDataSource(): BelongsTo
     {
-        return $this->belongsTo(ImportSource::class, 'export_import_source_id');
+        return $this->belongsTo(DataSource::class, 'export_data_source_id');
     }
 
     public function shipments(): HasMany
@@ -75,9 +75,9 @@ class Client extends Model
         return $this->hasMany(Product::class);
     }
 
-    public function importSources(): HasMany
+    public function dataSources(): HasMany
     {
-        return $this->hasMany(ImportSource::class);
+        return $this->hasMany(DataSource::class);
     }
 
     public function channelAliases(): HasMany

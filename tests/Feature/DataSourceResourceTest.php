@@ -1,10 +1,10 @@
 <?php
 
 use App\Enums\Role;
-use App\Filament\Resources\ImportSources\ImportSourceResource;
-use App\Filament\Resources\ImportSources\Pages\CreateImportSource;
-use App\Filament\Resources\ImportSources\Pages\EditImportSource;
-use App\Models\ImportSource;
+use App\Filament\Resources\DataSources\DataSourceResource;
+use App\Filament\Resources\DataSources\Pages\CreateDataSource;
+use App\Filament\Resources\DataSources\Pages\EditDataSource;
+use App\Models\DataSource;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\SettingsService;
@@ -25,13 +25,13 @@ it('blocks non-admin users from accessing import sources', function (): void {
     $user = User::factory()->create(['role' => Role::User]);
     $this->actingAs($user);
 
-    expect(ImportSourceResource::canAccess())->toBeFalse();
+    expect(DataSourceResource::canAccess())->toBeFalse();
 });
 
 it('allows admin users to access import sources', function (): void {
     $this->actingAs($this->admin);
 
-    expect(ImportSourceResource::canAccess())->toBeTrue();
+    expect(DataSourceResource::canAccess())->toBeTrue();
 });
 
 // ── Secret settings encryption ────────────────────────────────────────────────
@@ -39,7 +39,7 @@ it('allows admin users to access import sources', function (): void {
 it('routes secret keys to encrypted secret_settings on create', function (): void {
     $this->actingAs($this->admin);
 
-    Livewire::test(CreateImportSource::class)
+    Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'Shopify Test',
             'driver' => ShopifySource::class,
@@ -52,7 +52,7 @@ it('routes secret keys to encrypted secret_settings on create', function (): voi
         ->call('create')
         ->assertHasNoFormErrors();
 
-    $record = ImportSource::where('name', 'Shopify Test')->firstOrFail();
+    $record = DataSource::where('name', 'Shopify Test')->firstOrFail();
 
     // Secrets must be in encrypted column, not plain settings
     expect($record->settings)->not->toHaveKey('access_token');
@@ -67,7 +67,7 @@ it('routes secret keys to encrypted secret_settings on create', function (): voi
 it('routes db_password to secret_settings on create', function (): void {
     $this->actingAs($this->admin);
 
-    Livewire::test(CreateImportSource::class)
+    Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'DB Source',
             'driver' => DatabaseSource::class,
@@ -79,7 +79,7 @@ it('routes db_password to secret_settings on create', function (): void {
         ->call('create')
         ->assertHasNoFormErrors();
 
-    $record = ImportSource::where('name', 'DB Source')->firstOrFail();
+    $record = DataSource::where('name', 'DB Source')->firstOrFail();
 
     expect($record->settings)->not->toHaveKey('db_password');
     expect($record->secret('db_password'))->toBe('supersecret');
@@ -88,11 +88,11 @@ it('routes db_password to secret_settings on create', function (): void {
 it('preserves existing secrets when a blank password is submitted on edit', function (): void {
     $this->actingAs($this->admin);
 
-    $source = ImportSource::factory()->shopify()->create([
+    $source = DataSource::factory()->shopify()->create([
         'secret_settings' => ['access_token' => 'original_token'],
     ]);
 
-    Livewire::test(EditImportSource::class, ['record' => $source->id])
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
         ->fillForm([
             'name' => 'Updated Name',
             'settings.shop_domain' => 'test.myshopify.com',
@@ -109,11 +109,11 @@ it('preserves existing secrets when a blank password is submitted on edit', func
 it('replaces a secret when a new value is submitted on edit', function (): void {
     $this->actingAs($this->admin);
 
-    $source = ImportSource::factory()->shopify()->create([
+    $source = DataSource::factory()->shopify()->create([
         'secret_settings' => ['access_token' => 'old_token'],
     ]);
 
-    Livewire::test(EditImportSource::class, ['record' => $source->id])
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
         ->fillForm([
             'name' => 'Updated Name',
             'settings.shop_domain' => 'test.myshopify.com',
@@ -131,7 +131,7 @@ it('migrates legacy plaintext secrets from settings to secret_settings on edit',
     $this->actingAs($this->admin);
 
     // Simulate a record saved before the encrypted column was introduced
-    $source = ImportSource::factory()->shopify()->create([
+    $source = DataSource::factory()->shopify()->create([
         'settings' => [
             'shop_domain' => 'test.myshopify.com',
             'channel_name' => 'Shopify',
@@ -139,7 +139,7 @@ it('migrates legacy plaintext secrets from settings to secret_settings on edit',
         ],
     ]);
 
-    Livewire::test(EditImportSource::class, ['record' => $source->id])
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
         ->fillForm([
             'name' => 'Legacy Source',
             'settings.shop_domain' => 'test.myshopify.com',

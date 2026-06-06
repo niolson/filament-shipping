@@ -4,9 +4,9 @@ namespace App\Console\Commands;
 
 use App\Contracts\ExportDestinationInterface;
 use App\Enums\PackageStatus;
-use App\Models\ImportSource;
+use App\Models\DataSource;
 use App\Models\Package;
-use App\Services\ShipmentImport\ImportSourceFactory;
+use App\Services\ShipmentImport\DataSourceFactory;
 use App\Services\ShipmentImport\PackageExportService;
 use Illuminate\Console\Command;
 
@@ -69,18 +69,18 @@ class ExportPackagesCommand extends Command
     {
         $this->info('Validating export destination configurations...');
 
-        $sources = ImportSource::where('active', true)
+        $sources = DataSource::where('active', true)
             ->whereJsonContains('settings->export_enabled', true)
             ->get();
 
         if ($sources->isEmpty()) {
-            $this->warn('No export-enabled import sources configured.');
+            $this->warn('No export-enabled data sources configured.');
 
             return Command::SUCCESS;
         }
 
         $hasErrors = false;
-        $factory = app(ImportSourceFactory::class);
+        $factory = app(DataSourceFactory::class);
 
         foreach ($sources as $importSource) {
             try {

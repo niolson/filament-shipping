@@ -395,12 +395,12 @@ class SetupWizard extends Page
 
     private function importSourceStep(): Step
     {
-        return Step::make('Import Source')
+        return Step::make('Data Source')
             ->icon('heroicon-o-arrow-down-tray')
             ->description('Configure where shipments come from')
             ->schema([
                 Forms\Components\Select::make('import_source')
-                    ->label('Import Source')
+                    ->label('Data Source')
                     ->options([
                         'none' => 'None (manual entry only)',
                         'database' => 'External Database',
@@ -557,7 +557,7 @@ class SetupWizard extends Page
                     ->label('Shipping Methods')
                     ->content(fn () => ShippingMethod::where('active', true)->pluck('name')->join(', ') ?: 'None'),
                 Forms\Components\Placeholder::make('summary_import')
-                    ->label('Import Source')
+                    ->label('Data Source')
                     ->content(fn () => app(SettingsService::class)->get('import_source', 'none')),
                 Forms\Components\Placeholder::make('summary_next_steps')
                     ->label('Next Steps')

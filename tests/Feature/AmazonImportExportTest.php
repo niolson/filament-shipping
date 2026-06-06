@@ -4,7 +4,7 @@ use App\Http\Integrations\Amazon\Requests\ConfirmShipment;
 use App\Http\Integrations\Amazon\Requests\SearchOrders;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
-use App\Models\ImportSource;
+use App\Models\DataSource;
 use App\Models\Package;
 use App\Models\Setting;
 use App\Models\Shipment;
@@ -111,7 +111,7 @@ beforeEach(function (): void {
     // Key format: amazon_sp_api_access_token_ + md5(refresh_token)
     Cache::put('amazon_sp_api_access_token_'.md5('test-refresh-token'), 'test-access-token', 3600);
 
-    $this->importSource = ImportSource::factory()->create([
+    $this->dataSource = DataSource::factory()->create([
         'driver' => AmazonSource::class,
         'name' => 'Amazon',
         'settings' => ['channel_name' => 'Amazon'],
@@ -134,7 +134,7 @@ it('imports amazon orders into shipments table with metadata', function (): void
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
+    $result = ShipmentImportService::forSource($source, $this->dataSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1);
     expect($result->itemsCreated)->toBe(2);
@@ -163,7 +163,7 @@ it('imports amazon orders into shipments table with metadata', function (): void
 it('exports package to amazon as shipment confirmation', function (): void {
     $channel = Channel::factory()->create(['name' => 'Amazon']);
 
-    $exportSource = ImportSource::factory()->create([
+    $exportSource = DataSource::factory()->create([
         'driver' => AmazonSource::class,
         'name' => 'Amazon Export',
         'settings' => [
@@ -180,7 +180,7 @@ it('exports package to amazon as shipment confirmation', function (): void {
 
     $shipment = Shipment::factory()->create([
         'channel_id' => $channel->id,
-        'import_source_id' => $exportSource->id,
+        'data_source_id' => $exportSource->id,
         'shipment_reference' => '111-2222222-3333333',
         'metadata' => [
             'amazon_order_id' => '111-2222222-3333333',
@@ -218,7 +218,7 @@ it('exports package to amazon as shipment confirmation', function (): void {
 it('handles package without amazon metadata gracefully in export', function (): void {
     $channel = Channel::factory()->create(['name' => 'Amazon']);
 
-    $exportSource = ImportSource::factory()->create([
+    $exportSource = DataSource::factory()->create([
         'driver' => AmazonSource::class,
         'name' => 'Amazon Export',
         'settings' => [
@@ -235,7 +235,7 @@ it('handles package without amazon metadata gracefully in export', function (): 
 
     $shipment = Shipment::factory()->create([
         'channel_id' => $channel->id,
-        'import_source_id' => $exportSource->id,
+        'data_source_id' => $exportSource->id,
         'shipment_reference' => '111-0000000-0000000',
         'metadata' => null,
     ]);
@@ -280,7 +280,7 @@ it('imports multiple pages of amazon orders', function (): void {
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
+    $result = ShipmentImportService::forSource($source, $this->dataSource)->import();
 
     expect($result->shipmentsCreated)->toBe(2);
     expect(Shipment::where('shipment_reference', '111-1111111-1111111')->exists())->toBeTrue();
@@ -342,7 +342,7 @@ it('imports sandbox order with full quantities even when already fulfilled', fun
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
+    $result = ShipmentImportService::forSource($source, $this->dataSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1);
 
@@ -391,7 +391,7 @@ it('calculates item unit prices correctly from proceeds breakdowns', function ()
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    $result = ShipmentImportService::forSource($source, $this->importSource)->import();
+    $result = ShipmentImportService::forSource($source, $this->dataSource)->import();
 
     expect($result->shipmentsCreated)->toBe(1);
 

@@ -57,7 +57,7 @@ class Shipment extends Model
         'shipping_method_id',
         'channel_reference',
         'channel_id',
-        'import_source_id',
+        'data_source_id',
         'status',
         'picking_status',
         'deliver_by',
@@ -222,9 +222,9 @@ class Shipment extends Model
         return $this->belongsTo(Channel::class);
     }
 
-    public function importSource(): BelongsTo
+    public function dataSource(): BelongsTo
     {
-        return $this->belongsTo(ImportSource::class);
+        return $this->belongsTo(DataSource::class);
     }
 
     public function pickBatchShipments(): HasMany

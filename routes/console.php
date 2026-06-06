@@ -1,6 +1,6 @@
 <?php
 
-use App\Models\ImportSource;
+use App\Models\DataSource;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -10,10 +10,10 @@ Artisan::command('inspire', function (): void {
 })->purpose('Display an inspiring quote');
 
 try {
-    ImportSource::where('active', true)
+    DataSource::where('active', true)
         ->whereNotNull('schedule_interval')
         ->get()
-        ->each(function (ImportSource $source): void {
+        ->each(function (DataSource $source): void {
             Schedule::command('shipments:import', ['--source-id' => $source->id])
                 ->cron($source->schedule_interval->toCron())
                 ->withoutOverlapping()

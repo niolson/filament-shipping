@@ -2,7 +2,7 @@
 
 namespace App\Services\ShipmentImport;
 
-use App\Models\ImportSource;
+use App\Models\DataSource;
 use App\Models\Shipment;
 
 class ShipmentBatchWriter
@@ -10,7 +10,7 @@ class ShipmentBatchWriter
     /**
      * @param  array<int, array<string, mixed>>  $preparedRows
      */
-    public function write(array $preparedRows, ImportSource $importSource): ShipmentBatchWriteResult
+    public function write(array $preparedRows, DataSource $importSource): ShipmentBatchWriteResult
     {
         if ($preparedRows === []) {
             return new ShipmentBatchWriteResult(collect(), [], [], 0, 0);
@@ -26,7 +26,7 @@ class ShipmentBatchWriter
         unset($preparedRow);
 
         $sourceRecordIds = array_column($preparedRows, 'source_record_id');
-        $existingSourceRecordIds = Shipment::where('import_source_id', $importSource->id)
+        $existingSourceRecordIds = Shipment::where('data_source_id', $importSource->id)
             ->whereIn('source_record_id', $sourceRecordIds)
             ->pluck('source_record_id')
             ->all();
@@ -42,9 +42,9 @@ class ShipmentBatchWriter
             'channel_id',
         ];
 
-        Shipment::upsert($preparedRows, ['import_source_id', 'source_record_id'], $updateColumns);
+        Shipment::upsert($preparedRows, ['data_source_id', 'source_record_id'], $updateColumns);
 
-        $shipmentsBySourceRecord = Shipment::where('import_source_id', $importSource->id)
+        $shipmentsBySourceRecord = Shipment::where('data_source_id', $importSource->id)
             ->whereIn('source_record_id', $sourceRecordIds)
             ->get()
             ->keyBy('source_record_id');

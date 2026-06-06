@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\CarrierAccount;
-use App\Models\ImportSource;
+use App\Models\DataSource;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -267,10 +267,10 @@ class OAuthService
     }
 
     /**
-     * Generate the broker authorization URL for a specific ImportSource.
-     * Stores the ImportSource ID in session so the callback can route back to it.
+     * Generate the broker authorization URL for a specific DataSource.
+     * Stores the DataSource ID in session so the callback can route back to it.
      */
-    public function initiateAuthorizationForImportSource(string $providerKey, ImportSource $importSource): string
+    public function initiateAuthorizationForDataSource(string $providerKey, DataSource $importSource): string
     {
         $brokerUrl = config('services.oauth.broker_url');
         $brokerSecret = config('services.oauth.broker_secret');
@@ -282,12 +282,12 @@ class OAuthService
 
         $nonce = Str::random(40);
         session()->put("oauth_state.{$providerKey}", $nonce);
-        session()->put("oauth_import_source_id.{$providerKey}", $importSource->id);
+        session()->put("oauth_data_source_id.{$providerKey}", $importSource->id);
 
         $returnUrl = config('app.url');
         $signature = hash_hmac('sha256', "{$providerKey}:{$instanceId}:{$returnUrl}:{$nonce}", $brokerSecret);
 
-        $brokerParams = $this->getBrokerParamsForImportSource($providerKey, $importSource);
+        $brokerParams = $this->getBrokerParamsForDataSource($providerKey, $importSource);
 
         $params = array_filter([
             'return_url' => $returnUrl,
@@ -301,10 +301,10 @@ class OAuthService
     }
 
     /**
-     * Handle the broker redirect for a per-ImportSource OAuth connection.
-     * Tokens are stored in the ImportSource settings JSON.
+     * Handle the broker redirect for a per-DataSource OAuth connection.
+     * Tokens are stored in the DataSource settings JSON.
      */
-    public function handleReceiveForImportSource(string $providerKey, string $transferCode, ImportSource $importSource): void
+    public function handleReceiveForDataSource(string $providerKey, string $transferCode, DataSource $importSource): void
     {
         $brokerUrl = config('services.oauth.broker_url');
         $brokerSecret = config('services.oauth.broker_secret');
@@ -352,9 +352,9 @@ class OAuthService
     }
 
     /**
-     * Disconnect an ImportSource's OAuth connection, clearing its token fields.
+     * Disconnect an DataSource's OAuth connection, clearing its token fields.
      */
-    public function disconnectImportSource(string $providerKey, ImportSource $importSource): void
+    public function disconnectDataSource(string $providerKey, DataSource $importSource): void
     {
         // Best-effort revocation
         $token = $importSource->secret('oauth_access_token');
@@ -384,20 +384,20 @@ class OAuthService
     }
 
     /**
-     * Check if an ImportSource is connected via OAuth.
+     * Check if an DataSource is connected via OAuth.
      */
-    public function isImportSourceConnected(ImportSource $importSource): bool
+    public function isDataSourceConnected(DataSource $importSource): bool
     {
         return filled($importSource->secret('oauth_access_token'));
     }
 
     /**
-     * Build provider-specific broker params for a per-ImportSource OAuth flow.
+     * Build provider-specific broker params for a per-DataSource OAuth flow.
      * For Shopify this overrides the shop domain with the per-source value.
      *
      * @return array<string, string>
      */
-    private function getBrokerParamsForImportSource(string $providerKey, ImportSource $importSource): array
+    private function getBrokerParamsForDataSource(string $providerKey, DataSource $importSource): array
     {
         if ($providerKey === 'shopify') {
             $shopDomain = $importSource->settings['shop_domain'] ?? null;

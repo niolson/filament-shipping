@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Filament\Resources\ImportSources\Schemas;
+namespace App\Filament\Resources\DataSources\Schemas;
 
 use App\Enums\ScheduleInterval;
 use App\Models\Client;
-use App\Models\ImportSource;
+use App\Models\DataSource;
 use App\Services\OAuthService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
@@ -25,7 +25,7 @@ use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\HtmlString;
 
-class ImportSourceForm
+class DataSourceForm
 {
     private const DRIVERS = [
         DatabaseSource::class => 'Database (SQL)',
@@ -54,7 +54,7 @@ class ImportSourceForm
                         ->options(self::DRIVERS)
                         ->required()
                         ->live()
-                        ->disabled(fn (?ImportSource $record) => $record?->exists)
+                        ->disabled(fn (?DataSource $record) => $record?->exists)
                         ->dehydrated(),
 
                     Toggle::make('active')
@@ -75,8 +75,8 @@ class ImportSourceForm
                 ->schema([
                     Placeholder::make('shopify_oauth_status')
                         ->label('OAuth Status')
-                        ->content(fn (?ImportSource $record): HtmlString => self::renderShopifyOAuthStatus($record))
-                        ->visible(fn (?ImportSource $record): bool => (bool) $record?->exists)
+                        ->content(fn (?DataSource $record): HtmlString => self::renderShopifyOAuthStatus($record))
+                        ->visible(fn (?DataSource $record): bool => (bool) $record?->exists)
                         ->columnSpanFull(),
 
                     TextInput::make('settings.shop_domain')
@@ -88,7 +88,7 @@ class ImportSourceForm
                     TextInput::make('settings.access_token')
                         ->label('Custom Access Token')
                         ->password()
-                        ->placeholder(fn (?ImportSource $record) => filled($record?->secret('access_token') ?? $record?->settings['access_token'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('access_token') ?? $record?->settings['access_token'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('Permanent offline token from a custom app. Leave blank to use OAuth (below) or client credentials.'),
@@ -96,7 +96,7 @@ class ImportSourceForm
                     TextInput::make('settings.client_id')
                         ->label('App Client ID')
                         ->password()
-                        ->placeholder(fn (?ImportSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('Override the tenant-level Shopify app Client ID for this store.'),
@@ -104,7 +104,7 @@ class ImportSourceForm
                     TextInput::make('settings.client_secret')
                         ->label('App Client Secret')
                         ->password()
-                        ->placeholder(fn (?ImportSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('Override the tenant-level Shopify app Client Secret for this store.'),
@@ -151,16 +151,16 @@ class ImportSourceForm
                     TextInput::make('settings.refresh_token')
                         ->label('Refresh Token')
                         ->password()
-                        ->placeholder(fn (?ImportSource $record) => filled($record?->secret('refresh_token') ?? $record?->settings['refresh_token'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('refresh_token') ?? $record?->settings['refresh_token'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
-                        ->required(fn (?ImportSource $record) => ! $record?->exists)
+                        ->required(fn (?DataSource $record) => ! $record?->exists)
                         ->helperText('LWA refresh token for this seller account.'),
 
                     TextInput::make('settings.client_id')
                         ->label('App Client ID')
                         ->password()
-                        ->placeholder(fn (?ImportSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('Override the tenant-level SP-API app Client ID for this seller account.'),
@@ -168,7 +168,7 @@ class ImportSourceForm
                     TextInput::make('settings.client_secret')
                         ->label('App Client Secret')
                         ->password()
-                        ->placeholder(fn (?ImportSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('Override the tenant-level SP-API app Client Secret for this seller account.'),
@@ -241,7 +241,7 @@ class ImportSourceForm
                     TextInput::make('settings.db_password')
                         ->label('Password')
                         ->password()
-                        ->placeholder(fn (?ImportSource $record) => filled($record?->secret('db_password') ?? $record?->settings['db_password'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('db_password') ?? $record?->settings['db_password'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state)),
                 ])
@@ -250,8 +250,8 @@ class ImportSourceForm
                         ->label('Test Connection')
                         ->icon(Heroicon::Signal)
                         ->color('gray')
-                        ->visible(fn (?ImportSource $record): bool => (bool) $record?->exists)
-                        ->action(function (Get $get, ?ImportSource $record): void {
+                        ->visible(fn (?DataSource $record): bool => (bool) $record?->exists)
+                        ->action(function (Get $get, ?DataSource $record): void {
                             if (! $record) {
                                 return;
                             }
@@ -335,8 +335,8 @@ class ImportSourceForm
                         ->label('Test Queries')
                         ->icon(Heroicon::CheckCircle)
                         ->color('gray')
-                        ->visible(fn (?ImportSource $record): bool => (bool) $record?->exists)
-                        ->action(function (Get $get, ?ImportSource $record): void {
+                        ->visible(fn (?DataSource $record): bool => (bool) $record?->exists)
+                        ->action(function (Get $get, ?DataSource $record): void {
                             if (! $record) {
                                 return;
                             }
@@ -416,6 +416,12 @@ class ImportSourceForm
                         ->live()
                         ->default(false),
 
+                    Toggle::make('global_export')
+                        ->label('Global Export Destination')
+                        ->helperText('When enabled, all shipped packages write tracking data here — regardless of which source they came from, including manual shipments.')
+                        ->default(false)
+                        ->visible(fn (Get $get): bool => (bool) $get('settings.export_enabled')),
+
                     Textarea::make('settings.export_query')
                         ->label('Export Query')
                         ->nullable()
@@ -486,7 +492,7 @@ class ImportSourceForm
      *
      * @return array{pdo: \PDO, tunnel: ?SshTunnel, conn_name: string}
      */
-    private static function openTestConnection(Get $get, ImportSource $record): array
+    private static function openTestConnection(Get $get, DataSource $record): array
     {
         $connName = 'import_test_'.$record->id;
         $password = filled($get('settings.db_password'))
@@ -539,13 +545,13 @@ class ImportSourceForm
         return ['pdo' => $pdo, 'tunnel' => $tunnel, 'conn_name' => $connName];
     }
 
-    private static function renderShopifyOAuthStatus(?ImportSource $record): HtmlString
+    private static function renderShopifyOAuthStatus(?DataSource $record): HtmlString
     {
         if (! $record?->exists) {
             return new HtmlString('');
         }
 
-        $connected = app(OAuthService::class)->isImportSourceConnected($record);
+        $connected = app(OAuthService::class)->isDataSourceConnected($record);
         $connectedAt = $record->settings['oauth_connected_at'] ?? null;
         $scopes = $record->settings['oauth_scopes'] ?? null;
 

@@ -6,7 +6,7 @@ use App\Enums\Role;
 use App\Events\ImportCompleted;
 use App\Events\ShipmentImported;
 use App\Events\ShipmentUpdated;
-use App\Models\ImportSource;
+use App\Models\DataSource;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Notifications\ImportCompleted as ImportCompletedNotification;
@@ -32,7 +32,7 @@ class ImportRunRecorder
         private readonly string $sourceName,
     ) {}
 
-    public static function forRecord(ImportSource $record): self
+    public static function forRecord(DataSource $record): self
     {
         return new self($record->name);
     }
