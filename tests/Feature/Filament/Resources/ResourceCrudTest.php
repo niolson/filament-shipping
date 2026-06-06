@@ -30,8 +30,10 @@ use App\Models\CarrierService;
 use App\Models\Channel;
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\ShippingMethod;
 use App\Models\User;
+use App\Services\SettingsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
@@ -145,8 +147,18 @@ it('can edit a CarrierService', function (): void {
 
 // LocationResource
 
-it('can render Location list page', function (): void {
+it('can render Location list page in multi-location mode', function (): void {
+    Setting::create(['key' => 'multi_location_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
     Livewire::test(ListLocations::class)->assertSuccessful();
+});
+
+it('redirects Location list to default location edit in single-location mode', function (): void {
+    $location = Location::factory()->create(['is_default' => true]);
+
+    Livewire::test(ListLocations::class)
+        ->assertRedirect(LocationResource::getUrl('edit', ['record' => $location->id]));
 });
 
 it('can render Location create page', function (): void {

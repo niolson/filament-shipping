@@ -5,13 +5,17 @@ namespace App\Filament\Pages;
 use App\Enums\Role;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Http\Integrations\USPS\USPSConnector;
+use App\Models\Client;
 use App\Models\Location;
 use App\Models\Setting;
+use App\Services\AddressReferenceService;
 use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
@@ -19,6 +23,7 @@ use Filament\Pages\Concerns\HasUnsavedDataChangesAlert;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Form;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
@@ -55,32 +60,58 @@ class Settings extends Page
 
     public function mount(): void
     {
-        $this->form->fill([
-            'company_name' => app(SettingsService::class)->get('company_name', ''),
-            'pack_slip_logo' => app(SettingsService::class)->get('pack_slip_logo'),
-            'packing_validation_enabled' => app(SettingsService::class)->get('packing_validation_enabled', true),
-            'scan_to_add_enabled' => app(SettingsService::class)->get('scan_to_add_enabled', false),
-            'transparency_enabled' => app(SettingsService::class)->get('transparency_enabled', true),
-            'batch_shipping_enabled' => app(SettingsService::class)->get('batch_shipping_enabled', true),
-            'manual_shipping_enabled' => app(SettingsService::class)->get('manual_shipping_enabled', true),
-            'picking_enabled' => app(SettingsService::class)->get('picking_enabled', false),
-            'multi_location_enabled' => app(SettingsService::class)->get('multi_location_enabled', false),
-            'multi_client_enabled' => app(SettingsService::class)->get('multi_client_enabled', false),
-            'carrier_api_timeout' => app(SettingsService::class)->get('carrier_api_timeout', 15),
-            'audit_log_retention_days' => app(SettingsService::class)->get('audit_log_retention_days', 365),
-            'rate_quote_retention_days' => app(SettingsService::class)->get('rate_quote_retention_days', 60),
-            'pii_retention_days' => app(SettingsService::class)->get('pii_retention_days', 90),
-            'archiving_enabled' => app(SettingsService::class)->get('archiving_enabled', false),
-            'archive_retention_days' => app(SettingsService::class)->get('archive_retention_days', 365),
-            'password_min_length' => app(SettingsService::class)->get('password_min_length', 8),
-            'password_require_mixed_case' => app(SettingsService::class)->get('password_require_mixed_case', true),
-            'password_require_numbers' => app(SettingsService::class)->get('password_require_numbers', true),
-            'password_require_symbols' => app(SettingsService::class)->get('password_require_symbols', false),
-            'password_expiration_days' => app(SettingsService::class)->get('password_expiration_days', 0),
-            'google_sso_enabled' => app(SettingsService::class)->get('google_sso_enabled', false),
-            'sandbox_mode' => app(SettingsService::class)->get('sandbox_mode', false),
-            'suppress_printing' => app(SettingsService::class)->get('suppress_printing', false),
-        ]);
+        $settings = app(SettingsService::class);
+        $multiClientEnabled = $settings->get('multi_client_enabled', false);
+
+        $formData = [
+            'company_name' => $settings->get('company_name', ''),
+            'pack_slip_logo' => $settings->get('pack_slip_logo'),
+            'packing_validation_enabled' => $settings->get('packing_validation_enabled', true),
+            'scan_to_add_enabled' => $settings->get('scan_to_add_enabled', false),
+            'transparency_enabled' => $settings->get('transparency_enabled', true),
+            'batch_shipping_enabled' => $settings->get('batch_shipping_enabled', true),
+            'manual_shipping_enabled' => $settings->get('manual_shipping_enabled', true),
+            'picking_enabled' => $settings->get('picking_enabled', false),
+            'multi_location_enabled' => $settings->get('multi_location_enabled', false),
+            'multi_client_enabled' => $multiClientEnabled,
+            'carrier_api_timeout' => $settings->get('carrier_api_timeout', 15),
+            'audit_log_retention_days' => $settings->get('audit_log_retention_days', 365),
+            'rate_quote_retention_days' => $settings->get('rate_quote_retention_days', 60),
+            'pii_retention_days' => $settings->get('pii_retention_days', 90),
+            'archiving_enabled' => $settings->get('archiving_enabled', false),
+            'archive_retention_days' => $settings->get('archive_retention_days', 365),
+            'password_min_length' => $settings->get('password_min_length', 8),
+            'password_require_mixed_case' => $settings->get('password_require_mixed_case', true),
+            'password_require_numbers' => $settings->get('password_require_numbers', true),
+            'password_require_symbols' => $settings->get('password_require_symbols', false),
+            'password_expiration_days' => $settings->get('password_expiration_days', 0),
+            'google_sso_enabled' => $settings->get('google_sso_enabled', false),
+            'sandbox_mode' => $settings->get('sandbox_mode', false),
+            'suppress_printing' => $settings->get('suppress_printing', false),
+        ];
+
+        if (! $multiClientEnabled) {
+            $client = Client::where('is_default', true)->first();
+            if ($client) {
+                $formData['client'] = [
+                    'logo' => $client->logo,
+                    'company_name' => $client->company_name,
+                    'custom_message' => $client->custom_message,
+                    'return_instructions' => $client->return_instructions,
+                    'return_company' => $client->return_company,
+                    'return_name' => $client->return_name,
+                    'return_address1' => $client->return_address1,
+                    'return_address2' => $client->return_address2,
+                    'return_city' => $client->return_city,
+                    'return_state_or_province' => $client->return_state_or_province,
+                    'return_postal_code' => $client->return_postal_code,
+                    'return_country' => $client->return_country,
+                    'return_phone' => $client->return_phone,
+                ];
+            }
+        }
+
+        $this->form->fill($formData);
     }
 
     public function form(Schema $schema): Schema
@@ -103,12 +134,96 @@ class Settings extends Page
                                 ->image()
                                 ->panelLayout('grid')
                                 ->maxSize(10240)
-                                ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']),
+                                ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+                                ->visible(fn (): bool => (bool) app(SettingsService::class)->get('multi_client_enabled', false)),
+                        ])
+                        ->columns(1),
+
+                    Section::make('Pack Slip')
+                        ->description('Branding and messaging printed on pack slips.')
+                        ->visible(fn (): bool => ! (bool) app(SettingsService::class)->get('multi_client_enabled', false))
+                        ->schema([
+                            FileUpload::make('client.logo')
+                                ->label('Logo')
+                                ->helperText('Logo printed on pack slips. Recommended: landscape image, PNG or JPG.')
+                                ->disk('public')
+                                ->directory('logos')
+                                ->visibility('public')
+                                ->image()
+                                ->panelLayout('grid')
+                                ->maxSize(10240)
+                                ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+                                ->columnSpanFull(),
+                            TextInput::make('client.company_name')
+                                ->label('Company Name')
+                                ->maxLength(255)
+                                ->helperText('Name shown in the return address on pack slips. Defaults to company name if blank.')
+                                ->columnSpanFull(),
+                            Textarea::make('client.custom_message')
+                                ->label('Custom Message')
+                                ->rows(3)
+                                ->maxLength(500)
+                                ->helperText('Optional message printed at the bottom of each pack slip.')
+                                ->columnSpanFull(),
+                            Textarea::make('client.return_instructions')
+                                ->label('Return Instructions')
+                                ->rows(3)
+                                ->maxLength(500)
+                                ->helperText('Optional return instructions printed at the bottom of each pack slip.')
+                                ->columnSpanFull(),
+                        ])
+                        ->columns(1),
+
+                    Section::make('Return Address')
+                        ->description('Ship-from address shown on labels for outgoing shipments. Leave blank to use the warehouse address.')
+                        ->visible(fn (): bool => ! (bool) app(SettingsService::class)->get('multi_client_enabled', false))
+                        ->collapsible()
+                        ->schema([
+                            TextInput::make('client.return_company')
+                                ->label('Company')
+                                ->maxLength(255)
+                                ->columnSpanFull(),
+                            TextInput::make('client.return_name')
+                                ->label('Contact Name')
+                                ->maxLength(255)
+                                ->columnSpanFull(),
+                            TextInput::make('client.return_address1')
+                                ->label('Address')
+                                ->maxLength(255)
+                                ->columnSpanFull(),
+                            TextInput::make('client.return_address2')
+                                ->label('Apartment, suite, etc.')
+                                ->maxLength(255)
+                                ->columnSpanFull(),
+                            Grid::make(['default' => 1, 'md' => 3])
+                                ->schema([
+                                    TextInput::make('client.return_city')
+                                        ->label('City')
+                                        ->maxLength(255),
+                                    TextInput::make('client.return_state_or_province')
+                                        ->label('State / Province')
+                                        ->maxLength(100),
+                                    TextInput::make('client.return_postal_code')
+                                        ->label('Postal Code')
+                                        ->maxLength(20),
+                                ])
+                                ->columnSpanFull(),
+                            Select::make('client.return_country')
+                                ->label('Country')
+                                ->options(fn (): array => app(AddressReferenceService::class)->getCountryOptions())
+                                ->searchable()
+                                ->native(false)
+                                ->columnSpanFull(),
+                            TextInput::make('client.return_phone')
+                                ->label('Phone')
+                                ->tel()
+                                ->maxLength(50)
+                                ->columnSpanFull(),
                         ])
                         ->columns(1),
 
                     Section::make('Ship-From Address')
-                        ->description('Managed in Settings > Locations. The default location is used as the return address on labels.')
+                        ->description('Managed in Settings > Locations. The default location is used as the warehouse address on labels.')
                         ->schema([
                             Placeholder::make('default_location')
                                 ->label('Default Location')
@@ -340,6 +455,28 @@ class Settings extends Page
         }
 
         app(SettingsService::class)->clearCache();
+
+        // Save default client fields in single-client mode
+        if (! ($data['multi_client_enabled'] ?? false) && isset($data['client'])) {
+            $client = Client::where('is_default', true)->first();
+            if ($client) {
+                $client->update([
+                    'logo' => $data['client']['logo'] ?? null,
+                    'company_name' => $data['client']['company_name'] ?? null,
+                    'custom_message' => $data['client']['custom_message'] ?? null,
+                    'return_instructions' => $data['client']['return_instructions'] ?? null,
+                    'return_company' => $data['client']['return_company'] ?? null,
+                    'return_name' => $data['client']['return_name'] ?? null,
+                    'return_address1' => $data['client']['return_address1'] ?? null,
+                    'return_address2' => $data['client']['return_address2'] ?? null,
+                    'return_city' => $data['client']['return_city'] ?? null,
+                    'return_state_or_province' => $data['client']['return_state_or_province'] ?? null,
+                    'return_postal_code' => $data['client']['return_postal_code'] ?? null,
+                    'return_country' => $data['client']['return_country'] ?? null,
+                    'return_phone' => $data['client']['return_phone'] ?? null,
+                ]);
+            }
+        }
 
         // Clear cached carrier auth tokens when sandbox mode changes
         if ($sandboxMode !== $previousSandboxMode) {

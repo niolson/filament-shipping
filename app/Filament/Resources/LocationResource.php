@@ -7,6 +7,7 @@ use App\Filament\Support\AddressForm;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Location;
+use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Actions;
 use Filament\Forms;
@@ -121,6 +122,7 @@ class LocationResource extends Resource
                             ->columnSpanFull(),
                     ])
                     ->description('Assign carrier accounts to this location. Client-specific overrides are configured per client.')
+                    ->visible(fn (): bool => (bool) app(SettingsService::class)->get('multi_location_enabled', false))
                     ->collapsible(),
             ]);
     }

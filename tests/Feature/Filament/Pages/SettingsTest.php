@@ -11,10 +11,12 @@ use App\Http\Integrations\Fedex\Requests\Registration\VerifyPin;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\Client;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\FedexRegistrationService;
 use App\Services\SettingsService;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -22,6 +24,8 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
+
+uses(RefreshDatabase::class);
 
 beforeEach(function (): void {
     $this->actingAs(User::factory()->admin()->create());
@@ -480,4 +484,73 @@ it('fedex registration service routes through proxy when broker url is configure
     // No OAuth token request — proxy connector handles auth on the broker side
     Saloon::assertNotSent('*oauth*');
     Saloon::assertSent(ValidateAddress::class);
+});
+
+// ─── Single-client mode: client fields in Settings ────────────────────────────
+
+it('loads default client fields into settings form in single-client mode', function (): void {
+    $client = Client::factory()->create([
+        'is_default' => true,
+        'company_name' => 'ACME Corporation',
+        'custom_message' => 'Thank you!',
+        'return_address1' => '123 Main St',
+        'return_city' => 'Springfield',
+        'return_state_or_province' => 'IL',
+        'return_postal_code' => '62701',
+        'return_country' => 'US',
+    ]);
+
+    Livewire::test(Settings::class)
+        ->assertSet('data.client.company_name', 'ACME Corporation')
+        ->assertSet('data.client.custom_message', 'Thank you!')
+        ->assertSet('data.client.return_address1', '123 Main St');
+});
+
+it('saves default client fields from settings form in single-client mode', function (): void {
+    $client = Client::factory()->create(['is_default' => true]);
+
+    Livewire::test(Settings::class)
+        ->fillForm([
+            'client.company_name' => 'Updated Corp',
+            'client.custom_message' => 'Thanks for shopping!',
+            'client.return_address1' => '456 Elm St',
+            'client.return_city' => 'Shelbyville',
+            'client.return_state_or_province' => 'IL',
+            'client.return_postal_code' => '62565',
+            'client.return_country' => 'US',
+        ])
+        ->call('save')
+        ->assertNotified();
+
+    expect($client->fresh())
+        ->company_name->toBe('Updated Corp')
+        ->custom_message->toBe('Thanks for shopping!')
+        ->return_address1->toBe('456 Elm St')
+        ->return_city->toBe('Shelbyville');
+});
+
+it('does not load client fields into settings form in multi-client mode', function (): void {
+    Setting::create(['key' => 'multi_client_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    Client::factory()->create(['is_default' => true, 'company_name' => 'Should Not Load']);
+
+    Livewire::test(Settings::class)
+        ->assertSet('data.client.company_name', null);
+});
+
+it('does not overwrite client fields when saving in multi-client mode', function (): void {
+    Setting::create(['key' => 'multi_client_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    $client = Client::factory()->create([
+        'is_default' => true,
+        'company_name' => 'Original Name',
+    ]);
+
+    Livewire::test(Settings::class)
+        ->call('save')
+        ->assertNotified();
+
+    expect($client->fresh()->company_name)->toBe('Original Name');
 });

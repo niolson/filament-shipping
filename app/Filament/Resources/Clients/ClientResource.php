@@ -9,6 +9,7 @@ use App\Filament\Resources\Clients\Pages\ListClients;
 use App\Filament\Resources\Clients\Schemas\ClientForm;
 use App\Filament\Resources\Clients\Tables\ClientsTable;
 use App\Models\Client;
+use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -28,6 +29,11 @@ class ClientResource extends Resource
     public static function canAccess(): bool
     {
         return auth()->user()?->role->isAtLeast(Role::Admin) ?? false;
+    }
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return app(SettingsService::class)->get('multi_client_enabled', false);
     }
 
     public static function form(Schema $schema): Schema
