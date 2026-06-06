@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Clients\Schemas;
 
-use App\Models\DataSource;
 use App\Services\AddressReferenceService;
 use App\Services\SettingsService;
 use Filament\Forms\Components\FileUpload;
@@ -105,22 +104,6 @@ class ClientForm
                     ->collapsible()
                     ->collapsed(fn (?object $record): bool => blank($record?->pick_fee_first_item) && blank($record?->pick_fee_additional_item) && blank($record?->label_fee_per_package))
                     ->columns(3),
-
-                Section::make('Export')
-                    ->description('Where shipping data is sent after a package ships. Leave blank to export back to the originating data source (symmetrical default).')
-                    ->schema([
-                        Select::make('export_data_source_id')
-                            ->label('Export Destination')
-                            ->options(fn () => DataSource::where('active', true)->orderBy('name')->pluck('name', 'id'))
-                            ->nullable()
-                            ->searchable()
-                            ->native(false)
-                            ->helperText('Override the default. Only needed when the export destination differs from the import source.')
-                            ->columnSpanFull(),
-                    ])
-                    ->collapsible()
-                    ->collapsed(fn (?object $record): bool => blank($record?->export_data_source_id))
-                    ->columns(2),
 
                 Section::make('Return Address')
                     ->description('Ship-from address shown on labels for this client\'s shipments. Leave blank to use the warehouse address.')

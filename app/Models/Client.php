@@ -5,7 +5,6 @@ namespace App\Models;
 use Database\Factories\ClientFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Client extends Model
@@ -30,7 +29,6 @@ class Client extends Model
         'return_postal_code',
         'return_country',
         'return_phone',
-        'export_data_source_id',
         'pick_fee_first_item',
         'pick_fee_additional_item',
         'label_fee_per_package',
@@ -58,11 +56,6 @@ class Client extends Model
                     ->update(['is_default' => false]);
             }
         });
-    }
-
-    public function exportDataSource(): BelongsTo
-    {
-        return $this->belongsTo(DataSource::class, 'export_data_source_id');
     }
 
     public function shipments(): HasMany

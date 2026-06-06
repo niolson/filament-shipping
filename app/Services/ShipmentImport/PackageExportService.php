@@ -17,10 +17,10 @@ class PackageExportService
      */
     public function exportPackage(Package $package): ExportResult
     {
-        $package->loadMissing('shipment.client.exportDataSource', 'shipment.dataSource');
+        $package->loadMissing('shipment.dataSource');
         $shipment = $package->shipment;
 
-        $primary = $shipment?->client?->exportDataSource ?? $shipment?->dataSource;
+        $primary = $shipment?->dataSource;
 
         $globalSources = DataSource::where('global_export', true)
             ->where('active', true)
@@ -99,7 +99,7 @@ class PackageExportService
     {
         $packages = Package::where('status', PackageStatus::Shipped)
             ->where('exported', false)
-            ->with('shipment.client.exportDataSource', 'shipment.dataSource')
+            ->with('shipment.dataSource')
             ->get();
 
         $results = [];
