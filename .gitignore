@@ -46,7 +46,7 @@ Thumbs.db
 /public/qz-certificate.pem
 database/seeders/LocalSettingsSeeder.php
 
-# Playwright
+# Playwright / Browser tests
 .playwright-mcp
 node_modules/
 /test-results/
@@ -55,3 +55,4 @@ node_modules/
 /playwright/.cache/
 /playwright/.auth/
 /e2e/.auth/
+/tests/Browser/Screenshots/

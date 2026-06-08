@@ -178,8 +178,15 @@ it('ship warns and redirects when package is already shipped', function (): void
 it('ship disables ship action when no rates available', function (): void {
     $package = createShippablePackageForErrorTest();
 
+    // Register an adapter that returns no rates to simulate a carrier returning nothing
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('getCarrierName')->andReturn('USPS');
+    $adapter->shouldReceive('isConfigured')->andReturn(true);
+    $adapter->shouldReceive('prepareRateRequest')->andReturnNull();
+    $adapter->shouldReceive('getRates')->andReturn(collect());
+    app(CarrierRegistry::class)->registerInstance('USPS', $adapter);
+
     $component = Livewire::test(Ship::class, ['package_id' => $package->id]);
 
-    // Rate options are empty since we didn't register a mock adapter
     $component->assertSet('rateOptions', []);
 });
