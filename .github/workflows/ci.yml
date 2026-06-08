@@ -47,8 +47,17 @@ jobs:
       - name: Audit npm dependencies
         run: npm audit
 
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
       - name: Run tests
         run: php artisan test
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ':memory:'
+
+      - name: Run browser tests
+        run: php artisan test tests/Browser/
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: ':memory:'
