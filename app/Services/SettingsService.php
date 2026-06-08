@@ -27,9 +27,52 @@ class SettingsService
      */
     public function get(string $key, mixed $default = null): mixed
     {
-        $settings = $this->getAllCached();
+        return match ($key) {
+            'sandbox_mode' => $this->resolveSandboxMode($default),
+            'suppress_printing' => $this->resolveSuppressPrinting($default),
+            'multi_client_enabled' => $this->resolveEnvOrDb('features.multi_client_enabled', $key, $default),
+            'multi_location_enabled' => $this->resolveEnvOrDb('features.multi_location_enabled', $key, $default),
+            default => $this->getAllCached()[$key] ?? $default,
+        };
+    }
 
-        return $settings[$key] ?? $default;
+    /**
+     * Whether the app is running in demo mode (APP_ENV=demo).
+     */
+    public static function isDemoMode(): bool
+    {
+        return app()->environment('demo');
+    }
+
+    private function resolveSandboxMode(mixed $default): bool
+    {
+        return match (true) {
+            app()->isProduction() => false,
+            self::isDemoMode() => true,
+            default => (bool) ($this->getAllCached()['sandbox_mode'] ?? $default),
+        };
+    }
+
+    private function resolveSuppressPrinting(mixed $default): bool
+    {
+        if (app()->isProduction()) {
+            return false;
+        }
+
+        return (bool) ($this->getAllCached()['suppress_printing'] ?? $default);
+    }
+
+    /**
+     * In local/testing environments, the DB (dev settings UI) controls these toggles.
+     * In production/demo/staging, the env-backed config value is authoritative.
+     */
+    private function resolveEnvOrDb(string $configKey, string $settingKey, mixed $default): bool
+    {
+        if (app()->environment('local', 'testing')) {
+            return (bool) ($this->getAllCached()[$settingKey] ?? $default);
+        }
+
+        return (bool) config($configKey, $default);
     }
 
     /**

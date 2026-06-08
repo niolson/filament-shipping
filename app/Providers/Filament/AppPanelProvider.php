@@ -74,9 +74,11 @@ class AppPanelProvider extends PanelProvider
             ->widgets([])
             ->renderHook(
                 PanelsRenderHook::TOPBAR_LOGO_AFTER,
-                fn (): string => app(SettingsService::class)->get('sandbox_mode', false)
-                    ? '<span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-2 py-0.5 rounded-full">(sandbox mode)</span>'
-                    : '',
+                fn (): string => match (true) {
+                    SettingsService::isDemoMode() => '<span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-2 py-0.5 rounded-full">(demo mode)</span>',
+                    app(SettingsService::class)->get('sandbox_mode', false) => '<span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950 px-2 py-0.5 rounded-full">(sandbox mode)</span>',
+                    default => '',
+                },
             )
             ->middleware([
                 EncryptCookies::class,

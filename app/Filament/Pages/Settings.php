@@ -79,8 +79,6 @@ class Settings extends Page
             'batch_shipping_enabled' => $settings->get('batch_shipping_enabled', true),
             'manual_shipping_enabled' => $settings->get('manual_shipping_enabled', true),
             'picking_enabled' => $settings->get('picking_enabled', false),
-            'multi_location_enabled' => $settings->get('multi_location_enabled', false),
-            'multi_client_enabled' => $multiClientEnabled,
             'carrier_api_timeout' => $settings->get('carrier_api_timeout', 15),
             'audit_log_retention_days' => $settings->get('audit_log_retention_days', 365),
             'rate_quote_retention_days' => $settings->get('rate_quote_retention_days', 60),
@@ -93,8 +91,6 @@ class Settings extends Page
             'password_require_symbols' => $settings->get('password_require_symbols', false),
             'password_expiration_days' => $settings->get('password_expiration_days', 0),
             'google_sso_enabled' => $settings->get('google_sso_enabled', false),
-            'sandbox_mode' => $settings->get('sandbox_mode', false),
-            'suppress_printing' => $settings->get('suppress_printing', false),
         ];
 
         if (! $multiClientEnabled) {
@@ -359,14 +355,6 @@ class Settings extends Page
                                 ->label('Picking')
                                 ->helperText('When enabled, pickers can create pick batches and print picking summaries before packing.')
                                 ->default(false),
-                            Toggle::make('multi_location_enabled')
-                                ->label('Multi-Location')
-                                ->helperText('When enabled, packages are tracked per warehouse and end-of-day processes run per location. Each user can be assigned a default location.')
-                                ->default(false),
-                            Toggle::make('multi_client_enabled')
-                                ->label('Multi-Client (3PL)')
-                                ->helperText('When enabled, shipments, products, and shipping rules are scoped per client. Client columns and selectors appear across the UI.')
-                                ->default(false),
                             Toggle::make('transparency_enabled')
                                 ->label('Amazon Transparency Program')
                                 ->helperText('When enabled, shipment items requiring transparency codes will prompt for code scanning during packing.')
@@ -475,21 +463,6 @@ class Settings extends Page
                         ])
                         ->columns(2),
 
-                    Section::make('Testing')
-                        ->description('Sandbox and testing settings')
-                        ->schema([
-                            Toggle::make('sandbox_mode')
-                                ->label('Sandbox Mode')
-                                ->helperText('When enabled, USPS, FedEx, and UPS API calls use sandbox/test URLs instead of production.')
-                                ->default(false)
-                                ->live(),
-                            Toggle::make('suppress_printing')
-                                ->label('Suppress Printing')
-                                ->helperText('When enabled, label printing is skipped after shipping. Only available in sandbox mode.')
-                                ->default(false)
-                                ->visible(fn (Get $get): bool => (bool) $get('sandbox_mode')),
-                        ])
-                        ->columns(1),
                 ])
                     ->livewireSubmitHandler('save')
                     ->footer([
@@ -509,7 +482,7 @@ class Settings extends Page
         $data = $this->form->getState();
 
         // Validate location phone before saving anything
-        if (! ($data['multi_location_enabled'] ?? false) && isset($data['location'])) {
+        if (! app(SettingsService::class)->get('multi_location_enabled', false) && isset($data['location'])) {
             $phone = filled($data['location']['phone'] ?? null) ? trim((string) $data['location']['phone']) : null;
             if ($phone !== null) {
                 $country = (string) ($data['location']['country'] ?? 'US');
@@ -524,10 +497,6 @@ class Settings extends Page
             }
         }
 
-        $sandboxMode = (bool) ($data['sandbox_mode'] ?? false);
-        $suppressPrinting = $sandboxMode ? (bool) ($data['suppress_printing'] ?? false) : false;
-        $previousSandboxMode = (bool) app(SettingsService::class)->get('sandbox_mode', false);
-
         // Map form fields to setting keys
         $settings = [
             'company_name' => $data['company_name'] ?? '',
@@ -538,8 +507,6 @@ class Settings extends Page
             'batch_shipping_enabled' => $data['batch_shipping_enabled'] ?? true,
             'manual_shipping_enabled' => $data['manual_shipping_enabled'] ?? true,
             'picking_enabled' => (bool) ($data['picking_enabled'] ?? false),
-            'multi_location_enabled' => (bool) ($data['multi_location_enabled'] ?? false),
-            'multi_client_enabled' => (bool) ($data['multi_client_enabled'] ?? false),
             'carrier_api_timeout' => (int) ($data['carrier_api_timeout'] ?? 15),
             'audit_log_retention_days' => (int) ($data['audit_log_retention_days'] ?? 365),
             'rate_quote_retention_days' => (int) ($data['rate_quote_retention_days'] ?? 60),
@@ -552,8 +519,6 @@ class Settings extends Page
             'password_require_symbols' => (bool) ($data['password_require_symbols'] ?? false),
             'password_expiration_days' => (int) ($data['password_expiration_days'] ?? 0),
             'google_sso_enabled' => (bool) ($data['google_sso_enabled'] ?? false),
-            'sandbox_mode' => $sandboxMode,
-            'suppress_printing' => $suppressPrinting,
         ];
 
         // Update each standard setting
@@ -579,7 +544,7 @@ class Settings extends Page
         app(SettingsService::class)->clearCache();
 
         // Save default client fields in single-client mode
-        if (! ($data['multi_client_enabled'] ?? false) && isset($data['client'])) {
+        if (! app(SettingsService::class)->get('multi_client_enabled', false) && isset($data['client'])) {
             $client = Client::where('is_default', true)->first();
             if ($client) {
                 $client->update([
@@ -601,7 +566,7 @@ class Settings extends Page
         }
 
         // Save default location fields in single-location mode
-        if (! ($data['multi_location_enabled'] ?? false) && isset($data['location'])) {
+        if (! app(SettingsService::class)->get('multi_location_enabled', false) && isset($data['location'])) {
             $location = Location::where('is_default', true)->first();
             if ($location) {
                 $locationFields = $data['location'];
@@ -624,18 +589,6 @@ class Settings extends Page
                 }
                 $location->carrierLocations()->whereNotIn('carrier_id', $submittedCarrierIds)->delete();
             }
-        }
-
-        // Clear cached carrier auth tokens when sandbox mode changes
-        if ($sandboxMode !== $previousSandboxMode) {
-            Cache::forget('usps_authenticator');
-            // Only the global fallback token (no CarrierAccount) is derived from Settings.
-            // Per-account tokens are invalidated by CarrierAccount::clearTokenCaches() instead.
-            Cache::forget('usps_payment_authorization_token:global');
-            Cache::forget('fedex_authenticator');
-            Cache::forget('fedex_authenticator_sandbox');
-            Cache::forget('ups_authenticator');
-            Cache::forget('ups_oauth_token');
         }
 
         $this->rememberData();
