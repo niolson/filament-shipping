@@ -1,5 +1,7 @@
 <?php
 
+use App\Contracts\PackageShippingWorkflow;
+use App\DataTransferObjects\PackageShipping\PackageShippingResult;
 use App\Enums\PackageStatus;
 use App\Enums\Role;
 use App\Filament\Pages\Pack;
@@ -161,7 +163,8 @@ it('rejects ship when dimensions are missing', function (): void {
 
     Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
         ->call('ship', $packingItems, null, '1.5', '10', '8', '', false)
-        ->assertNotified('Not Ready');
+        ->assertNotified('Not Ready')
+        ->assertDispatched('shipping-error');
 
     $package = Package::where('shipment_id', $shipment->id)->first();
     expect($package)->not->toBeNull()
@@ -192,7 +195,8 @@ it('rejects ship when items not fully packed', function (): void {
 
     Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
         ->call('ship', $packingItems, null, '1.5', '10', '8', '6', false)
-        ->assertNotified('Not Ready');
+        ->assertNotified('Not Ready')
+        ->assertDispatched('shipping-error');
 
     $package = Package::where('shipment_id', $shipment->id)->first();
     expect($package)->not->toBeNull()
@@ -263,6 +267,7 @@ it('allows shipping when packing validation is disabled', function (): void {
     ]];
 
     Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertSet('packingValidationEnabled', false)
         ->call('ship', $packingItems, $boxSize->id, '1.5', '10', '8', '6', false)
         ->assertRedirect();
 
@@ -581,4 +586,43 @@ it('scan-to-add mode is forced on when redirected from manual ship even if setti
 
     Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
         ->assertSet('scanToAddMode', true);
+});
+
+it('dispatches shipping-error when ship is called with no shipment loaded', function (): void {
+    Livewire::test(Pack::class)
+        ->call('ship', [], null, '1.5', '10', '8', '6', false)
+        ->assertNotified('Invalid State')
+        ->assertDispatched('shipping-error');
+});
+
+it('dispatches shipping-error when auto-ship fails at the carrier', function (): void {
+    $boxSize = BoxSize::factory()->create();
+    $product = Product::factory()->create(['barcode' => '1234567890123']);
+    $shipment = Shipment::factory()->create();
+    $shipmentItem = ShipmentItem::factory()->create([
+        'shipment_id' => $shipment->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'transparency' => false,
+    ]);
+
+    $mock = Mockery::mock(PackageShippingWorkflow::class);
+    $mock->shouldReceive('autoShip')->andReturn(PackageShippingResult::failed('Carrier Error', 'No rates available.'));
+    app()->instance(PackageShippingWorkflow::class, $mock);
+
+    $packingItems = [[
+        'id' => $shipmentItem->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+        'packed' => 1,
+        'barcode' => '1234567890123',
+        'description' => $product->description,
+        'transparency' => false,
+        'transparency_codes' => [],
+    ]];
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->call('ship', $packingItems, $boxSize->id, '1.5', '10', '8', '6', true)
+        ->assertNotified('Carrier Error')
+        ->assertDispatched('shipping-error');
 });

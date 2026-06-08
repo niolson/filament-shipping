@@ -16,6 +16,7 @@
             packingItems: @js($packingItems),
             transparencyEnabled: @js($transparencyEnabled),
             scanToAddMode: @js($scanToAddMode),
+            packingValidationEnabled: @js($packingValidationEnabled),
             boxSizes: @js($boxSizes),
             boxSizeId: null,
             weight: '',
@@ -254,8 +255,10 @@
                     return false;
                 }
 
-                if (this.scanToAddMode && this.packingItems.length === 0) {
-                    return false;
+                if (this.scanToAddMode) {
+                    if (this.packingItems.length === 0) return false;
+                } else if (this.packingValidationEnabled) {
+                    if (this.packingItems.some(item => item.packed < item.quantity)) return false;
                 }
 
                 return true;
@@ -331,6 +334,7 @@
         @keydown.f12.window.prevent="shipPackage()"
         @scan-to-add-found.window="addScannedProduct($event.detail.product)"
         @scan-to-add-not-found.window="new FilamentNotification().title('Product not found').body(`No product found for '${$event.detail.barcode}'`).danger().send()"
+        @shipping-error.window="isShipping = false"
     >
         {{-- Header buttons --}}
         <div class="flex items-center justify-between gap-3 mb-4">

@@ -77,6 +77,8 @@ class Pack extends Page
 
     public bool $scanToAddMode = false;
 
+    public bool $packingValidationEnabled = true;
+
     public ?bool $autoShipOverride = null;
 
     public function mount($shipment_id = null): void
@@ -84,6 +86,7 @@ class Pack extends Page
         $this->transparencyEnabled = (bool) app(SettingsService::class)->get('transparency_enabled', true);
         $this->multiClientEnabled = (bool) app(SettingsService::class)->get('multi_client_enabled', false);
         $this->scanToAddEnabled = (bool) app(SettingsService::class)->get('scan_to_add_enabled', false);
+        $this->packingValidationEnabled = (bool) app(SettingsService::class)->get('packing_validation_enabled', true);
 
         if (Session::has('pack_auto_ship_override')) {
             $this->autoShipOverride = (bool) Session::pull('pack_auto_ship_override');
@@ -212,6 +215,7 @@ class Pack extends Page
 
         if (! $this->shipment) {
             $this->notifyError('Invalid State', 'No shipment loaded.');
+            $this->dispatch('shipping-error');
 
             return;
         }
@@ -220,6 +224,7 @@ class Pack extends Page
             $ready = $this->saveReadyPackageDraft();
         } catch (PackageDraftIncompleteException|PackageDraftInvalidException $e) {
             $this->notifyError('Not Ready', $e->getMessage());
+            $this->dispatch('shipping-error');
 
             return;
         }
@@ -257,6 +262,7 @@ class Pack extends Page
 
         if (! $result->success) {
             $this->notifyError($result->title ?? 'Shipping Error', $result->message ?? 'Unable to ship package.');
+            $this->dispatch('shipping-error');
 
             return;
         }
@@ -275,7 +281,7 @@ class Pack extends Page
     {
         $options = new PackageDraftOptions(
             requireCompletePackedItems: ! $this->scanToAddMode
-                && (bool) app(SettingsService::class)->get('packing_validation_enabled', true),
+                && $this->packingValidationEnabled,
         );
 
         $draft = app(PackageDraftWorkflow::class)->saveForShipment(
