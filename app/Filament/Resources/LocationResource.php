@@ -25,7 +25,12 @@ class LocationResource extends Resource
 
     protected static \UnitEnum|string|null $navigationGroup = 'Admin';
 
-    protected static function hasActiveFedexCarrier(): bool
+    public static function shouldRegisterNavigation(): bool
+    {
+        return (bool) app(SettingsService::class)->get('multi_location_enabled', false);
+    }
+
+    public static function hasActiveFedexCarrier(): bool
     {
         return Carrier::active()
             ->where('name', 'FedEx')

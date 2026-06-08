@@ -3,17 +3,23 @@
 namespace App\Filament\Pages;
 
 use App\Enums\Role;
+use App\Filament\Resources\LocationResource;
+use App\Filament\Support\AddressForm;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Http\Integrations\USPS\USPSConnector;
+use App\Models\Carrier;
 use App\Models\Client;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Services\AddressReferenceService;
+use App\Services\PhoneParserService;
 use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -62,6 +68,7 @@ class Settings extends Page
     {
         $settings = app(SettingsService::class);
         $multiClientEnabled = $settings->get('multi_client_enabled', false);
+        $multiLocationEnabled = $settings->get('multi_location_enabled', false);
 
         $formData = [
             'company_name' => $settings->get('company_name', ''),
@@ -107,6 +114,33 @@ class Settings extends Page
                     'return_postal_code' => $client->return_postal_code,
                     'return_country' => $client->return_country,
                     'return_phone' => $client->return_phone,
+                ];
+            }
+        }
+
+        if (! $multiLocationEnabled) {
+            $location = Location::where('is_default', true)->first();
+            if ($location) {
+                $formData['location'] = [
+                    'name' => $location->name,
+                    'timezone' => $location->timezone,
+                    'fedex_hub_id' => $location->fedex_hub_id,
+                    'company' => $location->company,
+                    'first_name' => $location->first_name,
+                    'last_name' => $location->last_name,
+                    'address1' => $location->address1,
+                    'address2' => $location->address2,
+                    'city' => $location->city,
+                    'state_or_province' => $location->state_or_province,
+                    'postal_code' => $location->postal_code,
+                    'country' => $location->country,
+                    'phone' => $location->phone,
+                    'carrierLocations' => $location->carrierLocations
+                        ->map(fn ($cl) => [
+                            'carrier_id' => $cl->carrier_id,
+                            'pickup_days' => $cl->pickup_days ?? [],
+                        ])
+                        ->toArray(),
                 ];
             }
         }
@@ -224,10 +258,82 @@ class Settings extends Page
 
                     Section::make('Ship-From Address')
                         ->description('Managed in Settings > Locations. The default location is used as the warehouse address on labels.')
+                        ->visible(fn (): bool => (bool) app(SettingsService::class)->get('multi_location_enabled', false))
                         ->schema([
                             Placeholder::make('default_location')
                                 ->label('Default Location')
                                 ->content(fn () => Location::getDefault()?->name ?? 'No default location set'),
+                        ]),
+
+                    Section::make('Warehouse')
+                        ->description('Ship-from address and details for your warehouse.')
+                        ->visible(fn (): bool => ! (bool) app(SettingsService::class)->get('multi_location_enabled', false))
+                        ->schema([
+                            Grid::make(2)
+                                ->schema([
+                                    TextInput::make('location.name')
+                                        ->label('Location Name')
+                                        ->required()
+                                        ->maxLength(255),
+                                    Select::make('location.timezone')
+                                        ->label('Timezone')
+                                        ->options(fn () => collect(timezone_identifiers_list())
+                                            ->filter(fn ($tz) => str_starts_with($tz, 'America/') || str_starts_with($tz, 'Pacific/') || str_starts_with($tz, 'US/'))
+                                            ->mapWithKeys(fn ($tz) => [$tz => str_replace('_', ' ', $tz)]))
+                                        ->searchable()
+                                        ->required(),
+                                    Select::make('location.fedex_hub_id')
+                                        ->label('FedEx Hub ID')
+                                        ->helperText('Used for FedEx Ground Economy / SmartPost shipments from this origin.')
+                                        ->options(config('fedex.ground_economy_hubs'))
+                                        ->searchable()
+                                        ->placeholder('Select a FedEx hub')
+                                        ->visible(fn (): bool => LocationResource::hasActiveFedexCarrier())
+                                        ->columnSpanFull(),
+                                ]),
+                            ...AddressForm::recipientAddressFields(
+                                prefix: 'location.',
+                                includeCompany: true,
+                                includePhone: true,
+                                requireNames: true,
+                                requirePostalCode: true,
+                                postalCodeMaxLength: 20,
+                                phoneMaxLength: 20,
+                            ),
+                        ])
+                        ->columns(1),
+
+                    Section::make('Carrier Pickup Schedule')
+                        ->description('Configure pickup days per carrier for your warehouse.')
+                        ->visible(fn (): bool => ! (bool) app(SettingsService::class)->get('multi_location_enabled', false))
+                        ->collapsible()
+                        ->schema([
+                            Repeater::make('location.carrierLocations')
+                                ->hiddenLabel()
+                                ->schema([
+                                    Select::make('carrier_id')
+                                        ->label('Carrier')
+                                        ->options(fn () => Carrier::active()->pluck('name', 'id'))
+                                        ->required()
+                                        ->live()
+                                        ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
+                                    CheckboxList::make('pickup_days')
+                                        ->label('Pickup Days')
+                                        ->options([
+                                            0 => 'Sunday',
+                                            1 => 'Monday',
+                                            2 => 'Tuesday',
+                                            3 => 'Wednesday',
+                                            4 => 'Thursday',
+                                            5 => 'Friday',
+                                            6 => 'Saturday',
+                                        ])
+                                        ->default([1, 2, 3, 4, 5])
+                                        ->columns(7),
+                                ])
+                                ->defaultItems(0)
+                                ->addActionLabel('Add Carrier')
+                                ->columnSpanFull(),
                         ]),
 
                     Section::make('Features')
@@ -402,6 +508,22 @@ class Settings extends Page
     {
         $data = $this->form->getState();
 
+        // Validate location phone before saving anything
+        if (! ($data['multi_location_enabled'] ?? false) && isset($data['location'])) {
+            $phone = filled($data['location']['phone'] ?? null) ? trim((string) $data['location']['phone']) : null;
+            if ($phone !== null) {
+                $country = (string) ($data['location']['country'] ?? 'US');
+                $result = PhoneParserService::parse($phone, $country);
+                if (! $result->isValid()) {
+                    $message = "Enter a valid phone number for {$country}. If the phone number belongs to a different country, use international format, such as +14155550132.";
+                    Notification::make()->title('Invalid phone number')->body($message)->danger()->send();
+                    $this->addError('data.location.phone', $message);
+
+                    return;
+                }
+            }
+        }
+
         $sandboxMode = (bool) ($data['sandbox_mode'] ?? false);
         $suppressPrinting = $sandboxMode ? (bool) ($data['suppress_printing'] ?? false) : false;
         $previousSandboxMode = (bool) app(SettingsService::class)->get('sandbox_mode', false);
@@ -475,6 +597,32 @@ class Settings extends Page
                     'return_country' => $data['client']['return_country'] ?? null,
                     'return_phone' => $data['client']['return_phone'] ?? null,
                 ]);
+            }
+        }
+
+        // Save default location fields in single-location mode
+        if (! ($data['multi_location_enabled'] ?? false) && isset($data['location'])) {
+            $location = Location::where('is_default', true)->first();
+            if ($location) {
+                $locationFields = $data['location'];
+                $carrierLocationsData = $locationFields['carrierLocations'] ?? [];
+                unset($locationFields['carrierLocations']);
+
+                $location->update($locationFields);
+                Location::clearDefaultCache();
+
+                // Sync carrier locations by carrier_id (preserves last_end_of_day_at)
+                $submittedCarrierIds = [];
+                foreach ($carrierLocationsData as $item) {
+                    if (filled($item['carrier_id'] ?? null)) {
+                        $location->carrierLocations()->updateOrCreate(
+                            ['carrier_id' => $item['carrier_id']],
+                            ['pickup_days' => $item['pickup_days'] ?? []],
+                        );
+                        $submittedCarrierIds[] = $item['carrier_id'];
+                    }
+                }
+                $location->carrierLocations()->whereNotIn('carrier_id', $submittedCarrierIds)->delete();
             }
         }
 

@@ -2,6 +2,7 @@
 
 use App\Enums\BoxSizeType;
 use App\Enums\Role;
+use App\Filament\Pages\Settings;
 use App\Filament\Resources\BoxSizeResource\Pages\CreateBoxSize;
 use App\Filament\Resources\BoxSizeResource\Pages\EditBoxSize;
 use App\Filament\Resources\BoxSizeResource\Pages\ListBoxSizes;
@@ -154,11 +155,9 @@ it('can render Location list page in multi-location mode', function (): void {
     Livewire::test(ListLocations::class)->assertSuccessful();
 });
 
-it('redirects Location list to default location edit in single-location mode', function (): void {
-    $location = Location::factory()->create(['is_default' => true]);
-
+it('redirects Location list to Settings in single-location mode', function (): void {
     Livewire::test(ListLocations::class)
-        ->assertRedirect(LocationResource::getUrl('edit', ['record' => $location->id]));
+        ->assertRedirect(Settings::getUrl());
 });
 
 it('can render Location create page', function (): void {

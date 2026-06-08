@@ -12,6 +12,7 @@ use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Client;
+use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\FedexRegistrationService;
@@ -553,4 +554,99 @@ it('does not overwrite client fields when saving in multi-client mode', function
         ->assertNotified();
 
     expect($client->fresh()->company_name)->toBe('Original Name');
+});
+
+// ─── Single-location mode: location fields in Settings ────────────────────────
+
+it('loads default location fields into settings form in single-location mode', function (): void {
+    $location = Location::factory()->create([
+        'is_default' => true,
+        'name' => 'Main Warehouse',
+        'address1' => '123 Main St',
+        'city' => 'Springfield',
+        'state_or_province' => 'IL',
+        'postal_code' => '62701',
+        'country' => 'US',
+        'timezone' => 'America/Chicago',
+    ]);
+
+    Livewire::test(Settings::class)
+        ->assertSet('data.location.name', 'Main Warehouse')
+        ->assertSet('data.location.address1', '123 Main St')
+        ->assertSet('data.location.timezone', 'America/Chicago');
+});
+
+it('saves default location fields from settings form in single-location mode', function (): void {
+    $location = Location::factory()->create([
+        'is_default' => true,
+        'name' => 'Old Name',
+        'country' => 'US',
+        'phone' => null,
+    ]);
+
+    Livewire::test(Settings::class)
+        ->fillForm([
+            'location.name' => 'New Warehouse',
+            'location.country' => 'US',
+            'location.first_name' => 'Shipping',
+            'location.last_name' => 'Center',
+            'location.address1' => '456 Elm St',
+            'location.city' => 'Shelbyville',
+            'location.state_or_province' => 'IL',
+            'location.postal_code' => '62565',
+            'location.timezone' => 'America/Chicago',
+            'location.phone' => null,
+        ])
+        ->call('save')
+        ->assertNotified();
+
+    expect($location->fresh())
+        ->name->toBe('New Warehouse')
+        ->address1->toBe('456 Elm St')
+        ->city->toBe('Shelbyville');
+});
+
+it('syncs carrier locations when saving location in single-location mode', function (): void {
+    $location = Location::factory()->create(['is_default' => true, 'country' => 'US', 'phone' => null]);
+    $carrier = Carrier::factory()->create(['name' => 'USPS', 'active' => true]);
+
+    Livewire::test(Settings::class)
+        ->fillForm([
+            'location.name' => $location->name,
+            'location.country' => 'US',
+            'location.first_name' => $location->first_name,
+            'location.last_name' => $location->last_name,
+            'location.address1' => $location->address1,
+            'location.city' => $location->city,
+            'location.state_or_province' => $location->state_or_province,
+            'location.postal_code' => $location->postal_code,
+            'location.timezone' => $location->timezone,
+            'location.phone' => null,
+            'location.carrierLocations' => [
+                ['carrier_id' => $carrier->id, 'pickup_days' => [1, 2, 3, 4, 5]],
+            ],
+        ])
+        ->call('save')
+        ->assertNotified();
+
+    expect($location->fresh()->carrierLocations)
+        ->toHaveCount(1)
+        ->first()->carrier_id->toBe($carrier->id)
+        ->first()->pickup_days->toBe([1, 2, 3, 4, 5]);
+});
+
+it('does not overwrite location fields when saving in multi-location mode', function (): void {
+    Setting::create(['key' => 'multi_location_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    $location = Location::factory()->create([
+        'is_default' => true,
+        'name' => 'Original Warehouse',
+    ]);
+
+    Livewire::test(Settings::class)
+        ->call('save')
+        ->assertNotified();
+
+    expect($location->fresh()->name)->toBe('Original Warehouse');
 });
