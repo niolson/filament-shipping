@@ -19,7 +19,16 @@ return new class extends Migration
             $this->dropClientIdForeignIfExists('channel_aliases');
         }
 
-        // Assign any null rows to the default client before tightening the column
+        // Assign any null rows to the default client before tightening the column.
+        // Installs that were never seeded may have orphaned rows but no default
+        // client — create one so the backfill has a target.
+        $hasOrphans = DB::table('shipping_method_aliases')->whereNull('client_id')->exists()
+            || DB::table('channel_aliases')->whereNull('client_id')->exists();
+
+        if ($hasOrphans) {
+            $this->ensureDefaultClientExists();
+        }
+
         DB::statement('UPDATE shipping_method_aliases SET client_id = (SELECT id FROM clients WHERE is_default = 1 LIMIT 1) WHERE client_id IS NULL');
         DB::statement('UPDATE channel_aliases SET client_id = (SELECT id FROM clients WHERE is_default = 1 LIMIT 1) WHERE client_id IS NULL');
 
@@ -48,6 +57,28 @@ return new class extends Migration
             Schema::table('shipping_method_aliases', fn (Blueprint $table) => $table->foreign('client_id')->references('id')->on('clients')->nullOnDelete());
             Schema::table('channel_aliases', fn (Blueprint $table) => $table->foreign('client_id')->references('id')->on('clients')->nullOnDelete());
         }
+    }
+
+    private function ensureDefaultClientExists(): void
+    {
+        if (DB::table('clients')->where('is_default', true)->exists()) {
+            return;
+        }
+
+        $client = [
+            'name' => 'Default Client',
+            'is_default' => true,
+            'active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ];
+
+        // Dropped by a later migration, but still present at this point in history
+        if (Schema::hasColumn('clients', 'code')) {
+            $client['code'] = 'DEFAULT';
+        }
+
+        DB::table('clients')->insert($client);
     }
 
     private function dropClientIdForeignIfExists(string $table): void
