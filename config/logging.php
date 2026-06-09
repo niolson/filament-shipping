@@ -138,28 +138,45 @@ return [
             'replace_placeholders' => true,
         ],
 
-        'fedex-validation' => [
+        /*
+        | Carrier validation channels log full API request/response payloads,
+        | which contain recipient PII (names, addresses, phones). They must
+        | stay disabled in production — Amazon's SP-API data protection policy
+        | forbids logging buyer PII. Enable CARRIER_API_LOGGING only for
+        | carrier certification runs or local debugging.
+        */
+
+        'fedex-validation' => env('CARRIER_API_LOGGING', false) ? [
             'driver' => 'single',
             'path' => storage_path('logs/fedex-validation.log'),
             'level' => 'debug',
             'replace_placeholders' => true,
             'tap' => [DeepNormalizerTap::class],
+        ] : [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
         ],
 
-        'usps-validation' => [
+        'usps-validation' => env('CARRIER_API_LOGGING', false) ? [
             'driver' => 'single',
             'path' => storage_path('logs/usps-validation.log'),
             'level' => 'debug',
             'replace_placeholders' => true,
             'tap' => [DeepNormalizerTap::class],
+        ] : [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
         ],
 
-        'ups-validation' => [
+        'ups-validation' => env('CARRIER_API_LOGGING', false) ? [
             'driver' => 'single',
             'path' => storage_path('logs/ups-validation.log'),
             'level' => 'debug',
             'replace_placeholders' => true,
             'tap' => [DeepNormalizerTap::class],
+        ] : [
+            'driver' => 'monolog',
+            'handler' => NullHandler::class,
         ],
 
     ],

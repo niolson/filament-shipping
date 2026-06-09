@@ -5,8 +5,21 @@ use App\Http\Integrations\Fedex\Requests\CreateShipment;
 use App\Http\Integrations\Fedex\Requests\UploadEtdImage;
 use App\Models\Package;
 use App\Models\Shipment;
+use Illuminate\Support\Facades\Log;
+use Monolog\Handler\TestHandler;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
+
+beforeEach(function (): void {
+    // The command refuses to run when fedex-validation routes to NullHandler
+    // (CARRIER_API_LOGGING off). Use the in-memory TestHandler so the guard
+    // passes without writing payloads to disk during tests.
+    config()->set('logging.channels.fedex-validation', [
+        'driver' => 'monolog',
+        'handler' => TestHandler::class,
+    ]);
+    Log::forgetChannel('fedex-validation');
+});
 
 it('builds the US09 variant A payload with FedEx-generated ETD document enums', function (): void {
     $command = app(FedexRunEtdTestCase::class);

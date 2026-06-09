@@ -4,8 +4,21 @@ use App\Http\Integrations\Fedex\Requests\AddConsolidationShipment;
 use App\Http\Integrations\Fedex\Requests\ConfirmConsolidation;
 use App\Http\Integrations\Fedex\Requests\CreateConsolidation;
 use App\Http\Integrations\Fedex\Requests\GetConsolidationResults;
+use Illuminate\Support\Facades\Log;
+use Monolog\Handler\TestHandler;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
+
+beforeEach(function (): void {
+    // The command refuses to run when fedex-validation routes to NullHandler
+    // (CARRIER_API_LOGGING off). Use the in-memory TestHandler so the guard
+    // passes without writing payloads to disk during tests.
+    config()->set('logging.channels.fedex-validation', [
+        'driver' => 'monolog',
+        'handler' => TestHandler::class,
+    ]);
+    Log::forgetChannel('fedex-validation');
+});
 
 it('polls Step 9 until consolidation results are ready', function (): void {
     $resultsCallCount = 0;

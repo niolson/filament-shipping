@@ -11,6 +11,7 @@ use App\Services\SettingsService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Monolog\Handler\NullHandler;
 use Saloon\Http\Request;
 
 /**
@@ -43,6 +44,12 @@ class FedexRunConsolidationTestCase extends Command
 
     public function handle(SettingsService $settings): int
     {
+        if (config('logging.channels.fedex-validation.handler') === NullHandler::class) {
+            $this->error('CARRIER_API_LOGGING is disabled — certification evidence would not be written to fedex-validation.log. Set CARRIER_API_LOGGING=true and retry.');
+
+            return self::FAILURE;
+        }
+
         $shipperAccountNumber = (string) $settings->get('fedex.account_number', '');
 
         if (empty($shipperAccountNumber)) {
