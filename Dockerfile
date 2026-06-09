@@ -52,6 +52,11 @@ WORKDIR /var/www/html
 # Ensure PHP-FPM listens on all interfaces (not just localhost)
 RUN printf '[global]\ndaemonize = no\n\n[www]\nlisten = 0.0.0.0:9000\n' > /usr/local/etc/php-fpm.d/zz-docker.conf
 
+# Keep function arguments out of exception stack traces — they would carry
+# recipient PII (addresses, phones) into logs and error tracking, which
+# Amazon's data protection policy forbids.
+RUN printf 'zend.exception_ignore_args = 1\n' > /usr/local/etc/php/conf.d/zz-polybag.ini
+
 # Copy application source
 COPY . .
 
