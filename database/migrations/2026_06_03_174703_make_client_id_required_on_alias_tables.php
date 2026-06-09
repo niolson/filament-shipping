@@ -12,9 +12,11 @@ return new class extends Migration
         $isMySQL = Schema::getConnection()->getDriverName() === 'mysql';
 
         if ($isMySQL) {
-            // MySQL requires dropping the SET NULL FK before the column can become NOT NULL
-            Schema::table('shipping_method_aliases', fn (Blueprint $table) => $table->dropForeign(['client_id']));
-            Schema::table('channel_aliases', fn (Blueprint $table) => $table->dropForeign(['client_id']));
+            // MySQL requires dropping the SET NULL FK before the column can become
+            // NOT NULL. Some installs are missing the FK (schema drift), so only
+            // drop it where it actually exists — the migration recreates it below.
+            $this->dropClientIdForeignIfExists('shipping_method_aliases');
+            $this->dropClientIdForeignIfExists('channel_aliases');
         }
 
         // Assign any null rows to the default client before tightening the column
@@ -35,8 +37,8 @@ return new class extends Migration
         $isMySQL = Schema::getConnection()->getDriverName() === 'mysql';
 
         if ($isMySQL) {
-            Schema::table('shipping_method_aliases', fn (Blueprint $table) => $table->dropForeign(['client_id']));
-            Schema::table('channel_aliases', fn (Blueprint $table) => $table->dropForeign(['client_id']));
+            $this->dropClientIdForeignIfExists('shipping_method_aliases');
+            $this->dropClientIdForeignIfExists('channel_aliases');
         }
 
         Schema::table('shipping_method_aliases', fn (Blueprint $table) => $table->unsignedBigInteger('client_id')->nullable()->change());
@@ -45,6 +47,16 @@ return new class extends Migration
         if ($isMySQL) {
             Schema::table('shipping_method_aliases', fn (Blueprint $table) => $table->foreign('client_id')->references('id')->on('clients')->nullOnDelete());
             Schema::table('channel_aliases', fn (Blueprint $table) => $table->foreign('client_id')->references('id')->on('clients')->nullOnDelete());
+        }
+    }
+
+    private function dropClientIdForeignIfExists(string $table): void
+    {
+        $hasClientIdForeign = collect(Schema::getForeignKeys($table))
+            ->contains(fn (array $foreignKey): bool => $foreignKey['columns'] === ['client_id']);
+
+        if ($hasClientIdForeign) {
+            Schema::table($table, fn (Blueprint $table) => $table->dropForeign(['client_id']));
         }
     }
 };
