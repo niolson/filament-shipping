@@ -82,9 +82,9 @@ Each tenant's `default` network is isolated. The `shared` network connects app/q
 - **BoxSize** — Predefined box dimensions (scanned by code)
 - **Channel** — Sales channel source (Shopify, Amazon, database import)
 - **Product** — Product catalog with barcodes and weights; scoped to a `Client`
-- **ImportSource** — Configurable shipment import source (Database/Shopify/Amazon) with per-client assignment, encrypted secrets, and per-source scheduling
+- **DataSource** — Configurable shipment import/export source (Database/Shopify/Amazon) with per-client assignment, encrypted secrets, and per-source scheduling
 - **Location** — Warehouse / fulfillment center with address, timezone, and carrier associations
-- **Client** — 3PL brand/retailer; scopes shipments, products, import sources, and shipping rules; carries return address and pack slip branding fields
+- **Client** — 3PL brand/retailer; scopes shipments, products, data sources, and shipping rules; carries return address and pack slip branding fields
 
 ## Key Workflows
 
@@ -124,7 +124,7 @@ Rate/label/track/cancel paths resolve carrier accounts via `CarrierAccount::reso
 
 ## Data Import / Export
 
-Shipment import sources are configured as `ImportSource` records in the database (Integrations nav group), not in `.env`. Each source can be assigned to a `Client` and has its own encrypted credentials and schedule.
+Shipment import sources are configured as `DataSource` records in the database (Integrations nav group), not in `.env`. Each source can be assigned to a `Client` and has its own encrypted credentials and schedule.
 
 Supported drivers:
 - **Database** — Custom SQL queries against MySQL, SQL Server, or PostgreSQL
@@ -202,7 +202,7 @@ php artisan app:create-user                   # Create admin user
 - `app/Models/CarrierAccount.php` — Per-carrier credentials with `resolveForShipment()` priority logic
 - `app/Filament/Resources/Clients/ClientResource.php` — 3PL client management (Admin nav group)
 - `app/Filament/Resources/LocationResource.php` — Warehouse location management (Admin nav group)
-- `app/Filament/Resources/ImportSources/ImportSourceResource.php` — Import source management (Integrations nav group)
+- `app/Filament/Resources/DataSources/DataSourceResource.php` — Data source management (Integrations nav group)
 - `docker-compose.yml` — Production container orchestration
 - `docker/entrypoint.sh` — Container startup (migrate + optimize)
 - `scripts/provision-tenant.sh` — Multi-tenant provisioning

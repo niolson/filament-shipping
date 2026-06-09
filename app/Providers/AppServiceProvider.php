@@ -34,7 +34,6 @@ use App\Services\PickBatchService;
 use App\Services\RateQuoteLogger;
 use App\Services\RuleEvaluator;
 use App\Services\SettingsService;
-use App\Services\ShipmentImport\RuntimeConfig;
 use App\Services\ShippingRateService;
 use App\Services\Validation\FakeAddressValidator;
 use App\Services\Validation\UspsAddressValidator;
@@ -59,7 +58,6 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(OAuthProviderRegistry::class);
         $this->app->singleton(OAuthService::class);
         $this->app->singleton(FedexRegistrationService::class);
-        $this->app->singleton(RuntimeConfig::class);
         $this->app->singleton(PackageDraftWorkflow::class, EloquentPackageDraftWorkflow::class);
         $this->app->singleton(PackageLabelWorkflow::class, EloquentPackageLabelWorkflow::class);
         $this->app->singleton(PackageShippingWorkflow::class, EloquentPackageShippingWorkflow::class);

@@ -35,6 +35,12 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
+      - name: Check code style
+        run: vendor/bin/pint --test
+
+      - name: Run static analysis
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
       - name: Install npm dependencies
         run: npm ci
 

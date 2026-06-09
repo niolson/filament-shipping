@@ -192,7 +192,7 @@ it('does not mark package as exported when a destination fails', function (): vo
 it('skips export when driver does not implement ExportDestinationInterface', function (): void {
     $importOnlyClass = new class([]) implements DataSourceInterface
     {
-        public function __construct(array $config = []) {}
+        public function __construct(array $config = []) {} // @phpstan-ignore constructor.unusedParameter
 
         public function fetchShipments(): Collection
         {
