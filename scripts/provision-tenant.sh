@@ -139,6 +139,11 @@ sed -i "s|^DB_CONNECTION=.*|DB_CONNECTION=mysql|" .env
 sed -i "s|^QUEUE_CONNECTION=.*|QUEUE_CONNECTION=redis|" .env
 sed -i "s|^SESSION_DRIVER=.*|SESSION_DRIVER=redis|" .env
 sed -i "s|^CACHE_STORE=.*|CACHE_STORE=redis|" .env
+if grep -q '^SENTRY_ENVIRONMENT=' .env; then
+    sed -i "s|^SENTRY_ENVIRONMENT=.*|SENTRY_ENVIRONMENT=${TENANT}|" .env
+else
+    echo "SENTRY_ENVIRONMENT=${TENANT}" >> .env
+fi
 
 if [ "$MODE" = "shared" ]; then
     # --- Shared mode: use shared-mysql and shared-redis ---
