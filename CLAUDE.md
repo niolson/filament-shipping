@@ -55,6 +55,7 @@ Each tenant's `default` network is isolated. The `shared` network connects app/q
 - `scripts/provision-tenant.sh [--mode shared|standalone] <name> [domain]` — provisions a new tenant
 - `scripts/install-onprem.sh` — interactive single-tenant on-prem installer
 - `app:generate-qz-cert {domain?} {--force}` — generates QZ Tray signing certificate
+- Demo reset wrapper lives in the polybag-demo-data-tools repo (`bin/reset-demo.sh`) — fills the demo import DB to "now" and runs `demo:reset` on the demo tenant
 
 ### Important Docker/Caching Notes
 
@@ -167,6 +168,7 @@ docker compose exec app php artisan <command>
 php artisan app:generate-qz-cert              # Generate QZ Tray certificate (interactive)
 php artisan app:generate-qz-cert example.com  # Non-interactive with domain
 php artisan app:create-user                   # Create admin user
+php artisan demo:reset                        # Reset demo data from the demo import DB (APP_ENV demo/local only)
 ```
 
 ## Architecture
