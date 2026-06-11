@@ -10,6 +10,7 @@ use App\Models\Concerns\HasDefaultClient;
 use App\Services\AddressReferenceService;
 use App\Services\AddressValidationService;
 use App\Services\PhoneParserService;
+use App\Services\PickBatchService;
 use App\Services\SettingsService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -140,7 +141,7 @@ class Shipment extends Model
         }
 
         if (! app(SettingsService::class)->get('packing_validation_enabled', true)) {
-            $this->update(['status' => ShipmentStatus::Shipped]);
+            $this->markShipped();
 
             return;
         }
@@ -156,7 +157,34 @@ class Shipment extends Model
             return ($packedQuantities[$item->id] ?? 0) >= $item->quantity;
         });
 
-        $this->update(['status' => $allItemsShipped ? ShipmentStatus::Shipped : ShipmentStatus::Open]);
+        if ($allItemsShipped) {
+            $this->markShipped();
+        } else {
+            $this->update(['status' => ShipmentStatus::Open]);
+        }
+    }
+
+    private function markShipped(): void
+    {
+        $this->update(['status' => ShipmentStatus::Shipped]);
+
+        app(PickBatchService::class)->removeFromActiveBatches($this);
+    }
+
+    /**
+     * Whether picking is required and this shipment has not been picked yet,
+     * blocking packing and batch shipping.
+     */
+    public function isBlockedByPicking(): bool
+    {
+        if ($this->picking_status === PickingStatus::Picked) {
+            return false;
+        }
+
+        $settings = app(SettingsService::class);
+
+        return (bool) $settings->get('picking_enabled', false)
+            && (bool) $settings->get('require_picking_before_shipping', false);
     }
 
     /**

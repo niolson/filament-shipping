@@ -53,6 +53,10 @@ class BatchLabelService
             return 'Already shipped';
         }
 
+        if ($shipment->isBlockedByPicking()) {
+            return 'Not picked';
+        }
+
         if (! $shipment->shipping_method_id) {
             return 'No shipping method assigned';
         }

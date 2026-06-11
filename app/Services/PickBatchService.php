@@ -137,6 +137,45 @@ class PickBatchService
     }
 
     /**
+     * Remove a shipment from any in-progress pick batches, e.g. when it ships
+     * before being picked, so pickers don't pull items for a completed order.
+     * Batches left with no unpicked shipments are completed; emptied batches
+     * are cancelled.
+     */
+    public function removeFromActiveBatches(Shipment $shipment): void
+    {
+        $pivots = PickBatchShipment::query()
+            ->where('shipment_id', $shipment->id)
+            ->whereNull('picked_at')
+            ->whereHas('pickBatch', fn ($query) => $query->where('status', PickBatchStatus::InProgress))
+            ->with('pickBatch')
+            ->get();
+
+        if ($pivots->isEmpty()) {
+            return;
+        }
+
+        DB::transaction(function () use ($shipment, $pivots): void {
+            foreach ($pivots as $pivot) {
+                $batch = $pivot->pickBatch;
+
+                $pivot->delete();
+                $batch->decrement('total_shipments');
+
+                if ($batch->pickBatchShipments()->doesntExist()) {
+                    $batch->update(['status' => PickBatchStatus::Cancelled]);
+                } elseif ($batch->pickBatchShipments()->whereNull('picked_at')->doesntExist()) {
+                    $this->complete($batch);
+                }
+            }
+
+            if ($shipment->refresh()->picking_status === PickingStatus::Batched) {
+                $shipment->update(['picking_status' => PickingStatus::Pending]);
+            }
+        });
+    }
+
+    /**
      * Build the aggregated product rows for the picking summary document.
      *
      * `totes` is a map of tote_code => quantity for that product in that tote,

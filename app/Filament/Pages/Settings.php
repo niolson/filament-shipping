@@ -79,6 +79,7 @@ class Settings extends Page
             'batch_shipping_enabled' => $settings->get('batch_shipping_enabled', true),
             'manual_shipping_enabled' => $settings->get('manual_shipping_enabled', true),
             'picking_enabled' => $settings->get('picking_enabled', false),
+            'require_picking_before_shipping' => $settings->get('require_picking_before_shipping', false),
             'carrier_api_timeout' => $settings->get('carrier_api_timeout', 15),
             'audit_log_retention_days' => $settings->get('audit_log_retention_days', 365),
             'rate_quote_retention_days' => $settings->get('rate_quote_retention_days', 60),
@@ -354,7 +355,13 @@ class Settings extends Page
                             Toggle::make('picking_enabled')
                                 ->label('Picking')
                                 ->helperText('When enabled, pickers can create pick batches and print picking summaries before packing.')
-                                ->default(false),
+                                ->default(false)
+                                ->live(),
+                            Toggle::make('require_picking_before_shipping')
+                                ->label('Require Picking Before Shipping')
+                                ->helperText('When enabled, shipments must be picked before they can be packed or batch shipped. Applies to all open shipments, including those created before picking was enabled.')
+                                ->default(false)
+                                ->visible(fn (Get $get): bool => (bool) $get('picking_enabled')),
                             Toggle::make('transparency_enabled')
                                 ->label('Amazon Transparency Program')
                                 ->helperText('When enabled, shipment items requiring transparency codes will prompt for code scanning during packing.')
@@ -507,6 +514,7 @@ class Settings extends Page
             'batch_shipping_enabled' => $data['batch_shipping_enabled'] ?? true,
             'manual_shipping_enabled' => $data['manual_shipping_enabled'] ?? true,
             'picking_enabled' => (bool) ($data['picking_enabled'] ?? false),
+            'require_picking_before_shipping' => (bool) ($data['require_picking_before_shipping'] ?? false),
             'carrier_api_timeout' => (int) ($data['carrier_api_timeout'] ?? 15),
             'audit_log_retention_days' => (int) ($data['audit_log_retention_days'] ?? 365),
             'rate_quote_retention_days' => (int) ($data['rate_quote_retention_days'] ?? 60),

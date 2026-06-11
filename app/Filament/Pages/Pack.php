@@ -101,6 +101,18 @@ class Pack extends Page
 
         if ($shipment_id) {
             $this->shipment = Shipment::with('client')->findOrFail($shipment_id);
+
+            if ($this->shipment->isBlockedByPicking()) {
+                $this->notifyWarning(
+                    'Picking Required',
+                    "Shipment {$this->shipment->shipment_reference} has not been picked. Complete picking before packing.",
+                );
+                $this->shipment = null;
+                $this->redirect('/pack');
+
+                return;
+            }
+
             $this->clientName = $this->multiClientEnabled
                 ? $this->shipment->client?->name
                 : null;

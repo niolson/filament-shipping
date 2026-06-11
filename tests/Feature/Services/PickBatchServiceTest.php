@@ -5,11 +5,14 @@ use App\Enums\PickingStatus;
 use App\Enums\ShipmentStatus;
 use App\Models\Channel;
 use App\Models\Client;
+use App\Models\Package;
 use App\Models\PickBatch;
+use App\Models\PickBatchShipment;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
 use App\Models\User;
 use App\Services\PickBatchService;
+use App\Services\SettingsService;
 
 use function Pest\Laravel\assertDatabaseCount;
 
@@ -293,4 +296,83 @@ it('sets row-level picked timestamps when completing a batch', function (): void
     $this->service->complete($batch);
 
     expect($batch->pickBatchShipments()->whereNull('picked_at')->exists())->toBeFalse();
+});
+
+// --- removeFromActiveBatches ---
+
+it('removes an unpicked shipment from an in-progress batch', function (): void {
+    $shipments = Shipment::factory()->count(2)->create();
+    $batch = $this->service->createFromShipments($shipments, $this->user);
+    $shipped = $shipments->first();
+
+    $this->service->removeFromActiveBatches($shipped);
+
+    expect($batch->fresh()->total_shipments)->toBe(1)
+        ->and($batch->pickBatchShipments()->where('shipment_id', $shipped->id)->exists())->toBeFalse()
+        ->and($shipped->fresh()->picking_status)->toBe(PickingStatus::Pending)
+        ->and($batch->fresh()->status)->toBe(PickBatchStatus::InProgress);
+});
+
+it('cancels an in-progress batch when its last shipment is removed', function (): void {
+    $shipment = Shipment::factory()->create();
+    $batch = $this->service->createFromShipments(collect([$shipment]), $this->user);
+
+    $this->service->removeFromActiveBatches($shipment);
+
+    expect($batch->fresh()->status)->toBe(PickBatchStatus::Cancelled)
+        ->and($batch->fresh()->total_shipments)->toBe(0);
+});
+
+it('completes the batch when all remaining shipments are already picked', function (): void {
+    $shipments = Shipment::factory()->count(2)->create();
+    $batch = $this->service->createFromShipments($shipments, $this->user);
+
+    [$picked, $unpicked] = $shipments;
+    $batch->pickBatchShipments()->where('shipment_id', $picked->id)->update(['picked_at' => now()]);
+
+    $this->service->removeFromActiveBatches($unpicked);
+
+    expect($batch->fresh()->status)->toBe(PickBatchStatus::Completed)
+        ->and($picked->fresh()->picking_status)->toBe(PickingStatus::Picked);
+});
+
+it('does not remove shipments that have already been picked', function (): void {
+    $shipment = Shipment::factory()->create();
+    $batch = $this->service->createFromShipments(collect([$shipment]), $this->user);
+    $batch->pickBatchShipments()->update(['picked_at' => now()]);
+
+    $this->service->removeFromActiveBatches($shipment);
+
+    expect($batch->pickBatchShipments()->where('shipment_id', $shipment->id)->exists())->toBeTrue()
+        ->and($batch->fresh()->total_shipments)->toBe(1);
+});
+
+it('ignores batches that are not in progress', function (): void {
+    $shipment = Shipment::factory()->create(['picking_status' => PickingStatus::Batched]);
+    $batch = PickBatch::factory()->completed()->create(['total_shipments' => 1]);
+    PickBatchShipment::factory()->create([
+        'pick_batch_id' => $batch->id,
+        'shipment_id' => $shipment->id,
+    ]);
+
+    $this->service->removeFromActiveBatches($shipment);
+
+    expect($batch->pickBatchShipments()->where('shipment_id', $shipment->id)->exists())->toBeTrue()
+        ->and($batch->fresh()->total_shipments)->toBe(1);
+});
+
+it('removes a batched shipment from its batch when it ships', function (): void {
+    app(SettingsService::class)->set('packing_validation_enabled', false);
+
+    $shipments = Shipment::factory()->count(2)->create();
+    $batch = $this->service->createFromShipments($shipments, $this->user);
+    $shipped = $shipments->first();
+
+    Package::factory()->shipped()->create(['shipment_id' => $shipped->id]);
+    $shipped->refresh()->updateShippedStatus();
+
+    expect($shipped->fresh()->status)->toBe(ShipmentStatus::Shipped)
+        ->and($shipped->fresh()->picking_status)->toBe(PickingStatus::Pending)
+        ->and($batch->fresh()->total_shipments)->toBe(1)
+        ->and($batch->pickBatchShipments()->where('shipment_id', $shipped->id)->exists())->toBeFalse();
 });
