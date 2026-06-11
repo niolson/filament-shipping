@@ -4,12 +4,14 @@ use App\Enums\Role;
 use App\Filament\Resources\DataSources\DataSourceResource;
 use App\Filament\Resources\DataSources\Pages\CreateDataSource;
 use App\Filament\Resources\DataSources\Pages\EditDataSource;
+use App\Filament\Resources\DataSources\Pages\ListDataSources;
 use App\Models\DataSource;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
+use Filament\Actions\Testing\TestAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
@@ -32,6 +34,94 @@ it('allows admin users to access import sources', function (): void {
     $this->actingAs($this->admin);
 
     expect(DataSourceResource::canAccess())->toBeTrue();
+});
+
+// ── Single-client vs multi-client visibility ──────────────────────────────────
+
+it('hides client and global export fields in single-client mode', function (): void {
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'driver' => DatabaseSource::class,
+            'settings.export_enabled' => true,
+        ])
+        ->assertFormFieldHidden('client_id')
+        ->assertFormFieldHidden('settings.client_column')
+        ->assertFormFieldHidden('global_export');
+});
+
+it('shows client and global export fields in multi-client mode', function (): void {
+    app(SettingsService::class)->set('multi_client_enabled', true, 'boolean');
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'driver' => DatabaseSource::class,
+            'settings.export_enabled' => true,
+        ])
+        ->assertFormFieldVisible('client_id')
+        ->assertFormFieldVisible('settings.client_column')
+        ->assertFormFieldVisible('global_export');
+});
+
+it('hides client and global export table columns in single-client mode', function (): void {
+    $this->actingAs($this->admin);
+    DataSource::factory()->create();
+
+    Livewire::test(ListDataSources::class)
+        ->assertTableColumnHidden('client.name')
+        ->assertTableColumnHidden('global_export');
+});
+
+it('shows client and global export table columns in multi-client mode', function (): void {
+    app(SettingsService::class)->set('multi_client_enabled', true, 'boolean');
+    $this->actingAs($this->admin);
+    DataSource::factory()->create();
+
+    Livewire::test(ListDataSources::class)
+        ->assertTableColumnVisible('client.name')
+        ->assertTableColumnVisible('global_export');
+});
+
+// ── Database driver form behavior ─────────────────────────────────────────────
+
+it('reveals the mark exported query field when the toggle is enabled', function (): void {
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm(['driver' => DatabaseSource::class])
+        ->assertFormFieldHidden('settings.mark_exported_query')
+        ->fillForm(['settings.mark_exported_enabled' => true])
+        ->assertFormFieldVisible('settings.mark_exported_query');
+});
+
+it('can test the database connection before the source is created', function (): void {
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'name' => 'New DB Source',
+            'driver' => DatabaseSource::class,
+            'settings.db_driver' => 'sqlite',
+            'settings.db_database' => ':memory:',
+        ])
+        ->callAction(TestAction::make('test_db_connection')->schemaComponent('database_connection'))
+        ->assertNotified('Connection successful');
+});
+
+it('reports a failed connection test before the source is created', function (): void {
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'name' => 'New DB Source',
+            'driver' => DatabaseSource::class,
+            'settings.db_driver' => 'sqlite',
+            'settings.db_database' => '/nonexistent/path/db.sqlite',
+        ])
+        ->callAction(TestAction::make('test_db_connection')->schemaComponent('database_connection'))
+        ->assertNotified('Connection failed');
 });
 
 // ── Secret settings encryption ────────────────────────────────────────────────

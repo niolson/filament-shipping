@@ -7,6 +7,7 @@ use App\Models\Client;
 use App\Models\DataSource;
 use App\Models\Package;
 use App\Models\Shipment;
+use App\Services\SettingsService;
 use App\Services\ShipmentImport\PackageExportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
@@ -301,6 +302,7 @@ it('runs export command with validate-only when no export-enabled sources', func
 });
 
 it('exports to global export source even when package has no import source', function (): void {
+    app(SettingsService::class)->set('multi_client_enabled', true, 'boolean');
     $driverClass = fakeExportSource();
 
     $globalSource = DataSource::factory()->create([
@@ -325,6 +327,7 @@ it('exports to global export source even when package has no import source', fun
 });
 
 it('exports to both primary source and global export source', function (): void {
+    app(SettingsService::class)->set('multi_client_enabled', true, 'boolean');
     $driverClass = fakeExportSource();
 
     $primarySource = fakeDataSource($driverClass, ['tracking_number' => 'primary_tracking']);
@@ -353,6 +356,7 @@ it('exports to both primary source and global export source', function (): void 
 });
 
 it('does not double-export when global source is also the primary source', function (): void {
+    app(SettingsService::class)->set('multi_client_enabled', true, 'boolean');
     $driverClass = fakeExportSource();
 
     $source = DataSource::factory()->create([
@@ -373,7 +377,45 @@ it('does not double-export when global source is also the primary source', funct
     expect($driverClass::$exportedData)->toHaveCount(1);
 });
 
+it('does not fan out to global export sources in single-client mode', function (): void {
+    $driverClass = fakeExportSource();
+
+    DataSource::factory()->create([
+        'driver' => $driverClass,
+        'global_export' => true,
+        'settings' => [
+            'export_enabled' => true,
+            'export_field_mapping' => ['tracking_number' => 'tracking'],
+        ],
+    ]);
+
+    $package = createShippedPackage(); // no import source
+
+    $service = new PackageExportService;
+    $result = $service->exportPackage($package);
+
+    expect($result->success)->toBeTrue();
+    expect($result->destinationsAttempted)->toBe(0);
+    expect($driverClass::$exportedData)->toHaveCount(0);
+});
+
+it('still exports to the primary source in single-client mode', function (): void {
+    $driverClass = fakeExportSource();
+
+    $primarySource = fakeDataSource($driverClass, ['tracking_number' => 'tracking']);
+
+    $package = createShippedPackage(importSource: $primarySource);
+
+    $service = new PackageExportService;
+    $result = $service->exportPackage($package);
+
+    expect($result->success)->toBeTrue();
+    expect($result->destinationsAttempted)->toBe(1);
+    expect($driverClass::$exportedData)->toHaveCount(1);
+});
+
 it('skips inactive global export sources', function (): void {
+    app(SettingsService::class)->set('multi_client_enabled', true, 'boolean');
     $driverClass = fakeExportSource();
 
     DataSource::factory()->create([
@@ -394,6 +436,7 @@ it('skips inactive global export sources', function (): void {
 });
 
 it('skips global export sources where export_enabled is false', function (): void {
+    app(SettingsService::class)->set('multi_client_enabled', true, 'boolean');
     $driverClass = fakeExportSource();
 
     DataSource::factory()->create([

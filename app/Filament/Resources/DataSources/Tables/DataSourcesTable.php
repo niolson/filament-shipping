@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DataSources\Tables;
 
 use App\Enums\ScheduleInterval;
+use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
@@ -23,6 +24,8 @@ class DataSourcesTable
 
     public static function configure(Table $table): Table
     {
+        $multiClient = (bool) app(SettingsService::class)->get('multi_client_enabled', false);
+
         return $table
             ->columns([
                 TextColumn::make('name')
@@ -32,7 +35,8 @@ class DataSourcesTable
                 TextColumn::make('client.name')
                     ->label('Client')
                     ->placeholder('—')
-                    ->sortable(),
+                    ->sortable()
+                    ->visible($multiClient),
 
                 TextColumn::make('driver')
                     ->label('Driver')
@@ -49,7 +53,8 @@ class DataSourcesTable
                 IconColumn::make('global_export')
                     ->label('Global Export')
                     ->boolean()
-                    ->sortable(),
+                    ->sortable()
+                    ->visible($multiClient),
 
                 IconColumn::make('active')
                     ->boolean()

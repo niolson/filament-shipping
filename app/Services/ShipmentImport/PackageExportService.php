@@ -6,6 +6,7 @@ use App\Contracts\ExportDestinationInterface;
 use App\Enums\PackageStatus;
 use App\Models\DataSource;
 use App\Models\Package;
+use App\Services\SettingsService;
 use Illuminate\Support\Facades\Log;
 
 class PackageExportService
@@ -14,6 +15,8 @@ class PackageExportService
      * Export a shipped package's data to all configured destinations:
      *  1. The client's explicit export override, or the shipment's originating data source.
      *  2. Every active data source with global_export enabled (fan-out; deduped against #1).
+     *     Global fan-out is a multi-client feature; in single-client mode the toggle is
+     *     hidden in the UI and exports are strictly source-scoped.
      */
     public function exportPackage(Package $package): ExportResult
     {
@@ -22,7 +25,9 @@ class PackageExportService
 
         $primary = $shipment?->dataSource;
 
-        $globalSources = DataSource::where('global_export', true)
+        $multiClient = (bool) app(SettingsService::class)->get('multi_client_enabled', false);
+
+        $globalSources = ! $multiClient ? collect() : DataSource::where('global_export', true)
             ->where('active', true)
             ->whereJsonContains('settings->export_enabled', true)
             ->get()

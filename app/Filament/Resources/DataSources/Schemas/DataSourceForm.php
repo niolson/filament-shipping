@@ -6,6 +6,7 @@ use App\Enums\ScheduleInterval;
 use App\Models\Client;
 use App\Models\DataSource;
 use App\Services\OAuthService;
+use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
@@ -47,7 +48,8 @@ class DataSourceForm
                         ->options(fn () => Client::orderBy('name')->pluck('name', 'id'))
                         ->nullable()
                         ->searchable()
-                        ->helperText('Leave blank to share this source across all clients (single-tenant mode).'),
+                        ->helperText('Leave blank to share this source across all clients (single-tenant mode).')
+                        ->visible(fn (): bool => self::multiClientEnabled()),
 
                     Select::make('driver')
                         ->label('Driver')
@@ -206,6 +208,7 @@ class DataSourceForm
             // ── Database ───────────────────────────────────────────────────────────
 
             Section::make('Database Connection')
+                ->key('database_connection', isInheritable: false)
                 ->schema([
                     Select::make('settings.db_driver')
                         ->label('Driver')
@@ -250,12 +253,7 @@ class DataSourceForm
                         ->label('Test Connection')
                         ->icon(Heroicon::Signal)
                         ->color('gray')
-                        ->visible(fn (?DataSource $record): bool => (bool) $record?->exists)
                         ->action(function (Get $get, ?DataSource $record): void {
-                            if (! $record) {
-                                return;
-                            }
-
                             $tunnel = null;
                             $connName = null;
 
@@ -284,6 +282,7 @@ class DataSourceForm
                 ->columns(2),
 
             Section::make('Database Query')
+                ->key('database_query', isInheritable: false)
                 ->schema([
                     TextInput::make('settings.shipments_table')
                         ->label('Shipments Table')
@@ -300,7 +299,8 @@ class DataSourceForm
                         ->nullable()
                         ->maxLength(255)
                         ->helperText('Column in each row that identifies the client (matched by name). When set, the Client field above is ignored and each row maps to its own client.')
-                        ->columnSpanFull(),
+                        ->columnSpanFull()
+                        ->visible(fn (): bool => self::multiClientEnabled()),
 
                     Textarea::make('settings.shipments_query')
                         ->label('Custom Shipments Query')
@@ -319,7 +319,8 @@ class DataSourceForm
                         ->columnSpanFull(),
 
                     Toggle::make('settings.mark_exported_enabled')
-                        ->label('Mark Exported After Import'),
+                        ->label('Mark Exported After Import')
+                        ->live(),
 
                     Textarea::make('settings.mark_exported_query')
                         ->label('Mark Exported Query')
@@ -335,12 +336,7 @@ class DataSourceForm
                         ->label('Test Queries')
                         ->icon(Heroicon::CheckCircle)
                         ->color('gray')
-                        ->visible(fn (?DataSource $record): bool => (bool) $record?->exists)
                         ->action(function (Get $get, ?DataSource $record): void {
-                            if (! $record) {
-                                return;
-                            }
-
                             $tunnel = null;
                             $connName = null;
 
@@ -420,7 +416,7 @@ class DataSourceForm
                         ->label('Global Export Destination')
                         ->helperText('When enabled, all shipped packages write tracking data here — regardless of which source they came from, including manual shipments.')
                         ->default(false)
-                        ->visible(fn (Get $get): bool => (bool) $get('settings.export_enabled')),
+                        ->visible(fn (Get $get): bool => self::multiClientEnabled() && (bool) $get('settings.export_enabled')),
 
                     Textarea::make('settings.export_query')
                         ->label('Export Query')
@@ -485,19 +481,27 @@ class DataSourceForm
         ]);
     }
 
+    private static function multiClientEnabled(): bool
+    {
+        return (bool) app(SettingsService::class)->get('multi_client_enabled', false);
+    }
+
     /**
      * Open a temporary PDO connection from the current form state, including an
-     * SSH tunnel if configured. Returns the PDO, optional tunnel, and connection name.
-     * The caller is responsible for closing the tunnel and purging the connection.
+     * SSH tunnel if configured. Falls back to the saved record's password when
+     * the form field is blank (edit page); on the create page the record is null
+     * and the form state is all we have. Returns the PDO, optional tunnel, and
+     * connection name. The caller is responsible for closing the tunnel and
+     * purging the connection.
      *
      * @return array{pdo: \PDO, tunnel: ?SshTunnel, conn_name: string}
      */
-    private static function openTestConnection(Get $get, DataSource $record): array
+    private static function openTestConnection(Get $get, ?DataSource $record): array
     {
-        $connName = 'import_test_'.$record->id;
+        $connName = 'import_test_'.($record?->id ?? uniqid());
         $password = filled($get('settings.db_password'))
             ? $get('settings.db_password')
-            : ($record->secret('db_password') ?? $record->settings['db_password'] ?? null);
+            : ($record?->secret('db_password') ?? $record?->settings['db_password'] ?? null);
 
         config([
             "database.connections.{$connName}.driver" => $get('settings.db_driver') ?? 'mysql',
