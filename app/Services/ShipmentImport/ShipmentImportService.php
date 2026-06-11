@@ -100,7 +100,9 @@ class ShipmentImportService
     {
         $preparedRows = [];
         $validDataBySourceRecord = [];
+        $itemsBySourceRecord = [];
         $clientColumn = $this->importSource->settings['client_column'] ?? null;
+        $itemsEnabled = $this->itemImporter->isEnabledFor($this->importSource);
 
         foreach ($batch as $data) {
             try {
@@ -117,8 +119,20 @@ class ShipmentImportService
                     continue;
                 }
 
-                $preparedRows[] = $prepared->attributes;
-                $validDataBySourceRecord[$prepared->attributes['source_record_id']] = $data;
+                $attributes = $prepared->attributes;
+                $sourceRecordId = (string) $attributes['source_record_id'];
+
+                // Items are fetched up front so the checksum covers both the
+                // shipment row and its items.
+                $items = $itemsEnabled
+                    ? $this->source->fetchShipmentItems($sourceRecordId)
+                    : collect();
+
+                $attributes['source_checksum'] = $this->sourceChecksum($attributes, $items);
+
+                $preparedRows[] = $attributes;
+                $validDataBySourceRecord[$sourceRecordId] = $data;
+                $itemsBySourceRecord[$sourceRecordId] = $items;
             } catch (\Exception $e) {
                 $this->runRecorder->recordImportError($data, $e);
             }
@@ -133,6 +147,7 @@ class ShipmentImportService
         $this->runRecorder->addStats([
             'shipments_created' => $writeResult->shipmentsCreated,
             'shipments_updated' => $writeResult->shipmentsUpdated,
+            'shipments_skipped' => $writeResult->shipmentsSkipped,
         ]);
 
         foreach ($validDataBySourceRecord as $sourceRecordId => $data) {
@@ -142,11 +157,33 @@ class ShipmentImportService
                 continue;
             }
 
-            $this->runRecorder->addStats($this->itemImporter->import($shipment, $this->source, $this->importSource));
+            // Skipped shipments keep their local state untouched, but the
+            // source record is still marked exported so it stops re-fetching.
+            if ($writeResult->wasSkipped($sourceRecordId)) {
+                $this->markSourceRecordExported($sourceRecordId, $data);
+
+                continue;
+            }
+
+            $this->runRecorder->addStats($this->itemImporter->import($shipment, $itemsBySourceRecord[$sourceRecordId] ?? collect(), $this->importSource));
             $this->runRecorder->recordShipmentEvent($shipment, $writeResult->wasExisting($sourceRecordId));
 
             $this->markSourceRecordExported($sourceRecordId, $data);
         }
+    }
+
+    /**
+     * Stable fingerprint of a shipment's source data (row + items), used to
+     * detect whether the remote record changed since the last import.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @param  Collection<int, array<string, mixed>>  $items
+     */
+    private function sourceChecksum(array $attributes, Collection $items): string
+    {
+        unset($attributes['source_checksum']);
+
+        return hash('sha256', json_encode([$attributes, $items->values()->all()]));
     }
 
     /**

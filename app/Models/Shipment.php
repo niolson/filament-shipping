@@ -27,6 +27,7 @@ class Shipment extends Model
         'client_id',
         'shipment_reference',
         'source_record_id',
+        'source_checksum',
         'first_name',
         'last_name',
         'company',

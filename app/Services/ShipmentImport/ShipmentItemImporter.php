@@ -2,10 +2,10 @@
 
 namespace App\Services\ShipmentImport;
 
-use App\Contracts\DataSourceInterface;
 use App\Models\DataSource;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
+use Illuminate\Support\Collection;
 
 class ShipmentItemImporter
 {
@@ -14,16 +14,19 @@ class ShipmentItemImporter
     ) {}
 
     /**
+     * Import pre-fetched item rows for a shipment. Items are fetched upstream
+     * (before the batch write) so they can feed the source checksum.
+     *
+     * @param  Collection<int, array<string, mixed>>  $items
      * @return array{items_created: int, items_updated: int, products_created: int, products_updated: int}
      */
-    public function import(Shipment $shipment, DataSourceInterface $source, DataSource $record): array
+    public function import(Shipment $shipment, Collection $items, DataSource $record): array
     {
         if (! $this->isEnabledFor($record)) {
             return $this->emptyStats();
         }
 
         $stats = $this->emptyStats();
-        $items = $source->fetchShipmentItems((string) $shipment->source_record_id);
 
         foreach ($items as $itemData) {
             $product = $this->references->productIdFor($itemData, $shipment->client);
@@ -63,7 +66,7 @@ class ShipmentItemImporter
         return $stats;
     }
 
-    private function isEnabledFor(DataSource $record): bool
+    public function isEnabledFor(DataSource $record): bool
     {
         return (bool) ($record->settings['shipment_items_enabled'] ?? true);
     }

@@ -18,6 +18,7 @@ class ImportRunRecorder
     private array $stats = [
         'shipments_created' => 0,
         'shipments_updated' => 0,
+        'shipments_skipped' => 0,
         'items_created' => 0,
         'items_updated' => 0,
         'products_created' => 0,
@@ -118,6 +119,7 @@ class ImportRunRecorder
         return new ImportResult(
             shipmentsCreated: $this->stats['shipments_created'],
             shipmentsUpdated: $this->stats['shipments_updated'],
+            shipmentsSkipped: $this->stats['shipments_skipped'],
             itemsCreated: $this->stats['items_created'],
             itemsUpdated: $this->stats['items_updated'],
             productsCreated: $this->stats['products_created'],

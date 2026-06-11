@@ -2,6 +2,7 @@
 
 use App\Contracts\DataSourceInterface;
 use App\Enums\Role;
+use App\Enums\ShipmentStatus;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
 use App\Models\Client;
@@ -770,9 +771,10 @@ it('deduplicates unmapped channel shipments on re-import', function (): void {
     $result1 = ShipmentImportService::forSource($source, $this->dataSource)->import();
     expect($result1->shipmentsCreated)->toBe(1);
 
-    // Second import (re-import same data)
+    // Second import (re-import same data): unchanged source data is skipped
     $result2 = ShipmentImportService::forSource($source, $this->dataSource)->import();
-    expect($result2->shipmentsUpdated)->toBe(1)
+    expect($result2->shipmentsSkipped)->toBe(1)
+        ->and($result2->shipmentsUpdated)->toBe(0)
         ->and($result2->shipmentsCreated)->toBe(0);
 
     // Should still only have one shipment
@@ -803,12 +805,13 @@ it('does not duplicate a shipment when channel is manually assigned between impo
 
     $result = ShipmentImportService::forSource($source, $this->dataSource)->import();
 
-    expect($result->shipmentsUpdated)->toBe(1)
+    expect($result->shipmentsSkipped)->toBe(1)
         ->and($result->shipmentsCreated)->toBe(0)
         ->and(Shipment::where('shipment_reference', 'ORD-CH-006')->count())->toBe(1);
 
+    // Source data is unchanged, so the manual channel assignment survives
     $shipment = Shipment::where('shipment_reference', 'ORD-CH-006')->first();
-    expect($shipment->channel_id)->toBeNull()
+    expect($shipment->channel_id)->toBe($channel->id)
         ->and($shipment->channel_reference)->toBe('UNMAPPED_CHANNEL')
         ->and($shipment->source_record_id)->toBe('ORD-CH-006');
 });
@@ -1001,4 +1004,120 @@ it('returns an error result and notifies admins when fetchShipments throws', fun
     Notification::assertSentTo($admin, ImportCompleted::class, function (ImportCompleted $notification): bool {
         return count($notification->errors) > 0;
     });
+});
+
+// ── Existing shipment behavior (on_existing) ──────────────────────────────────
+
+function onExistingRow(array $overrides = []): array
+{
+    return array_merge([
+        'shipment_reference' => 'ORD-EXIST-001',
+        'first_name' => 'Casey',
+        'last_name' => 'Jordan',
+        'address1' => '12 Original St',
+        'city' => 'Austin',
+        'state_or_province' => 'TX',
+        'postal_code' => '78701',
+        'country' => 'US',
+    ], $overrides);
+}
+
+it('updates an existing shipment when the source data changed', function (): void {
+    ShipmentImportService::forSource(fakeSource(collect([onExistingRow()])), $this->dataSource)->import();
+
+    $result = ShipmentImportService::forSource(
+        fakeSource(collect([onExistingRow(['address1' => '99 Changed Ave'])])),
+        $this->dataSource,
+    )->import();
+
+    expect($result->shipmentsUpdated)->toBe(1)
+        ->and($result->shipmentsSkipped)->toBe(0);
+
+    expect(Shipment::where('shipment_reference', 'ORD-EXIST-001')->value('address1'))->toBe('99 Changed Ave');
+});
+
+it('never updates existing shipments in skip mode', function (): void {
+    $this->dataSource->update(['settings' => ['on_existing' => 'skip']]);
+
+    ShipmentImportService::forSource(fakeSource(collect([onExistingRow()])), $this->dataSource)->import();
+
+    $result = ShipmentImportService::forSource(
+        fakeSource(collect([onExistingRow(['address1' => '99 Changed Ave'])])),
+        $this->dataSource,
+    )->import();
+
+    expect($result->shipmentsSkipped)->toBe(1)
+        ->and($result->shipmentsUpdated)->toBe(0);
+
+    expect(Shipment::where('shipment_reference', 'ORD-EXIST-001')->value('address1'))->toBe('12 Original St');
+});
+
+it('rewrites local edits in update mode even when the source is unchanged', function (): void {
+    $this->dataSource->update(['settings' => ['on_existing' => 'update']]);
+
+    ShipmentImportService::forSource(fakeSource(collect([onExistingRow()])), $this->dataSource)->import();
+
+    Shipment::where('shipment_reference', 'ORD-EXIST-001')->first()
+        ->update(['first_name' => 'Locally Edited']);
+
+    $result = ShipmentImportService::forSource(fakeSource(collect([onExistingRow()])), $this->dataSource)->import();
+
+    expect($result->shipmentsUpdated)->toBe(1)
+        ->and($result->shipmentsSkipped)->toBe(0);
+
+    expect(Shipment::where('shipment_reference', 'ORD-EXIST-001')->value('first_name'))->toBe('Casey');
+});
+
+it('never updates shipped shipments regardless of mode', function (): void {
+    $this->dataSource->update(['settings' => ['on_existing' => 'update']]);
+
+    ShipmentImportService::forSource(fakeSource(collect([onExistingRow()])), $this->dataSource)->import();
+
+    Shipment::where('shipment_reference', 'ORD-EXIST-001')->first()
+        ->update(['status' => ShipmentStatus::Shipped]);
+
+    $result = ShipmentImportService::forSource(
+        fakeSource(collect([onExistingRow(['address1' => '99 Changed Ave'])])),
+        $this->dataSource,
+    )->import();
+
+    expect($result->shipmentsSkipped)->toBe(1)
+        ->and($result->shipmentsUpdated)->toBe(0);
+
+    expect(Shipment::where('shipment_reference', 'ORD-EXIST-001')->value('address1'))->toBe('12 Original St');
+});
+
+it('treats item changes as source changes for update-if-changed', function (): void {
+    $items = collect([['sku' => 'EXIST-SKU', 'name' => 'Widget', 'quantity' => 1]]);
+
+    ShipmentImportService::forSource(fakeSource(collect([onExistingRow()]), $items), $this->dataSource)->import();
+
+    $changedItems = collect([['sku' => 'EXIST-SKU', 'name' => 'Widget', 'quantity' => 3]]);
+
+    $result = ShipmentImportService::forSource(
+        fakeSource(collect([onExistingRow()]), $changedItems),
+        $this->dataSource,
+    )->import();
+
+    expect($result->shipmentsUpdated)->toBe(1)
+        ->and($result->shipmentsSkipped)->toBe(0);
+
+    $shipment = Shipment::where('shipment_reference', 'ORD-EXIST-001')->first();
+    expect($shipment->shipmentItems()->first()->quantity)->toBe(3);
+});
+
+it('does not re-import items for skipped shipments', function (): void {
+    $items = collect([['sku' => 'EXIST-SKU', 'name' => 'Widget', 'quantity' => 1]]);
+
+    ShipmentImportService::forSource(fakeSource(collect([onExistingRow()]), $items), $this->dataSource)->import();
+
+    $shipment = Shipment::where('shipment_reference', 'ORD-EXIST-001')->first();
+    $shipment->shipmentItems()->first()->update(['quantity' => 5]);
+
+    $result = ShipmentImportService::forSource(fakeSource(collect([onExistingRow()]), $items), $this->dataSource)->import();
+
+    expect($result->shipmentsSkipped)->toBe(1)
+        ->and($result->itemsUpdated)->toBe(0);
+
+    expect($shipment->shipmentItems()->first()->quantity)->toBe(5);
 });

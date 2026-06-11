@@ -96,6 +96,7 @@ class ImportShipmentsCommand extends Command
             [
                 ['Shipments Created', $result->shipmentsCreated],
                 ['Shipments Updated', $result->shipmentsUpdated],
+                ['Shipments Skipped', $result->shipmentsSkipped],
                 ['Items Created', $result->itemsCreated],
                 ['Items Updated', $result->itemsUpdated],
                 ['Products Created', $result->productsCreated],

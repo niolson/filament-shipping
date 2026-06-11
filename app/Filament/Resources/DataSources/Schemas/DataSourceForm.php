@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\DataSources\Schemas;
 
+use App\Enums\ImportExistingBehavior;
 use App\Enums\ScheduleInterval;
 use App\Models\Client;
 use App\Models\DataSource;
@@ -68,6 +69,13 @@ class DataSourceForm
                         ->nullable()
                         ->placeholder('Disabled (manual only)')
                         ->helperText('How often this source should automatically run.'),
+
+                    Select::make('settings.on_existing')
+                        ->label('Existing Shipments')
+                        ->options(ImportExistingBehavior::class)
+                        ->default(ImportExistingBehavior::default()->value)
+                        ->selectablePlaceholder(false)
+                        ->helperText('What to do when an imported shipment already exists. Shipped and voided shipments are never updated.'),
                 ])
                 ->columns(2),
 
