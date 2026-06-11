@@ -5,6 +5,7 @@ use App\Filament\Resources\DataSources\DataSourceResource;
 use App\Filament\Resources\DataSources\Pages\CreateDataSource;
 use App\Filament\Resources\DataSources\Pages\EditDataSource;
 use App\Filament\Resources\DataSources\Pages\ListDataSources;
+use App\Jobs\RunDataSourceImportJob;
 use App\Models\DataSource;
 use App\Models\Setting;
 use App\Models\User;
@@ -13,6 +14,7 @@ use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -82,6 +84,54 @@ it('shows client and global export table columns in multi-client mode', function
     Livewire::test(ListDataSources::class)
         ->assertTableColumnVisible('client.name')
         ->assertTableColumnVisible('global_export');
+});
+
+// ── Manual import trigger ─────────────────────────────────────────────────────
+
+it('dispatches an import job from the edit page header action', function (): void {
+    Queue::fake();
+    $this->actingAs($this->admin);
+
+    $source = DataSource::factory()->create(['active' => true]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->callAction('run_import')
+        ->assertNotified('Import queued');
+
+    Queue::assertPushed(RunDataSourceImportJob::class, function (RunDataSourceImportJob $job) use ($source): bool {
+        return $job->dataSourceId === $source->id && $job->userId === $this->admin->id;
+    });
+});
+
+it('disables the run import action for inactive sources', function (): void {
+    $this->actingAs($this->admin);
+
+    $source = DataSource::factory()->create(['active' => false]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->assertActionDisabled('run_import');
+});
+
+it('dispatches an import job from the table row action', function (): void {
+    Queue::fake();
+    $this->actingAs($this->admin);
+
+    $source = DataSource::factory()->create(['active' => true]);
+
+    Livewire::test(ListDataSources::class)
+        ->callAction(TestAction::make('run_import')->table($source))
+        ->assertNotified('Import queued');
+
+    Queue::assertPushed(RunDataSourceImportJob::class, fn (RunDataSourceImportJob $job): bool => $job->dataSourceId === $source->id);
+});
+
+it('hides the table run import action for inactive sources', function (): void {
+    $this->actingAs($this->admin);
+
+    $source = DataSource::factory()->create(['active' => false]);
+
+    Livewire::test(ListDataSources::class)
+        ->assertActionHidden(TestAction::make('run_import')->table($source));
 });
 
 // ── Database driver form behavior ─────────────────────────────────────────────

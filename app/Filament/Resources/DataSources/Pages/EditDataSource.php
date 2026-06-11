@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DataSources\Pages;
 
 use App\Filament\Resources\DataSources\DataSourceResource;
+use App\Jobs\RunDataSourceImportJob;
 use App\Models\DataSource;
 use App\Services\OAuthService;
 use App\Services\ShipmentImport\Sources\ShopifySource;
@@ -30,6 +31,25 @@ class EditDataSource extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('run_import')
+                ->label('Run Import Now')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->disabled(fn (): bool => ! $this->record->active)
+                ->tooltip(fn (): ?string => $this->record->active ? null : 'This source is inactive. Activate it to run imports.')
+                ->requiresConfirmation()
+                ->modalHeading('Run import now?')
+                ->modalDescription('Fetch new shipments from this source in the background. You will receive a notification when it finishes.')
+                ->action(function (): void {
+                    RunDataSourceImportJob::dispatch($this->record->id, auth()->id());
+
+                    Notification::make()
+                        ->info()
+                        ->title('Import queued')
+                        ->body("You'll be notified when \"{$this->record->name}\" finishes importing.")
+                        ->send();
+                }),
+
             Action::make('shopify_connect')
                 ->label(fn () => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'Reconnect Shopify' : 'Connect with OAuth')
                 ->icon('heroicon-o-link')

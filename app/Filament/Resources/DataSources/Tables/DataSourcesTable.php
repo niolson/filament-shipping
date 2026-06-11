@@ -3,13 +3,18 @@
 namespace App\Filament\Resources\DataSources\Tables;
 
 use App\Enums\ScheduleInterval;
+use App\Jobs\RunDataSourceImportJob;
+use App\Models\DataSource;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Notifications\Notification;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -70,6 +75,22 @@ class DataSourcesTable
             ])
             ->defaultSort('name')
             ->recordActions([
+                Action::make('run_import')
+                    ->label('Run Import')
+                    ->icon(Heroicon::ArrowDownTray)
+                    ->visible(fn (DataSource $record): bool => $record->active)
+                    ->requiresConfirmation()
+                    ->modalHeading('Run import now?')
+                    ->modalDescription('Fetch new shipments from this source in the background. You will receive a notification when it finishes.')
+                    ->action(function (DataSource $record): void {
+                        RunDataSourceImportJob::dispatch($record->id, auth()->id());
+
+                        Notification::make()
+                            ->info()
+                            ->title('Import queued')
+                            ->body("You'll be notified when \"{$record->name}\" finishes importing.")
+                            ->send();
+                    }),
                 EditAction::make(),
             ])
             ->toolbarActions([
