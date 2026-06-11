@@ -6,16 +6,21 @@ use App\Enums\BoxSizeType;
 use App\Enums\FedexPackageType;
 use App\Enums\Role;
 use App\Filament\Resources\CarrierAccounts\CarrierAccountResource;
+use App\Filament\Resources\DataSources\DataSourceResource;
 use App\Filament\Support\AddressForm;
 use App\Models\BoxSize;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierService;
 use App\Models\Channel;
+use App\Models\DataSource;
 use App\Models\Location;
 use App\Models\ShippingMethod;
 use App\Services\CacheService;
 use App\Services\SettingsService;
+use App\Services\ShipmentImport\Sources\AmazonSource;
+use App\Services\ShipmentImport\Sources\DatabaseSource;
+use App\Services\ShipmentImport\Sources\ShopifySource;
 use Database\Seeders\BoxSizeSeeder;
 use Database\Seeders\ShippingMethodSeeder;
 use Filament\Forms;
@@ -95,8 +100,13 @@ class SetupWizard extends Page
             'prepopulate_shipping_methods' => false,
             'shipping_methods' => [],
 
-            // Step 5: Import source
-            'import_source' => 'none',
+            // Step 5: Import source (prefill from a previously created data source)
+            'import_source' => match (DataSource::query()->value('driver')) {
+                DatabaseSource::class => 'database',
+                ShopifySource::class => 'shopify',
+                AmazonSource::class => 'amazon',
+                default => 'none',
+            },
         ]);
     }
 
@@ -558,7 +568,22 @@ class SetupWizard extends Page
                     ->content(fn () => ShippingMethod::where('active', true)->pluck('name')->join(', ') ?: 'None'),
                 Forms\Components\Placeholder::make('summary_import')
                     ->label('Data Source')
-                    ->content(fn () => app(SettingsService::class)->get('import_source', 'none')),
+                    ->content(function (): string {
+                        $source = DataSource::query()->first();
+
+                        if (! $source) {
+                            return 'None (manual entry only)';
+                        }
+
+                        $driverLabel = match ($source->driver) {
+                            DatabaseSource::class => 'Database',
+                            ShopifySource::class => 'Shopify',
+                            AmazonSource::class => 'Amazon SP-API',
+                            default => class_basename($source->driver),
+                        };
+
+                        return "{$source->name} ({$driverLabel})";
+                    }),
                 Forms\Components\Placeholder::make('summary_next_steps')
                     ->label('Next Steps')
                     ->content(function (): HtmlString {
@@ -573,6 +598,11 @@ class SetupWizard extends Page
 
                             return "<li><a href=\"{$url}\" class=\"text-primary-600 hover:underline font-medium\">{$verb} {$account->carrier->name}</a> — credentials required before shipping</li>";
                         })->values()->all();
+
+                        if ($source = DataSource::query()->first()) {
+                            $url = DataSourceResource::getUrl('edit', ['record' => $source->id]);
+                            $items[] = "<li><a href=\"{$url}\" class=\"text-primary-600 hover:underline font-medium\">Finish configuring {$source->name}</a> — credentials, queries, and connection test</li>";
+                        }
 
                         $items[] = '<li class="text-gray-500">Configure your printer &amp; scale in <strong>Device Settings</strong> on each workstation</li>';
 
@@ -759,37 +789,106 @@ class SetupWizard extends Page
         $settings = app(SettingsService::class);
         $source = $data['import_source'] ?? 'none';
 
-        $settings->set('import_source', $source, group: 'system');
-
         if ($source === 'database') {
-            $settings->set('import.db_driver', $data['db_driver'] ?? 'mysql', group: 'import');
-            $settings->set('import.db_host', $data['db_host'] ?? '127.0.0.1', group: 'import');
-            $settings->set('import.db_port', $data['db_port'] ?? '3306', group: 'import');
-            $settings->set('import.db_database', $data['db_database'] ?? '', group: 'import');
-            $settings->set('import.db_username', $data['db_username'] ?? '', group: 'import');
-            if (! empty($data['db_password'])) {
-                $settings->set('import.db_password', $data['db_password'], 'string', encrypted: true, group: 'import');
-            }
-            $settings->set('import.ssh_enabled', $data['db_ssh_enabled'] ?? false, 'boolean', group: 'import');
-            if ($data['db_ssh_enabled'] ?? false) {
-                $settings->set('import.ssh_host', $data['db_ssh_host'] ?? '', group: 'import');
-                $settings->set('import.ssh_port', $data['db_ssh_port'] ?? '22', group: 'import');
-                $settings->set('import.ssh_user', $data['db_ssh_user'] ?? '', group: 'import');
-                $settings->set('import.ssh_remote_host', $data['db_ssh_remote_host'] ?? '', group: 'import');
-                $settings->set('import.ssh_remote_port', $data['db_ssh_remote_port'] ?? '', group: 'import');
-                $settings->set('import.ssh_host_key', $data['db_ssh_host_key'] ?? '', group: 'import');
-            }
+            $this->saveDatabaseDataSource($data);
         } elseif ($source === 'shopify') {
+            $this->saveShopifyDataSource($data);
+
+            // Tenant-level fallback still read by ShopifyConnector / ShopifyOAuthProvider
             if (! empty($data['shopify_shop_domain'])) {
                 $settings->set('shopify.shop_domain', $data['shopify_shop_domain'], group: 'shopify');
             }
         } elseif ($source === 'amazon') {
+            $this->saveAmazonDataSource($data);
+
+            // Tenant-level fallback still read by AmazonSource
             if (! empty($data['amazon_marketplace_id'])) {
                 $settings->set('amazon.marketplace_id', $data['amazon_marketplace_id'], group: 'amazon');
             }
         }
 
         $settings->clearCache();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function saveDatabaseDataSource(array $data): void
+    {
+        $newSettings = [
+            'db_driver' => $data['db_driver'] ?? 'mysql',
+            'db_host' => $data['db_host'] ?? '127.0.0.1',
+            'db_port' => (int) ($data['db_port'] ?? 3306),
+            'db_database' => $data['db_database'] ?? '',
+            'db_username' => $data['db_username'] ?? '',
+            'ssh_enabled' => (bool) ($data['db_ssh_enabled'] ?? false),
+        ];
+
+        if ($newSettings['ssh_enabled']) {
+            $newSettings += [
+                'ssh_host' => $data['db_ssh_host'] ?? '',
+                'ssh_port' => (int) ($data['db_ssh_port'] ?? 22),
+                'ssh_user' => $data['db_ssh_user'] ?? '',
+                'ssh_remote_host' => $data['db_ssh_remote_host'] ?? '',
+                'ssh_remote_port' => $data['db_ssh_remote_port'] ?? '',
+                'ssh_host_key' => $data['db_ssh_host_key'] ?? '',
+            ];
+        }
+
+        $record = DataSource::firstOrNew(['driver' => DatabaseSource::class]);
+        $record->fill([
+            'name' => $record->name ?? 'Imported Orders Database',
+            'active' => true,
+            'settings' => array_merge($record->settings ?? [], $newSettings),
+        ]);
+
+        if (! empty($data['db_password'])) {
+            $record->mergeSecret('db_password', $data['db_password']);
+        }
+
+        $record->save();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function saveShopifyDataSource(array $data): void
+    {
+        $record = DataSource::firstOrNew(['driver' => ShopifySource::class]);
+
+        $newSettings = ['channel_name' => $record->settings['channel_name'] ?? 'Shopify'];
+
+        if (! empty($data['shopify_shop_domain'])) {
+            $newSettings['shop_domain'] = $data['shopify_shop_domain'];
+        }
+
+        $record->fill([
+            'name' => $record->name ?? 'Shopify',
+            'active' => true,
+            'settings' => array_merge($record->settings ?? [], $newSettings),
+        ]);
+        $record->save();
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function saveAmazonDataSource(array $data): void
+    {
+        $record = DataSource::firstOrNew(['driver' => AmazonSource::class]);
+
+        $newSettings = ['channel_name' => $record->settings['channel_name'] ?? 'Amazon'];
+
+        if (! empty($data['amazon_marketplace_id'])) {
+            $newSettings['marketplace_id'] = $data['amazon_marketplace_id'];
+        }
+
+        $record->fill([
+            'name' => $record->name ?? 'Amazon',
+            'active' => true,
+            'settings' => array_merge($record->settings ?? [], $newSettings),
+        ]);
+        $record->save();
     }
 
     private function advanceStep(int $next): void
