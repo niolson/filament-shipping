@@ -481,6 +481,23 @@ class DataSourceForm
                         ->helperText('Known-hosts entry for this server. Paste the line from ssh-keyscan output.')
                         ->columnSpanFull()
                         ->visible(fn (Get $get): bool => (bool) $get('settings.ssh_enabled')),
+
+                    TextInput::make('ssh_public_key')
+                        ->label('SSH Public Key')
+                        ->helperText('Add this to ~/.ssh/authorized_keys on the SSH host. Optionally append permitopen="host:port" to restrict forwarding to a specific server.')
+                        ->readOnly()
+                        ->copyable()
+                        ->dehydrated(false)
+                        ->default(function (): string {
+                            $pubKeyPath = storage_path('app/private/ssh/id_ed25519.pub');
+                            if (! file_exists($pubKeyPath)) {
+                                return 'SSH key not generated. Run: php artisan app:generate-ssh-key';
+                            }
+
+                            return 'restrict,port-forwarding '.trim(file_get_contents($pubKeyPath));
+                        })
+                        ->columnSpanFull()
+                        ->visible(fn (Get $get): bool => (bool) $get('settings.ssh_enabled')),
                 ])
                 ->visible(fn (Get $get): bool => $get('driver') === DatabaseSource::class)
                 ->columns(2)

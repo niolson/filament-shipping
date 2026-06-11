@@ -14,6 +14,7 @@ use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
@@ -144,6 +145,34 @@ it('reveals the mark exported query field when the toggle is enabled', function 
         ->assertFormFieldHidden('settings.mark_exported_query')
         ->fillForm(['settings.mark_exported_enabled' => true])
         ->assertFormFieldVisible('settings.mark_exported_query');
+});
+
+it('shows the generated ssh public key when database ssh tunneling is enabled', function (): void {
+    $pubKeyPath = storage_path('app/private/ssh/id_ed25519.pub');
+    $existingPublicKey = File::exists($pubKeyPath) ? File::get($pubKeyPath) : null;
+
+    try {
+        File::ensureDirectoryExists(dirname($pubKeyPath));
+        File::put($pubKeyPath, 'ssh-ed25519 AAAApolybagpublickey');
+
+        $this->actingAs($this->admin);
+
+        Livewire::test(CreateDataSource::class)
+            ->fillForm([
+                'driver' => DatabaseSource::class,
+                'settings.ssh_enabled' => true,
+            ])
+            ->assertFormFieldVisible('ssh_public_key')
+            ->assertSchemaStateSet([
+                'ssh_public_key' => 'restrict,port-forwarding ssh-ed25519 AAAApolybagpublickey',
+            ]);
+    } finally {
+        if ($existingPublicKey === null) {
+            File::delete($pubKeyPath);
+        } else {
+            File::put($pubKeyPath, $existingPublicKey);
+        }
+    }
 });
 
 it('can test the database connection before the source is created', function (): void {
