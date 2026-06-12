@@ -1,0 +1,3901 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Instanceof between null and BackedEnum will always evaluate to false\.$#'
+			identifier: instanceof.alwaysFalse
+			count: 1
+			path: app/Console/Commands/ArchiveShipments.php
+
+		-
+			message: '#^Parameter \$options of function Laravel\\Prompts\\select expects array\<int\|string, string\>\|Illuminate\\Support\\Collection\<int\|string, string\>, Illuminate\\Support\\Collection\<string, string\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/CreateUser.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Console/Commands/DemoReset.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/DemoReset.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Console/Commands/DemoReset.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Console/Commands/DemoReset.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>weight" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/DemoReset.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$channel\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/ExportPackagesCommand.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment_reference\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/ExportPackagesCommand.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Package\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Console/Commands/ExportPackagesCommand.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/ExportPackagesCommand.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>shipment_reference" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Console/Commands/ExportPackagesCommand.php
+
+		-
+			message: '#^Call to an undefined method Saloon\\Http\\Request\:\:body\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Console/Commands/FedexRunConsolidationTestCase.php
+
+		-
+			message: '#^Call to an undefined method Saloon\\Http\\Request\:\:body\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Console/Commands/FedexRunEtdTestCase.php
+
+		-
+			message: '#^Parameter \#1 \$string of function str_pad expects string, int given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/GenerateTestData.php
+
+		-
+			message: '#^Parameter \#1 \$string of function str_pad expects string, int\<0, 9999\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/GenerateTestData.php
+
+		-
+			message: '#^Parameter \#1 \$string of function str_pad expects string, int\<1, max\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/GenerateTestData.php
+
+		-
+			message: '#^Parameter \#1 \$string of function str_pad expects string, int\<10000, 99999\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Console/Commands/GenerateTestData.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Console/Commands/ImportShipmentsCommand.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$hs_tariff_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/CustomsItem.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/CustomsItem.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$value\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/CustomsItem.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>value" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/DataTransferObjects/Shipping/CustomsItem.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$fedex_package_type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/PackageData.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$type\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/PackageData.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/RateRequest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/RateRequest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postal_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/RateRequest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residential\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/RateRequest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shippingMethod\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/RateRequest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state_or_province\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/RateRequest.php
+
+		-
+			message: '#^Parameter \#1 \$location of static method App\\DataTransferObjects\\Shipping\\AddressData\:\:fromLocation\(\) expects App\\Models\\Location, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/DataTransferObjects/Shipping/RateRequest.php
+
+		-
+			message: '#^Offset ''metadata'' on array\{carrier\: string, serviceCode\: string, serviceName\: string, price\: float, deliveryCommitment\: string\|null, deliveryDate\: string\|null, transitTime\: string\|null, metadata\: array\<string, mixed\>\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/DataTransferObjects/Shipping/RateResponse.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/ShipRequest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shippingMethod\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/DataTransferObjects/Shipping/ShipRequest.php
+
+		-
+			message: '#^Parameter \#1 \$location of static method App\\DataTransferObjects\\Shipping\\AddressData\:\:fromLocation\(\) expects App\\Models\\Location, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/DataTransferObjects/Shipping/ShipRequest.php
+
+		-
+			message: '#^Parameter \#1 \$packageItem of static method App\\DataTransferObjects\\Shipping\\CustomsItem\:\:fromPackageItem\(\) expects App\\Models\\PackageItem, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/DataTransferObjects/Shipping/ShipRequest.php
+
+		-
+			message: '#^Parameter \#1 \$shipment of static method App\\DataTransferObjects\\Shipping\\AddressData\:\:fromShipment\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/DataTransferObjects/Shipping/ShipRequest.php
+
+		-
+			message: '#^Method App\\Enums\\AuditAction\:\:getLabel\(\) never returns Illuminate\\Contracts\\Support\\Htmlable so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/AuditAction.php
+
+		-
+			message: '#^Method App\\Enums\\AuditAction\:\:getLabel\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/AuditAction.php
+
+		-
+			message: '#^Method App\\Enums\\Deliverability\:\:getColor\(\) never returns array\<string\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/Deliverability.php
+
+		-
+			message: '#^Method App\\Enums\\Deliverability\:\:getColor\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/Deliverability.php
+
+		-
+			message: '#^Method App\\Enums\\Deliverability\:\:getIcon\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/Deliverability.php
+
+		-
+			message: '#^Method App\\Enums\\Deliverability\:\:getIcon\(\) never returns string so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/Deliverability.php
+
+		-
+			message: '#^Method App\\Enums\\Deliverability\:\:getLabel\(\) never returns Illuminate\\Contracts\\Support\\Htmlable so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/Deliverability.php
+
+		-
+			message: '#^Method App\\Enums\\Deliverability\:\:getLabel\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/Deliverability.php
+
+		-
+			message: '#^Method App\\Enums\\LabelBatchItemStatus\:\:getColor\(\) never returns array\<string\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/LabelBatchItemStatus.php
+
+		-
+			message: '#^Method App\\Enums\\LabelBatchItemStatus\:\:getColor\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/LabelBatchItemStatus.php
+
+		-
+			message: '#^Method App\\Enums\\LabelBatchItemStatus\:\:getLabel\(\) never returns Illuminate\\Contracts\\Support\\Htmlable so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/LabelBatchItemStatus.php
+
+		-
+			message: '#^Method App\\Enums\\LabelBatchItemStatus\:\:getLabel\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/LabelBatchItemStatus.php
+
+		-
+			message: '#^Method App\\Enums\\LabelBatchStatus\:\:getColor\(\) never returns array\<string\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/LabelBatchStatus.php
+
+		-
+			message: '#^Method App\\Enums\\LabelBatchStatus\:\:getColor\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/LabelBatchStatus.php
+
+		-
+			message: '#^Method App\\Enums\\LabelBatchStatus\:\:getLabel\(\) never returns Illuminate\\Contracts\\Support\\Htmlable so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/LabelBatchStatus.php
+
+		-
+			message: '#^Method App\\Enums\\LabelBatchStatus\:\:getLabel\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/LabelBatchStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PackageStatus\:\:getColor\(\) never returns array\<string\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PackageStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PackageStatus\:\:getColor\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PackageStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PackageStatus\:\:getLabel\(\) never returns Illuminate\\Contracts\\Support\\Htmlable so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PackageStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PackageStatus\:\:getLabel\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PackageStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PickBatchStatus\:\:getColor\(\) never returns array\<string\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PickBatchStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PickBatchStatus\:\:getColor\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PickBatchStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PickBatchStatus\:\:getLabel\(\) never returns Illuminate\\Contracts\\Support\\Htmlable so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PickBatchStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PickBatchStatus\:\:getLabel\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PickBatchStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PickingStatus\:\:getColor\(\) never returns array\<string\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PickingStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PickingStatus\:\:getColor\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PickingStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PickingStatus\:\:getLabel\(\) never returns Illuminate\\Contracts\\Support\\Htmlable so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PickingStatus.php
+
+		-
+			message: '#^Method App\\Enums\\PickingStatus\:\:getLabel\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/PickingStatus.php
+
+		-
+			message: '#^Method App\\Enums\\ShipmentStatus\:\:getColor\(\) never returns array\<string\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/ShipmentStatus.php
+
+		-
+			message: '#^Method App\\Enums\\ShipmentStatus\:\:getColor\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/ShipmentStatus.php
+
+		-
+			message: '#^Method App\\Enums\\ShipmentStatus\:\:getLabel\(\) never returns Illuminate\\Contracts\\Support\\Htmlable so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/ShipmentStatus.php
+
+		-
+			message: '#^Method App\\Enums\\ShipmentStatus\:\:getLabel\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/ShipmentStatus.php
+
+		-
+			message: '#^Method App\\Enums\\TrackingStatus\:\:getColor\(\) never returns array\<string\> so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/TrackingStatus.php
+
+		-
+			message: '#^Method App\\Enums\\TrackingStatus\:\:getColor\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/TrackingStatus.php
+
+		-
+			message: '#^Method App\\Enums\\TrackingStatus\:\:getLabel\(\) never returns Illuminate\\Contracts\\Support\\Htmlable so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/TrackingStatus.php
+
+		-
+			message: '#^Method App\\Enums\\TrackingStatus\:\:getLabel\(\) never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Enums/TrackingStatus.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/BatchShipResults.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/DevSettings.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/EndOfDay.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/GeneratePickBatch.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Filament/Pages/ManualShip.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Pack.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Pack.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Filament/Pages/Pack.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: app/Filament/Pages/Pack.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>quantity" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/Pack.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>transparencyCodes" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/Pack.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Client\:\:\$code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$has_items\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_fee\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_fees\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$line_total\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$materials\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$order_count\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$package_count\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pick_fee_base\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pick_fee_extra\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pick_fees\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postage\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product_surcharges\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment_reference\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_billable\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_materials\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_postage\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>label_fee_per_package" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>pick_fee_additional_item" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>pick_fee_first_item" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/Reports/ClientBillingReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/PackingValidationReport.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/Reports/PackingValidationReport.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>weight" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/Reports/PackingValidationReport.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Package\:\:\$cheapest_carrier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/RateComparison.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Package\:\:\$cheapest_price\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Filament/Pages/Reports/RateComparison.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Package\:\:\$selected_carrier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Reports/RateComparison.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Package\:\:\$selected_price\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Filament/Pages/Reports/RateComparison.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/Reports/RateComparison.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/Reports/UserShipmentsReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$group_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Filament/Pages/Reports/VolumeReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$group_name\.$#'
+			identifier: property.notFound
+			count: 4
+			path: app/Filament/Pages/Reports/VolumeReport.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/Reports/VolumeReport.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: string$#'
+			identifier: match.unhandled
+			count: 1
+			path: app/Filament/Pages/Reports/VolumeReport.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrier_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Pages/Settings.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/Settings.php
+
+		-
+			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:map\(\) contains unresolvable type\.$#'
+			identifier: argument.unresolvableType
+			count: 1
+			path: app/Filament/Pages/Settings.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/Settings.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Filament/Pages/SetupWizard.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/SetupWizard.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>country" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/SetupWizard.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/SetupWizard.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>timezone" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Pages/SetupWizard.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/Ship.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/UnmappedChannelReferences.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Pages/UnmappedShippingReferences.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/AuditLogResource.php
+
+		-
+			message: '#^Parameter \#1 \$data of static method App\\Filament\\Resources\\AuditLogResource\:\:formatJson\(\) expects array\|null, string\|null given\.$#'
+			identifier: argument.type
+			count: 3
+			path: app/Filament/Resources/AuditLogResource.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/BoxSizeResource/Pages/EditBoxSize.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrier_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/CarrierAccounts/Pages/CreateCarrierAccount.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:mergeSecret\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Filament/Resources/CarrierAccounts/Pages/CreateCarrierAccount.php
+
+		-
+			message: '#^Method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:scopes\(\) invoked with 0 parameters, 1 required\.$#'
+			identifier: arguments.count
+			count: 1
+			path: app/Filament/Resources/CarrierAccounts/Pages/CreateCarrierAccount.php
+
+		-
+			message: '#^Cannot access property \$carrier on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 6
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Cannot access property \$credentials on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 7
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Cannot access property \$secret_credentials on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Cannot call method credential\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Cannot call method mergeCredential\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Cannot call method mergeSecret\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Cannot call method secret\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Parameter \#1 \$account of method App\\Services\\OAuthService\:\:disconnectAccount\(\) expects App\\Models\\CarrierAccount, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Parameter \#1 \$account of method App\\Services\\OAuthService\:\:isAccountConnected\(\) expects App\\Models\\CarrierAccount, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 10
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Parameter \#3 \$account of method App\\Services\\FedexRegistrationService\:\:saveChildCredentialsToAccount\(\) expects App\\Models\\CarrierAccount, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Database\\Eloquent\\Model\|int\|string\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
+
+		-
+			message: '#^Unsafe call to private method App\\Filament\\Resources\\CarrierAccounts\\Schemas\\CarrierAccountForm\:\:renderAccountOauthStatus\(\) through static\:\:\.$#'
+			identifier: staticClassAccess.privateMethod
+			count: 2
+			path: app/Filament/Resources/CarrierAccounts/Schemas/CarrierAccountForm.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/CarrierServiceResource/Pages/EditCarrierService.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/ChannelResource/Pages/EditChannel.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/Clients/ClientResource.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/DataSources/DataSourceResource.php
+
+		-
+			message: '#^Cannot access property \$active on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
+
+		-
+			message: '#^Cannot access property \$driver on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
+
+		-
+			message: '#^Cannot access property \$name on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
+
+		-
+			message: '#^Parameter \#1 \$importSource of method App\\Services\\OAuthService\:\:isDataSourceConnected\(\) expects App\\Models\\DataSource, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 5
+			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
+
+		-
+			message: '#^Parameter \#2 \$importSource of method App\\Services\\OAuthService\:\:disconnectDataSource\(\) expects App\\Models\\DataSource, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
+
+		-
+			message: '#^Parameter \#2 \$importSource of method App\\Services\\OAuthService\:\:initiateAuthorizationForDataSource\(\) expects App\\Models\\DataSource, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Resources/DataSources/Schemas/DataSourceForm.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/LabelBatchResource.php
+
+		-
+			message: '#^Cannot access property \$bus_batch_id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
+
+		-
+			message: '#^Cannot access property \$failed_shipments on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
+
+		-
+			message: '#^Cannot access property \$label_dpi on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
+
+		-
+			message: '#^Cannot access property \$label_format on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
+
+		-
+			message: '#^Cannot access property \$successful_shipments on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
+
+		-
+			message: '#^Cannot access property \$total_shipments on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
+
+		-
+			message: '#^Cannot call method isComplete\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
+
+		-
+			message: '#^Cannot call method items\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isComplete\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Filament/Resources/LabelBatchResource/RelationManagers/LabelBatchItemsRelationManager.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/LocationResource.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/LocationResource/Pages/EditLocation.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address2\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/PackageResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/PackageResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$company\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/PackageResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/PackageResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/PackageResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/PackageResource.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:toSearchableArray\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Filament/Resources/PackageResource.php
+
+		-
+			message: '#^Cannot access property \$status on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/PackageResource/Pages/EditPackage.php
+
+		-
+			message: '#^Cannot access property \$carrier on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/PackageResource/Pages/ViewPackage.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/PackageResource/Pages/ViewPackage.php
+
+		-
+			message: '#^Cannot access property \$label_data on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Filament/Resources/PackageResource/Pages/ViewPackage.php
+
+		-
+			message: '#^Cannot access property \$label_dpi on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/PackageResource/Pages/ViewPackage.php
+
+		-
+			message: '#^Cannot access property \$status on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 3
+			path: app/Filament/Resources/PackageResource/Pages/ViewPackage.php
+
+		-
+			message: '#^Cannot access property \$tracking_number on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/PackageResource/Pages/ViewPackage.php
+
+		-
+			message: '#^Parameter \#1 \$package of method App\\Services\\PackageLabels\\EloquentPackageLabelWorkflow\:\:voidLabel\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/PackageResource/Pages/ViewPackage.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$logo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/PickBatches/Pages/ViewPickBatch.php
+
+		-
+			message: '#^Cannot access property \$pickBatchShipments on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/PickBatches/Pages/ViewPickBatch.php
+
+		-
+			message: '#^Cannot access property \$status on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Filament/Resources/PickBatches/Pages/ViewPickBatch.php
+
+		-
+			message: '#^Cannot call method pickBatchShipments\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/PickBatches/Pages/ViewPickBatch.php
+
+		-
+			message: '#^Parameter \#1 \$batch of method App\\Services\\PickBatchService\:\:cancel\(\) expects App\\Models\\PickBatch, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/PickBatches/Pages/ViewPickBatch.php
+
+		-
+			message: '#^Parameter \#1 \$batch of method App\\Services\\PickBatchService\:\:complete\(\) expects App\\Models\\PickBatch, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/PickBatches/Pages/ViewPickBatch.php
+
+		-
+			message: '#^Parameter \#1 \$batch of method App\\Services\\PickBatchService\:\:summaryRows\(\) expects App\\Models\\PickBatch, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/PickBatches/Pages/ViewPickBatch.php
+
+		-
+			message: '#^Parameter \#1 \$pickBatch of method App\\Filament\\Resources\\PickBatches\\Pages\\ViewPickBatch\:\:resolveLogoDataUri\(\) expects App\\Models\\PickBatch, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/PickBatches/Pages/ViewPickBatch.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>logo" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Resources/PickBatches/Pages/ViewPickBatch.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/PickBatches/PickBatchResource.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Resources/PickBatches/RelationManagers/PickBatchShipmentsRelationManager.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>last_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Filament/Resources/PickBatches/RelationManagers/PickBatchShipmentsRelationManager.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$sku\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ProductResource.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:toSearchableArray\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Filament/Resources/ProductResource.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/ProductResource/Pages/EditProduct.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$icon\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state_or_province\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Anonymous function never returns null so it can be removed from the return type\.$#'
+			identifier: return.unusedType
+			count: 1
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:toSearchableArray\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Parameter \#1 \$shipments of method App\\Services\\BatchLabelService\:\:validateShipmentsForBatch\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\Shipment\>, Illuminate\\Database\\Eloquent\\Collection given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Parameter \#1 \$shipments of method App\\Services\\PickBatchService\:\:createFromShipments\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\Shipment\>, Illuminate\\Database\\Eloquent\\Collection given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Filament/Resources/ShipmentResource.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address1\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource/Pages/EditShipment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address2\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource/Pages/EditShipment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource/Pages/EditShipment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$country\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource/Pages/EditShipment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postal_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource/Pages/EditShipment.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state_or_province\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Filament/Resources/ShipmentResource/Pages/EditShipment.php
+
+		-
+			message: '#^Cannot call method packages\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/ShipmentResource/Pages/EditShipment.php
+
+		-
+			message: '#^Cannot access property \$deliverability on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/ShipmentResource/Pages/ViewShipment.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/ShipmentResource/Pages/ViewShipment.php
+
+		-
+			message: '#^Cannot call method validateAddress\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Resources/ShipmentResource/Pages/ViewShipment.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 1
+			path: app/Filament/Resources/ShippingMethodResource/Pages/EditShippingMethod.php
+
+		-
+			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 2
+			path: app/Filament/Resources/UserResource/Pages/EditUser.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Filament/Widgets/DatabaseHealthWidget.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/Api/TestPackageController.php
+
+		-
+			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\ShippingMethod\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Http/Controllers/Api/TestPackageController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>height" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/TestPackageController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>length" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/TestPackageController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>width" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/Api/TestPackageController.php
+
+		-
+			message: '#^Method App\\Http\\Controllers\\Auth\\GoogleController\:\:redirect\(\) should return Illuminate\\Http\\RedirectResponse but returns Symfony\\Component\\HttpFoundation\\RedirectResponse\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Auth/GoogleController.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Controllers/OAuthCallbackController.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$logo\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Http/Controllers/PickBatchController.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>logo" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Http/Controllers/PickBatchController.php
+
+		-
+			message: '#^Call to an undefined method Saloon\\Http\\Request\:\:body\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Http/Integrations/Fedex/FedexConnector.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: app/Http/Integrations/Fedex/FedexConnector.php
+
+		-
+			message: '#^Method App\\Http\\Integrations\\Fedex\\FedexConnector\:\:getAuthenticatedConnector\(\) should return static\(App\\Http\\Integrations\\Fedex\\FedexConnector\) but returns App\\Http\\Integrations\\Fedex\\FedexConnector\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Integrations/Fedex/FedexConnector.php
+
+		-
+			message: '#^Ternary operator condition is always false\.$#'
+			identifier: ternary.alwaysFalse
+			count: 1
+			path: app/Http/Integrations/Fedex/FedexConnector.php
+
+		-
+			message: '#^Call to function is_array\(\) with array\<mixed\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Http/Integrations/USPS/USPSConnector.php
+
+		-
+			message: '#^Method App\\Http\\Integrations\\USPS\\USPSConnector\:\:fromOAuthToken\(\) should return static\(App\\Http\\Integrations\\USPS\\USPSConnector\) but returns App\\Http\\Integrations\\USPS\\USPSConnector\.$#'
+			identifier: return.type
+			count: 2
+			path: app/Http/Integrations/USPS/USPSConnector.php
+
+		-
+			message: '#^Method App\\Http\\Integrations\\USPS\\USPSConnector\:\:getAuthenticatedConnector\(\) should return static\(App\\Http\\Integrations\\USPS\\USPSConnector\) but returns App\\Http\\Integrations\\USPS\\USPSConnector\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Integrations/USPS/USPSConnector.php
+
+		-
+			message: '#^Offset ''access_token'' on array\{access_token\: string, refresh_token\: string\|null, expires_in\: int\|null\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Integrations/USPS/USPSConnector.php
+
+		-
+			message: '#^Unsafe call to private method App\\Http\\Integrations\\USPS\\USPSConnector\:\:fromOAuthToken\(\) through static\:\:\.$#'
+			identifier: staticClassAccess.privateMethod
+			count: 1
+			path: app/Http/Integrations/USPS/USPSConnector.php
+
+		-
+			message: '#^Unsafe call to private method App\\Http\\Integrations\\USPS\\USPSConnector\:\:refreshOAuthToken\(\) through static\:\:\.$#'
+			identifier: staticClassAccess.privateMethod
+			count: 1
+			path: app/Http/Integrations/USPS/USPSConnector.php
+
+		-
+			message: '#^Method App\\Http\\Integrations\\Ups\\UpsConnector\:\:fromClientCredentials\(\) should return static\(App\\Http\\Integrations\\Ups\\UpsConnector\) but returns App\\Http\\Integrations\\Ups\\UpsConnector\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Integrations/Ups/UpsConnector.php
+
+		-
+			message: '#^Method App\\Http\\Integrations\\Ups\\UpsConnector\:\:fromOAuthToken\(\) should return static\(App\\Http\\Integrations\\Ups\\UpsConnector\) but returns App\\Http\\Integrations\\Ups\\UpsConnector\.$#'
+			identifier: return.type
+			count: 2
+			path: app/Http/Integrations/Ups/UpsConnector.php
+
+		-
+			message: '#^Offset ''access_token'' on array\{access_token\: string, refresh_token\: string\|null, expires_in\: int\|null\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Http/Integrations/Ups/UpsConnector.php
+
+		-
+			message: '#^Unsafe call to private method App\\Http\\Integrations\\Ups\\UpsConnector\:\:fromClientCredentials\(\) through static\:\:\.$#'
+			identifier: staticClassAccess.privateMethod
+			count: 1
+			path: app/Http/Integrations/Ups/UpsConnector.php
+
+		-
+			message: '#^Unsafe call to private method App\\Http\\Integrations\\Ups\\UpsConnector\:\:fromOAuthToken\(\) through static\:\:\.$#'
+			identifier: staticClassAccess.privateMethod
+			count: 1
+			path: app/Http/Integrations/Ups/UpsConnector.php
+
+		-
+			message: '#^Unsafe call to private method App\\Http\\Integrations\\Ups\\UpsConnector\:\:refreshOAuthToken\(\) through static\:\:\.$#'
+			identifier: staticClassAccess.privateMethod
+			count: 1
+			path: app/Http/Integrations/Ups/UpsConnector.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Middleware/EnsureSetupComplete.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Middleware/EnsureUserIsAdmin.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Http/Middleware/EnsureUserIsManager.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/GenerateLabelJob.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Jobs/GenerateLabelJob.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:packageItems\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Jobs/GenerateLabelJob.php
+
+		-
+			message: '#^Parameter \#1 \$package of method App\\Services\\PackageShipping\\EloquentPackageShippingWorkflow\:\:autoShip\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Jobs/GenerateLabelJob.php
+
+		-
+			message: '#^Call to an undefined method Monolog\\Handler\\HandlerInterface\:\:getFormatter\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Logging/DeepNormalizerTap.php
+
+		-
+			message: '#^Method App\\Models\\AuditLog\:\:record\(\) should return static\(App\\Models\\AuditLog\) but returns App\\Models\\AuditLog\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/AuditLog.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/CarrierAccount.php
+
+		-
+			message: '#^Offset string on string\|null on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 2
+			path: app/Models/CarrierAccount.php
+
+		-
+			message: '#^Property App\\Models\\CarrierAccount\:\:\$credentials \(string\|null\) does not accept array\<mixed, mixed\>\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Models/CarrierAccount.php
+
+		-
+			message: '#^Property App\\Models\\CarrierAccount\:\:\$secret_credentials \(string\|null\) does not accept array\<mixed, mixed\>\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Models/CarrierAccount.php
+
+		-
+			message: '#^Result of && is always false\.$#'
+			identifier: booleanAnd.alwaysFalse
+			count: 1
+			path: app/Models/CarrierAccount.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between \*NEVER\* and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/CarrierAccount.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between 0\|2\|3 and 1 will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Models/CarrierAccount.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/CarrierService.php
+
+		-
+			message: '#^Call to function in_array\(\) with string and array\{App\\Enums\\LabelBatchStatus\:\:Completed, App\\Enums\\LabelBatchStatus\:\:CompletedWithErrors, App\\Enums\\LabelBatchStatus\:\:Failed\} will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Models/LabelBatch.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Package.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shippingMethod\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Package.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:updateShippedStatus\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Models/Package.php
+
+		-
+			message: '#^Parameter \#2 \$shipment of event class App\\Events\\PackageCancelled constructor expects App\\Models\\Shipment in App\\Events\\PackageCancelled\:\:dispatch\(\), Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/Package.php
+
+		-
+			message: '#^Parameter \#2 \$shipment of event class App\\Events\\PackageShipped constructor expects App\\Models\\Shipment in App\\Events\\PackageShipped\:\:dispatch\(\), Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/Package.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>weight" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Models/Package.php
+
+		-
+			message: '#^Call to function in_array\(\) with string and array\{App\\Enums\\PickBatchStatus\:\:Completed, App\\Enums\\PickBatchStatus\:\:Cancelled\} will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Models/PickBatch.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$commitment_days\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Models/Shipment.php
+
+		-
+			message: '#^Parameter \#1 \$key of method Illuminate\\Support\\Collection\<int,Illuminate\\Database\\Eloquent\\Model\>\:\:every\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\)\: bool\)\|Illuminate\\Database\\Eloquent\\Model\|string, Closure\(App\\Models\\ShipmentItem\)\: bool given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Models/Shipment.php
+
+		-
+			message: '#^Method App\\Models\\User\:\:resolveLocation\(\) should return App\\Models\\Location\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Models/User.php
+
+		-
+			message: '#^Match arm comparison between string and App\\Enums\\LabelBatchStatus\:\:Completed is always false\.$#'
+			identifier: match.alwaysFalse
+			count: 3
+			path: app/Notifications/BatchLabelCompleted.php
+
+		-
+			message: '#^Match arm comparison between string and App\\Enums\\LabelBatchStatus\:\:CompletedWithErrors is always false\.$#'
+			identifier: match.alwaysFalse
+			count: 3
+			path: app/Notifications/BatchLabelCompleted.php
+
+		-
+			message: '#^Match arm comparison between string and App\\Enums\\LabelBatchStatus\:\:Failed is always false\.$#'
+			identifier: match.alwaysFalse
+			count: 3
+			path: app/Notifications/BatchLabelCompleted.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Policies/BoxSizePolicy.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Policies/CarrierPolicy.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Policies/CarrierServicePolicy.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Policies/ChannelPolicy.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Policies/LocationPolicy.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 4
+			path: app/Policies/PackagePolicy.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Policies/ProductPolicy.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 3
+			path: app/Policies/ShipmentPolicy.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Policies/ShippingMethodPolicy.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 5
+			path: app/Policies/UserPolicy.php
+
+		-
+			message: '#^Call to function in_array\(\) with arguments ''administrativeArea'', array\<CommerceGuys\\Addressing\\AddressFormat\\AddressField\> and true will always evaluate to false\.$#'
+			identifier: function.impossibleType
+			count: 1
+			path: app/Services/AddressReferenceService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/BatchLabelService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$transparency\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/BatchLabelService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>sku" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/BatchLabelService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/CacheService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Carriers/FedexAdapter.php
+
+		-
+			message: '#^Constant App\\Services\\Carriers\\FedexAdapter\:\:INTERNATIONAL_SERVICE_CODES is unused\.$#'
+			identifier: classConstant.unused
+			count: 1
+			path: app/Services/Carriers/FedexAdapter.php
+
+		-
+			message: '#^Method App\\Services\\Carriers\\FedexAdapter\:\:getMockInternationalRates\(\) is unused\.$#'
+			identifier: method.unused
+			count: 1
+			path: app/Services/Carriers/FedexAdapter.php
+
+		-
+			message: '#^Method App\\Services\\Carriers\\FedexAdapter\:\:resolveAccount\(\) should return App\\Models\\CarrierAccount\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Carriers/FedexAdapter.php
+
+		-
+			message: '#^Offset ''specialServiceTypes'' on array\{specialServiceTypes\: array\{''SATURDAY_DELIVERY''\}\|array\{0\: ''FEDEX_ONE_RATE'', 1\?\: ''SATURDAY_DELIVERY''\}\} on left side of \?\? always exists and is not nullable\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/Carriers/FedexAdapter.php
+
+		-
+			message: '#^Parameter \#1 \$array \(array\{\}\|array\{''FEDEX_ONE_RATE''\}\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: app/Services/Carriers/FedexAdapter.php
+
+		-
+			message: '#^Unsafe access to private constant App\\Services\\Carriers\\FedexAdapter\:\:SATURDAY_DELIVERY_DAY_MAP through static\:\:\.$#'
+			identifier: staticClassAccess.privateConstant
+			count: 1
+			path: app/Services/Carriers/FedexAdapter.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>shipDate" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Carriers/FedexAdapter.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>weight" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Carriers/FedexAdapter.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Carriers/UpsAdapter.php
+
+		-
+			message: '#^Call to function is_array\(\) with array\<mixed\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Services/Carriers/UpsAdapter.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: app/Services/Carriers/UpsAdapter.php
+
+		-
+			message: '#^Method App\\Services\\Carriers\\UpsAdapter\:\:resolveAccount\(\) should return App\\Models\\CarrierAccount\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Carriers/UpsAdapter.php
+
+		-
+			message: '#^Offset ''ShipmentServiceOpti…'' on array\{Description\: ''Shipment'', Shipper\: array\{Name\: string, ShipperNumber\: string\|null, Address\: array\}, ShipTo\: array\{Name\: string, Address\: array\}, ShipFrom\: array\{Name\: string, Address\: array\}, PaymentInformation\: array\{ShipmentCharge\: array\{array\{Type\: ''01'', BillShipper\: array\{AccountNumber\: string\|null\}\}\}\}, Service\: array\{Code\: mixed\}, Package\: array\{array\{Packaging\: array\{Code\: ''02'', Description\: ''Customer Supplied…''\}, PackageWeight\: array\{UnitOfMeasurement\: array\{Code\: ''LBS''\}, Weight\: numeric\-string\}, Dimensions\: array\{UnitOfMeasurement\: array\{Code\: ''IN''\}, Length\: decimal\-int\-string, Width\: decimal\-int\-string, Height\: decimal\-int\-string\}\}\}, ShipmentServiceOptions\: array\{\}, \.\.\.\} in empty\(\) always exists and is always falsy\.$#'
+			identifier: empty.offset
+			count: 1
+			path: app/Services/Carriers/UpsAdapter.php
+
+		-
+			message: '#^Offset ''ShipmentServiceOpti…'' on array\{Description\: ''Shipment'', Shipper\: array\{Name\: string, ShipperNumber\: string\|null, Address\: array\}, ShipTo\: array\{Name\: string, Address\: array\}, ShipFrom\: array\{Name\: string, Address\: array\}, PaymentInformation\: array\{ShipmentCharge\: array\{array\{Type\: ''01'', BillShipper\: array\{AccountNumber\: string\|null\}\}\}\}, Service\: array\{Code\: mixed\}, Package\: array\{array\{Packaging\: array\{Code\: ''02'', Description\: ''Customer Supplied…''\}, PackageWeight\: array\{UnitOfMeasurement\: array\{Code\: ''LBS''\}, Weight\: numeric\-string\}, Dimensions\: array\{UnitOfMeasurement\: array\{Code\: ''IN''\}, Length\: decimal\-int\-string, Width\: decimal\-int\-string, Height\: decimal\-int\-string\}\}\}\} on left side of \?\? does not exist\.$#'
+			identifier: nullCoalesce.offset
+			count: 1
+			path: app/Services/Carriers/UpsAdapter.php
+
+		-
+			message: '#^PHPDoc tag @var for constant App\\Services\\Carriers\\UpsAdapter\:\:SERVICE_NAMES with type array\<string, string\> is not subtype of value array\{''01''\: ''UPS Next Day Air'', ''02''\: ''UPS 2nd Day Air'', ''03''\: ''UPS Ground'', ''07''\: ''UPS Worldwide…'', ''08''\: ''UPS Worldwide…'', 11\: ''UPS Standard'', 12\: ''UPS 3 Day Select'', 13\: ''UPS Next Day Air…'', \.\.\.\}\.$#'
+			identifier: classConstant.phpDocType
+			count: 1
+			path: app/Services/Carriers/UpsAdapter.php
+
+		-
+			message: '#^Unsafe access to private constant App\\Services\\Carriers\\UpsAdapter\:\:SATURDAY_DELIVERY_DAY_MAP through static\:\:\.$#'
+			identifier: staticClassAccess.privateConstant
+			count: 1
+			path: app/Services/Carriers/UpsAdapter.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>shipDate" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/Carriers/UpsAdapter.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/Carriers/UspsAdapter.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$country\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/Carriers/UspsAdapter.php
+
+		-
+			message: '#^Access to an undefined property Saloon\\Http\\Response\:\:\$metadata\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/Carriers/UspsAdapter.php
+
+		-
+			message: '#^Call to an undefined method Saloon\\Http\\Response\:\:parseBody\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Services/Carriers/UspsAdapter.php
+
+		-
+			message: '#^Call to function is_array\(\) with array\<mixed\> will always evaluate to true\.$#'
+			identifier: function.alreadyNarrowedType
+			count: 1
+			path: app/Services/Carriers/UspsAdapter.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: app/Services/Carriers/UspsAdapter.php
+
+		-
+			message: '#^Method App\\Services\\Carriers\\UspsAdapter\:\:resolveAccount\(\) should return App\\Models\\CarrierAccount\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/Carriers/UspsAdapter.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between App\\Enums\\BoxSizeType\:\:BOX and App\\Enums\\BoxSizeType\:\:BOX will always evaluate to true\.$#'
+			identifier: identical.alwaysTrue
+			count: 1
+			path: app/Services/Carriers/UspsAdapter.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 1
+			path: app/Services/Carriers/UspsAdapter.php
+
+		-
+			message: '#^Call to an undefined method Saloon\\Http\\Request\:\:body\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/FedexRegistrationService.php
+
+		-
+			message: '#^Expression on left side of \?\? is not nullable\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: app/Services/FedexRegistrationService.php
+
+		-
+			message: '#^Match arm comparison between ''INVOICEVALIDATION…'' and ''INVOICEVALIDATION…'' is always true\.$#'
+			identifier: match.alwaysTrue
+			count: 1
+			path: app/Services/FedexRegistrationService.php
+
+		-
+			message: '#^Method App\\Services\\FedexRegistrationService\:\:validateAddress\(\) should return array\{accountAuthToken\: string, mfaRequired\: bool, email\: string\|null, phoneNumber\: string\|null, options\: array, credentials\: array\|null\} but returns array\{accountAuthToken\: mixed, mfaRequired\: true, email\: mixed, phoneNumber\: mixed, options\: array\{invoice\: bool, secureCode\: mixed\}\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/FedexRegistrationService.php
+
+		-
+			message: '#^Method App\\Services\\FedexRegistrationService\:\:validateAddress\(\) should return array\{accountAuthToken\: string, mfaRequired\: bool, email\: string\|null, phoneNumber\: string\|null, options\: array, credentials\: array\|null\} but returns array\{accountAuthToken\: null, mfaRequired\: false, email\: null, phoneNumber\: null, options\: array\{\}, credentials\: mixed\}\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/FedexRegistrationService.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between string and false will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/FedexTestCases/FedexTestCaseRunner.php
+
+		-
+			message: '#^Access to an undefined property Saloon\\Http\\Response\:\:\$image\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ManifestService.php
+
+		-
+			message: '#^Call to an undefined method Saloon\\Http\\Response\:\:parseBody\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/ManifestService.php
+
+		-
+			message: '#^Method App\\Services\\ManifestService\:\:getUnmanifestedPackages\(\) should return Illuminate\\Support\\Collection\<string, Illuminate\\Support\\Collection\<int, App\\Models\\Package\>\> but returns Illuminate\\Database\\Eloquent\\Collection\<\(int\|string\), Illuminate\\Database\\Eloquent\\Collection\<int, App\\Models\\Package\>\>\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Services/ManifestService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/PackageDrafts/EloquentPackageDraftWorkflow.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PackageDrafts/EloquentPackageDraftWorkflow.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/PackageDrafts/EloquentPackageDraftWorkflow.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 3
+			path: app/Services/PackageDrafts/EloquentPackageDraftWorkflow.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment_item_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PackageDrafts/EloquentPackageDraftWorkflow.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/PackageDrafts/EloquentPackageDraftWorkflow.php
+
+		-
+			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/PackageLabels/EloquentPackageLabelWorkflow.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getDeliverByDate\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/PackageShipping/EloquentPackageShippingWorkflow.php
+
+		-
+			message: '#^Parameter \#1 \$shipment of method App\\Services\\RuleEvaluator\:\:evaluate\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 2
+			path: app/Services/PackageShipping/EloquentPackageShippingWorkflow.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/PackagingService.php
+
+		-
+			message: '#^Cannot call method addDays\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/PasswordPolicyService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/PickBatchService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:pickBatchShipments\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: app/Services/PickBatchService.php
+
+		-
+			message: '#^Parameter \#1 \$batch of method App\\Services\\PickBatchService\:\:complete\(\) expects App\\Models\\PickBatch, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/PickBatchService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/PickBatchService.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>sku" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/PickBatchService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RuleEvaluator.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RuleEvaluator.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/RuleEvaluator.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$service_code\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/RuleEvaluator.php
+
+		-
+			message: '#^Match arm comparison between string and App\\Enums\\ShippingRuleAction\:\:ExcludeService is always false\.$#'
+			identifier: match.alwaysFalse
+			count: 1
+			path: app/Services/RuleEvaluator.php
+
+		-
+			message: '#^Match arm comparison between string and App\\Enums\\ShippingRuleAction\:\:UseService is always false\.$#'
+			identifier: match.alwaysFalse
+			count: 1
+			path: app/Services/RuleEvaluator.php
+
+		-
+			message: '#^Match expression does not handle remaining value\: string$#'
+			identifier: match.unhandled
+			count: 1
+			path: app/Services/RuleEvaluator.php
+
+		-
+			message: '#^Parameter \#1 \$conditions of method App\\Services\\RuleEvaluator\:\:conditionsMatch\(\) expects array\|null, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/RuleEvaluator.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between string and App\\Enums\\ShippingRuleAction\:\:UseService will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: app/Services/RuleEvaluator.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>timezone" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 2
+			path: app/Services/ShipDateService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$dataSource\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ShipmentImport/PackageExportService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$metadata\.$#'
+			identifier: property.notFound
+			count: 2
+			path: app/Services/ShipmentImport/PackageExportService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment_reference\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ShipmentImport/PackageExportService.php
+
+		-
+			message: '#^Parameter \#1 \$client of method App\\Services\\ShipmentImport\\ImportReferenceResolver\:\:warm\(\) expects App\\Models\\Client\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/ShipmentImport/ShipmentImportService.php
+
+		-
+			message: '#^Parameter \#2 \$client of method App\\Services\\ShipmentImport\\ImportReferenceResolver\:\:productIdFor\(\) expects App\\Models\\Client\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/ShipmentImport/ShipmentItemImporter.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ShipmentImport/ShipmentRowPreparer.php
+
+		-
+			message: '#^Parameter \#2 \$client of method App\\Services\\ShipmentImport\\ImportReferenceResolver\:\:channelIdFor\(\) expects App\\Models\\Client\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/ShipmentImport/ShipmentRowPreparer.php
+
+		-
+			message: '#^Parameter \#2 \$client of method App\\Services\\ShipmentImport\\ImportReferenceResolver\:\:shippingMethodIdFor\(\) expects App\\Models\\Client\|null, Illuminate\\Database\\Eloquent\\Model\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: app/Services/ShipmentImport/ShipmentRowPreparer.php
+
+		-
+			message: '#^Strict comparison using \!\=\= between mixed and null will always evaluate to true\.$#'
+			identifier: notIdentical.alwaysTrue
+			count: 1
+			path: app/Services/ShipmentImport/ShipmentRowPreparer.php
+
+		-
+			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
+			identifier: nullsafe.neverNull
+			count: 1
+			path: app/Services/ShipmentImport/ShipmentRowPreparer.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ShippingRateService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shippingMethod\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/ShippingRateService.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Relations\\BelongsToMany\:\:active\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Services/ShippingRateService.php
+
+		-
+			message: '#^Property App\\Models\\Package\:\:\$delivered_at \(Carbon\\Carbon\|null\) does not accept Carbon\\CarbonImmutable\|null\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: app/Services/TrackingService.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$height\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Browser/ShippingFlowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: tests/Browser/ShippingFlowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$length\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Browser/ShippingFlowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$width\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Browser/ShippingFlowTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Browser/ShippingFlowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$checked\.$#'
+			identifier: property.notFound
+			count: 10
+			path: tests/Feature/AddressValidationServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$deliverability\.$#'
+			identifier: property.notFound
+			count: 10
+			path: tests/Feature/AddressValidationServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_address1\.$#'
+			identifier: property.notFound
+			count: 5
+			path: tests/Feature/AddressValidationServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_address2\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/AddressValidationServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_city\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/AddressValidationServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_postal_code\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/AddressValidationServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_residential\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/AddressValidationServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_state_or_province\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/AddressValidationServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validation_message\.$#'
+			identifier: property.notFound
+			count: 10
+			path: tests/Feature/AddressValidationServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$exported\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/AmazonImportExportTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 9
+			path: tests/Feature/AmazonImportExportTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/AmazonImportExportTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$value\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/AmazonImportExportTest.php
+
+		-
+			message: '#^Parameter \#1 \$package of method App\\Services\\ShipmentImport\\PackageExportService\:\:exportPackage\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/AmazonImportExportTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:packages\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Api/TestPackageControllerTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Feature/CarrierAccountTest.php
+
+		-
+			message: '#^Parameter \#1 \$location of method Database\\Factories\\CarrierAccountScopeFactory\:\:locationScoped\(\) expects App\\Models\\Location, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 4
+			path: tests/Feature/CarrierAccountTest.php
+
+		-
+			message: '#^Call to an undefined method Psr\\Log\\LoggerInterface\:\:getLogger\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/CarrierValidationLoggingTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$checked\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Console/ValidateShipmentsCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$deliverability\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Console/ValidateShipmentsCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cost\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/DemoResetTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$manifest_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/DemoResetTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$packageItems\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/DemoResetTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/DemoResetTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/DemoResetTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Events/AddressValidationFailedTest.php
+
+		-
+			message: '#^Parameter \#1 \$shipment of method App\\Services\\AddressValidationService\:\:validate\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 4
+			path: tests/Feature/Events/AddressValidationFailedTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Events/ExportShippedPackageTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Events/ExportShippedPackageTest.php
+
+		-
+			message: '#^Parameter \#1 \$package of class App\\Events\\PackageShipped constructor expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/Events/ExportShippedPackageTest.php
+
+		-
+			message: '#^Parameter \#2 \$shipment of class App\\Events\\PackageShipped constructor expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/Events/ExportShippedPackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/Events/PackageCancelledTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:clearShipping\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Events/PackageCancelledTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Events/PackageCreatedTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Feature/Events/PackageCreatedTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/Events/PackageShippedTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:markShipped\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Events/PackageShippedTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/Events/ShipmentImportEventsTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/Filament/Pages/ManualShipTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$description\.$#'
+			identifier: property.notFound
+			count: 10
+			path: tests/Feature/Filament/Pages/PackTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 109
+			path: tests/Feature/Filament/Pages/PackTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Filament/Pages/PackTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment_reference\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/PackTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$transparency_codes\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/PackTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address1\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrierLocations\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postal_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state_or_province\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$timezone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Livewire\\Component\:\:\$fedexInvoiceAvailable\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Livewire\\Component\:\:\$fedexLockedFactor2Methods\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Livewire\\Component\:\:\$fedexMaskedEmail\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Livewire\\Component\:\:\$fedexMaskedPhone\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Livewire\\Component\:\:\$fedexSecureCodeOptions\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\Mixins\\Expectation\<array\<int, string\>\|string\>\|Pest\\Mixins\\Expectation\<Pest\\Expectation\<array\<int, string\>\|string\>\>\:\:\$address1\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\Mixins\\Expectation\<array\<int, string\>\|string\>\|Pest\\Mixins\\Expectation\<Pest\\Expectation\<array\<int, string\>\|string\>\>\:\:\$custom_message\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Call to an undefined method Livewire\\Component\:\:getFedexAvailableVerificationOptions\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Call to an undefined method Livewire\\Component\:\:hasAvailableFedexFactor2Methods\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Call to an undefined method Pest\\Mixins\\Expectation\<mixed\>\:\:first\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SettingsTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Testing\\TestResponse\:\:assertSet\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/SetupWizardTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:andReturnNull\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:andThrow\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
+
+		-
+			message: '#^Parameter \#1 \$response of class Saloon\\Exceptions\\Request\\Statuses\\RequestTimeOutException constructor expects Saloon\\Http\\Response, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
+
+		-
+			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 7
+			path: tests/Feature/Filament/Pages/ShipTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/ShipTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:andReturnNull\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/ShipTest.php
+
+		-
+			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/Filament/Pages/ShipTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$channel_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/UnmappedChannelReferencesTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 5
+			path: tests/Feature/Filament/Pages/UnmappedChannelReferencesTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Pages/UnmappedShippingReferencesTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 7
+			path: tests/Feature/Filament/Pages/UnmappedShippingReferencesTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipping_method_id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Feature/Filament/Pages/UnmappedShippingReferencesTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrier\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cost\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$height\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_data\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_orientation\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$length\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$service\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_by_user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$weight\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$width\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/PackageResourceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 15
+			path: tests/Feature/Filament/Resources/ResourceCrudTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\Mixins\\Expectation\<array\<int, string\>\|string\>\|Pest\\Mixins\\Expectation\<Pest\\Expectation\<array\<int, string\>\|string\>\>\:\:\$commitment_days\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/ResourceCrudTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\Mixins\\Expectation\<array\<int, string\>\|string\>\|Pest\\Mixins\\Expectation\<Pest\\Expectation\<array\<int, string\>\|string\>\>\:\:\$max_weight\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/ResourceCrudTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\Mixins\\Expectation\<array\<int, string\>\|string\>\|Pest\\Mixins\\Expectation\<Pest\\Expectation\<array\<int, string\>\|string\>\>\:\:\$weight\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Filament/Resources/ResourceCrudTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:toSearchableArray\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: tests/Feature/Filament/Search/GlobalSearchTest.php
+
+		-
+			message: '#^Call to protected method getData\(\) of class App\\Filament\\Widgets\\ShippedShipmentsChart\.$#'
+			identifier: method.protected
+			count: 4
+			path: tests/Feature/Filament/Widgets/ShippedShipmentsChartTest.php
+
+		-
+			message: '#^Call to protected method getFilters\(\) of class App\\Filament\\Widgets\\ShippedShipmentsChart\.$#'
+			identifier: method.protected
+			count: 1
+			path: tests/Feature/Filament/Widgets/ShippedShipmentsChartTest.php
+
+		-
+			message: '#^Call to protected method getType\(\) of class App\\Filament\\Widgets\\ShippedShipmentsChart\.$#'
+			identifier: method.protected
+			count: 1
+			path: tests/Feature/Filament/Widgets/ShippedShipmentsChartTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 10
+			path: tests/Feature/Http/PickBatchControllerTest.php
+
+		-
+			message: '#^Parameter \#1 \$shipments of method App\\Services\\PickBatchService\:\:createFromShipments\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\Shipment\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/Http/PickBatchControllerTest.php
+
+		-
+			message: '#^Parameter \#1 \$shipments of method App\\Services\\PickBatchService\:\:createFromShipments\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\Shipment\>, Illuminate\\Support\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/Http/PickBatchControllerTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 11
+			path: tests/Feature/Jobs/GenerateLabelJobTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Jobs/GenerateLabelJobTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Jobs/GenerateLabelJobTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
+			identifier: method.notFound
+			count: 6
+			path: tests/Feature/Jobs/GenerateLabelJobTest.php
+
+		-
+			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Feature/Jobs/GenerateLabelJobTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$boxSize\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Models/LabelBatchTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/Models/LabelBatchTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$items\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Models/LabelBatchTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$started_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Models/LabelBatchTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Models/LabelBatchTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_shipments\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Models/LabelBatchTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Models/LabelBatchTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isComplete\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Models/LabelBatchTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$action\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Models/ShippingRuleTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrierService\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Models/ShippingRuleTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$conditions\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Models/ShippingRuleTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$enabled\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Models/ShippingRuleTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 9
+			path: tests/Feature/Models/ShippingRuleTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shippingMethod\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Models/ShippingRuleTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipping_method_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Models/ShippingRuleTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 64
+			path: tests/Feature/PackageDraftWorkflowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/PackageDraftWorkflowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/PackageDraftWorkflowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment_item_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/PackageDraftWorkflowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$transparency_codes\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/PackageDraftWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$boxSize of class App\\DataTransferObjects\\PackageDrafts\\BatchPackageDraftInput constructor expects App\\Models\\BoxSize, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Feature/PackageDraftWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$shipment of method App\\Services\\PackageDrafts\\EloquentPackageDraftWorkflow\:\:assertReadyToShip\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 4
+			path: tests/Feature/PackageDraftWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$shipment of method App\\Services\\PackageDrafts\\EloquentPackageDraftWorkflow\:\:createBatchReadyDraft\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Feature/PackageDraftWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$shipment of method App\\Services\\PackageDrafts\\EloquentPackageDraftWorkflow\:\:resumeForShipment\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Feature/PackageDraftWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$shipment of method App\\Services\\PackageDrafts\\EloquentPackageDraftWorkflow\:\:saveForShipment\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 13
+			path: tests/Feature/PackageDraftWorkflowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$exported\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/PackageExportTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 9
+			path: tests/Feature/PackageExportTest.php
+
+		-
+			message: '#^Function createShippedPackage\(\) should return App\\Models\\Package but returns Illuminate\\Database\\Eloquent\\Model\.$#'
+			identifier: return.type
+			count: 1
+			path: tests/Feature/PackageExportTest.php
+
+		-
+			message: '#^Parameter \#1 \$channel of function createShippedPackage expects App\\Models\\Channel\|null, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 6
+			path: tests/Feature/PackageExportTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_data\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/PackageLabelWorkflowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/PackageLabelWorkflowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/PackageLabelWorkflowTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Feature/PackageLabelWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$package of method App\\Services\\PackageLabels\\EloquentPackageLabelWorkflow\:\:labelForReprint\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/PackageLabelWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$package of method App\\Services\\PackageLabels\\EloquentPackageLabelWorkflow\:\:voidLabel\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/PackageLabelWorkflowTest.php
+
+		-
+			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/PackageLabelWorkflowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 13
+			path: tests/Feature/PackageShippingWorkflowTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/PackageShippingWorkflowTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:packageItems\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/PackageShippingWorkflowTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
+			identifier: method.notFound
+			count: 12
+			path: tests/Feature/PackageShippingWorkflowTest.php
+
+		-
+			message: '#^Function createWorkflowPackage\(\) should return App\\Models\\Package but returns Illuminate\\Database\\Eloquent\\Model\.$#'
+			identifier: return.type
+			count: 1
+			path: tests/Feature/PackageShippingWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$package of method App\\Services\\PackageShipping\\EloquentPackageShippingWorkflow\:\:autoShip\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/PackageShippingWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$package of method App\\Services\\PackageShipping\\EloquentPackageShippingWorkflow\:\:prepareRates\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/PackageShippingWorkflowTest.php
+
+		-
+			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 6
+			path: tests/Feature/PackageShippingWorkflowTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/PackageTrackingUiTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_details\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/PackageTrackingUiTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/PackageTrackingUiTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 14
+			path: tests/Feature/Pages/Reports/ClientBillingReportTest.php
+
+		-
+			message: '#^Call to an undefined method Livewire\\Component\:\:exportCsv\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Feature/Pages/Reports/ClientBillingReportTest.php
+
+		-
+			message: '#^Parameter \#1 \$page of function billingRow expects App\\Filament\\Pages\\Reports\\ClientBillingReport, Livewire\\Component given\.$#'
+			identifier: argument.type
+			count: 8
+			path: tests/Feature/Pages/Reports/ClientBillingReportTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Pages/Reports/PackingValidationReportTest.php
+
+		-
+			message: '#^Call to an undefined method Livewire\\Component\:\:getBatchFailureCount\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Pages/Reports/PackingValidationReportTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/Pages/Reports/RateComparisonTest.php
+
+		-
+			message: '#^Call to an undefined method Livewire\\Component\:\:getTotalPotentialSavings\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Pages/Reports/RateComparisonTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 25
+			path: tests/Feature/Services/BatchLabelServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Feature/Services/PackagingServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Services/PackagingServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment_item_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Services/PackagingServiceTest.php
+
+		-
+			message: '#^Parameter \$shipment of method App\\Services\\PackagingService\:\:createPackage\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Feature/Services/PackagingServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 22
+			path: tests/Feature/Services/PickBatchServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$picking_status\.$#'
+			identifier: property.notFound
+			count: 6
+			path: tests/Feature/Services/PickBatchServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Services/PickBatchServiceTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:updateShippedStatus\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Feature/Services/PickBatchServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/Services/RateLoggingIntegrationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$package\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Services/RateLoggingIntegrationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$rateQuotes\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Services/RateLoggingIntegrationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$selected\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/Services/RateLoggingIntegrationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 86
+			path: tests/Feature/Services/RuleEvaluatorTest.php
+
+		-
+			message: '#^Parameter \#1 \$shipment of method App\\Services\\RuleEvaluator\:\:evaluate\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 33
+			path: tests/Feature/Services/RuleEvaluatorTest.php
+
+		-
+			message: '#^Parameter \#2 \$package of method App\\Services\\RuleEvaluator\:\:evaluate\(\) expects App\\Models\\Package\|null, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 5
+			path: tests/Feature/Services/RuleEvaluatorTest.php
+
+		-
+			message: '#^Access to an undefined property App\\Contracts\\DataSourceInterface\:\:\$exportedReferences\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/ShipmentImportServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/ShipmentImportServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 36
+			path: tests/Feature/ShipmentImportServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Feature/ShipmentImportServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$exported\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/ShopifyImportExportTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 10
+			path: tests/Feature/ShopifyImportExportTest.php
+
+		-
+			message: '#^Parameter \#1 \$package of method App\\Services\\ShipmentImport\\PackageExportService\:\:exportPackage\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 2
+			path: tests/Feature/ShopifyImportExportTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$boxSize\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$box_size_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrier\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cost\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$exported\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$height\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_data\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_orientation\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$length\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$manifest\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$manifest_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$service\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_by_user_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$weight\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$width\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/PackageFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address1\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$checked\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$company\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$country\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$deliverability\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postal_code\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residential\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment_reference\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipping_method_id\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state_or_province\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_address1\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_residential\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validation_message\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Unit/Factories/ShipmentFactoryTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$country\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/AddressNormalizationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/AddressNormalizationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone_e164\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/AddressNormalizationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone_extension\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Models/AddressNormalizationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state_or_province\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/AddressNormalizationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_country\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Models/AddressNormalizationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_state_or_province\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Models/AddressNormalizationTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 6
+			path: tests/Unit/Models/CarrierAccountScopeTest.php
+
+		-
+			message: '#^Parameter \#1 \$location of method Database\\Factories\\CarrierAccountScopeFactory\:\:locationScoped\(\) expects App\\Models\\Location, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 5
+			path: tests/Unit/Models/CarrierAccountScopeTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 11
+			path: tests/Unit/Models/CarrierServiceScopeTest.php
+
+		-
+			message: '#^Cannot call method format\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Unit/Models/ManifestTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrier\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cost\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$height\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_data\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_orientation\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$length\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$service\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shippedBy\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_at\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_by_user_id\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$weight\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$width\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:clearShipping\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:markShipped\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Unit/Models/PackageTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Unit/Models/ShipmentDeliverByDateTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getDeliverByDate\(\)\.$#'
+			identifier: method.notFound
+			count: 6
+			path: tests/Unit/Models/ShipmentDeliverByDateTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 12
+			path: tests/Unit/Models/ShipmentTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
+			identifier: property.notFound
+			count: 5
+			path: tests/Unit/Models/ShipmentTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:clearShipping\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Unit/Models/ShipmentTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:updateShippedStatus\(\)\.$#'
+			identifier: method.notFound
+			count: 4
+			path: tests/Unit/Models/ShipmentTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Unit/Services/CacheServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Unit/Services/Carriers/FedexAdapterTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\Mixins\\Expectation\<mixed\>\:\:\$not\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Unit/Services/Carriers/UspsAdapterTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 13
+			path: tests/Unit/Services/RateQuoteLoggerTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:locations\(\)\.$#'
+			identifier: method.notFound
+			count: 4
+			path: tests/Unit/Services/ShipDateServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			identifier: property.notFound
+			count: 24
+			path: tests/Unit/Services/ShippingRateServiceTest.php
+
+		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
+			identifier: method.notFound
+			count: 11
+			path: tests/Unit/Services/ShippingRateServiceTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: tests/Unit/Services/ShippingRateServiceTest.php
+
+		-
+			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Unit/Services/ShippingRateServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_checked_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/TrackingServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_details\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Unit/TrackingServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_status\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/TrackingServiceTest.php
+
+		-
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_updated_at\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Unit/TrackingServiceTest.php
+
+		-
+			message: '#^Parameter \#1 \$package of method App\\Services\\TrackingService\:\:refreshPackage\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Unit/TrackingServiceTest.php
