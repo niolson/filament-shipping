@@ -11,7 +11,7 @@
         "filament/filament": "~5.0",
         "giggsey/libphonenumber-for-php": "^9.0",
         "laravel/framework": "^13.0",
-        "laravel/scout": "^10.23",
+        "laravel/scout": "^11.2",
         "laravel/socialite": "^5.26",
         "laravel/tinker": "^3.0",
         "picqer/php-barcode-generator": "^3.2",
