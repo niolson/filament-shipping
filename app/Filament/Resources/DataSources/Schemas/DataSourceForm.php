@@ -478,7 +478,7 @@ class DataSourceForm
                         ->label('SSH Host Key')
                         ->nullable()
                         ->rows(2)
-                        ->helperText('Known-hosts entry for this server. Paste the line from ssh-keyscan output.')
+                        ->helperText('Host key of the SSH Host above (not this PolyBag server). Run `ssh-keyscan -t ed25519 <ssh-host>` against that host and paste the line as-is — its hostname must match SSH Host exactly.')
                         ->columnSpanFull()
                         ->visible(fn (Get $get): bool => (bool) $get('settings.ssh_enabled')),
 
