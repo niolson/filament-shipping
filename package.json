@@ -18,7 +18,7 @@
     "laravel-vite-plugin": "^2.0.0",
     "playwright": "^1.60.0",
     "tailwindcss": "^4.2.4",
-    "vite": "^7.3.3"
+    "vite": "^7.3.5"
   },
   "dependencies": {
     "jsbarcode": "^3.12.3",
