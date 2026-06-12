@@ -175,6 +175,34 @@ it('shows the generated ssh public key when database ssh tunneling is enabled', 
     }
 });
 
+it('shows the generated ssh public key on the edit form when ssh tunneling is enabled', function (): void {
+    $pubKeyPath = storage_path('app/private/ssh/id_ed25519.pub');
+    $existingPublicKey = File::exists($pubKeyPath) ? File::get($pubKeyPath) : null;
+
+    try {
+        File::ensureDirectoryExists(dirname($pubKeyPath));
+        File::put($pubKeyPath, 'ssh-ed25519 AAAApolybagpublickey');
+
+        $this->actingAs($this->admin);
+
+        $source = DataSource::factory()->create([
+            'settings' => ['ssh_enabled' => true],
+        ]);
+
+        Livewire::test(EditDataSource::class, ['record' => $source->id])
+            ->assertFormFieldVisible('ssh_public_key')
+            ->assertSchemaStateSet([
+                'ssh_public_key' => 'restrict,port-forwarding ssh-ed25519 AAAApolybagpublickey',
+            ]);
+    } finally {
+        if ($existingPublicKey === null) {
+            File::delete($pubKeyPath);
+        } else {
+            File::put($pubKeyPath, $existingPublicKey);
+        }
+    }
+});
+
 it('can test the database connection before the source is created', function (): void {
     $this->actingAs($this->admin);
 

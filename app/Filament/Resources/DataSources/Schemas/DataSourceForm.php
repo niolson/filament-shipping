@@ -488,7 +488,7 @@ class DataSourceForm
                         ->readOnly()
                         ->copyable()
                         ->dehydrated(false)
-                        ->default(function (): string {
+                        ->formatStateUsing(function (): string {
                             $pubKeyPath = storage_path('app/private/ssh/id_ed25519.pub');
                             if (! file_exists($pubKeyPath)) {
                                 return 'SSH key not generated. Run: php artisan app:generate-ssh-key';
