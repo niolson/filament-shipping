@@ -92,6 +92,7 @@ class Settings extends Page
             'password_require_symbols' => $settings->get('password_require_symbols', false),
             'password_expiration_days' => $settings->get('password_expiration_days', 0),
             'google_sso_enabled' => $settings->get('google_sso_enabled', false),
+            'require_mfa' => $settings->get('require_mfa', false),
         ];
 
         if (! $multiClientEnabled) {
@@ -416,9 +417,13 @@ class Settings extends Page
                         ])
                         ->columns(2),
 
-                    Section::make('Single Sign-On')
-                        ->description('Allow users to sign in with external identity providers')
+                    Section::make('Authentication')
+                        ->description('Authentication settings for all users')
                         ->schema([
+                            Toggle::make('require_mfa')
+                                ->label('Require Multi-Factor Authentication')
+                                ->helperText('When enabled, all users must set up MFA before accessing the app. Users with an email address may use email or authenticator app codes; users without an email must use an authenticator app.')
+                                ->default(false),
                             Toggle::make('google_sso_enabled')
                                 ->label('Google SSO')
                                 ->helperText('Show "Sign in with Google" button on the login page. Requires Google OAuth credentials in .env.')
@@ -527,6 +532,7 @@ class Settings extends Page
             'password_require_symbols' => (bool) ($data['password_require_symbols'] ?? false),
             'password_expiration_days' => (int) ($data['password_expiration_days'] ?? 0),
             'google_sso_enabled' => (bool) ($data['google_sso_enabled'] ?? false),
+            'require_mfa' => (bool) ($data['require_mfa'] ?? false),
         ];
 
         // Update each standard setting

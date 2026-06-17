@@ -101,6 +101,7 @@ beforeEach(function (): void {
     Setting::updateOrCreate(['key' => 'amazon.client_secret'], ['value' => 'test-client-secret', 'type' => 'string', 'group' => 'amazon']);
     Setting::updateOrCreate(['key' => 'amazon.refresh_token'], ['value' => 'test-refresh-token', 'type' => 'string', 'group' => 'amazon']);
     Setting::updateOrCreate(['key' => 'amazon.marketplace_id'], ['value' => 'ATVPDKIKX0DER', 'type' => 'string', 'group' => 'amazon']);
+    Setting::updateOrCreate(['key' => 'require_mfa'], ['value' => '1', 'type' => 'boolean', 'group' => 'general']);
     app(SettingsService::class)->clearCache();
 
     config([
@@ -301,6 +302,22 @@ it('validates amazon configuration requires credentials', function (): void {
 
     expect(fn () => $source->validateConfiguration())
         ->toThrow(InvalidArgumentException::class, 'client ID');
+});
+
+it('validates amazon configuration requires mfa to be enabled', function (): void {
+    Setting::where('key', 'require_mfa')->delete();
+    app(SettingsService::class)->clearCache();
+
+    $source = new AmazonSource([
+        'driver' => AmazonSource::class,
+        'enabled' => true,
+        'channel_name' => 'Amazon',
+        'lookback_days' => 30,
+        'export' => ['enabled' => false, 'field_mapping' => []],
+    ]);
+
+    expect(fn () => $source->validateConfiguration())
+        ->toThrow(RuntimeException::class, 'Multi-factor authentication must be enabled');
 });
 
 it('imports sandbox order with full quantities even when already fulfilled', function (): void {

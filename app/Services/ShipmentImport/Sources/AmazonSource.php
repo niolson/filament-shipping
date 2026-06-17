@@ -36,6 +36,10 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
 
     public function validateConfiguration(): void
     {
+        if (! app(SettingsService::class)->get('require_mfa')) {
+            throw new RuntimeException('Multi-factor authentication must be enabled to use Amazon SP-API imports. Enable it in App Settings → Authentication.');
+        }
+
         // Per-source client_id/client_secret override tenant-level credentials.
         $hasOwnCredentials = filled($this->config['client_id'] ?? null)
             && filled($this->config['client_secret'] ?? null);

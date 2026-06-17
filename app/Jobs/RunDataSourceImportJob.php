@@ -5,7 +5,9 @@ namespace App\Jobs;
 use App\Models\DataSource;
 use App\Models\User;
 use App\Notifications\ImportCompleted;
+use App\Services\SettingsService;
 use App\Services\ShipmentImport\ShipmentImportService;
+use App\Services\ShipmentImport\Sources\AmazonSource;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
@@ -37,11 +39,19 @@ class RunDataSourceImportJob implements ShouldQueue
         ];
     }
 
-    public function handle(): void
+    public function handle(SettingsService $settings): void
     {
         $source = DataSource::find($this->dataSourceId);
 
         if (! $source || ! $source->active) {
+            return;
+        }
+
+        if ($source->driver === AmazonSource::class && ! $settings->get('require_mfa', false)) {
+            User::find($this->userId)?->notify(
+                new ImportCompleted([], $source->name, ['Amazon SP-API imports require Multi-Factor Authentication to be enabled. Enable it in App Settings → Authentication.'])
+            );
+
             return;
         }
 

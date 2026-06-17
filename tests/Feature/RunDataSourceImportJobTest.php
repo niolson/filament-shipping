@@ -73,7 +73,7 @@ it('runs the import and notifies the triggering user on success', function (): v
         'active' => true,
     ]);
 
-    (new RunDataSourceImportJob($source->id, $user->id))->handle();
+    app()->call([new RunDataSourceImportJob($source->id, $user->id), 'handle']);
 
     expect(Shipment::where('shipment_reference', 'JOB-001')->exists())->toBeTrue();
 
@@ -93,7 +93,7 @@ it('does nothing for an inactive source', function (): void {
         'active' => false,
     ]);
 
-    (new RunDataSourceImportJob($source->id, $user->id))->handle();
+    app()->call([new RunDataSourceImportJob($source->id, $user->id), 'handle']);
 
     expect(Shipment::count())->toBe(0);
     Notification::assertNothingSent();
@@ -109,7 +109,7 @@ it('leaves error notifications to the import pipeline when the import fails', fu
         'active' => true,
     ]);
 
-    (new RunDataSourceImportJob($source->id, $user->id))->handle();
+    app()->call([new RunDataSourceImportJob($source->id, $user->id), 'handle']);
 
     // The triggering user gets no success notification; admins are notified
     // of the failure by ImportRunRecorder.
