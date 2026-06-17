@@ -2,6 +2,7 @@
 
 namespace App\Filament\Auth;
 
+use App\Models\User;
 use Filament\Auth\MultiFactor\Email\EmailAuthentication;
 use Filament\Facades\Filament;
 use Filament\Schemas\Components\Component;
@@ -11,6 +12,10 @@ class EmailAuthenticationForEmailUsers extends EmailAuthentication
 {
     public function isEnabled(Authenticatable $user): bool
     {
+        if (! $user instanceof User) {
+            return false;
+        }
+
         return filled($user->email) && parent::isEnabled($user);
     }
 
@@ -19,7 +24,9 @@ class EmailAuthenticationForEmailUsers extends EmailAuthentication
      */
     public function getManagementSchemaComponents(): array
     {
-        if (! filled(Filament::auth()->user()?->email)) {
+        $user = Filament::auth()->user();
+
+        if (! $user instanceof User || ! filled($user->email)) {
             return [];
         }
 
