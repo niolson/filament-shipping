@@ -75,6 +75,7 @@ return [
         'broker_url' => env('OAUTH_BROKER_URL'),
         'broker_secret' => env('OAUTH_BROKER_SECRET'),
         'instance_id' => env('OAUTH_INSTANCE_ID'),
+        'bypass_broker' => env('OAUTH_BYPASS_BROKER', false),
     ],
 
     'amazon' => [
@@ -90,6 +91,14 @@ return [
         'client_id' => env('GOOGLE_CLIENT_ID'),
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect' => '/auth/google/callback',
+    ],
+
+    'azure' => [
+        'client_id' => env('AZURE_CLIENT_ID'),
+        'client_secret' => env('AZURE_CLIENT_SECRET'),
+        'tenant' => env('AZURE_TENANT_ID', 'common'),
+        'redirect' => '/auth/azure/callback',
+        'proxy' => null,
     ],
 
     'gotenberg' => [

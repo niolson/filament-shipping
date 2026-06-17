@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Api\HealthController;
 use App\Http\Controllers\Api\TestPackageController;
+use App\Http\Controllers\Auth\AzureController;
 use App\Http\Controllers\Auth\GoogleController;
+use App\Http\Controllers\Auth\SsoCallbackController;
 use App\Http\Controllers\OAuthCallbackController;
 use App\Http\Controllers\PickBatchController;
 use App\Http\Controllers\QzSignController;
@@ -30,6 +32,11 @@ Route::get('/oauth/{provider}/receive', [OAuthCallbackController::class, 'receiv
 
 Route::get('/auth/google/redirect', [GoogleController::class, 'redirect'])->name('auth.google.redirect');
 Route::get('/auth/google/callback', [GoogleController::class, 'callback'])->name('auth.google.callback');
+
+Route::get('/auth/azure/redirect', [AzureController::class, 'redirect'])->name('auth.azure.redirect');
+Route::get('/auth/azure/callback', [AzureController::class, 'callback'])->name('auth.azure.callback');
+
+Route::get('/auth/sso/{provider}/receive', [SsoCallbackController::class, 'receive'])->name('auth.sso.receive');
 
 Route::prefix('api')->group(function (): void {
     if (app()->environment(['local', 'testing'])) {

@@ -37,8 +37,11 @@ use App\Services\SettingsService;
 use App\Services\ShippingRateService;
 use App\Services\Validation\FakeAddressValidator;
 use App\Services\Validation\UspsAddressValidator;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
+use SocialiteProviders\Azure\Provider;
+use SocialiteProviders\Manager\SocialiteWasCalled;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -79,6 +82,10 @@ class AppServiceProvider extends ServiceProvider
         if (str_starts_with(config('app.url'), 'https://')) {
             URL::forceScheme('https');
         }
+
+        Event::listen(function (SocialiteWasCalled $event) {
+            $event->extendSocialite('azure', Provider::class);
+        });
 
         AuditableObserver::observe([
             User::class,

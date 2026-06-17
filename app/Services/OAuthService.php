@@ -44,7 +44,7 @@ class OAuthService
         }
 
         $returnUrl = config('app.url');
-        $signature = hash_hmac('sha256', "{$providerKey}:{$instanceId}:{$returnUrl}:{$nonce}", $brokerSecret);
+        $signature = hash_hmac('sha256', "{$providerKey}:{$instanceId}:{$returnUrl}::{$nonce}", $brokerSecret);
 
         $params = array_filter([
             'return_url' => $returnUrl,
@@ -267,6 +267,38 @@ class OAuthService
     }
 
     /**
+     * Generate the broker authorization URL for an SSO login flow.
+     * The broker will redirect to /auth/sso/{provider}/receive on completion.
+     */
+    public function initiateSsoAuthorization(string $provider): string
+    {
+        $brokerUrl = config('services.oauth.broker_url');
+        $brokerSecret = config('services.oauth.broker_secret');
+        $instanceId = config('services.oauth.instance_id');
+
+        if (! $brokerUrl || ! $brokerSecret || ! $instanceId) {
+            throw new RuntimeException('OAuth broker is not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID.');
+        }
+
+        $nonce = Str::random(40);
+        session()->put("oauth_state.{$provider}", $nonce);
+
+        $returnUrl = config('app.url');
+        $returnPath = "/auth/sso/{$provider}/receive";
+        $signature = hash_hmac('sha256', "{$provider}:{$instanceId}:{$returnUrl}:{$returnPath}:{$nonce}", $brokerSecret);
+
+        $params = [
+            'return_url' => $returnUrl,
+            'return_path' => $returnPath,
+            'instance_id' => $instanceId,
+            'nonce' => $nonce,
+            'signature' => $signature,
+        ];
+
+        return rtrim($brokerUrl, '/')."/oauth/{$provider}/authorize?".http_build_query($params);
+    }
+
+    /**
      * Generate the broker authorization URL for a specific DataSource.
      * Stores the DataSource ID in session so the callback can route back to it.
      */
@@ -285,7 +317,7 @@ class OAuthService
         session()->put("oauth_data_source_id.{$providerKey}", $importSource->id);
 
         $returnUrl = config('app.url');
-        $signature = hash_hmac('sha256', "{$providerKey}:{$instanceId}:{$returnUrl}:{$nonce}", $brokerSecret);
+        $signature = hash_hmac('sha256', "{$providerKey}:{$instanceId}:{$returnUrl}::{$nonce}", $brokerSecret);
 
         $brokerParams = $this->getBrokerParamsForDataSource($providerKey, $importSource);
 

@@ -92,6 +92,7 @@ class Settings extends Page
             'password_require_symbols' => $settings->get('password_require_symbols', false),
             'password_expiration_days' => $settings->get('password_expiration_days', 0),
             'google_sso_enabled' => $settings->get('google_sso_enabled', false),
+            'azure_sso_enabled' => $settings->get('azure_sso_enabled', false),
             'require_mfa' => $settings->get('require_mfa', false),
         ];
 
@@ -426,7 +427,11 @@ class Settings extends Page
                                 ->default(false),
                             Toggle::make('google_sso_enabled')
                                 ->label('Google SSO')
-                                ->helperText('Show "Sign in with Google" button on the login page. Requires Google OAuth credentials in .env.')
+                                ->helperText('Show "Sign in with Google" button on the login page. Requires Google OAuth credentials in .env (or broker configured).')
+                                ->default(false),
+                            Toggle::make('azure_sso_enabled')
+                                ->label('Azure / Microsoft Entra SSO')
+                                ->helperText('Show "Sign in with Microsoft" button on the login page. Requires Azure credentials in .env (or broker configured).')
                                 ->default(false),
                         ])
                         ->columns(1),
@@ -532,6 +537,7 @@ class Settings extends Page
             'password_require_symbols' => (bool) ($data['password_require_symbols'] ?? false),
             'password_expiration_days' => (int) ($data['password_expiration_days'] ?? 0),
             'google_sso_enabled' => (bool) ($data['google_sso_enabled'] ?? false),
+            'azure_sso_enabled' => (bool) ($data['azure_sso_enabled'] ?? false),
             'require_mfa' => (bool) ($data['require_mfa'] ?? false),
         ];
 

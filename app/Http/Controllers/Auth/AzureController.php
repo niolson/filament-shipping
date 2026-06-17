@@ -10,44 +10,48 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
 
-class GoogleController extends Controller
+class AzureController extends Controller
 {
     public function redirect(): RedirectResponse
     {
-        if (! app(SettingsService::class)->get('google_sso_enabled', false)) {
-            return redirect('/')->with('error', 'Google SSO is not enabled.');
+        if (! app(SettingsService::class)->get('azure_sso_enabled', false)) {
+            return redirect('/')->with('error', 'Azure SSO is not enabled.');
         }
 
         if ($this->shouldUseBroker()) {
             if (! $this->brokerConfigured()) {
-                logger()->error('Google SSO is set to use the OAuth broker but broker_secret or instance_id is missing.');
+                logger()->error('Azure SSO is set to use the OAuth broker but broker_secret or instance_id is missing.');
 
                 return redirect('/login')->withErrors([
                     'data.login' => 'Single sign-on is not configured correctly. Contact your admin.',
                 ]);
             }
 
-            return redirect()->away(app(OAuthService::class)->initiateSsoAuthorization('google'));
+            return redirect()->away(app(OAuthService::class)->initiateSsoAuthorization('azure'));
         }
 
-        return Socialite::driver('google')->redirect();
+        return Socialite::driver('azure')->redirect();
     }
 
     public function callback(): RedirectResponse
     {
-        if (! app(SettingsService::class)->get('google_sso_enabled', false)) {
-            return redirect('/')->with('error', 'Google SSO is not enabled.');
+        if (! app(SettingsService::class)->get('azure_sso_enabled', false)) {
+            return redirect('/')->with('error', 'Azure SSO is not enabled.');
         }
 
         try {
-            $googleUser = Socialite::driver('google')->user();
+            $azureUser = Socialite::driver('azure')->user();
         } catch (\Exception $e) {
-            logger()->error('Google SSO callback failed', ['error' => $e->getMessage()]);
+            logger()->error('Azure SSO callback failed', ['error' => $e->getMessage()]);
 
-            return redirect('/login')->with('error', 'Google authentication failed. Please try again.');
+            return redirect('/login')->with('error', 'Azure authentication failed. Please try again.');
         }
 
-        $user = User::where('email', $googleUser->getEmail())->first();
+        // Azure maps getEmail() to userPrincipalName, which can differ from the
+        // actual mailbox address; prefer the mail attribute when present.
+        $email = $azureUser->getMail() ?: $azureUser->getEmail();
+
+        $user = User::where('email', $email)->first();
 
         if (! $user) {
             return redirect('/login')->withErrors([
