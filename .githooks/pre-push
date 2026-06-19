@@ -1,0 +1,20 @@
+#!/bin/sh
+echo "Running security audits before push..."
+
+composer audit --no-interaction 2>&1
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "composer audit found vulnerabilities. Push blocked."
+  echo "Run 'composer audit' to review, or 'composer update' to fix."
+  exit 1
+fi
+
+npm audit --audit-level=high 2>&1
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "npm audit found high/critical vulnerabilities. Push blocked."
+  echo "Run 'npm audit fix' to fix, or 'npm audit' to review."
+  exit 1
+fi
+
+echo "Security audits passed."
