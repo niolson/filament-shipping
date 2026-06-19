@@ -54,6 +54,10 @@ class AzureController extends Controller
         $user = User::where('email', $email)->first();
 
         if (! $user) {
+            logger()->warning('SSO login rejected: no account for email returned by Azure', [
+                'email' => $email,
+            ]);
+
             return redirect('/login')->withErrors([
                 'data.login' => 'No account found for this email. Contact your admin.',
             ]);
