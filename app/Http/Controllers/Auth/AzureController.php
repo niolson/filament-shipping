@@ -9,6 +9,7 @@ use App\Services\SettingsService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
+use SocialiteProviders\Azure\User as AzureUser;
 
 class AzureController extends Controller
 {
@@ -49,7 +50,9 @@ class AzureController extends Controller
 
         // Azure maps getEmail() to userPrincipalName, which can differ from the
         // actual mailbox address; prefer the mail attribute when present.
-        $email = $azureUser->getMail() ?: $azureUser->getEmail();
+        $email = $azureUser instanceof AzureUser
+            ? ($azureUser->getMail() ?: $azureUser->getEmail())
+            : $azureUser->getEmail();
 
         $user = User::where('email', $email)->first();
 

@@ -1411,6 +1411,12 @@ parameters:
 			path: app/Http/Controllers/Api/TestPackageController.php
 
 		-
+			message: '#^Method App\\Http\\Controllers\\Auth\\AzureController\:\:redirect\(\) should return Illuminate\\Http\\RedirectResponse but returns Symfony\\Component\\HttpFoundation\\RedirectResponse\.$#'
+			identifier: return.type
+			count: 1
+			path: app/Http/Controllers/Auth/AzureController.php
+
+		-
 			message: '#^Method App\\Http\\Controllers\\Auth\\GoogleController\:\:redirect\(\) should return Illuminate\\Http\\RedirectResponse but returns Symfony\\Component\\HttpFoundation\\RedirectResponse\.$#'
 			identifier: return.type
 			count: 1
@@ -3413,6 +3419,12 @@ parameters:
 			identifier: argument.type
 			count: 2
 			path: tests/Feature/ShopifyImportExportTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Feature/SsoLoginTest.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$boxSize\.$#'
