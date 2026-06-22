@@ -37,15 +37,25 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Get MySQL root password
-MYSQL_ROOT_PASS=$(docker exec "$MYSQL_CONTAINER" printenv MYSQL_ROOT_PASSWORD 2>/dev/null)
+# Get MySQL root password. Prefer /opt/shared/.env, which rotate-internal-secrets.sh
+# keeps authoritative; the container's baked-in env var goes stale after a password
+# rotation because the running container is not recreated.
+MYSQL_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' /opt/shared/.env 2>/dev/null | cut -d= -f2- || true)
 if [ -z "$MYSQL_ROOT_PASS" ]; then
-    # Try from shared .env
-    MYSQL_ROOT_PASS=$(grep '^MYSQL_ROOT_PASSWORD=' /opt/shared/.env 2>/dev/null | cut -d= -f2- || true)
+    # Fall back to the container env (standalone mode has no /opt/shared/.env)
+    MYSQL_ROOT_PASS=$(docker exec "$MYSQL_CONTAINER" printenv MYSQL_ROOT_PASSWORD 2>/dev/null || true)
 fi
 
 if [ -z "$MYSQL_ROOT_PASS" ]; then
     echo "ERROR: Could not determine MySQL root password."
+    exit 1
+fi
+
+# Verify the credential works before dumping. Without this, an auth failure makes
+# the DATABASES=$(...) command substitution below abort the script under `set -e`
+# with no output, so cron logs nothing and broken backups go unnoticed.
+if ! docker exec "$MYSQL_CONTAINER" mysql -uroot -p"$MYSQL_ROOT_PASS" -e "SELECT 1" >/dev/null 2>&1; then
+    echo "ERROR: MySQL root password rejected by ${MYSQL_CONTAINER}. Check /opt/shared/.env (was it rotated without recreating the container?)."
     exit 1
 fi
 
