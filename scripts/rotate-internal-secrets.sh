@@ -7,11 +7,13 @@ set -euo pipefail
 #   - MYSQL_ROOT_PASSWORD   (/opt/shared/.env + live MySQL)
 #   - OAUTH_BROKER_SECRET   (shared-secrets.env + polybag-connect .env, if present)
 #   - DB_PASSWORD           (each shared-mode tenant's .env + live MySQL)
+#   - APP_KEY               (each shared-mode tenant's .env; old key kept in
+#                            APP_PREVIOUS_KEYS, then DB secrets re-encrypted)
 #
 # Standalone tenants are skipped — their per-tenant MySQL and Redis require
-# separate handling.
+# separate handling (rotate their APP_KEY with the same approach individually).
 #
-# Does NOT rotate: APP_KEY, BACKUP_ENCRYPTION_KEY, or any external API credentials
+# Does NOT rotate: BACKUP_ENCRYPTION_KEY, or any external API credentials
 # (Google, USPS, carriers). Those must be rotated manually via their respective
 # service consoles.
 #
@@ -38,6 +40,19 @@ set_env() {
     local file="$1" key="$2" value="$3"
     sed -i "s|^${key}=.*|${key}=${value}|" "$file"
 }
+
+# Like set_env, but appends the key if it is not already present.
+set_or_add_env() {
+    local file="$1" key="$2" value="$3"
+    if grep -qE "^${key}=" "$file"; then
+        set_env "$file" "$key" "$value"
+    else
+        printf '%s=%s\n' "$key" "$value" >> "$file"
+    fi
+}
+
+# Laravel APP_KEY for the AES-256-CBC cipher: 32 random bytes, base64-encoded.
+generate_app_key() { echo "base64:$(openssl rand -base64 32)"; }
 
 # --- Parse arguments ---
 
@@ -91,10 +106,12 @@ NEW_REDIS=$(generate_password)
 NEW_MYSQL_ROOT=$(generate_password)
 NEW_OAUTH=$(generate_password)
 
-# Build list of shared-mode tenants and generate a new DB password for each
+# Build list of shared-mode tenants and generate a new DB password + APP_KEY for each
 SHARED_TENANTS=()
 declare -A TENANT_DB_USER
 declare -A TENANT_NEW_PASS
+declare -A TENANT_OLD_APPKEY
+declare -A TENANT_NEW_APPKEY
 
 for tenant_dir in "${TENANTS_DIR}"/*/; do
     [ -f "${tenant_dir}.env" ] || continue
@@ -105,6 +122,8 @@ for tenant_dir in "${TENANTS_DIR}"/*/; do
         SHARED_TENANTS+=("$tenant")
         TENANT_DB_USER[$tenant]=$(grep '^DB_USERNAME=' "${tenant_dir}.env" | cut -d= -f2-)
         TENANT_NEW_PASS[$tenant]=$(generate_password)
+        TENANT_OLD_APPKEY[$tenant]=$(grep '^APP_KEY=' "${tenant_dir}.env" | cut -d= -f2- || true)
+        TENANT_NEW_APPKEY[$tenant]=$(generate_app_key)
     else
         warn "Skipping standalone tenant '${tenant}' — rotate its secrets separately."
     fi
@@ -124,6 +143,7 @@ else
 fi
 if [ ${#SHARED_TENANTS[@]} -gt 0 ]; then
     echo "  DB_PASSWORD          → ${#SHARED_TENANTS[@]} shared tenant(s): ${SHARED_TENANTS[*]}"
+    echo "  APP_KEY              → ${#SHARED_TENANTS[@]} shared tenant(s) (old key kept in APP_PREVIOUS_KEYS, then secrets re-encrypted)"
 else
     echo "  DB_PASSWORD          → (no shared tenants found)"
 fi
@@ -157,6 +177,10 @@ fi
 if [ ${#SHARED_TENANTS[@]} -gt 0 ]; then
     for tenant in "${SHARED_TENANTS[@]}"; do
         set_env "${TENANTS_DIR}/${tenant}/.env" "DB_PASSWORD" "${TENANT_NEW_PASS[$tenant]}"
+        # Keep the outgoing APP_KEY as the (single) previous key so existing
+        # encrypted data stays readable until it is re-encrypted in Step 6.
+        set_or_add_env "${TENANTS_DIR}/${tenant}/.env" "APP_PREVIOUS_KEYS" "${TENANT_OLD_APPKEY[$tenant]}"
+        set_env "${TENANTS_DIR}/${tenant}/.env" "APP_KEY" "${TENANT_NEW_APPKEY[$tenant]}"
     done
 fi
 
@@ -234,6 +258,35 @@ if [ ${#SHARED_TENANTS[@]} -gt 0 ]; then
     ok "All tenant containers restarted."
 fi
 
+# --- Step 6: Re-encrypt tenant secrets with the new APP_KEY ---
+#
+# The containers are now running on the new APP_KEY with the old one available
+# via APP_PREVIOUS_KEYS, so encrypted DB columns can be re-encrypted forward.
+# This must run before the previous key is ever removed.
+
+REENCRYPT_FAILED=0
+if [ ${#SHARED_TENANTS[@]} -gt 0 ]; then
+    step "Re-encrypting tenant secrets with the new APP_KEY"
+    for tenant in "${SHARED_TENANTS[@]}"; do
+        cd "${TENANTS_DIR}/${tenant}"
+
+        # Wait for the app container to report healthy before exec'ing into it.
+        elapsed=0
+        while [ "$elapsed" -lt 120 ]; do
+            docker compose ps app --format '{{.Status}}' 2>/dev/null | grep -q "(healthy)" && break
+            sleep 3
+            elapsed=$((elapsed + 3))
+        done
+
+        if docker compose exec -T app php artisan app:reencrypt-secrets 2>&1 | sed "s/^/  [${tenant}] /"; then
+            ok "  ${tenant}"
+        else
+            error "  ${tenant}: re-encryption failed — leave APP_PREVIOUS_KEYS in place until resolved."
+            REENCRYPT_FAILED=$((REENCRYPT_FAILED + 1))
+        fi
+    done
+fi
+
 # --- Done ---
 
 echo ""
@@ -243,5 +296,22 @@ echo "  REDIS_PASSWORD        ✓"
 echo "  MYSQL_ROOT_PASSWORD   ✓"
 echo "  OAUTH_BROKER_SECRET   ✓"
 [ ${#SHARED_TENANTS[@]} -gt 0 ] && echo "  DB_PASSWORD           ✓ (${#SHARED_TENANTS[@]} tenant(s))"
+if [ ${#SHARED_TENANTS[@]} -gt 0 ]; then
+    if [ "$REENCRYPT_FAILED" -eq 0 ]; then
+        echo "  APP_KEY               ✓ (${#SHARED_TENANTS[@]} tenant(s), secrets re-encrypted)"
+    else
+        echo "  APP_KEY               ⚠ rotated, but ${REENCRYPT_FAILED} tenant(s) failed re-encryption"
+    fi
+fi
 echo "==========================================="
+echo ""
+echo "APP_PREVIOUS_KEYS still holds the old APP_KEY for each tenant so in-flight"
+echo "sessions keep working. It can be cleared on the next rotation, or sooner once"
+echo "SESSION_LIFETIME has elapsed and re-encryption succeeded."
+if [ "${REENCRYPT_FAILED:-0}" -gt 0 ]; then
+    echo ""
+    error "Re-encryption failed for ${REENCRYPT_FAILED} tenant(s). Do NOT remove APP_PREVIOUS_KEYS"
+    error "for those tenants until 'php artisan app:reencrypt-secrets' succeeds."
+    exit 1
+fi
 echo ""
