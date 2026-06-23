@@ -37,6 +37,10 @@ SHARED_DIR="/opt/shared"
 TENANTS_DIR="/opt/tenants"
 CONNECT_DIR="/opt/polybag-connect"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/env-list.sh
+source "${SCRIPT_DIR}/lib/env-list.sh"
+
 # --- Helpers ---
 
 info()  { echo -e "\033[1;34m[INFO]\033[0m  $*"; }
@@ -121,22 +125,33 @@ fi
 
 $DRY_RUN && info "Dry run — no changes will be made."
 
-# --- Validate prerequisites ---
+# --- Validate prerequisites (only what the selected components need) ---
 
-for f in "${SHARED_DIR}/.env" "${SHARED_DIR}/shared-secrets.env"; do
-    if [ ! -f "$f" ]; then
-        error "Required file not found: $f"
+if want redis || want mysql-root || want db-password; then
+    if [ ! -f "${SHARED_DIR}/.env" ]; then
+        error "Required file not found: ${SHARED_DIR}/.env"
         exit 1
     fi
-done
-
-if ! docker inspect shared-mysql --format '{{.State.Running}}' 2>/dev/null | grep -q true; then
-    error "shared-mysql is not running."
-    exit 1
 fi
-if want redis && ! docker inspect shared-redis --format '{{.State.Running}}' 2>/dev/null | grep -q true; then
-    error "shared-redis is not running."
-    exit 1
+if want redis || want oauth; then
+    if [ ! -f "${SHARED_DIR}/shared-secrets.env" ]; then
+        error "Required file not found: ${SHARED_DIR}/shared-secrets.env"
+        exit 1
+    fi
+fi
+
+# MySQL admin changes (root or tenant DB passwords) run against shared-mysql.
+if want mysql-root || want db-password; then
+    if ! docker inspect shared-mysql --format '{{.State.Running}}' 2>/dev/null | grep -q true; then
+        error "shared-mysql is not running."
+        exit 1
+    fi
+fi
+if want redis; then
+    if ! docker inspect shared-redis --format '{{.State.Running}}' 2>/dev/null | grep -q true; then
+        error "shared-redis is not running."
+        exit 1
+    fi
 fi
 
 HAS_CONNECT=false
@@ -144,17 +159,18 @@ if [ -d "$CONNECT_DIR" ] && [ -f "${CONNECT_DIR}/.env" ]; then
     HAS_CONNECT=true
 fi
 
-# --- Snapshot current values ---
+# --- Snapshot current values (only what the selected components need) ---
 
-OLD_REDIS=$(grep '^REDIS_PASSWORD=' "${SHARED_DIR}/shared-secrets.env" | cut -d= -f2-)
-OLD_MYSQL_ROOT=$(grep '^MYSQL_ROOT_PASSWORD=' "${SHARED_DIR}/.env" | cut -d= -f2-)
+OLD_REDIS=""
+OLD_MYSQL_ROOT=""
 
 if want redis; then
+    OLD_REDIS=$(grep '^REDIS_PASSWORD=' "${SHARED_DIR}/shared-secrets.env" | cut -d= -f2- || true)
     [ -n "$OLD_REDIS" ] || { error "REDIS_PASSWORD not set in ${SHARED_DIR}/shared-secrets.env"; exit 1; }
 fi
-# Root password is needed to authenticate the MySQL admin changes for either
-# mysql-root or db-password rotation.
+# Root password authenticates the MySQL admin changes for mysql-root or db-password.
 if want mysql-root || want db-password; then
+    OLD_MYSQL_ROOT=$(grep '^MYSQL_ROOT_PASSWORD=' "${SHARED_DIR}/.env" | cut -d= -f2- || true)
     [ -n "$OLD_MYSQL_ROOT" ] || { error "MYSQL_ROOT_PASSWORD not set in ${SHARED_DIR}/.env"; exit 1; }
 fi
 
@@ -174,6 +190,7 @@ SHARED_TENANTS=()
 declare -A TENANT_DB_USER
 declare -A TENANT_NEW_PASS
 declare -A TENANT_OLD_APPKEY
+declare -A TENANT_OLD_PREV
 declare -A TENANT_NEW_APPKEY
 
 for tenant_dir in "${TENANTS_DIR}"/*/; do
@@ -189,6 +206,7 @@ for tenant_dir in "${TENANTS_DIR}"/*/; do
         fi
         if want app-key; then
             TENANT_OLD_APPKEY[$tenant]=$(grep '^APP_KEY=' "${tenant_dir}.env" | cut -d= -f2- || true)
+            TENANT_OLD_PREV[$tenant]=$(grep '^APP_PREVIOUS_KEYS=' "${tenant_dir}.env" | cut -d= -f2- || true)
             TENANT_NEW_APPKEY[$tenant]=$(generate_app_key)
         fi
     else
@@ -249,9 +267,12 @@ if [ ${#SHARED_TENANTS[@]} -gt 0 ]; then
     for tenant in "${SHARED_TENANTS[@]}"; do
         want db-password && set_env "${TENANTS_DIR}/${tenant}/.env" "DB_PASSWORD" "${TENANT_NEW_PASS[$tenant]}"
         if want app-key; then
-            # Keep the outgoing APP_KEY as the (single) previous key so existing
-            # encrypted data stays readable until it is re-encrypted in Step 6.
-            set_or_add_env "${TENANTS_DIR}/${tenant}/.env" "APP_PREVIOUS_KEYS" "${TENANT_OLD_APPKEY[$tenant]}"
+            # Prepend the outgoing APP_KEY to any existing previous keys rather
+            # than overwriting. Overwriting would discard the key that still
+            # decrypts the data if a retry happens before re-encryption (Step 6)
+            # succeeds. Step 6 trims the list back to a single key on success.
+            new_prev=$(prepend_unique "${TENANT_OLD_APPKEY[$tenant]}" "${TENANT_OLD_PREV[$tenant]}")
+            set_or_add_env "${TENANTS_DIR}/${tenant}/.env" "APP_PREVIOUS_KEYS" "$new_prev"
             set_env "${TENANTS_DIR}/${tenant}/.env" "APP_KEY" "${TENANT_NEW_APPKEY[$tenant]}"
         fi
     done
@@ -355,6 +376,10 @@ if want app-key && [ ${#SHARED_TENANTS[@]} -gt 0 ]; then
         done
 
         if docker compose exec -T app php artisan app:reencrypt-secrets 2>&1 | sed "s/^/  [${tenant}] /"; then
+            # Data is now encrypted with the new key, so only the immediately-prior
+            # key is still needed (for in-flight sessions). Trim the preserved list
+            # back to that single key now that re-encryption has succeeded.
+            set_or_add_env "${TENANTS_DIR}/${tenant}/.env" "APP_PREVIOUS_KEYS" "${TENANT_OLD_APPKEY[$tenant]}"
             ok "  ${tenant}"
         else
             error "  ${tenant}: re-encryption failed — leave APP_PREVIOUS_KEYS in place until resolved."
@@ -384,9 +409,10 @@ fi
 echo "==========================================="
 echo ""
 if want app-key; then
-    echo "APP_PREVIOUS_KEYS still holds the old APP_KEY for each tenant so in-flight"
-    echo "sessions keep working. It can be cleared on the next rotation, or sooner once"
-    echo "SESSION_LIFETIME has elapsed and re-encryption succeeded."
+    echo "APP_PREVIOUS_KEYS holds the immediately-prior APP_KEY for each tenant so"
+    echo "in-flight sessions keep working; it can be cleared once SESSION_LIFETIME has"
+    echo "elapsed. On a failed run the full prior key list is retained instead, so a"
+    echo "retry never loses a key still needed to decrypt existing data."
     if [ "$REENCRYPT_FAILED" -gt 0 ]; then
         echo ""
         error "Re-encryption failed for ${REENCRYPT_FAILED} tenant(s). Do NOT remove APP_PREVIOUS_KEYS"

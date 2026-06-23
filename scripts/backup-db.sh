@@ -154,7 +154,9 @@ if [ "$RETENTION_DAYS" -gt 0 ]; then
         FILENAME=$(echo "$LINE" | awk '{print $NF}')
         # Extract the YYYY-MM-DD stamp wherever it falls — database names like
         # "polybag_demo" contain underscores, so anchor on the date pattern itself.
-        FILE_DATE=$(echo "$FILENAME" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
+        # `|| true` so an object without a date (folder marker, manifest, etc.)
+        # is skipped rather than aborting the script under `set -euo pipefail`.
+        FILE_DATE=$(echo "$FILENAME" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1 || true)
 
         if [ -n "$FILE_DATE" ] && [[ "$FILE_DATE" < "$CUTOFF" ]]; then
             aws s3 rm "s3://${S3_BUCKET}/${S3_PREFIX}/${FILENAME}" --endpoint-url "$S3_ENDPOINT" --quiet 2>/dev/null
