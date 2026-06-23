@@ -26,10 +26,38 @@ class Setting extends Model
     ];
 
     /**
+     * Raw value awaiting serialization + encryption at save time.
+     */
+    protected mixed $pendingValue = null;
+
+    protected bool $hasPendingValue = false;
+
+    /**
+     * Serialize and encrypt the staged value on save, when `type` and `encrypted`
+     * are known regardless of the order attributes were assigned. Doing this in the
+     * setter is unsafe: during Model::create([...]) Eloquent fills attributes in
+     * array order, so a `value` listed before `encrypted`/`type` would be
+     * serialized/encrypted using the wrong (unset) flags. This is overridden on
+     * save() rather than a saving event so it still runs when model events are
+     * muted (e.g. seeders using WithoutModelEvents, or saveQuietly()).
+     */
+    public function save(array $options = []): bool
+    {
+        $this->persistPendingValue();
+
+        return parent::save($options);
+    }
+
+    /**
      * Get the value attribute with automatic type casting and decryption.
      */
     public function getValueAttribute(?string $rawValue): mixed
     {
+        // Reflect a value that was assigned but not yet persisted.
+        if ($this->hasPendingValue) {
+            return $this->pendingValue;
+        }
+
         if ($rawValue === null) {
             return null;
         }
@@ -55,31 +83,47 @@ class Setting extends Model
     }
 
     /**
-     * Set the value attribute with automatic type conversion and encryption.
+     * Stage the value; serialization/encryption is deferred to save time so it
+     * uses the final `type` and `encrypted` flags regardless of assignment order.
      */
     public function setValueAttribute(mixed $value): void
     {
         if ($value === null) {
             $this->attributes['value'] = null;
+            $this->pendingValue = null;
+            $this->hasPendingValue = false;
 
             return;
         }
 
-        // Get type from attributes (may not be cast yet during mass assignment)
-        $type = $this->attributes['type'] ?? $this->type ?? 'string';
-        $encrypted = $this->attributes['encrypted'] ?? $this->encrypted ?? false;
+        $this->pendingValue = $value;
+        $this->hasPendingValue = true;
+    }
 
-        // Convert to string based on type
+    /**
+     * Serialize and (optionally) encrypt the staged value into the stored column.
+     */
+    protected function persistPendingValue(): void
+    {
+        if (! $this->hasPendingValue) {
+            return;
+        }
+
+        $type = $this->attributes['type'] ?? 'string';
+        $encrypted = (bool) ($this->attributes['encrypted'] ?? false);
+
         $stringValue = match ($type) {
-            'boolean' => $value ? '1' : '0',
-            'json' => is_string($value) ? $value : json_encode($value),
-            default => (string) $value,
+            'boolean' => $this->pendingValue ? '1' : '0',
+            'json' => is_string($this->pendingValue) ? $this->pendingValue : json_encode($this->pendingValue),
+            default => (string) $this->pendingValue,
         };
 
-        // Encrypt if needed
         $this->attributes['value'] = $encrypted
             ? Crypt::encryptString($stringValue)
             : $stringValue;
+
+        $this->pendingValue = null;
+        $this->hasPendingValue = false;
     }
 
     /**
