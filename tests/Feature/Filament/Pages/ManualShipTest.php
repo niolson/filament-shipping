@@ -56,6 +56,32 @@ it('creates a shipment and redirects to ship page', function (): void {
     expect(Package::where('shipment_id', $shipment->id)->exists())->toBeTrue();
 });
 
+it('rejects shipping when no name or company is provided', function (): void {
+    Channel::factory()->create(['name' => 'Manual']);
+    $box = BoxSize::factory()->create();
+
+    Livewire::test(ManualShip::class)
+        ->fillForm([
+            'first_name' => '',
+            'last_name' => '',
+            'company' => '',
+            'address1' => '123 Main St',
+            'city' => 'Seattle',
+            'country' => 'US',
+            'state_or_province' => 'WA',
+            'postal_code' => '98101',
+            'box_size_id' => $box->id,
+            'weight' => 2.5,
+            'height' => 10,
+            'width' => 8,
+            'length' => 6,
+        ])
+        ->call('ship')
+        ->assertNotified('Missing Info');
+
+    expect(Shipment::count())->toBe(0);
+});
+
 it('redirects to pack page and stores auto-ship override when scan_to_add_enabled is on', function (): void {
     Setting::create(['key' => 'scan_to_add_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
     app(SettingsService::class)->clearCache();

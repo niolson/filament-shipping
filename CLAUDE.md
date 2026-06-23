@@ -94,7 +94,6 @@ Each tenant's `default` network is isolated. The `shared` network connects app/q
 3. **Manual Ship** (`/manual-ship`) — Ship without a pre-existing shipment
 4. **Batch Ship** — Generate labels for multiple packages
 5. **End of Day** (`/end-of-day`) — Create USPS SCAN forms / manifests; location-scoped when multi-location is enabled
-6. **Update Weight** (`/update-weight`) — Scan product barcode, read scale, update product weight
 
 ## Hardware Integration
 
