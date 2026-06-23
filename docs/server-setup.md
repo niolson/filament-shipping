@@ -245,29 +245,48 @@ The MySQL keyring file should also be backed up to S3. Add this to the same cron
 
 ### Backup encryption
 
-Backups are optionally encrypted with AES-256 before upload. To enable, generate a key and add it to `backup.env`:
+Backups are encrypted with AES-256 before upload. The encryption key is held in a
+**versioned keyring** at `/opt/shared/backup-keys.env` so it can be rotated for
+compliance without orphaning older backups:
 
-```bash
-echo "BACKUP_ENCRYPTION_KEY=$(openssl rand -hex 32)" >> /opt/shared/backup.env
+```
+BACKUP_KEY_CURRENT=2
+BACKUP_KEY_1=<hex>
+BACKUP_KEY_2=<hex>
 ```
 
-Store this key in a password manager — if lost, encrypted backups are unrecoverable.
+Each backup's object name carries a `.kN` tag (e.g. `polybag_acme_2026-03-25_080000.k2.sql.gz.enc`)
+recording which key version decrypts it. If no keyring exists, `backup-db.sh` falls
+back to the legacy single `BACKUP_ENCRYPTION_KEY` in `backup.env` and writes untagged
+objects.
+
+**Initialize / rotate** the key with `scripts/rotate-backup-key.sh`. The first run
+migrates the legacy key in as `k1` and adds a new current key; subsequent runs add the
+next version. Old keys are never deleted automatically:
+
+```bash
+/opt/tenants/<any-tenant>/scripts/rotate-backup-key.sh            # rotate (annual / on compromise)
+/opt/tenants/<any-tenant>/scripts/rotate-backup-key.sh --retire   # drop keys no backup still needs
+```
+
+> **Escrow the keyring off-server** (secrets manager / offline). If it is lost, every
+> encrypted backup in S3 is unrecoverable; if it lives only beside the backups, encryption
+> adds little protection. Retire an old key only after its tagged backups have aged out of
+> the retention window (`--retire` refuses while any still reference it).
 
 ### Restore from backup
 
+`scripts/restore-db.sh` downloads a backup, selects the right key from its `.kN` tag,
+decrypts/decompresses, and loads it into a target database (restore into a scratch
+database to verify backups without touching production):
+
 ```bash
-# Download the backup
-aws s3 cp s3://polybag/backups/db/polybag_acme_2026-03-25_030000.sql.gz.enc /tmp/ \
-  --endpoint-url https://hel1.your-objectstorage.com
+# List available backups
+/opt/tenants/<any-tenant>/scripts/restore-db.sh --list
 
-# Restore (encrypted backup)
-openssl enc -aes-256-cbc -pbkdf2 -d -pass pass:"$BACKUP_ENCRYPTION_KEY" \
-  -in /tmp/polybag_acme_2026-03-25_030000.sql.gz.enc | gunzip | \
-  docker exec -i shared-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" polybag_acme
-
-# Restore (unencrypted backup)
-gunzip -c /tmp/polybag_acme_2026-03-25_030000.sql.gz | \
-  docker exec -i shared-mysql mysql -uroot -p"$MYSQL_ROOT_PASSWORD" polybag_acme
+# Restore into a scratch database (key chosen automatically from the .kN tag)
+/opt/tenants/<any-tenant>/scripts/restore-db.sh \
+  polybag_acme_2026-03-25_080000.k2.sql.gz.enc --into polybag_acme_restore
 ```
 
 ## 9. Generate Wildcard QZ Tray Certificate (Optional)

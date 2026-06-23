@@ -15,6 +15,10 @@
 
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/backup-keys.sh
+source "${SCRIPT_DIR}/lib/backup-keys.sh"
+
 # Load config
 BACKUP_ENV="/opt/shared/backup.env"
 if [ ! -f "$BACKUP_ENV" ]; then
@@ -79,12 +83,28 @@ export AWS_SECRET_ACCESS_KEY="$S3_SECRET_KEY"
 TOTAL=0
 FAILED=0
 
-ENCRYPTION_KEY="${BACKUP_ENCRYPTION_KEY:-}"
-export BACKUP_ENCRYPTION_KEY
+# Resolve the encryption key from the versioned keyring, falling back to the
+# legacy single key. Backups are tagged with the key version (.kN.) so they
+# remain restorable after the key is rotated.
+backup_load_keyring
+KEY_VERSION=$(backup_current_version)
+if [ -n "$KEY_VERSION" ]; then
+    ENCRYPTION_KEY=$(backup_key_for_version "$KEY_VERSION") || {
+        echo "ERROR: BACKUP_KEY_${KEY_VERSION} not found in ${BACKUP_KEYRING}."
+        exit 1
+    }
+else
+    ENCRYPTION_KEY="${BACKUP_ENCRYPTION_KEY:-}"
+fi
+export BACKUP_ENC_PASS="$ENCRYPTION_KEY"
 
 for DB in $DATABASES; do
     if [ -n "$ENCRYPTION_KEY" ]; then
-        FILENAME="${DB}_${DATE}.sql.gz.enc"
+        if [ -n "$KEY_VERSION" ]; then
+            FILENAME="${DB}_${DATE}.k${KEY_VERSION}.sql.gz.enc"
+        else
+            FILENAME="${DB}_${DATE}.sql.gz.enc"
+        fi
     else
         FILENAME="${DB}_${DATE}.sql.gz"
     fi
@@ -96,7 +116,7 @@ for DB in $DATABASES; do
         # Dump, compress, and encrypt
         if ! docker exec "$MYSQL_CONTAINER" mysqldump -uroot -p"$MYSQL_ROOT_PASS" \
             --single-transaction --routines --triggers "$DB" \
-            | gzip | openssl enc -aes-256-cbc -pbkdf2 -pass env:BACKUP_ENCRYPTION_KEY -out "$FILEPATH"; then
+            | gzip | openssl enc -aes-256-cbc -pbkdf2 -pass env:BACKUP_ENC_PASS -out "$FILEPATH"; then
             echo "  ERROR: Failed to dump ${DB}"
             FAILED=$((FAILED + 1))
             continue
@@ -131,8 +151,10 @@ if [ "$RETENTION_DAYS" -gt 0 ]; then
     echo "Pruning backups older than ${CUTOFF}..."
 
     aws s3 ls "s3://${S3_BUCKET}/${S3_PREFIX}/" --endpoint-url "$S3_ENDPOINT" 2>/dev/null | while read -r LINE; do
-        FILE_DATE=$(echo "$LINE" | awk '{print $NF}' | sed -n 's/^polybag[^_]*_\([0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}\).*/\1/p')
         FILENAME=$(echo "$LINE" | awk '{print $NF}')
+        # Extract the YYYY-MM-DD stamp wherever it falls — database names like
+        # "polybag_demo" contain underscores, so anchor on the date pattern itself.
+        FILE_DATE=$(echo "$FILENAME" | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
 
         if [ -n "$FILE_DATE" ] && [[ "$FILE_DATE" < "$CUTOFF" ]]; then
             aws s3 rm "s3://${S3_BUCKET}/${S3_PREFIX}/${FILENAME}" --endpoint-url "$S3_ENDPOINT" --quiet 2>/dev/null
