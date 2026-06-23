@@ -30,6 +30,12 @@ B='base64:dd/ee+ff=='
 assert_eq "$(prepend_unique "$B" "$A")"    "$B,$A"     "handles base64 key values"
 assert_eq "$(prepend_unique "$A" "$A")"    "$A"        "dedupes identical base64 key"
 
+echo "== first_of =="
+assert_eq "$(first_of '')"          ""      "empty list"
+assert_eq "$(first_of 'K1')"        "K1"    "single element"
+assert_eq "$(first_of 'K2,K1,K0')"  "K2"    "first of many"
+assert_eq "$(first_of "$B,$A")"     "$B"    "first base64 element"
+
 echo
 if [ "$FAILS" -eq 0 ]; then
     echo "All env-list tests passed."

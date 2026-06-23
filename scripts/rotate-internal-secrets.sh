@@ -32,10 +32,16 @@ set -euo pipefail
 #   ./scripts/rotate-internal-secrets.sh --skip=oauth
 #   ./scripts/rotate-internal-secrets.sh --yes               # skip confirmation
 #   ./scripts/rotate-internal-secrets.sh --dry-run
+#   ./scripts/rotate-internal-secrets.sh --trim-previous-keys # collapse APP_PREVIOUS_KEYS to one key
+#
+# --trim-previous-keys re-encrypts each tenant's secrets (idempotent safety check),
+# then collapses APP_PREVIOUS_KEYS down to the single most-recent key. Use it after
+# a partial rotation failure left more than one previous key accumulated, once you
+# have confirmed re-encryption succeeds. It ignores --only/--skip.
 
-SHARED_DIR="/opt/shared"
-TENANTS_DIR="/opt/tenants"
-CONNECT_DIR="/opt/polybag-connect"
+SHARED_DIR="${SHARED_DIR:-/opt/shared}"
+TENANTS_DIR="${TENANTS_DIR:-/opt/tenants}"
+CONNECT_DIR="${CONNECT_DIR:-/opt/polybag-connect}"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib/env-list.sh
@@ -87,20 +93,82 @@ valid_component() {
 
 DRY_RUN=false
 YES=false
+TRIM_PREV=false
 ONLY_SET=false
 ONLY_LIST=()
 SKIP_LIST=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --dry-run)    DRY_RUN=true; shift ;;
-        --yes)        YES=true; shift ;;
-        --no-app-key) SKIP_LIST+=("app-key"); shift ;;
-        --only=*)     ONLY_SET=true; IFS=',' read -ra ONLY_LIST <<< "${1#*=}"; shift ;;
-        --skip=*)     IFS=',' read -ra _skip <<< "${1#*=}"; SKIP_LIST+=("${_skip[@]}"); shift ;;
+        --dry-run)            DRY_RUN=true; shift ;;
+        --yes)                YES=true; shift ;;
+        --trim-previous-keys) TRIM_PREV=true; shift ;;
+        --no-app-key)         SKIP_LIST+=("app-key"); shift ;;
+        --only=*)             ONLY_SET=true; IFS=',' read -ra ONLY_LIST <<< "${1#*=}"; shift ;;
+        --skip=*)             IFS=',' read -ra _skip <<< "${1#*=}"; SKIP_LIST+=("${_skip[@]}"); shift ;;
         *) error "Unknown option: $1"; exit 1 ;;
     esac
 done
+
+# --- Trim mode: collapse APP_PREVIOUS_KEYS (standalone; ignores --only/--skip) ---
+
+if $TRIM_PREV; then
+    step "Trim APP_PREVIOUS_KEYS to the most-recent key (re-encrypts first as a safety check)"
+
+    TRIM_TENANTS=()
+    for tenant_dir in "${TENANTS_DIR}"/*/; do
+        [ -f "${tenant_dir}.env" ] || continue
+        [ -f "${tenant_dir}docker-compose.yml" ] || continue
+        [ "$(grep '^DB_HOST=' "${tenant_dir}.env" | cut -d= -f2- || true)" = "shared-mysql" ] || continue
+        TRIM_TENANTS+=("$(basename "$tenant_dir")")
+    done
+
+    if [ ${#TRIM_TENANTS[@]} -eq 0 ]; then
+        info "No shared tenants found."
+        exit 0
+    fi
+
+    if ! $DRY_RUN && ! $YES; then
+        read -r -p "Re-encrypt and collapse APP_PREVIOUS_KEYS for ${#TRIM_TENANTS[@]} tenant(s)? [y/N] " CONFIRM
+        [[ "$CONFIRM" =~ ^[Yy]$ ]] || { info "Aborted."; exit 0; }
+    fi
+
+    TRIM_FAILED=0
+    for tenant in "${TRIM_TENANTS[@]}"; do
+        envf="${TENANTS_DIR}/${tenant}/.env"
+        prev=$(grep '^APP_PREVIOUS_KEYS=' "$envf" | cut -d= -f2- || true)
+
+        if [ -z "$prev" ]; then
+            info "  ${tenant}: no previous keys — nothing to trim."
+            continue
+        fi
+        IFS=',' read -ra _ks <<< "$prev"
+        if [ ${#_ks[@]} -le 1 ]; then
+            info "  ${tenant}: already a single previous key."
+            continue
+        fi
+
+        if $DRY_RUN; then
+            info "  ${tenant}: would re-encrypt then trim ${#_ks[@]} previous keys → 1."
+            continue
+        fi
+
+        # Re-encrypt first so all data is guaranteed to be under the current
+        # APP_KEY before any older key is dropped.
+        cd "${TENANTS_DIR}/${tenant}"
+        if docker compose exec -T app php artisan app:reencrypt-secrets 2>&1 | sed "s/^/  [${tenant}] /"; then
+            set_or_add_env "$envf" "APP_PREVIOUS_KEYS" "$(first_of "$prev")"
+            ok "  ${tenant}: trimmed ${#_ks[@]} previous keys → 1."
+        else
+            error "  ${tenant}: re-encryption failed — previous keys left intact."
+            TRIM_FAILED=$((TRIM_FAILED + 1))
+        fi
+    done
+
+    [ "$TRIM_FAILED" -eq 0 ] || { error "${TRIM_FAILED} tenant(s) failed — see above."; exit 1; }
+    $DRY_RUN && ok "Dry run — no changes made."
+    exit 0
+fi
 
 for c in ${ONLY_LIST[@]+"${ONLY_LIST[@]}"} ${SKIP_LIST[@]+"${SKIP_LIST[@]}"}; do
     valid_component "$c" || { error "Unknown component '$c'. Valid: ${ALL_COMPONENTS[*]}"; exit 1; }

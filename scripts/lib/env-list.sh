@@ -24,3 +24,9 @@ prepend_unique() {
 
     echo "$out"
 }
+
+# Echo the first element of a comma-separated list (empty string if the list is
+# empty). Used to collapse APP_PREVIOUS_KEYS to its most-recent (first) key.
+first_of() {
+    echo "${1%%,*}"
+}
