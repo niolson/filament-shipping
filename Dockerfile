@@ -94,7 +94,7 @@ EXPOSE 9000
 ENTRYPOINT ["entrypoint.sh"]
 
 # Stage 4: Nginx with built assets
-FROM nginx:alpine@sha256:8b1e78743a03dbb2c95171cc58639fef29abc8816598e27fb910ed2e621e589a AS nginx
+FROM nginx:alpine@sha256:54f2a904c251d5a34adf545a72d32515a15e08418dae0266e23be2e18c66fefa AS nginx
 
 COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=app /var/www/html/public /var/www/html/public
