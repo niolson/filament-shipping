@@ -37,16 +37,25 @@ class LabelBatch extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * @return BelongsTo<BoxSize, $this>
+     */
     public function boxSize(): BelongsTo
     {
         return $this->belongsTo(BoxSize::class);
     }
 
+    /**
+     * @return HasMany<LabelBatchItem, $this>
+     */
     public function items(): HasMany
     {
         return $this->hasMany(LabelBatchItem::class);

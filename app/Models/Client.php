@@ -58,31 +58,49 @@ class Client extends Model
         });
     }
 
+    /**
+     * @return HasMany<Shipment, $this>
+     */
     public function shipments(): HasMany
     {
         return $this->hasMany(Shipment::class);
     }
 
+    /**
+     * @return HasMany<Product, $this>
+     */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class);
     }
 
+    /**
+     * @return HasMany<DataSource, $this>
+     */
     public function dataSources(): HasMany
     {
         return $this->hasMany(DataSource::class);
     }
 
+    /**
+     * @return HasMany<ChannelAlias, $this>
+     */
     public function channelAliases(): HasMany
     {
         return $this->hasMany(ChannelAlias::class);
     }
 
+    /**
+     * @return HasMany<ShippingMethodAlias, $this>
+     */
     public function shippingMethodAliases(): HasMany
     {
         return $this->hasMany(ShippingMethodAlias::class);
     }
 
+    /**
+     * @return HasMany<ShippingRule, $this>
+     */
     public function shippingRules(): HasMany
     {
         return $this->hasMany(ShippingRule::class);

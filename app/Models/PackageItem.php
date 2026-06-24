@@ -22,16 +22,25 @@ class PackageItem extends Model
         'transparency_codes' => 'array',
     ];
 
+    /**
+     * @return BelongsTo<Package, $this>
+     */
     public function package(): BelongsTo
     {
         return $this->belongsTo(Package::class);
     }
 
+    /**
+     * @return BelongsTo<ShipmentItem, $this>
+     */
     public function shipmentItem(): BelongsTo
     {
         return $this->belongsTo(ShipmentItem::class);
     }
 
+    /**
+     * @return BelongsTo<Product, $this>
+     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

@@ -39,21 +39,33 @@ class PickBatch extends Model
         ]);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /**
+     * @return BelongsTo<Client, $this>
+     */
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
+    /**
+     * @return HasMany<PickBatchShipment, $this>
+     */
     public function pickBatchShipments(): HasMany
     {
         return $this->hasMany(PickBatchShipment::class);
     }
 
+    /**
+     * @return BelongsToMany<Shipment, $this>
+     */
     public function shipments(): BelongsToMany
     {
         return $this->belongsToMany(Shipment::class, 'pick_batch_shipments')

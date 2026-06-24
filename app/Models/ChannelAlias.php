@@ -19,11 +19,17 @@ class ChannelAlias extends Model
         'channel_id',
     ];
 
+    /**
+     * @return BelongsTo<Client, $this>
+     */
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
+    /**
+     * @return BelongsTo<Channel, $this>
+     */
     public function channel(): BelongsTo
     {
         return $this->belongsTo(Channel::class);

@@ -55,16 +55,25 @@ class Product extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Client, $this>
+     */
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
+    /**
+     * @return HasMany<ShipmentItem, $this>
+     */
     public function shipmentItems(): HasMany
     {
         return $this->hasMany(ShipmentItem::class);
     }
 
+    /**
+     * @return HasMany<PackageItem, $this>
+     */
     public function packageItems(): HasMany
     {
         return $this->hasMany(PackageItem::class);

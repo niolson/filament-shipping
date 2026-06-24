@@ -32,16 +32,25 @@ class ShippingRule extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Client, $this>
+     */
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
+    /**
+     * @return BelongsTo<ShippingMethod, $this>
+     */
     public function shippingMethod(): BelongsTo
     {
         return $this->belongsTo(ShippingMethod::class);
     }
 
+    /**
+     * @return BelongsTo<CarrierService, $this>
+     */
     public function carrierService(): BelongsTo
     {
         return $this->belongsTo(CarrierService::class);

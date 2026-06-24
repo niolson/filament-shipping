@@ -26,11 +26,17 @@ class PickBatchShipment extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<PickBatch, $this>
+     */
     public function pickBatch(): BelongsTo
     {
         return $this->belongsTo(PickBatch::class);
     }
 
+    /**
+     * @return BelongsTo<Shipment, $this>
+     */
     public function shipment(): BelongsTo
     {
         return $this->belongsTo(Shipment::class);

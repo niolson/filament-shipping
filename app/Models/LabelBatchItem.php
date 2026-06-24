@@ -31,16 +31,25 @@ class LabelBatchItem extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<LabelBatch, $this>
+     */
     public function labelBatch(): BelongsTo
     {
         return $this->belongsTo(LabelBatch::class);
     }
 
+    /**
+     * @return BelongsTo<Shipment, $this>
+     */
     public function shipment(): BelongsTo
     {
         return $this->belongsTo(Shipment::class);
     }
 
+    /**
+     * @return BelongsTo<Package, $this>
+     */
     public function package(): BelongsTo
     {
         return $this->belongsTo(Package::class);

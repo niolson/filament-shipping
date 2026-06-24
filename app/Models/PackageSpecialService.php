@@ -28,11 +28,17 @@ class PackageSpecialService extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Package, $this>
+     */
     public function package(): BelongsTo
     {
         return $this->belongsTo(Package::class);
     }
 
+    /**
+     * @return BelongsTo<SpecialService, $this>
+     */
     public function specialService(): BelongsTo
     {
         return $this->belongsTo(SpecialService::class);

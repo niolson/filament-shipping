@@ -29,6 +29,9 @@ class SpecialService extends Model
         ];
     }
 
+    /**
+     * @return BelongsToMany<ShippingMethod, $this>
+     */
     public function shippingMethods(): BelongsToMany
     {
         return $this->belongsToMany(ShippingMethod::class)
@@ -36,6 +39,9 @@ class SpecialService extends Model
             ->withTimestamps();
     }
 
+    /**
+     * @return BelongsToMany<Package, $this>
+     */
     public function packages(): BelongsToMany
     {
         return $this->belongsToMany(Package::class, 'package_special_services')

@@ -83,41 +83,65 @@ class Package extends Model
         ];
     }
 
+    /**
+     * @return HasMany<PackageItem, $this>
+     */
     public function packageItems(): HasMany
     {
         return $this->hasMany(PackageItem::class);
     }
 
+    /**
+     * @return BelongsTo<Shipment, $this>
+     */
     public function shipment(): BelongsTo
     {
         return $this->belongsTo(Shipment::class);
     }
 
+    /**
+     * @return BelongsTo<Location, $this>
+     */
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);
     }
 
+    /**
+     * @return BelongsTo<BoxSize, $this>
+     */
     public function boxSize(): BelongsTo
     {
         return $this->belongsTo(BoxSize::class);
     }
 
+    /**
+     * @return BelongsTo<Manifest, $this>
+     */
     public function manifest(): BelongsTo
     {
         return $this->belongsTo(Manifest::class);
     }
 
+    /**
+     * @return HasMany<RateQuote, $this>
+     */
     public function rateQuotes(): HasMany
     {
         return $this->hasMany(RateQuote::class);
     }
 
+    /**
+     * @return HasMany<PackageSpecialService, $this>
+     */
     public function specialServices(): HasMany
     {
         return $this->hasMany(PackageSpecialService::class);
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function shippedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'shipped_by_user_id');

@@ -44,11 +44,17 @@ class CarrierAccount extends Model
         });
     }
 
+    /**
+     * @return BelongsTo<Carrier, $this>
+     */
     public function carrier(): BelongsTo
     {
         return $this->belongsTo(Carrier::class);
     }
 
+    /**
+     * @return HasMany<CarrierAccountScope, $this>
+     */
     public function scopes(): HasMany
     {
         return $this->hasMany(CarrierAccountScope::class);

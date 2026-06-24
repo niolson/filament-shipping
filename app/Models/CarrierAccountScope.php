@@ -34,21 +34,33 @@ class CarrierAccountScope extends Model
         });
     }
 
+    /**
+     * @return BelongsTo<CarrierAccount, $this>
+     */
     public function carrierAccount(): BelongsTo
     {
         return $this->belongsTo(CarrierAccount::class);
     }
 
+    /**
+     * @return BelongsTo<Carrier, $this>
+     */
     public function carrier(): BelongsTo
     {
         return $this->belongsTo(Carrier::class);
     }
 
+    /**
+     * @return BelongsTo<Location, $this>
+     */
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class)->withDefault();
     }
 
+    /**
+     * @return BelongsTo<Client, $this>
+     */
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class)->withDefault();

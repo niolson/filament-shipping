@@ -49,11 +49,17 @@ class DataSource extends Model
         $this->secret_settings = array_merge($this->secret_settings ?? [], [$key => $value]);
     }
 
+    /**
+     * @return BelongsTo<Client, $this>
+     */
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
+    /**
+     * @return HasMany<Shipment, $this>
+     */
     public function shipments(): HasMany
     {
         return $this->hasMany(Shipment::class);

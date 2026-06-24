@@ -30,11 +30,17 @@ class Manifest extends Model
         ];
     }
 
+    /**
+     * @return HasMany<Package, $this>
+     */
     public function packages(): HasMany
     {
         return $this->hasMany(Package::class);
     }
 
+    /**
+     * @return BelongsTo<Location, $this>
+     */
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);

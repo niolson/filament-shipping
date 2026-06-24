@@ -226,36 +226,57 @@ class Shipment extends Model
         return null;
     }
 
+    /**
+     * @return BelongsTo<Client, $this>
+     */
     public function client(): BelongsTo
     {
         return $this->belongsTo(Client::class);
     }
 
+    /**
+     * @return HasMany<ShipmentItem, $this>
+     */
     public function shipmentItems(): HasMany
     {
         return $this->hasMany(ShipmentItem::class);
     }
 
+    /**
+     * @return HasMany<Package, $this>
+     */
     public function packages(): HasMany
     {
         return $this->hasMany(Package::class);
     }
 
+    /**
+     * @return BelongsTo<ShippingMethod, $this>
+     */
     public function shippingMethod(): BelongsTo
     {
         return $this->belongsTo(ShippingMethod::class);
     }
 
+    /**
+     * @return BelongsTo<Channel, $this>
+     */
     public function channel(): BelongsTo
     {
         return $this->belongsTo(Channel::class);
     }
 
+    /**
+     * @return BelongsTo<DataSource, $this>
+     */
     public function dataSource(): BelongsTo
     {
         return $this->belongsTo(DataSource::class);
     }
 
+    /**
+     * @return HasMany<PickBatchShipment, $this>
+     */
     public function pickBatchShipments(): HasMany
     {
         return $this->hasMany(PickBatchShipment::class);

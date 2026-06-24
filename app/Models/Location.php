@@ -101,11 +101,17 @@ class Location extends Model
         });
     }
 
+    /**
+     * @return HasMany<Package, $this>
+     */
     public function packages(): HasMany
     {
         return $this->hasMany(Package::class);
     }
 
+    /**
+     * @return BelongsToMany<Carrier, $this>
+     */
     public function carriers(): BelongsToMany
     {
         return $this->belongsToMany(Carrier::class, 'carrier_location')
@@ -113,11 +119,17 @@ class Location extends Model
             ->withTimestamps();
     }
 
+    /**
+     * @return HasMany<CarrierLocation, $this>
+     */
     public function carrierLocations(): HasMany
     {
         return $this->hasMany(CarrierLocation::class);
     }
 
+    /**
+     * @return HasMany<CarrierAccountScope, $this>
+     */
     public function carrierAccountScopes(): HasMany
     {
         return $this->hasMany(CarrierAccountScope::class);

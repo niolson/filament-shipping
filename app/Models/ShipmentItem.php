@@ -23,11 +23,17 @@ class ShipmentItem extends Model
         'transparency' => 'boolean',
     ];
 
+    /**
+     * @return BelongsTo<Shipment, $this>
+     */
     public function shipment(): BelongsTo
     {
         return $this->belongsTo(Shipment::class);
     }
 
+    /**
+     * @return BelongsTo<Product, $this>
+     */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

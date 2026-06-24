@@ -24,11 +24,17 @@ class CarrierLocation extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Carrier, $this>
+     */
     public function carrier(): BelongsTo
     {
         return $this->belongsTo(Carrier::class);
     }
 
+    /**
+     * @return BelongsTo<Location, $this>
+     */
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);

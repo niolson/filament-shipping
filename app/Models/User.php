@@ -78,6 +78,9 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
         return $this->active;
     }
 
+    /**
+     * @return BelongsTo<Location, $this>
+     */
     public function location(): BelongsTo
     {
         return $this->belongsTo(Location::class);

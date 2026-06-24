@@ -32,16 +32,25 @@ class Carrier extends Model
         ];
     }
 
+    /**
+     * @return HasMany<CarrierService, $this>
+     */
     public function carrierServices(): HasMany
     {
         return $this->hasMany(CarrierService::class);
     }
 
+    /**
+     * @return HasMany<CarrierAccount, $this>
+     */
     public function carrierAccounts(): HasMany
     {
         return $this->hasMany(CarrierAccount::class);
     }
 
+    /**
+     * @return BelongsToMany<Location, $this>
+     */
     public function locations(): BelongsToMany
     {
         return $this->belongsToMany(Location::class, 'carrier_location')

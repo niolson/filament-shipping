@@ -23,26 +23,41 @@ class ShippingMethod extends Model
         'is_expedited' => 'boolean',
     ];
 
+    /**
+     * @return HasMany<Shipment, $this>
+     */
     public function shipments(): HasMany
     {
         return $this->hasMany(Shipment::class);
     }
 
+    /**
+     * @return HasMany<ShippingMethodAlias, $this>
+     */
     public function aliases(): HasMany
     {
         return $this->hasMany(ShippingMethodAlias::class);
     }
 
+    /**
+     * @return HasMany<ShippingRule, $this>
+     */
     public function shippingRules(): HasMany
     {
         return $this->hasMany(ShippingRule::class);
     }
 
+    /**
+     * @return BelongsToMany<CarrierService, $this>
+     */
     public function carrierServices(): BelongsToMany
     {
         return $this->belongsToMany(CarrierService::class);
     }
 
+    /**
+     * @return BelongsToMany<SpecialService, $this>
+     */
     public function specialServices(): BelongsToMany
     {
         return $this->belongsToMany(SpecialService::class)

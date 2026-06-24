@@ -29,6 +29,9 @@ class RateQuote extends Model
         'created_at' => 'datetime',
     ];
 
+    /**
+     * @return BelongsTo<Package, $this>
+     */
     public function package(): BelongsTo
     {
         return $this->belongsTo(Package::class);
