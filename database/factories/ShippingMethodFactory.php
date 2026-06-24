@@ -5,6 +5,9 @@ namespace Database\Factories;
 use App\Models\ShippingMethod;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<ShippingMethod>
+ */
 class ShippingMethodFactory extends Factory
 {
     protected $model = ShippingMethod::class;

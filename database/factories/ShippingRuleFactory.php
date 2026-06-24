@@ -7,6 +7,9 @@ use App\Models\CarrierService;
 use App\Models\ShippingRule;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<ShippingRule>
+ */
 class ShippingRuleFactory extends Factory
 {
     protected $model = ShippingRule::class;

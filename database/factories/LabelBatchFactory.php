@@ -8,6 +8,9 @@ use App\Models\LabelBatch;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<LabelBatch>
+ */
 class LabelBatchFactory extends Factory
 {
     protected $model = LabelBatch::class;

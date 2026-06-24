@@ -10,6 +10,9 @@ use App\Models\Shipment;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<Package>
+ */
 class PackageFactory extends Factory
 {
     protected $model = Package::class;

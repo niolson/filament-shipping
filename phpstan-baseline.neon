@@ -1381,12 +1381,6 @@ parameters:
 			path: app/Filament/Widgets/DatabaseHealthWidget.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/TestPackageController.php
-
-		-
 			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\ShippingMethod\|null given\.$#'
 			identifier: argument.type
 			count: 1
@@ -2269,102 +2263,6 @@ parameters:
 			path: app/Services/TrackingService.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$height\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Browser/ShippingFlowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: tests/Browser/ShippingFlowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$length\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Browser/ShippingFlowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$width\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Browser/ShippingFlowTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Browser/ShippingFlowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$checked\.$#'
-			identifier: property.notFound
-			count: 10
-			path: tests/Feature/AddressValidationServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$deliverability\.$#'
-			identifier: property.notFound
-			count: 10
-			path: tests/Feature/AddressValidationServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_address1\.$#'
-			identifier: property.notFound
-			count: 5
-			path: tests/Feature/AddressValidationServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_address2\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/AddressValidationServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_city\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/AddressValidationServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_postal_code\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/AddressValidationServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_residential\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/AddressValidationServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_state_or_province\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/AddressValidationServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validation_message\.$#'
-			identifier: property.notFound
-			count: 10
-			path: tests/Feature/AddressValidationServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$exported\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/AmazonImportExportTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: tests/Feature/AmazonImportExportTest.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
 			identifier: property.notFound
 			count: 2
@@ -2377,27 +2275,9 @@ parameters:
 			path: tests/Feature/AmazonImportExportTest.php
 
 		-
-			message: '#^Parameter \#1 \$package of method App\\Services\\ShipmentImport\\PackageExportService\:\:exportPackage\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 2
-			path: tests/Feature/AmazonImportExportTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:packages\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Api/TestPackageControllerTest.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
-			count: 8
-			path: tests/Feature/CarrierAccountTest.php
-
-		-
-			message: '#^Parameter \#1 \$location of method Database\\Factories\\CarrierAccountScopeFactory\:\:locationScoped\(\) expects App\\Models\\Location, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 4
+			count: 5
 			path: tests/Feature/CarrierAccountTest.php
 
 		-
@@ -2405,18 +2285,6 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: tests/Feature/CarrierValidationLoggingTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$checked\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Console/ValidateShipmentsCommandTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$deliverability\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Console/ValidateShipmentsCommandTest.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cost\.$#'
@@ -2449,99 +2317,15 @@ parameters:
 			path: tests/Feature/DemoResetTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Events/AddressValidationFailedTest.php
-
-		-
-			message: '#^Parameter \#1 \$shipment of method App\\Services\\AddressValidationService\:\:validate\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 4
-			path: tests/Feature/Events/AddressValidationFailedTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/Events/ExportShippedPackageTest.php
-
-		-
 			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: tests/Feature/Events/ExportShippedPackageTest.php
 
 		-
-			message: '#^Parameter \#1 \$package of class App\\Events\\PackageShipped constructor expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: tests/Feature/Events/ExportShippedPackageTest.php
-
-		-
-			message: '#^Parameter \#2 \$shipment of class App\\Events\\PackageShipped constructor expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: tests/Feature/Events/ExportShippedPackageTest.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Feature/Events/PackageCancelledTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:clearShipping\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Events/PackageCancelledTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$description\.$#'
 			identifier: property.notFound
 			count: 1
-			path: tests/Feature/Events/PackageCreatedTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 8
-			path: tests/Feature/Events/PackageCreatedTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Feature/Events/PackageShippedTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:markShipped\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Events/PackageShippedTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Feature/Events/ShipmentImportEventsTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Feature/Filament/Pages/ManualShipTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$description\.$#'
-			identifier: property.notFound
-			count: 10
-			path: tests/Feature/Filament/Pages/PackTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 109
 			path: tests/Feature/Filament/Pages/PackTest.php
 
 		-
@@ -2551,76 +2335,10 @@ parameters:
 			path: tests/Feature/Filament/Pages/PackTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment_reference\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/PackTest.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$transparency_codes\.$#'
 			identifier: property.notFound
 			count: 1
 			path: tests/Feature/Filament/Pages/PackTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address1\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/SettingsTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrierLocations\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/SettingsTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/SettingsTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$first_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/SettingsTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Feature/Filament/Pages/SettingsTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$last_name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/SettingsTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/Filament/Pages/SettingsTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postal_code\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/SettingsTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state_or_province\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/SettingsTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$timezone\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/SettingsTest.php
 
 		-
 			message: '#^Access to an undefined property Livewire\\Component\:\:\$fedexInvoiceAvailable\.$#'
@@ -2677,7 +2395,7 @@ parameters:
 			path: tests/Feature/Filament/Pages/SettingsTest.php
 
 		-
-			message: '#^Call to an undefined method Pest\\Mixins\\Expectation\<mixed\>\:\:first\(\)\.$#'
+			message: '#^Call to an undefined method Pest\\Mixins\\Expectation\<Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\>\|null\>\:\:first\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: tests/Feature/Filament/Pages/SettingsTest.php
@@ -2687,18 +2405,6 @@ parameters:
 			identifier: method.notFound
 			count: 1
 			path: tests/Feature/Filament/Pages/SetupWizardTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 8
-			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
 
 		-
 			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:andReturnNull\(\)\.$#'
@@ -2725,18 +2431,6 @@ parameters:
 			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: tests/Feature/Filament/Pages/ShipTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/ShipTest.php
-
-		-
 			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:andReturnNull\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -2747,126 +2441,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: tests/Feature/Filament/Pages/ShipTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$channel_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/UnmappedChannelReferencesTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: tests/Feature/Filament/Pages/UnmappedChannelReferencesTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$client_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/UnmappedShippingReferencesTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 7
-			path: tests/Feature/Filament/Pages/UnmappedShippingReferencesTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipping_method_id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Feature/Filament/Pages/UnmappedShippingReferencesTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrier\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cost\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$height\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_data\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_orientation\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$length\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$service\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_by_user_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$weight\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$width\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Filament/Resources/PackageResourceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 15
-			path: tests/Feature/Filament/Resources/ResourceCrudTest.php
 
 		-
 			message: '#^Access to an undefined property Pest\\Mixins\\Expectation\<array\<int, string\>\|string\>\|Pest\\Mixins\\Expectation\<Pest\\Expectation\<array\<int, string\>\|string\>\>\:\:\$commitment_days\.$#'
@@ -2887,12 +2461,6 @@ parameters:
 			path: tests/Feature/Filament/Resources/ResourceCrudTest.php
 
 		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:toSearchableArray\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: tests/Feature/Filament/Search/GlobalSearchTest.php
-
-		-
 			message: '#^Call to protected method getData\(\) of class App\\Filament\\Widgets\\ShippedShipmentsChart\.$#'
 			identifier: method.protected
 			count: 4
@@ -2911,42 +2479,6 @@ parameters:
 			path: tests/Feature/Filament/Widgets/ShippedShipmentsChartTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 10
-			path: tests/Feature/Http/PickBatchControllerTest.php
-
-		-
-			message: '#^Parameter \#1 \$shipments of method App\\Services\\PickBatchService\:\:createFromShipments\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\Shipment\>, Illuminate\\Database\\Eloquent\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
-			identifier: argument.type
-			count: 2
-			path: tests/Feature/Http/PickBatchControllerTest.php
-
-		-
-			message: '#^Parameter \#1 \$shipments of method App\\Services\\PickBatchService\:\:createFromShipments\(\) expects Illuminate\\Support\\Collection\<int, App\\Models\\Shipment\>, Illuminate\\Support\\Collection\<int, Illuminate\\Database\\Eloquent\\Model\> given\.$#'
-			identifier: argument.type
-			count: 2
-			path: tests/Feature/Http/PickBatchControllerTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 11
-			path: tests/Feature/Jobs/GenerateLabelJobTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Jobs/GenerateLabelJobTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Jobs/GenerateLabelJobTest.php
-
-		-
 			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
 			identifier: method.notFound
 			count: 6
@@ -2959,100 +2491,16 @@ parameters:
 			path: tests/Feature/Jobs/GenerateLabelJobTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$boxSize\.$#'
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
-			count: 1
+			count: 3
 			path: tests/Feature/Models/LabelBatchTest.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
-			count: 4
-			path: tests/Feature/Models/LabelBatchTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$items\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/Models/LabelBatchTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$started_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Models/LabelBatchTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/Models/LabelBatchTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$total_shipments\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Models/LabelBatchTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$user\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Models/LabelBatchTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:isComplete\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Models/LabelBatchTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$action\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Models/ShippingRuleTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrierService\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Models/ShippingRuleTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$conditions\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Models/ShippingRuleTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$enabled\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Models/ShippingRuleTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: tests/Feature/Models/ShippingRuleTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shippingMethod\.$#'
-			identifier: property.notFound
 			count: 2
 			path: tests/Feature/Models/ShippingRuleTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipping_method_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Models/ShippingRuleTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 64
-			path: tests/Feature/PackageDraftWorkflowTest.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$product_id\.$#'
@@ -3079,92 +2527,8 @@ parameters:
 			path: tests/Feature/PackageDraftWorkflowTest.php
 
 		-
-			message: '#^Parameter \#1 \$boxSize of class App\\DataTransferObjects\\PackageDrafts\\BatchPackageDraftInput constructor expects App\\Models\\BoxSize, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 3
-			path: tests/Feature/PackageDraftWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$shipment of method App\\Services\\PackageDrafts\\EloquentPackageDraftWorkflow\:\:assertReadyToShip\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 4
-			path: tests/Feature/PackageDraftWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$shipment of method App\\Services\\PackageDrafts\\EloquentPackageDraftWorkflow\:\:createBatchReadyDraft\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 3
-			path: tests/Feature/PackageDraftWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$shipment of method App\\Services\\PackageDrafts\\EloquentPackageDraftWorkflow\:\:resumeForShipment\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 3
-			path: tests/Feature/PackageDraftWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$shipment of method App\\Services\\PackageDrafts\\EloquentPackageDraftWorkflow\:\:saveForShipment\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 13
-			path: tests/Feature/PackageDraftWorkflowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$exported\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/PackageExportTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 9
-			path: tests/Feature/PackageExportTest.php
-
-		-
-			message: '#^Function createShippedPackage\(\) should return App\\Models\\Package but returns Illuminate\\Database\\Eloquent\\Model\.$#'
-			identifier: return.type
-			count: 1
-			path: tests/Feature/PackageExportTest.php
-
-		-
-			message: '#^Parameter \#1 \$channel of function createShippedPackage expects App\\Models\\Channel\|null, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 6
-			path: tests/Feature/PackageExportTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_data\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/PackageLabelWorkflowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/PackageLabelWorkflowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/PackageLabelWorkflowTest.php
-
-		-
 			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
 			identifier: method.notFound
-			count: 2
-			path: tests/Feature/PackageLabelWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$package of method App\\Services\\PackageLabels\\EloquentPackageLabelWorkflow\:\:labelForReprint\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 2
-			path: tests/Feature/PackageLabelWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$package of method App\\Services\\PackageLabels\\EloquentPackageLabelWorkflow\:\:voidLabel\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
 			count: 2
 			path: tests/Feature/PackageLabelWorkflowTest.php
 
@@ -3173,24 +2537,6 @@ parameters:
 			identifier: argument.type
 			count: 2
 			path: tests/Feature/PackageLabelWorkflowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 13
-			path: tests/Feature/PackageShippingWorkflowTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/PackageShippingWorkflowTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:packageItems\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/PackageShippingWorkflowTest.php
 
 		-
 			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
@@ -3199,52 +2545,10 @@ parameters:
 			path: tests/Feature/PackageShippingWorkflowTest.php
 
 		-
-			message: '#^Function createWorkflowPackage\(\) should return App\\Models\\Package but returns Illuminate\\Database\\Eloquent\\Model\.$#'
-			identifier: return.type
-			count: 1
-			path: tests/Feature/PackageShippingWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$package of method App\\Services\\PackageShipping\\EloquentPackageShippingWorkflow\:\:autoShip\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: tests/Feature/PackageShippingWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$package of method App\\Services\\PackageShipping\\EloquentPackageShippingWorkflow\:\:prepareRates\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 1
-			path: tests/Feature/PackageShippingWorkflowTest.php
-
-		-
 			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
 			identifier: argument.type
 			count: 6
 			path: tests/Feature/PackageShippingWorkflowTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/PackageTrackingUiTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_details\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/PackageTrackingUiTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_status\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/PackageTrackingUiTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 14
-			path: tests/Feature/Pages/Reports/ClientBillingReportTest.php
 
 		-
 			message: '#^Call to an undefined method Livewire\\Component\:\:exportCsv\(\)\.$#'
@@ -3259,40 +2563,16 @@ parameters:
 			path: tests/Feature/Pages/Reports/ClientBillingReportTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Pages/Reports/PackingValidationReportTest.php
-
-		-
 			message: '#^Call to an undefined method Livewire\\Component\:\:getBatchFailureCount\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: tests/Feature/Pages/Reports/PackingValidationReportTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Feature/Pages/Reports/RateComparisonTest.php
-
-		-
 			message: '#^Call to an undefined method Livewire\\Component\:\:getTotalPotentialSavings\(\)\.$#'
 			identifier: method.notFound
 			count: 1
 			path: tests/Feature/Pages/Reports/RateComparisonTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 25
-			path: tests/Feature/Services/BatchLabelServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 8
-			path: tests/Feature/Services/PackagingServiceTest.php
 
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$quantity\.$#'
@@ -3305,78 +2585,6 @@ parameters:
 			identifier: property.notFound
 			count: 1
 			path: tests/Feature/Services/PackagingServiceTest.php
-
-		-
-			message: '#^Parameter \$shipment of method App\\Services\\PackagingService\:\:createPackage\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 3
-			path: tests/Feature/Services/PackagingServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 22
-			path: tests/Feature/Services/PickBatchServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$picking_status\.$#'
-			identifier: property.notFound
-			count: 6
-			path: tests/Feature/Services/PickBatchServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Services/PickBatchServiceTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:updateShippedStatus\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Services/PickBatchServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Feature/Services/RateLoggingIntegrationTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$package\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Services/RateLoggingIntegrationTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$rateQuotes\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/Services/RateLoggingIntegrationTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$selected\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Feature/Services/RateLoggingIntegrationTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 86
-			path: tests/Feature/Services/RuleEvaluatorTest.php
-
-		-
-			message: '#^Parameter \#1 \$shipment of method App\\Services\\RuleEvaluator\:\:evaluate\(\) expects App\\Models\\Shipment, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 33
-			path: tests/Feature/Services/RuleEvaluatorTest.php
-
-		-
-			message: '#^Parameter \#2 \$package of method App\\Services\\RuleEvaluator\:\:evaluate\(\) expects App\\Models\\Package\|null, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 5
-			path: tests/Feature/Services/RuleEvaluatorTest.php
 
 		-
 			message: '#^Access to an undefined property App\\Contracts\\DataSourceInterface\:\:\$exportedReferences\.$#'
@@ -3393,7 +2601,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
-			count: 36
+			count: 1
 			path: tests/Feature/ShipmentImportServiceTest.php
 
 		-
@@ -3403,21 +2611,9 @@ parameters:
 			path: tests/Feature/ShipmentImportServiceTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$exported\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Feature/ShopifyImportExportTest.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
-			count: 10
-			path: tests/Feature/ShopifyImportExportTest.php
-
-		-
-			message: '#^Parameter \#1 \$package of method App\\Services\\ShipmentImport\\PackageExportService\:\:exportPackage\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 2
+			count: 1
 			path: tests/Feature/ShopifyImportExportTest.php
 
 		-
@@ -3427,262 +2623,10 @@ parameters:
 			path: tests/Feature/SsoLoginTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$boxSize\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$box_size_id\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrier\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cost\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$exported\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$height\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_data\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_orientation\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$length\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$manifest\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$manifest_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$service\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_by_user_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 8
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$weight\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$width\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/PackageFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$address1\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$checked\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$city\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$company\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$country\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$deliverability\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$postal_code\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$residential\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment_reference\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipping_method_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state_or_province\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_address1\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_residential\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validation_message\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Unit/Factories/ShipmentFactoryTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$country\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/AddressNormalizationTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/AddressNormalizationTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone_e164\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/AddressNormalizationTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$phone_extension\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Models/AddressNormalizationTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$state_or_province\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/AddressNormalizationTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_country\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Models/AddressNormalizationTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$validated_state_or_province\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Models/AddressNormalizationTest.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
-			count: 6
+			count: 3
 			path: tests/Unit/Models/CarrierAccountScopeTest.php
-
-		-
-			message: '#^Parameter \#1 \$location of method Database\\Factories\\CarrierAccountScopeFactory\:\:locationScoped\(\) expects App\\Models\\Location, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 5
-			path: tests/Unit/Models/CarrierAccountScopeTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 11
-			path: tests/Unit/Models/CarrierServiceScopeTest.php
 
 		-
 			message: '#^Cannot call method format\(\) on string\.$#'
@@ -3691,69 +2635,9 @@ parameters:
 			path: tests/Unit/Models/ManifestTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$carrier\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$cost\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$height\.$#'
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
 			count: 1
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_data\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$label_orientation\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$length\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$service\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipment\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shippedBy\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_at\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$shipped_by_user_id\.$#'
-			identifier: property.notFound
-			count: 2
 			path: tests/Unit/Models/PackageTest.php
 
 		-
@@ -3761,84 +2645,6 @@ parameters:
 			identifier: property.notFound
 			count: 2
 			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_number\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$weight\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$width\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:clearShipping\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:markShipped\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: tests/Unit/Models/PackageTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 4
-			path: tests/Unit/Models/ShipmentDeliverByDateTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:getDeliverByDate\(\)\.$#'
-			identifier: method.notFound
-			count: 6
-			path: tests/Unit/Models/ShipmentDeliverByDateTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 12
-			path: tests/Unit/Models/ShipmentTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$status\.$#'
-			identifier: property.notFound
-			count: 5
-			path: tests/Unit/Models/ShipmentTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:clearShipping\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Unit/Models/ShipmentTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:updateShippedStatus\(\)\.$#'
-			identifier: method.notFound
-			count: 4
-			path: tests/Unit/Models/ShipmentTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 8
-			path: tests/Unit/Services/CacheServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Unit/Services/Carriers/FedexAdapterTest.php
 
 		-
 			message: '#^Access to an undefined property Pest\\Mixins\\Expectation\<mixed\>\:\:\$not\.$#'
@@ -3847,28 +2653,10 @@ parameters:
 			path: tests/Unit/Services/Carriers/UspsAdapterTest.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
+			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Relations\\Pivot\:\:\$last_end_of_day_at\.$#'
 			identifier: property.notFound
-			count: 13
-			path: tests/Unit/Services/RateQuoteLoggerTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:locations\(\)\.$#'
-			identifier: method.notFound
-			count: 4
+			count: 2
 			path: tests/Unit/Services/ShipDateServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 24
-			path: tests/Unit/Services/ShippingRateServiceTest.php
-
-		-
-			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:carrierServices\(\)\.$#'
-			identifier: method.notFound
-			count: 11
-			path: tests/Unit/Services/ShippingRateServiceTest.php
 
 		-
 			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
@@ -3881,33 +2669,3 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: tests/Unit/Services/ShippingRateServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_checked_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/TrackingServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_details\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Unit/TrackingServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_status\.$#'
-			identifier: property.notFound
-			count: 2
-			path: tests/Unit/TrackingServiceTest.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$tracking_updated_at\.$#'
-			identifier: property.notFound
-			count: 1
-			path: tests/Unit/TrackingServiceTest.php
-
-		-
-			message: '#^Parameter \#1 \$package of method App\\Services\\TrackingService\:\:refreshPackage\(\) expects App\\Models\\Package, Illuminate\\Database\\Eloquent\\Model given\.$#'
-			identifier: argument.type
-			count: 3
-			path: tests/Unit/TrackingServiceTest.php

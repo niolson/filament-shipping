@@ -8,6 +8,9 @@ use App\Models\LabelBatchItem;
 use App\Models\Shipment;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<LabelBatchItem>
+ */
 class LabelBatchItemFactory extends Factory
 {
     protected $model = LabelBatchItem::class;

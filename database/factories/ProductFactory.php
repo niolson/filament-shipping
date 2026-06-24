@@ -6,6 +6,9 @@ use App\Models\Product;
 use App\Services\ClientContext;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<Product>
+ */
 class ProductFactory extends Factory
 {
     protected $model = Product::class;

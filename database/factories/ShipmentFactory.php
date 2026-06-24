@@ -10,6 +10,9 @@ use App\Models\ShippingMethod;
 use App\Services\ClientContext;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<Shipment>
+ */
 class ShipmentFactory extends Factory
 {
     protected $model = Shipment::class;

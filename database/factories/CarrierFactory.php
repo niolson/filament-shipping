@@ -5,6 +5,9 @@ namespace Database\Factories;
 use App\Models\Carrier;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<Carrier>
+ */
 class CarrierFactory extends Factory
 {
     protected $model = Carrier::class;

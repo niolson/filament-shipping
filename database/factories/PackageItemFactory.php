@@ -8,6 +8,9 @@ use App\Models\Product;
 use App\Models\ShipmentItem;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<PackageItem>
+ */
 class PackageItemFactory extends Factory
 {
     protected $model = PackageItem::class;

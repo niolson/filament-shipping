@@ -6,6 +6,9 @@ use App\Models\Package;
 use App\Models\RateQuote;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<RateQuote>
+ */
 class RateQuoteFactory extends Factory
 {
     protected $model = RateQuote::class;

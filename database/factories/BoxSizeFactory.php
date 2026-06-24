@@ -6,6 +6,9 @@ use App\Enums\BoxSizeType;
 use App\Models\BoxSize;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<BoxSize>
+ */
 class BoxSizeFactory extends Factory
 {
     protected $model = BoxSize::class;

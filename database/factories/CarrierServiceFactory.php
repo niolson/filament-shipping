@@ -6,6 +6,9 @@ use App\Models\Carrier;
 use App\Models\CarrierService;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
+/**
+ * @extends Factory<CarrierService>
+ */
 class CarrierServiceFactory extends Factory
 {
     protected $model = CarrierService::class;
