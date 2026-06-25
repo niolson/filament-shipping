@@ -40,11 +40,6 @@ return Application::configure(basePath: dirname(__DIR__))
             ->weeklyOn(Schedule::SUNDAY, '02:00')
             ->withoutOverlapping();
 
-        // Proactively refresh OAuth tokens to prevent expiry
-        $schedule->command('oauth:refresh')
-            ->weeklyOn(Schedule::WEDNESDAY, '03:00')
-            ->withoutOverlapping();
-
         $schedule->command('packages:refresh-tracking')
             ->everyFourHours()
             ->withoutOverlapping();

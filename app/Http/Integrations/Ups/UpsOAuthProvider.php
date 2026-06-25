@@ -3,7 +3,6 @@
 namespace App\Http\Integrations\Ups;
 
 use App\Contracts\OAuthProvider;
-use App\Services\SettingsService;
 
 class UpsOAuthProvider implements OAuthProvider
 {
@@ -22,25 +21,8 @@ class UpsOAuthProvider implements OAuthProvider
         return ['client_credentials', 'authorization_code'];
     }
 
-    public function getTokenSettingsKey(): string
-    {
-        return 'ups.oauth_access_token';
-    }
-
-    public function getRefreshTokenSettingsKey(): ?string
-    {
-        return 'ups.oauth_refresh_token';
-    }
-
     public function revokeToken(string $accessToken): void
     {
         // UPS does not provide a token revocation endpoint
     }
-
-    public function getBrokerParams(): array
-    {
-        return [];
-    }
-
-    public function afterConnect(string $accessToken, SettingsService $settings): void {}
 }

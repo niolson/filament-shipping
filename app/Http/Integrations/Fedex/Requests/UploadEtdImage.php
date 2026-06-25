@@ -73,10 +73,7 @@ class UploadEtdImage extends Request implements HasBody
 
     private function resolveDocumentApiBaseUrl(): string
     {
-        $settings = app(SettingsService::class);
-        $isSandbox = filled($settings->get('fedex.child_key'))
-            ? $settings->get('fedex.child_env') === 'sandbox'
-            : (bool) $settings->get('sandbox_mode', false);
+        $isSandbox = (bool) app(SettingsService::class)->get('sandbox_mode', false);
 
         $baseUrl = $isSandbox
             ? config('services.fedex.document_sandbox_url', 'https://documentapitest.prod.fedex.com/sandbox')
