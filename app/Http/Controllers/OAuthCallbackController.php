@@ -74,12 +74,11 @@ class OAuthCallbackController extends Controller
                     ]);
             }
 
-            $this->oauthService->handleReceive($provider, $transferCode);
-
+            // No carrier account or data source in session — nothing to connect to.
             return redirect()->route('filament.app.pages.settings')
                 ->with('oauth_notification', [
-                    'status' => 'success',
-                    'title' => ucfirst($provider).' connected successfully.',
+                    'status' => 'danger',
+                    'title' => 'Connection failed: no carrier account or data source to connect.',
                 ]);
         } catch (\Throwable $e) {
             logger()->error("OAuth receive failed for {$provider}", [

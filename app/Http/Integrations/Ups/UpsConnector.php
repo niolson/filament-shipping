@@ -185,9 +185,11 @@ class UpsConnector extends Connector
      */
     private static function refreshOAuthToken(string $cacheKey, ?CarrierAccount $account = null): string
     {
-        $data = $account
-            ? app(OAuthService::class)->refreshTokenForAccount('ups', $account)
-            : app(OAuthService::class)->refreshToken('ups');
+        if (! $account) {
+            throw new RuntimeException('Cannot refresh UPS token without a carrier account.');
+        }
+
+        $data = app(OAuthService::class)->refreshTokenForAccount('ups', $account);
 
         $newAccessToken = $data['access_token'] ?? null;
 

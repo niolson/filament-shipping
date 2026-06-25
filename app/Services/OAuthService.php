@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\CarrierAccount;
 use App\Models\DataSource;
-use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
@@ -14,7 +13,6 @@ class OAuthService
 {
     public function __construct(
         private readonly OAuthProviderRegistry $registry,
-        private readonly SettingsService $settings,
     ) {}
 
     /**
@@ -51,219 +49,9 @@ class OAuthService
             'instance_id' => $instanceId,
             'nonce' => $nonce,
             'signature' => $signature,
-            ...$provider->getBrokerParams(),
         ]);
 
         return rtrim($brokerUrl, '/')."/oauth/{$providerKey}/authorize?".http_build_query($params);
-    }
-
-    /**
-     * Handle the broker's redirect back: claim tokens via server-to-server call.
-     */
-    public function handleReceive(string $providerKey, string $transferCode): void
-    {
-        $provider = $this->registry->get($providerKey);
-
-        $brokerUrl = config('services.oauth.broker_url');
-        $brokerSecret = config('services.oauth.broker_secret');
-        $instanceId = config('services.oauth.instance_id');
-
-        $signature = hash_hmac('sha256', $transferCode, $brokerSecret);
-
-        $response = Http::post(rtrim($brokerUrl, '/').'/oauth/claim', [
-            'transfer_code' => $transferCode,
-            'instance_id' => $instanceId,
-            'signature' => $signature,
-        ]);
-
-        if (! $response->successful()) {
-            throw new RuntimeException('Failed to claim tokens from broker: '.$response->body());
-        }
-
-        $data = $response->json();
-
-        // Validate nonce to prevent CSRF
-        $expectedNonce = session()->pull("oauth_state.{$providerKey}");
-
-        if (empty($expectedNonce) || ! hash_equals($expectedNonce, $data['nonce'] ?? '')) {
-            throw new RuntimeException('OAuth state mismatch. Please try again.');
-        }
-
-        $accessToken = $data['access_token'] ?? null;
-        if (empty($accessToken)) {
-            throw new RuntimeException('No access token received from broker.');
-        }
-
-        // Store tokens in encrypted settings
-        $group = $providerKey;
-        $this->settings->set($provider->getTokenSettingsKey(), $accessToken, 'string', encrypted: true, group: $group);
-
-        if ($provider->getRefreshTokenSettingsKey() && ! empty($data['refresh_token'])) {
-            $this->settings->set($provider->getRefreshTokenSettingsKey(), $data['refresh_token'], 'string', encrypted: true, group: $group);
-        }
-
-        // Store token expiry if provided
-        if (! empty($data['expires_in'])) {
-            $this->settings->set(
-                "{$providerKey}.oauth_token_expires_at",
-                now()->addSeconds((int) $data['expires_in'])->toIso8601String(),
-                group: $group,
-            );
-        }
-
-        // Store refresh token expiry if provided (e.g. UPS)
-        if (! empty($data['refresh_token_expires_in'])) {
-            $this->settings->set(
-                "{$providerKey}.oauth_refresh_token_expires_at",
-                now()->addSeconds((int) $data['refresh_token_expires_in'])->toIso8601String(),
-                group: $group,
-            );
-        }
-
-        // Store granted scopes and connection timestamp
-        $scopes = $data['extra']['scope'] ?? $data['scope'] ?? '';
-        $this->settings->set("{$providerKey}.oauth_scopes", $scopes, group: $group);
-        $this->settings->set("{$providerKey}.oauth_connected_at", now()->toIso8601String(), group: $group);
-
-        // Set auth mode to authorization_code
-        $this->settings->set("{$providerKey}.auth_mode", 'authorization_code', group: $group);
-
-        // Allow the provider to extract and store account-specific data from the token
-        $provider->afterConnect($accessToken, $this->settings);
-
-        // Clear any cached client_credentials token for this provider
-        Cache::forget("{$providerKey}_access_token");
-    }
-
-    /**
-     * Refresh an expired token via the broker.
-     *
-     * @return array{access_token: string, refresh_token: ?string, expires_in: ?int}
-     */
-    public function refreshToken(string $providerKey): array
-    {
-        $provider = $this->registry->get($providerKey);
-        $refreshTokenKey = $provider->getRefreshTokenSettingsKey();
-
-        if (! $refreshTokenKey) {
-            throw new RuntimeException("Provider '{$providerKey}' does not support token refresh.");
-        }
-
-        $refreshToken = $this->settings->get($refreshTokenKey);
-
-        if (empty($refreshToken)) {
-            throw new RuntimeException("No refresh token stored for '{$providerKey}'.");
-        }
-
-        // Check if refresh token has expired
-        $refreshExpiresAt = $this->settings->get("{$providerKey}.oauth_refresh_token_expires_at");
-        if ($refreshExpiresAt && now()->greaterThan($refreshExpiresAt)) {
-            logger()->warning("{$providerKey} refresh token expired", ['expired_at' => $refreshExpiresAt]);
-            throw new RuntimeException(ucfirst($providerKey).' refresh token has expired. Please reconnect via Settings.');
-        }
-
-        $brokerUrl = config('services.oauth.broker_url');
-        $brokerSecret = config('services.oauth.broker_secret');
-        $instanceId = config('services.oauth.instance_id');
-
-        $signature = hash_hmac('sha256', $refreshToken, $brokerSecret);
-
-        $response = Http::post(rtrim($brokerUrl, '/')."/oauth/{$providerKey}/refresh", [
-            'refresh_token' => $refreshToken,
-            'instance_id' => $instanceId,
-            'signature' => $signature,
-        ]);
-
-        if (! $response->successful()) {
-            throw new RuntimeException('Token refresh failed: '.$response->body());
-        }
-
-        $data = $response->json();
-        $group = $providerKey;
-
-        // Update stored tokens
-        if (! empty($data['access_token'])) {
-            $this->settings->set($provider->getTokenSettingsKey(), $data['access_token'], 'string', encrypted: true, group: $group);
-        }
-
-        if (! empty($data['refresh_token'])) {
-            $this->settings->set($refreshTokenKey, $data['refresh_token'], 'string', encrypted: true, group: $group);
-        }
-
-        if (! empty($data['expires_in'])) {
-            $this->settings->set(
-                "{$providerKey}.oauth_token_expires_at",
-                now()->addSeconds((int) $data['expires_in'])->toIso8601String(),
-                group: $group,
-            );
-        }
-
-        if (! empty($data['refresh_token_expires_in'])) {
-            $this->settings->set(
-                "{$providerKey}.oauth_refresh_token_expires_at",
-                now()->addSeconds((int) $data['refresh_token_expires_in'])->toIso8601String(),
-                group: $group,
-            );
-        }
-
-        $this->settings->clearCache();
-
-        return $data;
-    }
-
-    /**
-     * Disconnect: clear OAuth tokens, revert to client_credentials.
-     */
-    public function disconnect(string $providerKey): void
-    {
-        $provider = $this->registry->get($providerKey);
-
-        // Attempt revocation with provider (best-effort)
-        $token = $this->settings->get($provider->getTokenSettingsKey());
-        if ($token) {
-            try {
-                $provider->revokeToken($token);
-            } catch (\Throwable) {
-                // Best-effort; continue with local cleanup
-            }
-        }
-
-        // Delete OAuth settings
-        $keysToDelete = array_filter([
-            $provider->getTokenSettingsKey(),
-            $provider->getRefreshTokenSettingsKey(),
-            "{$providerKey}.oauth_scopes",
-            "{$providerKey}.oauth_connected_at",
-            "{$providerKey}.oauth_token_expires_at",
-            "{$providerKey}.oauth_refresh_token_expires_at",
-            "{$providerKey}.auth_mode",
-        ]);
-
-        Setting::whereIn('key', $keysToDelete)->delete();
-
-        $this->settings->clearCache();
-        Cache::forget("{$providerKey}_access_token");
-        Cache::forget("{$providerKey}_oauth_token");
-        Cache::forget("{$providerKey}_authenticator");
-        Cache::forget("{$providerKey}_payment_authorization_token");
-    }
-
-    /**
-     * Check if a provider is connected via OAuth.
-     */
-    public function isConnected(string $providerKey): bool
-    {
-        $provider = $this->registry->get($providerKey);
-
-        return ! empty($this->settings->get($provider->getTokenSettingsKey()));
-    }
-
-    /**
-     * Get the active auth mode for a provider.
-     */
-    public function getAuthMode(string $providerKey): string
-    {
-        return $this->settings->get("{$providerKey}.auth_mode", 'client_credentials');
     }
 
     /**
@@ -435,10 +223,6 @@ class OAuthService
             $shopDomain = $importSource->settings['shop_domain'] ?? null;
 
             return array_filter(['shop' => $shopDomain]);
-        }
-
-        if ($this->registry->has($providerKey)) {
-            return $this->registry->get($providerKey)->getBrokerParams();
         }
 
         return [];

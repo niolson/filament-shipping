@@ -5,8 +5,6 @@ namespace App\Filament\Pages;
 use App\Enums\Role;
 use App\Filament\Resources\LocationResource;
 use App\Filament\Support\AddressForm;
-use App\Http\Integrations\USPS\Requests\ShippingOptions;
-use App\Http\Integrations\USPS\USPSConnector;
 use App\Models\Carrier;
 use App\Models\Client;
 use App\Models\Location;
@@ -33,8 +31,6 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\Cache;
-use Saloon\Exceptions\Request\Statuses\ForbiddenException;
 use UnitEnum;
 
 /**
@@ -617,67 +613,5 @@ class Settings extends Page
             ->success()
             ->title('Settings saved')
             ->send();
-    }
-
-    public function testUspsConnection(): void
-    {
-        $authMode = app(SettingsService::class)->get('usps.auth_mode', 'client_credentials');
-
-        // Clear cached tokens so we test fresh from stored credentials
-        Cache::forget('usps_authenticator');
-        Cache::forget('usps_oauth_token');
-
-        // For client credentials, verify we can obtain a token before testing rates
-        if ($authMode !== 'authorization_code') {
-            try {
-                $connector = new USPSConnector;
-                $connector->getAccessToken();
-            } catch (\Throwable $e) {
-                Notification::make()
-                    ->danger()
-                    ->title('USPS authentication failed')
-                    ->body($e->getMessage())
-                    ->send();
-
-                return;
-            }
-        }
-
-        // Test with the connector that will actually be used — auth mode aware
-        try {
-            $connector = USPSConnector::getAuthenticatedConnector();
-
-            $request = new ShippingOptions;
-            $request->body()->set([
-                'pricingOptions' => [['priceType' => 'CONTRACT', 'paymentAccount' => ['accountType' => 'EPS', 'accountNumber' => app(SettingsService::class)->get('usps.eps_account', app(SettingsService::class)->get('usps.crid'))]]],
-                'originZIPCode' => '90210',
-                'destinationZIPCode' => '10001',
-                'packageDescription' => ['weight' => 1.0, 'length' => 10, 'width' => 8, 'height' => 4, 'mailClass' => 'ALL_OUTBOUND', 'mailingDate' => date('Y-m-d')],
-            ]);
-
-            $connector->send($request);
-
-            Cache::put('usps_pricing_type', 'CONTRACT', now()->addDays(7));
-
-            Notification::make()
-                ->success()
-                ->title('USPS connected — CONTRACT pricing')
-                ->body('Negotiated rates are available for this account.')
-                ->send();
-        } catch (ForbiddenException) {
-            Cache::put('usps_pricing_type', 'RETAIL', now()->addDays(7));
-
-            Notification::make()
-                ->warning()
-                ->title('USPS connected — RETAIL pricing')
-                ->body('Authentication succeeded but this account does not have EPS contract access. Standard retail rates will be used. Contact USPS to enable negotiated rates.')
-                ->send();
-        } catch (\Throwable $e) {
-            Notification::make()
-                ->warning()
-                ->title('USPS authenticated — rate test inconclusive')
-                ->body('Credentials are valid but the rate check failed: '.$e->getMessage())
-                ->send();
-        }
     }
 }

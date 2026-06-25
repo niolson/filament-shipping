@@ -8,7 +8,6 @@ use App\Http\Integrations\Fedex\Requests\Registration\SendPin;
 use App\Http\Integrations\Fedex\Requests\Registration\ValidateAddress;
 use App\Http\Integrations\Fedex\Requests\Registration\VerifyInvoice;
 use App\Http\Integrations\Fedex\Requests\Registration\VerifyPin;
-use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Client;
@@ -19,8 +18,6 @@ use App\Services\FedexRegistrationService;
 use App\Services\SettingsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Blade;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Saloon\Http\Faking\MockResponse;
@@ -53,55 +50,6 @@ it('shows the fedex eula confidentiality footer', function (): void {
     expect($renderedEula)
         ->toContain('FedEx Confidential')
         ->toContain('FedEx Form No. 2002382 v 4 June 2024 Rev');
-});
-
-it('test usps connection shows CONTRACT success notification', function (): void {
-    Saloon::fake([
-        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
-        ShippingOptions::class => MockResponse::make(['pricingOptions' => [['shippingOptions' => []]]], 200),
-    ]);
-    Cache::forget('usps_pricing_type');
-
-    Livewire::test(Settings::class)
-        ->call('testUspsConnection')
-        ->assertNotified();
-
-    expect(Cache::get('usps_pricing_type'))->toBe('CONTRACT');
-})->skip('testUspsConnection() belongs to the legacy global settings-based USPS flow scheduled for removal.');
-
-it('test usps connection shows RETAIL notification when CONTRACT returns 403', function (): void {
-    Saloon::fake([
-        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
-        ShippingOptions::class => MockResponse::make(['error' => ['code' => '403', 'message' => 'Not authorized']], 403),
-    ]);
-    Cache::forget('usps_pricing_type');
-
-    Livewire::test(Settings::class)
-        ->call('testUspsConnection')
-        ->assertNotified();
-
-    expect(Cache::get('usps_pricing_type'))->toBe('RETAIL');
-})->skip('testUspsConnection() belongs to the legacy global settings-based USPS flow scheduled for removal.');
-
-it('test usps connection shows danger notification when auth fails', function (): void {
-    Saloon::fake([
-        '*oauth*' => MockResponse::make(['error' => 'invalid_client'], 401),
-    ]);
-    Cache::forget('usps_pricing_type');
-
-    Livewire::test(Settings::class)
-        ->call('testUspsConnection')
-        ->assertNotified();
-
-    expect(Cache::get('usps_pricing_type'))->toBeNull();
-})->skip('testUspsConnection() belongs to the legacy global settings-based USPS flow scheduled for removal.');
-
-it('usps pricing tier cache is set by testUspsConnection (display moved to carrier accounts)', function (): void {
-    // The pricing tier is now only stored in cache by testUspsConnection();
-    // the UI display moved from Settings to the Carrier Accounts resource.
-    Cache::put('usps_pricing_type', 'RETAIL', 3600);
-
-    expect(Cache::get('usps_pricing_type'))->toBe('RETAIL');
 });
 
 // ─── FedEx Account Registration ───────────────────────────────────────────────
@@ -214,18 +162,18 @@ it('fedex registration service saves child credentials after pin verification', 
 
     $credentials = app(FedexRegistrationService::class)->verifyPin($account, 'test-auth-token', '123456');
 
-    app(FedexRegistrationService::class)->saveChildCredentials(
+    app(FedexRegistrationService::class)->saveChildCredentialsToAccount(
         $credentials['child_Key'],
         $credentials['child_secret'],
+        $account,
     );
 
-    app(SettingsService::class)->clearCache();
-
-    expect(Setting::where('key', 'fedex.child_key')->exists())->toBeTrue()
-        ->and(Setting::where('key', 'fedex.child_secret')->exists())->toBeTrue();
+    $account->refresh();
+    expect($account->secret('child_key'))->toBe('test-child-key')
+        ->and($account->secret('child_secret'))->toBe('test-child-secret');
 });
 
-it('fedex registration service saves child credentials after invoice verification', function (): void {
+it('fedex registration service saves child credentials to the account after invoice verification', function (): void {
     $account = createFedexAccount();
 
     Saloon::fake([
@@ -242,29 +190,14 @@ it('fedex registration service saves child credentials after invoice verificatio
         invoiceCurrency: 'USD',
     );
 
-    app(FedexRegistrationService::class)->saveChildCredentials(
+    app(FedexRegistrationService::class)->saveChildCredentialsToAccount(
         $credentials['child_Key'],
         $credentials['child_secret'],
+        $account,
     );
 
-    app(SettingsService::class)->clearCache();
-
-    expect(Setting::where('key', 'fedex.child_key')->exists())->toBeTrue();
-});
-
-it('fedex disconnect removes child credentials and clears authenticator cache', function (): void {
-    Setting::create(['key' => 'fedex.child_key', 'value' => 'some-key', 'type' => 'string', 'encrypted' => true, 'group' => 'fedex']);
-    Setting::create(['key' => 'fedex.child_secret', 'value' => 'some-secret', 'type' => 'string', 'encrypted' => true, 'group' => 'fedex']);
-    Cache::put('fedex_authenticator', 'cached-token', 3600);
-    app(SettingsService::class)->clearCache();
-
-    app(FedexRegistrationService::class)->removeChildCredentials();
-
-    app(SettingsService::class)->clearCache();
-
-    expect(Setting::where('key', 'fedex.child_key')->exists())->toBeFalse()
-        ->and(Setting::where('key', 'fedex.child_secret')->exists())->toBeFalse()
-        ->and(Cache::has('fedex_authenticator'))->toBeFalse();
+    $account->refresh();
+    expect($account->secret('child_key'))->toBe('test-child-key');
 });
 
 it('fedex registration service mfa bypass returns credentials immediately', function (): void {
@@ -301,32 +234,6 @@ it('fedex registration service mfa bypass returns credentials immediately', func
     Saloon::assertNotSent(SendPin::class);
     Saloon::assertNotSent(VerifyPin::class);
 });
-
-it('fedex registration service activates child credentials and captures child authorization artifacts', function (): void {
-    Storage::fake();
-    Http::fake([
-        'https://broker.example.test/fedex/token' => Http::response([
-            'access_token' => 'child-access-token',
-            'token_type' => 'bearer',
-            'expires_in' => 3600,
-        ], 200),
-    ]);
-
-    config([
-        'services.oauth.broker_url' => 'https://broker.example.test',
-        'services.oauth.instance_id' => 'test-instance',
-        'services.oauth.broker_secret' => 'test-secret',
-    ]);
-
-    app(FedexRegistrationService::class)->activateChildCredentials('child-key-123', 'child-secret-456');
-    app(SettingsService::class)->clearCache();
-
-    expect(app(SettingsService::class)->get('fedex.child_key'))->toBe('child-key-123')
-        ->and(app(SettingsService::class)->get('fedex.child_secret'))->toBe('child-secret-456');
-
-    Storage::assertExists('fedex-mfa/latest/child-authorization/request.json');
-    Storage::assertExists('fedex-mfa/latest/child-authorization/response.json');
-})->skip('activateChildCredentials() is the legacy global settings-based FedEx registration flow scheduled for removal; the per-account flow (saveChildCredentialsToAccount) is covered elsewhere.');
 
 it('fedex registration service maps current fedex max retry codes to the fallback exception', function (): void {
     $account = createFedexAccount();

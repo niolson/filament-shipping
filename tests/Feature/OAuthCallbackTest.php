@@ -1,17 +1,11 @@
 <?php
 
 use App\Enums\Role;
-use App\Http\Integrations\Shopify\ShopifyOAuthProvider;
-use App\Models\Setting;
 use App\Models\User;
-use App\Services\OAuthProviderRegistry;
 use App\Services\OAuthService;
-use App\Services\SettingsService;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
-    app(SettingsService::class)->clearCache();
-
     config([
         'services.oauth.broker_url' => 'https://connect.polybag.app',
         'services.oauth.broker_secret' => str_repeat('ab', 32),
@@ -19,45 +13,36 @@ beforeEach(function (): void {
         'app.url' => 'https://test.polybag.app',
     ]);
 
-    Setting::updateOrCreate(['key' => 'shopify.shop_domain'], ['value' => 'test-shop.myshopify.com', 'type' => 'string', 'group' => 'shopify']);
-
-    app(SettingsService::class)->clearCache();
-
-    // Ensure Shopify provider is registered
-    $registry = app(OAuthProviderRegistry::class);
-    if (! $registry->has('shopify')) {
-        $registry->register(new ShopifyOAuthProvider);
-    }
+    $this->dataSource = createShopifyDataSource();
 });
 
-it('stores tokens on valid receive with transfer code', function (): void {
+it('stores tokens on a data source on valid receive with transfer code', function (): void {
     $user = User::factory()->admin()->create();
     $nonce = 'valid-nonce-token';
 
-    // Fake the broker's claim endpoint
     Http::fake([
         'connect.polybag.app/oauth/claim' => Http::response([
             'provider' => 'shopify',
             'access_token' => 'shpat_live_token',
-            'refresh_token' => null,
-            'expires_in' => null,
             'nonce' => $nonce,
-            'extra' => ['scope' => 'read_orders,write_fulfillments,read_products'],
+            'extra' => ['scope' => 'read_orders,write_fulfillments'],
         ]),
     ]);
 
     $response = $this->actingAs($user)
-        ->withSession(['oauth_state.shopify' => $nonce])
+        ->withSession([
+            'oauth_state.shopify' => $nonce,
+            'oauth_data_source_id.shopify' => $this->dataSource->id,
+        ])
         ->get('/oauth/shopify/receive?transfer_code=abc123');
 
-    $response->assertRedirect(route('filament.app.pages.settings'));
+    $response->assertRedirect(route('filament.app.resources.data-sources.edit', $this->dataSource->id));
     $response->assertSessionHas('oauth_notification.status', 'success');
 
-    // Verify tokens were stored
-    app(SettingsService::class)->clearCache();
-    expect(app(SettingsService::class)->get('shopify.oauth_access_token'))->toBe('shpat_live_token');
-    expect(app(SettingsService::class)->get('shopify.auth_mode'))->toBe('authorization_code');
-    expect(app(SettingsService::class)->get('shopify.oauth_connected_at'))->not->toBeNull();
+    $this->dataSource->refresh();
+    expect($this->dataSource->secret('oauth_access_token'))->toBe('shpat_live_token')
+        ->and($this->dataSource->settings['auth_mode'])->toBe('authorization_code')
+        ->and($this->dataSource->settings['oauth_connected_at'])->not->toBeNull();
 });
 
 it('forbids non-admin users from receiving oauth callbacks', function (): void {
@@ -86,15 +71,16 @@ it('rejects receive with mismatched nonce', function (): void {
     ]);
 
     $response = $this->actingAs($user)
-        ->withSession(['oauth_state.shopify' => 'different-nonce'])
+        ->withSession([
+            'oauth_state.shopify' => 'different-nonce',
+            'oauth_data_source_id.shopify' => $this->dataSource->id,
+        ])
         ->get('/oauth/shopify/receive?transfer_code=abc123');
 
-    $response->assertRedirect(route('filament.app.pages.settings'));
+    $response->assertRedirect(route('filament.app.resources.data-sources.edit', $this->dataSource->id));
     $response->assertSessionHas('oauth_notification.status', 'danger');
 
-    // Verify no tokens were stored
-    app(SettingsService::class)->clearCache();
-    expect(app(SettingsService::class)->get('shopify.oauth_access_token'))->toBeNull();
+    expect($this->dataSource->fresh()->secret('oauth_access_token'))->toBeNull();
 });
 
 it('handles error redirect from broker', function (): void {
@@ -126,27 +112,28 @@ it('handles broker claim failure', function (): void {
     ]);
 
     $response = $this->actingAs($user)
-        ->withSession(['oauth_state.shopify' => 'nonce'])
+        ->withSession([
+            'oauth_state.shopify' => 'nonce',
+            'oauth_data_source_id.shopify' => $this->dataSource->id,
+        ])
         ->get('/oauth/shopify/receive?transfer_code=expired-code');
 
-    $response->assertRedirect(route('filament.app.pages.settings'));
+    $response->assertRedirect(route('filament.app.resources.data-sources.edit', $this->dataSource->id));
     $response->assertSessionHas('oauth_notification.status', 'danger');
 });
 
-it('initiates authorization via broker', function (): void {
-    $oauthService = app(OAuthService::class);
-    $url = $oauthService->initiateAuthorization('shopify');
+it('initiates a data source authorization via the broker', function (): void {
+    $url = app(OAuthService::class)->initiateAuthorizationForDataSource('shopify', $this->dataSource);
 
-    // Should redirect to the broker, not directly to Shopify
-    expect($url)->toStartWith('https://connect.polybag.app/oauth/shopify/authorize?');
-    expect($url)->toContain('instance_id=test-instance');
-    expect($url)->toContain(urlencode('https://test.polybag.app'));
-    expect($url)->toContain('signature=');
-    expect($url)->toContain('shop=test-shop.myshopify.com');
+    expect($url)->toStartWith('https://connect.polybag.app/oauth/shopify/authorize?')
+        ->and($url)->toContain('instance_id=test-instance')
+        ->and($url)->toContain(urlencode('https://test.polybag.app'))
+        ->and($url)->toContain('signature=')
+        ->and($url)->toContain('shop=test-shop.myshopify.com');
 
-    // Nonce should be stored in session
-    expect(session('oauth_state.shopify'))->not->toBeNull();
-    expect(strlen(session('oauth_state.shopify')))->toBe(40);
+    expect(session('oauth_state.shopify'))->not->toBeNull()
+        ->and(strlen(session('oauth_state.shopify')))->toBe(40)
+        ->and(session('oauth_data_source_id.shopify'))->toBe($this->dataSource->id);
 });
 
 it('throws when broker is not configured', function (): void {
@@ -156,30 +143,26 @@ it('throws when broker is not configured', function (): void {
         'services.oauth.instance_id' => null,
     ]);
 
-    $oauthService = app(OAuthService::class);
-    $oauthService->initiateAuthorization('shopify');
+    app(OAuthService::class)->initiateAuthorizationForDataSource('shopify', $this->dataSource);
 })->throws(RuntimeException::class, 'OAuth broker is not configured');
 
-it('disconnects and clears OAuth tokens', function (): void {
-    // Set up as if connected
-    $settings = app(SettingsService::class);
-    $settings->set('shopify.oauth_access_token', 'token-to-remove', 'string', encrypted: true, group: 'shopify');
-    $settings->set('shopify.auth_mode', 'authorization_code', group: 'shopify');
-    $settings->set('shopify.oauth_scopes', 'read_orders', group: 'shopify');
-    $settings->set('shopify.oauth_connected_at', now()->toIso8601String(), group: 'shopify');
-    $settings->clearCache();
+it('disconnects and clears a data source OAuth connection', function (): void {
+    $this->dataSource->mergeSecret('oauth_access_token', 'token-to-remove');
+    $settings = $this->dataSource->settings;
+    $settings['auth_mode'] = 'authorization_code';
+    $settings['oauth_scopes'] = 'read_orders';
+    $settings['oauth_connected_at'] = now()->toIso8601String();
+    $this->dataSource->settings = $settings;
+    $this->dataSource->save();
 
     $oauthService = app(OAuthService::class);
-    expect($oauthService->isConnected('shopify'))->toBeTrue();
-    expect($oauthService->getAuthMode('shopify'))->toBe('authorization_code');
+    expect($oauthService->isDataSourceConnected($this->dataSource))->toBeTrue();
 
-    // Disconnect
-    $oauthService->disconnect('shopify');
+    $oauthService->disconnectDataSource('shopify', $this->dataSource);
 
-    $settings->clearCache();
-    expect($oauthService->isConnected('shopify'))->toBeFalse();
-    expect($oauthService->getAuthMode('shopify'))->toBe('client_credentials');
-    expect($settings->get('shopify.oauth_access_token'))->toBeNull();
-    expect($settings->get('shopify.oauth_scopes'))->toBeNull();
-    expect($settings->get('shopify.oauth_connected_at'))->toBeNull();
+    $this->dataSource->refresh();
+    expect($oauthService->isDataSourceConnected($this->dataSource))->toBeFalse()
+        ->and($this->dataSource->secret('oauth_access_token'))->toBeNull()
+        ->and($this->dataSource->settings['auth_mode'] ?? null)->toBeNull()
+        ->and($this->dataSource->settings['oauth_connected_at'] ?? null)->toBeNull();
 });

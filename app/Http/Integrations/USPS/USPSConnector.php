@@ -220,9 +220,11 @@ class USPSConnector extends Connector
      */
     private static function refreshOAuthToken(string $cacheKey, ?CarrierAccount $account = null): string
     {
-        $data = $account
-            ? app(OAuthService::class)->refreshTokenForAccount('usps', $account)
-            : app(OAuthService::class)->refreshToken('usps');
+        if (! $account) {
+            throw new RuntimeException('Cannot refresh USPS token without a carrier account.');
+        }
+
+        $data = app(OAuthService::class)->refreshTokenForAccount('usps', $account);
 
         $newAccessToken = $data['access_token'] ?? null;
 

@@ -10,7 +10,6 @@ use App\Http\Integrations\Fedex\Requests\Registration\ValidateAddress;
 use App\Http\Integrations\Fedex\Requests\Registration\VerifyInvoice;
 use App\Http\Integrations\Fedex\Requests\Registration\VerifyPin;
 use App\Models\CarrierAccount;
-use App\Models\Setting;
 use Illuminate\Support\Facades\Cache;
 use RuntimeException;
 use Saloon\Exceptions\Request\RequestException;
@@ -207,29 +206,7 @@ class FedexRegistrationService
     }
 
     /**
-     * Store child credentials in settings and clear the cached authenticator
-     * so the connector picks them up on the next request.
-     */
-    public function saveChildCredentials(string $childKey, string $childSecret): void
-    {
-        $isSandbox = $this->settings->get('sandbox_mode', false);
-
-        $this->settings->set('fedex.child_key', $childKey, 'string', encrypted: true, group: 'fedex');
-        $this->settings->set('fedex.child_secret', $childSecret, 'string', encrypted: true, group: 'fedex');
-        $this->settings->set('fedex.child_env', $isSandbox ? 'sandbox' : 'production', group: 'fedex');
-
-        $this->clearFedexAuthenticatorCaches($childKey, $isSandbox ? 'sandbox' : 'production');
-    }
-
-    public function activateChildCredentials(string $childKey, string $childSecret): void
-    {
-        $this->saveChildCredentials($childKey, $childSecret);
-
-        FedexConnector::getAuthenticatedConnector();
-    }
-
-    /**
-     * Store child credentials on a specific CarrierAccount (not global settings).
+     * Store child credentials on a specific CarrierAccount.
      */
     public function saveChildCredentialsToAccount(string $childKey, string $childSecret, CarrierAccount $account): void
     {
@@ -249,19 +226,6 @@ class FedexRegistrationService
         $account->save();
 
         $this->clearFedexAuthenticatorCaches($childKey, $env);
-    }
-
-    /**
-     * Remove stored child credentials and revert to parent key/secret.
-     */
-    public function removeChildCredentials(): void
-    {
-        $childKey = $this->settings->get('fedex.child_key');
-        $childEnv = $this->settings->get('fedex.child_env', 'production');
-
-        Setting::whereIn('key', ['fedex.child_key', 'fedex.child_secret', 'fedex.child_env'])->delete();
-        $this->settings->clearCache();
-        $this->clearFedexAuthenticatorCaches($childKey, $childEnv);
     }
 
     private function clearFedexAuthenticatorCaches(?string $childKey = null, string $childEnv = 'production'): void
