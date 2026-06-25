@@ -2,7 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\Setting;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
+use App\Models\CarrierAccountScope;
 use Illuminate\Database\Seeder;
 
 /**
@@ -11,54 +13,55 @@ use Illuminate\Database\Seeder;
  * Copy this file to LocalSettingsSeeder.php and fill in your values.
  * Run with: php artisan db:seed --class=LocalSettingsSeeder
  * Or it runs automatically after SettingsSeeder during migrate:fresh --seed.
+ *
+ * Carrier and import credentials now live on the CarrierAccount and DataSource
+ * models (not the settings table). The ship-from / return address lives on
+ * Location and Client. This template shows how to provision a local USPS
+ * CarrierAccount with a global scope so rates, labels, and address validation
+ * resolve credentials the same way production does.
  */
 class LocalSettingsSeeder extends Seeder
 {
     public function run(): void
     {
-        $settings = [
-            // From Address
-            'from_address.first_name' => 'Shipping',
-            'from_address.last_name' => 'Center',
-            'from_address.company' => '',
-            'from_address.street' => '',
-            'from_address.street2' => '',
-            'from_address.city' => '',
-            'from_address.state_or_province' => '',
-            'from_address.postal_code' => '',
-            'from_address.phone' => '',
+        $uspsCarrierId = Carrier::where('name', 'USPS')->value('id');
 
-            // USPS
-            'usps.client_id' => '',
-            'usps.client_secret' => '',
-            'usps.crid' => '',
-            'usps.mid' => '',
+        if ($uspsCarrierId) {
+            $account = CarrierAccount::updateOrCreate(
+                ['carrier_id' => $uspsCarrierId, 'name' => 'USPS (local)'],
+                [
+                    'active' => true,
+                    // Non-secret credentials (crid/mid/eps_account)
+                    'credentials' => [
+                        'crid' => '',
+                        'mid' => '',
+                    ],
+                    // Encrypted secrets (client_id/client_secret)
+                    'secret_credentials' => [
+                        'client_id' => '',
+                        'client_secret' => '',
+                    ],
+                ],
+            );
 
-            // FedEx
-            'fedex.api_key' => '',
-            'fedex.api_secret' => '',
-            'fedex.account_number' => '',
-
-            // UPS
-            'ups.client_id' => '',
-            'ups.client_secret' => '',
-            'ups.account_number' => '',
-
-            // Shopify
-            'shopify.shop_domain' => '',
-            'shopify.client_id' => '',
-            'shopify.client_secret' => '',
-            'shopify.api_version' => '2025-01',
-
-            // Amazon
-            'amazon.client_id' => '',
-            'amazon.client_secret' => '',
-            'amazon.refresh_token' => '',
-            'amazon.marketplace_id' => 'ATVPDKIKX0DER',
-        ];
-
-        foreach ($settings as $key => $value) {
-            Setting::where('key', $key)->update(['value' => $value]);
+            // Global scope (no location/client) so resolveForShipment() finds it.
+            CarrierAccountScope::firstOrCreate([
+                'carrier_account_id' => $account->id,
+                'location_id' => null,
+                'client_id' => null,
+            ]);
         }
+
+        // For Shopify/Amazon imports, create a DataSource record instead, e.g.:
+        //
+        // DataSource::updateOrCreate(
+        //     ['driver' => \App\Services\ShipmentImport\Sources\ShopifySource::class],
+        //     [
+        //         'name' => 'Shopify (local)',
+        //         'active' => true,
+        //         'settings' => ['channel_name' => 'Shopify', 'shop_domain' => 'your-shop.myshopify.com'],
+        //         'secret_settings' => ['client_id' => '', 'client_secret' => '', 'access_token' => ''],
+        //     ],
+        // );
     }
 }

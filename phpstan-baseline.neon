@@ -673,12 +673,6 @@ parameters:
 			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
 
 		-
-			message: '#^Cannot call method mergeCredential\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
-
-		-
 			message: '#^Cannot call method mergeSecret\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: method.nonObject
 			count: 1
@@ -700,12 +694,6 @@ parameters:
 			message: '#^Parameter \#1 \$account of method App\\Services\\OAuthService\:\:isAccountConnected\(\) expects App\\Models\\CarrierAccount, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
 			identifier: argument.type
 			count: 10
-			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
-
-		-
-			message: '#^Parameter \#3 \$account of method App\\Services\\FedexRegistrationService\:\:saveChildCredentialsToAccount\(\) expects App\\Models\\CarrierAccount, Illuminate\\Database\\Eloquent\\Model\|int\|string\|null given\.$#'
-			identifier: argument.type
-			count: 1
 			path: app/Filament/Resources/CarrierAccounts/Pages/EditCarrierAccount.php
 
 		-
@@ -1482,11 +1470,6 @@ parameters:
 			count: 1
 			path: app/Services/Carriers/FedexAdapter.php
 
-		-
-			message: '#^Method App\\Services\\Carriers\\FedexAdapter\:\:resolveAccount\(\) should return App\\Models\\CarrierAccount\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Services/Carriers/FedexAdapter.php
 
 		-
 			message: '#^Offset ''specialServiceTypes'' on array\{specialServiceTypes\: array\{''SATURDAY_DELIVERY''\}\|array\{0\: ''FEDEX_ONE_RATE'', 1\?\: ''SATURDAY_DELIVERY''\}\} on left side of \?\? always exists and is not nullable\.$#'
@@ -1497,12 +1480,6 @@ parameters:
 		-
 			message: '#^Parameter \#1 \$array \(array\{\}\|array\{''FEDEX_ONE_RATE''\}\) of array_values is already a list, call has no effect\.$#'
 			identifier: arrayValues.list
-			count: 1
-			path: app/Services/Carriers/FedexAdapter.php
-
-		-
-			message: '#^Unsafe access to private constant App\\Services\\Carriers\\FedexAdapter\:\:SATURDAY_DELIVERY_DAY_MAP through static\:\:\.$#'
-			identifier: staticClassAccess.privateConstant
 			count: 1
 			path: app/Services/Carriers/FedexAdapter.php
 
@@ -1530,11 +1507,6 @@ parameters:
 			count: 1
 			path: app/Services/Carriers/UpsAdapter.php
 
-		-
-			message: '#^Method App\\Services\\Carriers\\UpsAdapter\:\:resolveAccount\(\) should return App\\Models\\CarrierAccount\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Services/Carriers/UpsAdapter.php
 
 		-
 			message: '#^Offset ''ShipmentServiceOpti…'' on array\{Description\: ''Shipment'', Shipper\: array\{Name\: string, ShipperNumber\: string\|null, Address\: array\}, ShipTo\: array\{Name\: string, Address\: array\}, ShipFrom\: array\{Name\: string, Address\: array\}, PaymentInformation\: array\{ShipmentCharge\: array\{array\{Type\: ''01'', BillShipper\: array\{AccountNumber\: string\|null\}\}\}\}, Service\: array\{Code\: mixed\}, Package\: array\{array\{Packaging\: array\{Code\: ''02'', Description\: ''Customer Supplied…''\}, PackageWeight\: array\{UnitOfMeasurement\: array\{Code\: ''LBS''\}, Weight\: numeric\-string\}, Dimensions\: array\{UnitOfMeasurement\: array\{Code\: ''IN''\}, Length\: decimal\-int\-string, Width\: decimal\-int\-string, Height\: decimal\-int\-string\}\}\}, ShipmentServiceOptions\: array\{\}, \.\.\.\} in empty\(\) always exists and is always falsy\.$#'
@@ -1551,12 +1523,6 @@ parameters:
 		-
 			message: '#^PHPDoc tag @var for constant App\\Services\\Carriers\\UpsAdapter\:\:SERVICE_NAMES with type array\<string, string\> is not subtype of value array\{''01''\: ''UPS Next Day Air'', ''02''\: ''UPS 2nd Day Air'', ''03''\: ''UPS Ground'', ''07''\: ''UPS Worldwide…'', ''08''\: ''UPS Worldwide…'', 11\: ''UPS Standard'', 12\: ''UPS 3 Day Select'', 13\: ''UPS Next Day Air…'', \.\.\.\}\.$#'
 			identifier: classConstant.phpDocType
-			count: 1
-			path: app/Services/Carriers/UpsAdapter.php
-
-		-
-			message: '#^Unsafe access to private constant App\\Services\\Carriers\\UpsAdapter\:\:SATURDAY_DELIVERY_DAY_MAP through static\:\:\.$#'
-			identifier: staticClassAccess.privateConstant
 			count: 1
 			path: app/Services/Carriers/UpsAdapter.php
 
@@ -1590,11 +1556,6 @@ parameters:
 			count: 1
 			path: app/Services/Carriers/UspsAdapter.php
 
-		-
-			message: '#^Method App\\Services\\Carriers\\UspsAdapter\:\:resolveAccount\(\) should return App\\Models\\CarrierAccount\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
-			identifier: return.type
-			count: 1
-			path: app/Services/Carriers/UspsAdapter.php
 
 		-
 			message: '#^Strict comparison using \=\=\= between App\\Enums\\BoxSizeType\:\:BOX and App\\Enums\\BoxSizeType\:\:BOX will always evaluate to true\.$#'
@@ -1752,11 +1713,6 @@ parameters:
 			count: 1
 			path: app/Services/TrackingService.php
 
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 5
-			path: tests/Feature/CarrierAccountTest.php
 
 		-
 			message: '#^Call to an undefined method Psr\\Log\\LoggerInterface\:\:getLogger\(\)\.$#'
@@ -1980,11 +1936,6 @@ parameters:
 			count: 2
 			path: tests/Feature/SsoLoginTest.php
 
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 3
-			path: tests/Unit/Models/CarrierAccountScopeTest.php
 
 		-
 			message: '#^Cannot call method format\(\) on string\.$#'

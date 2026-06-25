@@ -18,6 +18,8 @@ beforeEach(function (): void {
         'handler' => TestHandler::class,
     ]);
     Log::forgetChannel('fedex-validation');
+
+    createFedexAccount();
 });
 
 it('polls Step 9 until consolidation results are ready', function (): void {

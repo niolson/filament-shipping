@@ -35,13 +35,12 @@ return [
         ],
     ],
 
+    // Carrier and import credentials live on the CarrierAccount / DataSource models,
+    // not here. Only non-credential infrastructure (API base URLs, default API
+    // version) remains in config.
     'usps' => [
         'base_url' => 'https://apis.usps.com',
         'sandbox_url' => 'https://apis-tem.usps.com',
-        'client_id' => null,
-        'client_secret' => null,
-        'crid' => null,
-        'mid' => null,
     ],
 
     'fedex' => [
@@ -49,25 +48,14 @@ return [
         'sandbox_url' => 'https://apis-sandbox.fedex.com',
         'document_base_url' => 'https://documentapi.prod.fedex.com',
         'document_sandbox_url' => 'https://documentapitest.prod.fedex.com/sandbox',
-        'api_key' => null,
-        'api_secret' => null,
-        'sandbox_api_key' => env('FEDEX_SANDBOX_API_KEY'),
-        'sandbox_api_secret' => env('FEDEX_SANDBOX_API_SECRET'),
-        'account_number' => null,
     ],
 
     'ups' => [
         'base_url' => 'https://onlinetools.ups.com',
         'sandbox_url' => 'https://wwwcie.ups.com',
-        'client_id' => null,
-        'client_secret' => null,
-        'account_number' => null,
     ],
 
     'shopify' => [
-        'shop_domain' => null,
-        'client_id' => null,
-        'client_secret' => null,
         'api_version' => '2025-01',
     ],
 
@@ -81,10 +69,6 @@ return [
     'amazon' => [
         'base_url' => 'https://sellingpartnerapi-na.amazon.com',
         'sandbox_url' => 'https://sandbox.sellingpartnerapi-na.amazon.com',
-        'client_id' => null,
-        'client_secret' => null,
-        'refresh_token' => null,
-        'marketplace_id' => 'ATVPDKIKX0DER',
     ],
 
     'google' => [

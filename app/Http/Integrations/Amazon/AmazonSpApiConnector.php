@@ -32,34 +32,19 @@ class AmazonSpApiConnector extends Connector
     }
 
     /**
-     * Build from a per-source settings array. refresh_token and marketplace_id are
-     * per-source; client_id/client_secret are always read from tenant-level SettingsService.
+     * Build from a per-source config array. All credentials (client_id, client_secret,
+     * refresh_token) are per-source and stored on the DataSource.
      *
      * @param  array<string, mixed>  $settings
      */
     public static function fromSettings(array $settings): self
     {
-        $global = app(SettingsService::class);
-
-        $refreshToken = filled($settings['refresh_token'] ?? null)
-            ? (string) $settings['refresh_token']
-            : (string) $global->get('amazon.refresh_token', '');
-
-        // Per-source app credentials override tenant-level ones.
-        $clientId = filled($settings['client_id'] ?? null)
-            ? (string) $settings['client_id']
-            : (string) $global->get('amazon.client_id', '');
-
-        $clientSecret = filled($settings['client_secret'] ?? null)
-            ? (string) $settings['client_secret']
-            : (string) $global->get('amazon.client_secret', '');
-
         return new self(
             baseUrl: config('services.amazon.base_url') ?? 'https://sellingpartnerapi-na.amazon.com',
             sandboxUrl: config('services.amazon.sandbox_url') ?? 'https://sandbox.sellingpartnerapi-na.amazon.com',
-            clientId: $clientId,
-            clientSecret: $clientSecret,
-            refreshToken: $refreshToken,
+            clientId: (string) ($settings['client_id'] ?? ''),
+            clientSecret: (string) ($settings['client_secret'] ?? ''),
+            refreshToken: (string) ($settings['refresh_token'] ?? ''),
         );
     }
 

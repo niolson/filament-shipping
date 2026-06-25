@@ -786,28 +786,15 @@ class SetupWizard extends Page
     private function saveImportSource(): void
     {
         $data = $this->form->getState();
-        $settings = app(SettingsService::class);
         $source = $data['import_source'] ?? 'none';
 
         if ($source === 'database') {
             $this->saveDatabaseDataSource($data);
         } elseif ($source === 'shopify') {
             $this->saveShopifyDataSource($data);
-
-            // Tenant-level fallback still read by ShopifyConnector / ShopifyOAuthProvider
-            if (! empty($data['shopify_shop_domain'])) {
-                $settings->set('shopify.shop_domain', $data['shopify_shop_domain'], group: 'shopify');
-            }
         } elseif ($source === 'amazon') {
             $this->saveAmazonDataSource($data);
-
-            // Tenant-level fallback still read by AmazonSource
-            if (! empty($data['amazon_marketplace_id'])) {
-                $settings->set('amazon.marketplace_id', $data['amazon_marketplace_id'], group: 'amazon');
-            }
         }
-
-        $settings->clearCache();
     }
 
     /**

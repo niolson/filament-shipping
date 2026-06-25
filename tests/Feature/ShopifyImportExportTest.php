@@ -5,9 +5,7 @@ use App\Models\Channel;
 use App\Models\ChannelAlias;
 use App\Models\DataSource;
 use App\Models\Package;
-use App\Models\Setting;
 use App\Models\Shipment;
-use App\Services\SettingsService;
 use App\Services\ShipmentImport\PackageExportService;
 use App\Services\ShipmentImport\ShipmentImportService;
 use App\Services\ShipmentImport\Sources\ShopifySource;
@@ -107,18 +105,20 @@ function fulfillmentSuccessResponse(): MockResponse
 }
 
 beforeEach(function (): void {
-    Setting::updateOrCreate(['key' => 'shopify.shop_domain'], ['value' => 'test-shop.myshopify.com', 'type' => 'string', 'group' => 'shopify']);
-    Setting::updateOrCreate(['key' => 'shopify.client_id'], ['value' => 'test-client-id', 'type' => 'string', 'group' => 'shopify']);
-    Setting::updateOrCreate(['key' => 'shopify.client_secret'], ['value' => 'test-client-secret', 'type' => 'string', 'group' => 'shopify']);
-    Setting::updateOrCreate(['key' => 'shopify.api_version'], ['value' => '2025-01', 'type' => 'string', 'group' => 'shopify']);
-    app(SettingsService::class)->clearCache();
-
     Cache::put('shopify_access_token_'.md5('test-shop.myshopify.com'), 'shpat_test_token', 3600);
 
     $this->dataSource = DataSource::factory()->create([
         'driver' => ShopifySource::class,
         'name' => 'Shopify',
-        'settings' => ['channel_name' => 'Shopify', 'notify_customer' => false],
+        'settings' => [
+            'channel_name' => 'Shopify',
+            'notify_customer' => false,
+            'shop_domain' => 'test-shop.myshopify.com',
+        ],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+        ],
     ]);
 });
 
@@ -133,6 +133,9 @@ it('imports shopify orders into shipments table with metadata', function (): voi
         'driver' => ShopifySource::class,
         'enabled' => true,
         'channel_name' => 'Shopify',
+        'shop_domain' => 'test-shop.myshopify.com',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
         'shipping_method' => null,
         'notify_customer' => false,
         'export' => ['enabled' => false, 'field_mapping' => []],
@@ -176,6 +179,7 @@ it('exports package to shopify as fulfillment', function (): void {
         'settings' => [
             'channel_name' => 'Shopify',
             'notify_customer' => false,
+            'shop_domain' => 'test-shop.myshopify.com',
             'export_enabled' => true,
             'export_field_mapping' => [
                 'tracking_number' => 'tracking_number',
@@ -183,6 +187,10 @@ it('exports package to shopify as fulfillment', function (): void {
                 'shipment_reference' => 'shipment_reference',
                 'fulfillment_order_id' => 'fulfillment_order_id',
             ],
+        ],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
         ],
     ]);
 
@@ -235,6 +243,7 @@ it('handles package without metadata gracefully in export', function (): void {
         'settings' => [
             'channel_name' => 'Shopify',
             'notify_customer' => false,
+            'shop_domain' => 'test-shop.myshopify.com',
             'export_enabled' => true,
             'export_field_mapping' => [
                 'tracking_number' => 'tracking_number',
@@ -242,6 +251,10 @@ it('handles package without metadata gracefully in export', function (): void {
                 'shipment_reference' => 'shipment_reference',
                 'fulfillment_order_id' => 'fulfillment_order_id',
             ],
+        ],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
         ],
     ]);
 
@@ -286,6 +299,9 @@ it('imports multiple pages of orders', function (): void {
         'driver' => ShopifySource::class,
         'enabled' => true,
         'channel_name' => 'Shopify',
+        'shop_domain' => 'test-shop.myshopify.com',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
         'shipping_method' => null,
         'notify_customer' => false,
         'export' => ['enabled' => false, 'field_mapping' => []],
@@ -312,6 +328,9 @@ it('deduplicates shopify imports by order id instead of displayed name', functio
         'driver' => ShopifySource::class,
         'enabled' => true,
         'channel_name' => 'Shopify',
+        'shop_domain' => 'test-shop.myshopify.com',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
         'shipping_method' => null,
         'notify_customer' => false,
         'export' => ['enabled' => false, 'field_mapping' => []],

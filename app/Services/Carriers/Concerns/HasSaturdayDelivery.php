@@ -7,12 +7,15 @@ use App\DataTransferObjects\Shipping\RateRequest;
 /**
  * Saturday delivery eligibility logic shared by carrier adapters that support it.
  *
- * Each adapter using this trait must define a SATURDAY_DELIVERY_DAY_MAP constant
- * that maps its carrier-specific service codes to the day of week (Carbon dayOfWeek
- * integer) from which Saturday delivery is achievable.
+ * Each adapter using this trait provides its carrier-specific service-to-day map.
  */
 trait HasSaturdayDelivery
 {
+    /**
+     * @return array<int|string, int>
+     */
+    abstract protected function saturdayDeliveryDayMap(): array;
+
     /**
      * Classify whether the given service codes are all, none, or mixed eligible
      * for Saturday delivery given the ship date.
@@ -34,7 +37,7 @@ trait HasSaturdayDelivery
         $ineligible = 0;
 
         foreach ($serviceCodes as $code) {
-            $saturdayDay = static::SATURDAY_DELIVERY_DAY_MAP[$code] ?? null;
+            $saturdayDay = $this->saturdayDeliveryDayMap()[$code] ?? null;
             if ($saturdayDay === $today) {
                 $eligible++;
             } else {

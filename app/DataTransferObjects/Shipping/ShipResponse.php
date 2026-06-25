@@ -22,6 +22,7 @@ readonly class ShipResponse
         public ?CarbonImmutable $shipDate = null,
         public ?string $errorMessage = null,
         public array $appliedServices = [],
+        public ?int $carrierAccountId = null,
     ) {}
 
     /**
@@ -38,6 +39,7 @@ readonly class ShipResponse
         ?int $labelDpi = null,
         ?CarbonImmutable $shipDate = null,
         array $appliedServices = [],
+        ?int $carrierAccountId = null,
     ): self {
         return new self(
             success: true,
@@ -51,6 +53,7 @@ readonly class ShipResponse
             labelDpi: $labelDpi,
             shipDate: $shipDate,
             appliedServices: $appliedServices,
+            carrierAccountId: $carrierAccountId,
         );
     }
 

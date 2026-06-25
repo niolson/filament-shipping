@@ -94,6 +94,37 @@ class CarrierAccount extends Model
         };
     }
 
+    public function hasUsableCredentials(): bool
+    {
+        return match ($this->carrier?->name) {
+            'FedEx' => filled($this->credential('account_number'))
+                && (
+                    filled($this->secret('child_key'))
+                    || (
+                        filled($this->secret('api_key'))
+                        && filled($this->secret('api_secret'))
+                    )
+                ),
+            'USPS' => filled($this->credential('crid'))
+                && (
+                    filled($this->secret('oauth_token'))
+                    || (
+                        filled($this->secret('client_id'))
+                        && filled($this->secret('client_secret'))
+                    )
+                ),
+            'UPS' => filled($this->credential('account_number'))
+                && (
+                    filled($this->secret('oauth_token'))
+                    || (
+                        filled($this->secret('client_id'))
+                        && filled($this->secret('client_secret'))
+                    )
+                ),
+            default => false,
+        };
+    }
+
     /**
      * Returns eligible CarrierAccount(s) for a shipment in priority order.
      *
@@ -105,6 +136,8 @@ class CarrierAccount extends Model
      *
      * When the winning scope has rate_shop=true, the location-default account is
      * also returned so the caller can fetch rates from both and pick the cheapest.
+     *
+     * @return Collection<int, CarrierAccount>
      */
     public static function resolveForShipment(
         int $carrierId,
@@ -135,7 +168,7 @@ class CarrierAccount extends Model
 
         $sorted = $scopes->sortBy($priority);
         $bestScope = $sorted->first();
-        $result = new Collection([$bestScope->carrierAccount]);
+        $result = $bestScope->carrierAccount->newCollection([$bestScope->carrierAccount]);
 
         if ($bestScope->rate_shop && $locationId !== null) {
             $locationDefault = $sorted->first(

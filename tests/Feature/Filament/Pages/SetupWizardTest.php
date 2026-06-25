@@ -116,7 +116,7 @@ it('does not duplicate the DataSource when the import step is saved twice', func
         ->and($record->secret('db_password'))->toBe('supersecret');
 });
 
-it('creates a shopify DataSource record and tenant-level shop domain', function (): void {
+it('creates a shopify DataSource record with the shop domain', function (): void {
     $component = Livewire::test(SetupWizard::class)
         ->tap(fn ($component) => fillRequiredSetupWizardFields($component))
         ->set('data.import_source', 'shopify')
@@ -127,8 +127,7 @@ it('creates a shopify DataSource record and tenant-level shop domain', function 
     $record = DataSource::where('driver', ShopifySource::class)->firstOrFail();
 
     expect($record->settings['shop_domain'])->toBe('acme.myshopify.com')
-        ->and($record->settings['channel_name'])->toBe('Shopify')
-        ->and(app(SettingsService::class)->get('shopify.shop_domain'))->toBe('acme.myshopify.com');
+        ->and($record->settings['channel_name'])->toBe('Shopify');
 });
 
 it('creates an amazon DataSource record from the import source step', function (): void {

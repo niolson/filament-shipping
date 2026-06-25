@@ -2,7 +2,6 @@
 
 namespace App\Http\Integrations\Shopify;
 
-use App\Services\SettingsService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
@@ -32,38 +31,23 @@ class ShopifyConnector extends Connector
     }
 
     /**
-     * Build from a per-source settings array, falling back to tenant-level SettingsService
-     * for app credentials (client_id, client_secret) which are always shared.
+     * Build from a per-source config array. All values (shop_domain, client_id,
+     * client_secret, access_token) are per-source and stored on the DataSource.
      *
      * @param  array<string, mixed>  $settings
      */
     public static function fromSettings(array $settings): self
     {
-        $global = app(SettingsService::class);
-
-        $shopDomain = filled($settings['shop_domain'] ?? null)
-            ? (string) $settings['shop_domain']
-            : (string) $global->get('shopify.shop_domain', '');
-
         // Manual access_token takes priority over OAuth token; both are per-source.
         $accessToken = filled($settings['access_token'] ?? null)
             ? (string) $settings['access_token']
             : (filled($settings['oauth_access_token'] ?? null) ? (string) $settings['oauth_access_token'] : null);
 
-        // Per-source app credentials override tenant-level ones.
-        $clientId = filled($settings['client_id'] ?? null)
-            ? (string) $settings['client_id']
-            : (string) $global->get('shopify.client_id', '');
-
-        $clientSecret = filled($settings['client_secret'] ?? null)
-            ? (string) $settings['client_secret']
-            : (string) $global->get('shopify.client_secret', '');
-
         return new self(
-            shopDomain: $shopDomain,
-            clientId: $clientId,
-            clientSecret: $clientSecret,
-            apiVersion: (string) $global->get('shopify.api_version', '2025-01'),
+            shopDomain: (string) ($settings['shop_domain'] ?? ''),
+            clientId: (string) ($settings['client_id'] ?? ''),
+            clientSecret: (string) ($settings['client_secret'] ?? ''),
+            apiVersion: (string) ($settings['api_version'] ?? config('services.shopify.api_version', '2025-01')),
             accessToken: $accessToken,
         );
     }
@@ -89,15 +73,6 @@ class ShopifyConnector extends Connector
     {
         if ($this->accessToken !== null) {
             return $this->accessToken;
-        }
-
-        $settings = app(SettingsService::class);
-
-        if ($settings->get('shopify.auth_mode') === 'authorization_code') {
-            $oauthToken = $settings->get('shopify.oauth_access_token');
-            if ($oauthToken) {
-                return $oauthToken;
-            }
         }
 
         $cacheKey = self::CACHE_KEY_PREFIX.md5($this->shopDomain);

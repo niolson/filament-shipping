@@ -7,7 +7,8 @@ use App\Http\Integrations\Fedex\Requests\AddConsolidationShipment;
 use App\Http\Integrations\Fedex\Requests\ConfirmConsolidation;
 use App\Http\Integrations\Fedex\Requests\CreateConsolidation;
 use App\Http\Integrations\Fedex\Requests\GetConsolidationResults;
-use App\Services\SettingsService;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -42,7 +43,7 @@ class FedexRunConsolidationTestCase extends Command
 
     private ?string $jobId = null;
 
-    public function handle(SettingsService $settings): int
+    public function handle(): int
     {
         if (config('logging.channels.fedex-validation.handler') === NullHandler::class) {
             $this->error('CARRIER_API_LOGGING is disabled — certification evidence would not be written to fedex-validation.log. Set CARRIER_API_LOGGING=true and retry.');
@@ -50,10 +51,14 @@ class FedexRunConsolidationTestCase extends Command
             return self::FAILURE;
         }
 
-        $shipperAccountNumber = (string) $settings->get('fedex.account_number', '');
+        $carrierId = Carrier::where('name', 'FedEx')->value('id');
+        $account = $carrierId
+            ? CarrierAccount::active()->where('carrier_id', $carrierId)->first()
+            : null;
+        $shipperAccountNumber = (string) ($account?->credential('account_number') ?? '');
 
         if (empty($shipperAccountNumber)) {
-            $this->error('FedEx account number not configured in settings (fedex.account_number).');
+            $this->error('No active FedEx carrier account with an account number is configured.');
 
             return self::FAILURE;
         }
@@ -63,7 +68,7 @@ class FedexRunConsolidationTestCase extends Command
             ? 'dev/fedex-test-runs/US10_'.now()->format('Ymd_His')
             : null;
 
-        $connector = FedexConnector::getAuthenticatedConnector();
+        $connector = FedexConnector::getAuthenticatedConnector($account);
 
         $this->info('Running IntegratorUS10 — International Priority Distribution Consolidation');
 

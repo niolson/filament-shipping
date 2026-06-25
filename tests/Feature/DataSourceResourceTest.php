@@ -7,7 +7,6 @@ use App\Filament\Resources\DataSources\Pages\EditDataSource;
 use App\Filament\Resources\DataSources\Pages\ListDataSources;
 use App\Jobs\RunDataSourceImportJob;
 use App\Models\DataSource;
-use App\Models\Setting;
 use App\Models\User;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
@@ -377,15 +376,11 @@ it('validates when per-source client_id and client_secret are both present', fun
     expect(true)->toBeTrue();
 });
 
-it('fails validation when neither token nor credentials exist and no tenant credentials', function (): void {
-    // Clear the global Shopify settings seeded in Pest.php beforeEach
-    Setting::where('group', 'shopify')->delete();
-    app(SettingsService::class)->clearCache();
-
+it('fails validation when neither token nor credentials exist', function (): void {
     $source = new ShopifySource([
         'shop_domain' => 'test.myshopify.com',
         'channel_name' => 'Shopify',
     ]);
 
-    expect(fn () => $source->validateConfiguration())->toThrow(InvalidArgumentException::class, 'client ID');
+    expect(fn () => $source->validateConfiguration())->toThrow(InvalidArgumentException::class, 'credentials are not configured');
 });

@@ -37,13 +37,13 @@ class FedexRegistrationService
      * Returns the proxy connector when a broker URL is configured,
      * otherwise falls back to the direct FedEx authenticated connector.
      */
-    private function getConnector(): FedexConnector|FedexRegistrationProxyConnector
+    private function getConnector(CarrierAccount $account): FedexConnector|FedexRegistrationProxyConnector
     {
         if (filled(config('services.oauth.broker_url'))) {
             return new FedexRegistrationProxyConnector;
         }
 
-        return FedexConnector::getAuthenticatedConnector();
+        return FedexConnector::getAuthenticatedConnector($account);
     }
 
     /**
@@ -60,6 +60,7 @@ class FedexRegistrationService
      * @return array{accountAuthToken: string, mfaRequired: bool, email: ?string, phoneNumber: ?string, options: array, credentials: ?array}
      */
     public function validateAddress(
+        CarrierAccount $account,
         string $accountNumber,
         string $customerName,
         bool $residential,
@@ -70,7 +71,7 @@ class FedexRegistrationService
         string $postalCode,
         string $countryCode,
     ): array {
-        $connector = $this->getConnector();
+        $connector = $this->getConnector($account);
         $apiRequest = new ValidateAddress(
             accountNumber: $accountNumber,
             customerName: $customerName,
@@ -128,9 +129,9 @@ class FedexRegistrationService
     /**
      * Send a PIN to the customer via their chosen delivery method (SMS, CALL, or EMAIL).
      */
-    public function sendPin(string $accountAuthToken, string $option): void
+    public function sendPin(CarrierAccount $account, string $accountAuthToken, string $option): void
     {
-        $connector = $this->getConnector();
+        $connector = $this->getConnector($account);
         $apiRequest = new SendPin($accountAuthToken, $option);
 
         try {
@@ -150,9 +151,9 @@ class FedexRegistrationService
      *
      * @return array{child_Key: string, child_secret: string}
      */
-    public function verifyPin(string $accountAuthToken, string $pin): array
+    public function verifyPin(CarrierAccount $account, string $accountAuthToken, string $pin): array
     {
-        $connector = $this->getConnector();
+        $connector = $this->getConnector($account);
         $apiRequest = new VerifyPin($accountAuthToken, $pin);
 
         try {
@@ -175,13 +176,14 @@ class FedexRegistrationService
      * @return array{child_Key: string, child_secret: string}
      */
     public function verifyInvoice(
+        CarrierAccount $account,
         string $accountAuthToken,
         int $invoiceNumber,
         string $invoiceDate,
         float $invoiceAmount,
         string $invoiceCurrency,
     ): array {
-        $connector = $this->getConnector();
+        $connector = $this->getConnector($account);
         $apiRequest = new VerifyInvoice(
             accountAuthToken: $accountAuthToken,
             invoiceNumber: $invoiceNumber,

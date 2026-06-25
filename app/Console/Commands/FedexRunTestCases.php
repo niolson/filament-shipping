@@ -3,10 +3,11 @@
 namespace App\Console\Commands;
 
 use App\Http\Integrations\Fedex\FedexConnector;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Services\FedexTestCases\FedexTestCaseNormalizer;
 use App\Services\FedexTestCases\FedexTestCaseRepository;
 use App\Services\FedexTestCases\FedexTestCaseRunner;
-use App\Services\SettingsService;
 use Illuminate\Console\Command;
 
 class FedexRunTestCases extends Command
@@ -26,7 +27,6 @@ class FedexRunTestCases extends Command
     protected $description = 'Run FedEx developer validation test cases and log request/response details';
 
     public function handle(
-        SettingsService $settings,
         FedexTestCaseRepository $repository,
         FedexTestCaseNormalizer $normalizer,
         FedexTestCaseRunner $runner,
@@ -85,15 +85,19 @@ class FedexRunTestCases extends Command
             return self::SUCCESS;
         }
 
-        $shipperAccountNumber = (string) $settings->get('fedex.account_number', '');
+        $carrierId = Carrier::where('name', 'FedEx')->value('id');
+        $account = $carrierId
+            ? CarrierAccount::active()->where('carrier_id', $carrierId)->first()
+            : null;
+        $shipperAccountNumber = (string) ($account?->credential('account_number') ?? '');
 
         if (empty($shipperAccountNumber)) {
-            $this->error('FedEx account number not configured in settings (fedex.account_number).');
+            $this->error('No active FedEx carrier account with an account number is configured.');
 
             return self::FAILURE;
         }
 
-        $connector = FedexConnector::getAuthenticatedConnector();
+        $connector = FedexConnector::getAuthenticatedConnector($account);
         $saveLabels = (bool) $this->option('save-labels');
         $dumpPayloads = (bool) $this->option('dump-payloads');
         $artifactDirectory = ($saveLabels || $dumpPayloads)

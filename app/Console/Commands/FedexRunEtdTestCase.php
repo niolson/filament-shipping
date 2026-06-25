@@ -7,9 +7,10 @@ use App\Http\Integrations\Fedex\FedexConnector;
 use App\Http\Integrations\Fedex\Requests\CreateShipment;
 use App\Http\Integrations\Fedex\Requests\UploadEtdDocument;
 use App\Http\Integrations\Fedex\Requests\UploadEtdImage;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Package;
 use App\Models\Shipment;
-use App\Services\SettingsService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -36,7 +37,7 @@ class FedexRunEtdTestCase extends Command
 
     private const ASSET_DIR = 'resources/data/carrier-test-cases/fedex/etd-assets';
 
-    public function handle(SettingsService $settings): int
+    public function handle(): int
     {
         if (config('logging.channels.fedex-validation.handler') === NullHandler::class) {
             $this->error('CARRIER_API_LOGGING is disabled — certification evidence would not be written to fedex-validation.log. Set CARRIER_API_LOGGING=true and retry.');
@@ -52,10 +53,14 @@ class FedexRunEtdTestCase extends Command
             return self::FAILURE;
         }
 
-        $shipperAccountNumber = (string) $settings->get('fedex.account_number', '');
+        $carrierId = Carrier::where('name', 'FedEx')->value('id');
+        $account = $carrierId
+            ? CarrierAccount::active()->where('carrier_id', $carrierId)->first()
+            : null;
+        $shipperAccountNumber = (string) ($account?->credential('account_number') ?? '');
 
         if (empty($shipperAccountNumber)) {
-            $this->error('FedEx account number not configured in settings (fedex.account_number).');
+            $this->error('No active FedEx carrier account with an account number is configured.');
 
             return self::FAILURE;
         }
@@ -65,7 +70,7 @@ class FedexRunEtdTestCase extends Command
             ? 'dev/fedex-test-runs/US09_'.now()->format('Ymd_His')
             : null;
 
-        $connector = FedexConnector::getAuthenticatedConnector();
+        $connector = FedexConnector::getAuthenticatedConnector($account);
 
         return $variant === 'a'
             ? $this->runVariantA($connector, $shipperAccountNumber, $artifactDir)

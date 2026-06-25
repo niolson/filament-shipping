@@ -12,6 +12,10 @@ use Saloon\Http\Auth\AccessTokenAuthenticator;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
+beforeEach(function (): void {
+    createFedexAccount();
+});
+
 it('runs a supported FedEx fixture case and skips unsupported cases from the suite', function (): void {
     $fixturePath = tempnam(sys_get_temp_dir(), 'fedex-command-suite-');
 

@@ -74,13 +74,8 @@ class USPSConnector extends Connector
 
     protected function defaultOauthConfig(): OAuthConfig
     {
-        $settings = app(SettingsService::class);
-        $clientId = $this->carrierAccount?->secret('client_id')
-            ?? $settings->get('usps.client_id')
-            ?? config('services.usps.client_id', '');
-        $clientSecret = $this->carrierAccount?->secret('client_secret')
-            ?? $settings->get('usps.client_secret')
-            ?? config('services.usps.client_secret', '');
+        $clientId = $this->carrierAccount?->secret('client_id') ?? '';
+        $clientSecret = $this->carrierAccount?->secret('client_secret') ?? '';
 
         return OAuthConfig::make()
             ->setClientId((string) $clientId)
@@ -131,14 +126,14 @@ class USPSConnector extends Connector
     {
         $settings = app(SettingsService::class);
 
-        $authMode = $account?->secret('auth_mode') ?? $settings->get('usps.auth_mode');
+        $authMode = $account?->secret('auth_mode');
 
         if ($authMode === 'authorization_code') {
             if ($settings->get('sandbox_mode', false)) {
                 throw new RuntimeException('USPS is not available in sandbox mode when connected via OAuth. Disable sandbox mode to use your USPS account.');
             }
 
-            return static::fromOAuthToken($settings, $account);
+            return static::fromOAuthToken($account);
         }
 
         /** @phpstan-ignore new.static */
@@ -177,7 +172,7 @@ class USPSConnector extends Connector
     /**
      * OAuth authorization code flow — uses stored token with automatic refresh.
      */
-    private static function fromOAuthToken(SettingsService $settings, ?CarrierAccount $account = null): static
+    private static function fromOAuthToken(?CarrierAccount $account = null): static
     {
         /** @phpstan-ignore new.static */
         $connector = $account ? static::forAccount($account) : new static;
@@ -191,17 +186,17 @@ class USPSConnector extends Connector
             return $connector;
         }
 
-        $token = Cache::lock($cacheKey.':lock', 10)->block(5, function () use ($settings, $cacheKey, $account) {
+        $token = Cache::lock($cacheKey.':lock', 10)->block(5, function () use ($cacheKey, $account) {
             $cached = Cache::get($cacheKey);
             if ($cached) {
                 return $cached;
             }
 
-            $accessToken = $account?->secret('oauth_token') ?? $settings->get('usps.oauth_access_token');
-            $expiresAt = $account?->secret('token_expires_at') ?? $settings->get('usps.oauth_token_expires_at');
+            $accessToken = $account?->secret('oauth_token');
+            $expiresAt = $account?->secret('token_expires_at');
 
             if (! $accessToken) {
-                $context = $account ? "account {$account->id}" : 'Settings';
+                $context = $account ? "account {$account->id}" : 'the carrier account';
                 throw new RuntimeException("USPS OAuth token not found. Please reconnect via {$context}.");
             }
 
@@ -260,14 +255,12 @@ class USPSConnector extends Connector
         $cacheKey = 'usps_payment_authorization_token:'.($accountId ?? 'global');
 
         return Cache::get($cacheKey, function () use ($cacheKey, $accountId) {
-            $settings = app(SettingsService::class);
-
             $account = $accountId ? CarrierAccount::find($accountId) : null;
 
-            $crid = $account?->credential('crid') ?? $settings->get('usps.crid');
-            $mid = $account?->credential('mid') ?? $settings->get('usps.mid');
+            $crid = $account?->credential('crid');
+            $mid = $account?->credential('mid');
             // EPS account number is distinct from CRID; auto-populated from OAuth JWT
-            $epsAccount = $account?->credential('eps_account') ?? $settings->get('usps.eps_account') ?? $crid;
+            $epsAccount = $account?->credential('eps_account') ?? $crid;
 
             $request = new PaymentAuthorization;
             $request->body()->set([

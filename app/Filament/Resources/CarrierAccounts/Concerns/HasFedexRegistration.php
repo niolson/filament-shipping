@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CarrierAccounts\Concerns;
 use App\Exceptions\FedexRegistrationMaxRetriesException;
 use App\Filament\Support\AddressForm;
 use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Services\AddressReferenceService;
 use App\Services\FedexRegistrationService;
 use Filament\Actions\Action;
@@ -25,6 +26,7 @@ use Filament\Support\Exceptions\Halt;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\HtmlString;
+use LogicException;
 
 trait HasFedexRegistration
 {
@@ -48,6 +50,17 @@ trait HasFedexRegistration
 
     public bool $fedexSupportFallbackActive = false;
 
+    private function fedexCarrierAccount(): CarrierAccount
+    {
+        $record = $this->getRecord();
+
+        if (! $record instanceof CarrierAccount) {
+            throw new LogicException('FedEx registration requires a carrier account record.');
+        }
+
+        return $record;
+    }
+
     public function resendFedexPin(): void
     {
         if (! $this->fedexAccountAuthToken || ! $this->fedexFactor2Method) {
@@ -55,7 +68,11 @@ trait HasFedexRegistration
         }
 
         try {
-            app(FedexRegistrationService::class)->sendPin($this->fedexAccountAuthToken, $this->fedexFactor2Method);
+            app(FedexRegistrationService::class)->sendPin(
+                $this->fedexCarrierAccount(),
+                $this->fedexAccountAuthToken,
+                $this->fedexFactor2Method,
+            );
             Notification::make()->success()->title('PIN resent.')->send();
         } catch (\Throwable $e) {
             $this->notifyFedexRegistrationError($e);
@@ -189,9 +206,11 @@ trait HasFedexRegistration
 
     private function completeFedexAccountRegistration(string $accountNumber, string $childKey, string $childSecret): void
     {
-        app(FedexRegistrationService::class)->saveChildCredentialsToAccount($childKey, $childSecret, $this->record);
-        $this->record->mergeCredential('account_number', $accountNumber);
-        $this->record->save();
+        $account = $this->fedexCarrierAccount();
+
+        app(FedexRegistrationService::class)->saveChildCredentialsToAccount($childKey, $childSecret, $account);
+        $account->mergeCredential('account_number', $accountNumber);
+        $account->save();
     }
 
     protected function fedexRegisterAction(): Action
@@ -290,6 +309,7 @@ trait HasFedexRegistration
                     ->afterValidation(function (Get $get): void {
                         try {
                             $result = app(FedexRegistrationService::class)->validateAddress(
+                                account: $this->fedexCarrierAccount(),
                                 accountNumber: $get('fedex_reg_account_number'),
                                 customerName: $get('fedex_reg_customer_name'),
                                 residential: (bool) ($get('fedex_reg_residential') ?? false),
@@ -347,6 +367,7 @@ trait HasFedexRegistration
                         if ($this->fedexFactor2Method !== 'INVOICE') {
                             try {
                                 app(FedexRegistrationService::class)->sendPin(
+                                    $this->fedexCarrierAccount(),
                                     $this->fedexAccountAuthToken,
                                     $this->fedexFactor2Method,
                                 );
@@ -432,6 +453,7 @@ trait HasFedexRegistration
                 try {
                     if ($this->fedexFactor2Method === 'INVOICE') {
                         $credentials = app(FedexRegistrationService::class)->verifyInvoice(
+                            account: $this->fedexCarrierAccount(),
                             accountAuthToken: $this->fedexAccountAuthToken,
                             invoiceNumber: (int) $data['fedex_invoice_number'],
                             invoiceDate: $data['fedex_invoice_date'],
@@ -440,6 +462,7 @@ trait HasFedexRegistration
                         );
                     } else {
                         $credentials = app(FedexRegistrationService::class)->verifyPin(
+                            account: $this->fedexCarrierAccount(),
                             accountAuthToken: $this->fedexAccountAuthToken,
                             pin: $data['fedex_pin'],
                         );

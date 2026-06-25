@@ -23,6 +23,7 @@ class Package extends Model
     protected $fillable = [
         'shipment_id',
         'location_id',
+        'carrier_account_id',
         'box_size_id',
         'tracking_number',
         'carrier',
@@ -108,6 +109,14 @@ class Package extends Model
     }
 
     /**
+     * @return BelongsTo<CarrierAccount, $this>
+     */
+    public function carrierAccount(): BelongsTo
+    {
+        return $this->belongsTo(CarrierAccount::class);
+    }
+
+    /**
      * @return BelongsTo<BoxSize, $this>
      */
     public function boxSize(): BelongsTo
@@ -183,6 +192,7 @@ class Package extends Model
                 ->where('status', PackageStatus::Unshipped->value)
                 ->update([
                     'tracking_number' => $response->trackingNumber,
+                    'carrier_account_id' => $response->carrierAccountId,
                     'cost' => $response->cost,
                     'carrier' => $response->carrier,
                     'service' => $response->service,
@@ -273,6 +283,7 @@ class Package extends Model
                 ->where('status', PackageStatus::Shipped->value)
                 ->update([
                     'tracking_number' => null,
+                    'carrier_account_id' => null,
                     'carrier' => null,
                     'service' => null,
                     'cost' => null,

@@ -11,17 +11,18 @@ use App\Http\Integrations\Fedex\Requests\CancelShipment;
 use App\Http\Integrations\Fedex\Requests\CreateShipment;
 use App\Http\Integrations\Fedex\Requests\Rates;
 use App\Http\Integrations\Fedex\Requests\TrackShipment;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\Package;
-use App\Models\Setting;
 use App\Models\Shipment;
 use App\Services\Carriers\FedexAdapter;
-use App\Services\SettingsService;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
 beforeEach(function (): void {
     $this->adapter = new FedexAdapter;
+    createFedexAccount();
 });
 
 it('returns FedEx as carrier name', function (): void {
@@ -33,17 +34,23 @@ it('supports multi-package shipments', function (): void {
 });
 
 it('checks if adapter is configured', function (): void {
-    Setting::updateOrCreate(['key' => 'fedex.api_key'], ['value' => 'test_api_key', 'type' => 'string']);
-    Setting::updateOrCreate(['key' => 'fedex.api_secret'], ['value' => 'test_api_secret', 'type' => 'string']);
-    Setting::updateOrCreate(['key' => 'fedex.account_number'], ['value' => 'test_account', 'type' => 'string']);
-    app(SettingsService::class)->clearCache();
-
+    // createFedexAccount() in beforeEach provides an active FedEx CarrierAccount.
     expect($this->adapter->isConfigured())->toBeTrue();
 });
 
 it('returns false when not configured', function (): void {
-    Setting::whereIn('key', ['fedex.api_key', 'fedex.api_secret', 'fedex.account_number'])->delete();
-    app(SettingsService::class)->clearCache();
+    CarrierAccount::query()->delete();
+
+    expect($this->adapter->isConfigured())->toBeFalse();
+});
+
+it('returns false when only an empty active account exists', function (): void {
+    CarrierAccount::query()->delete();
+    CarrierAccount::factory()->fedex()->create([
+        'carrier_id' => Carrier::where('name', 'FedEx')->value('id'),
+        'credentials' => null,
+        'secret_credentials' => null,
+    ]);
 
     expect($this->adapter->isConfigured())->toBeFalse();
 });

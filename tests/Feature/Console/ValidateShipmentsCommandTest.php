@@ -6,6 +6,10 @@ use App\Models\Shipment;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
+beforeEach(function (): void {
+    createUspsAccount();
+});
+
 it('validates pending shipments', function (): void {
     Saloon::fake([
         '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),

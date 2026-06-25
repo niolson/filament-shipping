@@ -13,17 +13,18 @@ use App\Http\Integrations\USPS\Requests\Label;
 use App\Http\Integrations\USPS\Requests\PaymentAuthorization;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Http\Integrations\USPS\Requests\TrackShipment;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Package;
-use App\Models\Setting;
 use App\Models\Shipment;
 use App\Services\Carriers\UspsAdapter;
-use App\Services\SettingsService;
 use Saloon\Exceptions\Request\Statuses\InternalServerErrorException;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
 beforeEach(function (): void {
     $this->adapter = new UspsAdapter;
+    createUspsAccount();
 });
 
 it('returns USPS as carrier name', function (): void {
@@ -35,17 +36,23 @@ it('does not support multi-package shipments', function (): void {
 });
 
 it('checks if adapter is configured', function (): void {
-    Setting::updateOrCreate(['key' => 'usps.client_id'], ['value' => 'test_client_id', 'type' => 'string']);
-    Setting::updateOrCreate(['key' => 'usps.client_secret'], ['value' => 'test_client_secret', 'type' => 'string']);
-    Setting::updateOrCreate(['key' => 'usps.crid'], ['value' => 'test_crid', 'type' => 'string']);
-    app(SettingsService::class)->clearCache();
-
+    // createUspsAccount() in beforeEach provides an active USPS CarrierAccount.
     expect($this->adapter->isConfigured())->toBeTrue();
 });
 
 it('returns false when not configured', function (): void {
-    Setting::whereIn('key', ['usps.client_id', 'usps.client_secret', 'usps.crid'])->delete();
-    app(SettingsService::class)->clearCache();
+    CarrierAccount::query()->delete();
+
+    expect($this->adapter->isConfigured())->toBeFalse();
+});
+
+it('returns false when only an empty active account exists', function (): void {
+    CarrierAccount::query()->delete();
+    CarrierAccount::factory()->usps()->create([
+        'carrier_id' => Carrier::where('name', 'USPS')->value('id'),
+        'credentials' => null,
+        'secret_credentials' => null,
+    ]);
 
     expect($this->adapter->isConfigured())->toBeFalse();
 });

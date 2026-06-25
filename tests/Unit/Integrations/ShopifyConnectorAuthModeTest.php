@@ -1,36 +1,33 @@
 <?php
 
 use App\Http\Integrations\Shopify\ShopifyConnector;
-use App\Models\Setting;
-use App\Services\SettingsService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
-    app(SettingsService::class)->clearCache();
-    Cache::forget('shopify_access_token');
-
-    Setting::updateOrCreate(['key' => 'shopify.shop_domain'], ['value' => 'test-shop.myshopify.com', 'type' => 'string', 'group' => 'shopify']);
-    Setting::updateOrCreate(['key' => 'shopify.client_id'], ['value' => 'test-client-id', 'type' => 'string', 'encrypted' => true, 'group' => 'shopify']);
-    Setting::updateOrCreate(['key' => 'shopify.client_secret'], ['value' => 'test-client-secret', 'type' => 'string', 'encrypted' => true, 'group' => 'shopify']);
-
-    app(SettingsService::class)->clearCache();
+    Cache::forget('shopify_access_token_'.md5('test-shop.myshopify.com'));
 });
 
-it('uses OAuth token when auth mode is authorization_code', function (): void {
-    $settings = app(SettingsService::class);
-    $settings->set('shopify.auth_mode', 'authorization_code', group: 'shopify');
-    $settings->set('shopify.oauth_access_token', 'shpat_oauth_token', 'string', encrypted: true, group: 'shopify');
-    $settings->clearCache();
+function shopifyAuthConfig(array $overrides = []): array
+{
+    return array_merge([
+        'shop_domain' => 'test-shop.myshopify.com',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
+    ], $overrides);
+}
 
-    $connector = ShopifyConnector::fromConfig();
+it('uses the per-source OAuth token when one is provided', function (): void {
+    $connector = ShopifyConnector::fromSettings(shopifyAuthConfig([
+        'oauth_access_token' => 'shpat_oauth_token',
+    ]));
 
-    // The connector should use the OAuth token in its headers
+    // The connector should use the injected OAuth token in its headers.
     $headers = $connector->headers()->all();
     expect($headers['X-Shopify-Access-Token'])->toBe('shpat_oauth_token');
 });
 
-it('uses client credentials when auth mode is not set', function (): void {
+it('uses client credentials when no token is provided', function (): void {
     Http::fake([
         'test-shop.myshopify.com/admin/oauth/access_token' => Http::response([
             'access_token' => 'shpat_cc_token',
@@ -38,18 +35,13 @@ it('uses client credentials when auth mode is not set', function (): void {
         ]),
     ]);
 
-    $connector = ShopifyConnector::fromConfig();
+    $connector = ShopifyConnector::fromSettings(shopifyAuthConfig());
 
     $headers = $connector->headers()->all();
     expect($headers['X-Shopify-Access-Token'])->toBe('shpat_cc_token');
 });
 
-it('falls back to client credentials when OAuth token is missing', function (): void {
-    $settings = app(SettingsService::class);
-    $settings->set('shopify.auth_mode', 'authorization_code', group: 'shopify');
-    // No oauth_access_token set
-    $settings->clearCache();
-
+it('falls back to client credentials when the OAuth token is empty', function (): void {
     Http::fake([
         'test-shop.myshopify.com/admin/oauth/access_token' => Http::response([
             'access_token' => 'shpat_fallback_token',
@@ -57,7 +49,9 @@ it('falls back to client credentials when OAuth token is missing', function (): 
         ]),
     ]);
 
-    $connector = ShopifyConnector::fromConfig();
+    $connector = ShopifyConnector::fromSettings(shopifyAuthConfig([
+        'oauth_access_token' => null,
+    ]));
 
     $headers = $connector->headers()->all();
     expect($headers['X-Shopify-Access-Token'])->toBe('shpat_fallback_token');
