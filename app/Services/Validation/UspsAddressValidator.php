@@ -7,7 +7,10 @@ use App\Enums\Deliverability;
 use App\Events\AddressValidationFailed;
 use App\Http\Integrations\USPS\Requests\Address;
 use App\Http\Integrations\USPS\USPSConnector;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Shipment;
+use Saloon\Exceptions\OAuthConfigValidationException;
 use Saloon\Exceptions\Request\ClientException;
 use Saloon\Exceptions\Request\RequestException;
 
@@ -37,7 +40,7 @@ class UspsAddressValidator implements AddressValidationInterface
     protected function fetchValidation(Shipment $shipment): ?array
     {
         try {
-            $connector = USPSConnector::getAuthenticatedConnector();
+            $connector = USPSConnector::getAuthenticatedConnector($this->resolveAccount($shipment));
 
             $request = new Address;
             $request->query()->set([
@@ -78,7 +81,29 @@ class UspsAddressValidator implements AddressValidationInterface
             ]);
 
             return null;
+        } catch (OAuthConfigValidationException $e) {
+            // No USPS credentials resolved for this shipment — skip validation
+            // gracefully rather than crashing the page with a 500.
+            logger()->warning('USPS Address Validation not configured', [
+                'error' => $e->getMessage(),
+                'shipment_id' => $shipment->id,
+            ]);
+
+            return null;
         }
+    }
+
+    /**
+     * Resolve the USPS carrier account whose credentials should authenticate
+     * this shipment's validation request, falling back to the global default.
+     */
+    protected function resolveAccount(Shipment $shipment): ?CarrierAccount
+    {
+        $carrierId = Carrier::where('name', 'USPS')->value('id');
+
+        return $carrierId
+            ? CarrierAccount::resolveForShipment($carrierId, null, $shipment->client_id)->first()
+            : null;
     }
 
     /**

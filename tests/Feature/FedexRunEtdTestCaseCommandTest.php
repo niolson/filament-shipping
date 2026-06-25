@@ -19,6 +19,8 @@ beforeEach(function (): void {
         'handler' => TestHandler::class,
     ]);
     Log::forgetChannel('fedex-validation');
+
+    createFedexAccount();
 });
 
 it('builds the US09 variant A payload with FedEx-generated ETD document enums', function (): void {

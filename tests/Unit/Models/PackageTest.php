@@ -3,6 +3,7 @@
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageStatus;
 use App\Enums\ShipmentStatus;
+use App\Models\CarrierAccount;
 use App\Models\Package;
 use App\Models\Shipment;
 use App\Models\User;
@@ -10,6 +11,7 @@ use App\Models\User;
 it('marks a package as shipped from ShipResponse', function (): void {
     $shipment = Shipment::factory()->create();
     $package = Package::factory()->for($shipment)->create();
+    $carrierAccount = CarrierAccount::factory()->create();
 
     $response = ShipResponse::success(
         trackingNumber: '9400111899223456789012',
@@ -18,6 +20,7 @@ it('marks a package as shipped from ShipResponse', function (): void {
         service: 'USPS_GROUND_ADVANTAGE',
         labelData: base64_encode('PDF content'),
         labelOrientation: 'portrait',
+        carrierAccountId: $carrierAccount->id,
     );
 
     $package->markShipped($response);
@@ -29,6 +32,7 @@ it('marks a package as shipped from ShipResponse', function (): void {
         ->and($package->service)->toBe('USPS_GROUND_ADVANTAGE')
         ->and($package->label_data)->toBe(base64_encode('PDF content'))
         ->and($package->label_orientation)->toBe('portrait')
+        ->and($package->carrier_account_id)->toBe($carrierAccount->id)
         ->and($package->status)->toBe(PackageStatus::Shipped)
         ->and($package->shipped_at)->not->toBeNull()
         ->and($package->shipment->fresh()->status)->toBe(ShipmentStatus::Shipped);
@@ -36,12 +40,15 @@ it('marks a package as shipped from ShipResponse', function (): void {
 
 it('clears all shipping fields', function (): void {
     $shipment = Shipment::factory()->create();
-    $package = Package::factory()->shipped()->for($shipment)->create();
+    $package = Package::factory()->shipped()->for($shipment)->create([
+        'carrier_account_id' => CarrierAccount::factory(),
+    ]);
 
     $package->clearShipping();
     $package->refresh();
 
     expect($package->tracking_number)->toBeNull()
+        ->and($package->carrier_account_id)->toBeNull()
         ->and($package->carrier)->toBeNull()
         ->and($package->service)->toBeNull()
         ->and($package->cost)->toBeNull()

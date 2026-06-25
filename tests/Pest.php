@@ -1,8 +1,13 @@
 <?php
 
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
+use App\Models\CarrierAccountScope;
 use App\Models\Client;
+use App\Models\DataSource;
 use App\Models\Location;
 use App\Models\Setting;
+use App\Services\ShipmentImport\Sources\ShopifySource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -67,76 +72,107 @@ uses()->beforeEach(function (): void {
         ['key' => 'setup_complete'],
         ['value' => '1', 'type' => 'boolean', 'group' => 'system'],
     );
-    Setting::updateOrCreate(
-        ['key' => 'usps.client_id'],
-        ['value' => 'test_client_id', 'type' => 'string', 'group' => 'usps'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'usps.client_secret'],
-        ['value' => 'test_client_secret', 'type' => 'string', 'group' => 'usps'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'usps.crid'],
-        ['value' => 'test_crid', 'type' => 'string', 'group' => 'usps'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'usps.mid'],
-        ['value' => 'test_mid', 'type' => 'string', 'group' => 'usps'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'fedex.api_key'],
-        ['value' => 'test_api_key', 'type' => 'string', 'group' => 'fedex'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'fedex.api_secret'],
-        ['value' => 'test_api_secret', 'type' => 'string', 'group' => 'fedex'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'fedex.account_number'],
-        ['value' => 'test_account', 'type' => 'string', 'group' => 'fedex'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'ups.client_id'],
-        ['value' => 'test_client_id', 'type' => 'string', 'group' => 'ups'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'ups.client_secret'],
-        ['value' => 'test_client_secret', 'type' => 'string', 'group' => 'ups'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'ups.account_number'],
-        ['value' => 'test_account', 'type' => 'string', 'group' => 'ups'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'shopify.shop_domain'],
-        ['value' => 'test-shop.myshopify.com', 'type' => 'string', 'group' => 'shopify'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'shopify.client_id'],
-        ['value' => 'test-client-id', 'type' => 'string', 'group' => 'shopify'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'shopify.client_secret'],
-        ['value' => 'test-client-secret', 'type' => 'string', 'group' => 'shopify'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'shopify.api_version'],
-        ['value' => '2025-01', 'type' => 'string', 'group' => 'shopify'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'amazon.client_id'],
-        ['value' => 'test-client-id', 'type' => 'string', 'group' => 'amazon'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'amazon.client_secret'],
-        ['value' => 'test-client-secret', 'type' => 'string', 'group' => 'amazon'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'amazon.refresh_token'],
-        ['value' => 'test-refresh-token', 'type' => 'string', 'group' => 'amazon'],
-    );
-    Setting::updateOrCreate(
-        ['key' => 'amazon.marketplace_id'],
-        ['value' => 'ATVPDKIKX0DER', 'type' => 'string', 'group' => 'amazon'],
-    );
 })->in('Feature', 'Unit', 'External', 'Browser');
+
+/*
+|--------------------------------------------------------------------------
+| Carrier / DataSource credential helpers
+|--------------------------------------------------------------------------
+|
+| Credentials live on the CarrierAccount and DataSource models (no longer the
+| settings table). These helpers create a fully-configured account/source with
+| a global scope so resolveForShipment() finds it, mirroring what the legacy
+| global settings seeding used to provide. Call them explicitly in tests that
+| need a configured carrier or import source.
+|
+*/
+
+/**
+ * @param  array<string, mixed>  $secrets
+ * @param  array<string, mixed>  $credentials
+ */
+function createUspsAccount(array $secrets = [], array $credentials = []): CarrierAccount
+{
+    return makeCarrierAccount('USPS', array_merge([
+        'client_id' => 'test_client_id',
+        'client_secret' => 'test_client_secret',
+    ], $secrets), array_merge([
+        'crid' => 'test_crid',
+        'mid' => 'test_mid',
+    ], $credentials));
+}
+
+/**
+ * @param  array<string, mixed>  $secrets
+ * @param  array<string, mixed>  $credentials
+ */
+function createFedexAccount(array $secrets = [], array $credentials = []): CarrierAccount
+{
+    return makeCarrierAccount('FedEx', array_merge([
+        'api_key' => 'test_api_key',
+        'api_secret' => 'test_api_secret',
+    ], $secrets), array_merge([
+        'account_number' => 'test_account',
+    ], $credentials));
+}
+
+/**
+ * @param  array<string, mixed>  $secrets
+ * @param  array<string, mixed>  $credentials
+ */
+function createUpsAccount(array $secrets = [], array $credentials = []): CarrierAccount
+{
+    return makeCarrierAccount('UPS', array_merge([
+        'client_id' => 'test_client_id',
+        'client_secret' => 'test_client_secret',
+    ], $secrets), array_merge([
+        'account_number' => 'test_account',
+    ], $credentials));
+}
+
+/**
+ * @param  array<string, mixed>  $secrets
+ * @param  array<string, mixed>  $credentials
+ */
+function makeCarrierAccount(string $carrierName, array $secrets, array $credentials): CarrierAccount
+{
+    $carrier = Carrier::firstOrCreate(['name' => $carrierName]);
+
+    $account = CarrierAccount::create([
+        'carrier_id' => $carrier->id,
+        'name' => "{$carrierName} Test Account",
+        'active' => true,
+        'credentials' => $credentials,
+        'secret_credentials' => $secrets,
+    ]);
+
+    CarrierAccountScope::create([
+        'carrier_account_id' => $account->id,
+        'location_id' => null,
+        'client_id' => null,
+        'rate_shop' => false,
+    ]);
+
+    return $account;
+}
+
+/**
+ * @param  array<string, mixed>  $settings  Non-secret settings (e.g. shop_domain, channel_name)
+ * @param  array<string, mixed>  $secrets  Encrypted settings (e.g. client_id, client_secret, access_token)
+ */
+function createShopifyDataSource(array $settings = [], array $secrets = []): DataSource
+{
+    return DataSource::create([
+        'name' => 'Shopify Test',
+        'driver' => ShopifySource::class,
+        'active' => true,
+        'settings' => array_merge([
+            'channel_name' => 'Shopify',
+            'shop_domain' => 'test-shop.myshopify.com',
+        ], $settings),
+        'secret_settings' => array_merge([
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+        ], $secrets),
+    ]);
+}

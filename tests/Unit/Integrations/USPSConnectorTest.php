@@ -68,10 +68,7 @@ it('requests correct endpoint for payment authorization', function (): void {
 });
 
 it('logs USPS token scopes without logging the access token value', function (): void {
-    Setting::updateOrCreate(['key' => 'usps.client_id'], ['value' => 'test_client_id', 'type' => 'string']);
-    Setting::updateOrCreate(['key' => 'usps.client_secret'], ['value' => 'test_client_secret', 'type' => 'string']);
-    Setting::updateOrCreate(['key' => 'usps.crid'], ['value' => 'test_crid', 'type' => 'string']);
-    app(SettingsService::class)->clearCache();
+    $account = createUspsAccount();
 
     Saloon::fake([
         '*oauth*' => MockResponse::make([
@@ -93,7 +90,7 @@ it('logs USPS token scopes without logging the access token value', function ():
             && ! str_contains(json_encode($context), 'secret-token-value');
     });
 
-    $connector = new USPSConnector;
+    $connector = USPSConnector::forAccount($account);
     $authenticator = $connector->getAccessToken();
 
     expect($authenticator->getAccessToken())->toBe('secret-token-value');

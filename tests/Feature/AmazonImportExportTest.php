@@ -97,17 +97,8 @@ function sampleAmazonOrderItems(): array
 }
 
 beforeEach(function (): void {
-    Setting::updateOrCreate(['key' => 'amazon.client_id'], ['value' => 'test-client-id', 'type' => 'string', 'group' => 'amazon']);
-    Setting::updateOrCreate(['key' => 'amazon.client_secret'], ['value' => 'test-client-secret', 'type' => 'string', 'group' => 'amazon']);
-    Setting::updateOrCreate(['key' => 'amazon.refresh_token'], ['value' => 'test-refresh-token', 'type' => 'string', 'group' => 'amazon']);
-    Setting::updateOrCreate(['key' => 'amazon.marketplace_id'], ['value' => 'ATVPDKIKX0DER', 'type' => 'string', 'group' => 'amazon']);
     Setting::updateOrCreate(['key' => 'require_mfa'], ['value' => '1', 'type' => 'boolean', 'group' => 'general']);
     app(SettingsService::class)->clearCache();
-
-    config([
-        'services.amazon.base_url' => 'https://sellingpartnerapi-na.amazon.com',
-        'services.amazon.sandbox_url' => 'https://sandbox.sellingpartnerapi-na.amazon.com',
-    ]);
 
     // Key format: amazon_sp_api_access_token_ + md5(refresh_token)
     Cache::put('amazon_sp_api_access_token_'.md5('test-refresh-token'), 'test-access-token', 3600);
@@ -115,7 +106,12 @@ beforeEach(function (): void {
     $this->dataSource = DataSource::factory()->create([
         'driver' => AmazonSource::class,
         'name' => 'Amazon',
-        'settings' => ['channel_name' => 'Amazon'],
+        'settings' => ['channel_name' => 'Amazon', 'marketplace_id' => 'ATVPDKIKX0DER'],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
+        ],
     ]);
 });
 
@@ -130,6 +126,10 @@ it('imports amazon orders into shipments table with metadata', function (): void
         'driver' => AmazonSource::class,
         'enabled' => true,
         'channel_name' => 'Amazon',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
+        'refresh_token' => 'test-refresh-token',
+        'marketplace_id' => 'ATVPDKIKX0DER',
         'shipping_method' => null,
         'lookback_days' => 30,
         'export' => ['enabled' => false, 'field_mapping' => []],
@@ -169,6 +169,7 @@ it('exports package to amazon as shipment confirmation', function (): void {
         'name' => 'Amazon Export',
         'settings' => [
             'channel_name' => 'Amazon',
+            'marketplace_id' => 'ATVPDKIKX0DER',
             'export_enabled' => true,
             'export_field_mapping' => [
                 'tracking_number' => 'tracking_number',
@@ -176,6 +177,11 @@ it('exports package to amazon as shipment confirmation', function (): void {
                 'shipment_reference' => 'shipment_reference',
                 'amazon_order_id' => 'amazon_order_id',
             ],
+        ],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
         ],
     ]);
 
@@ -224,6 +230,7 @@ it('handles package without amazon metadata gracefully in export', function (): 
         'name' => 'Amazon Export',
         'settings' => [
             'channel_name' => 'Amazon',
+            'marketplace_id' => 'ATVPDKIKX0DER',
             'export_enabled' => true,
             'export_field_mapping' => [
                 'tracking_number' => 'tracking_number',
@@ -231,6 +238,11 @@ it('handles package without amazon metadata gracefully in export', function (): 
                 'shipment_reference' => 'shipment_reference',
                 'amazon_order_id' => 'amazon_order_id',
             ],
+        ],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
         ],
     ]);
 
@@ -276,6 +288,10 @@ it('imports multiple pages of amazon orders', function (): void {
         'driver' => AmazonSource::class,
         'enabled' => true,
         'channel_name' => 'Amazon',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
+        'refresh_token' => 'test-refresh-token',
+        'marketplace_id' => 'ATVPDKIKX0DER',
         'shipping_method' => null,
         'lookback_days' => 30,
         'export' => ['enabled' => false, 'field_mapping' => []],
@@ -289,9 +305,6 @@ it('imports multiple pages of amazon orders', function (): void {
 });
 
 it('validates amazon configuration requires credentials', function (): void {
-    Setting::where('key', 'amazon.client_id')->delete();
-    app(SettingsService::class)->clearCache();
-
     $source = new AmazonSource([
         'driver' => AmazonSource::class,
         'enabled' => true,
@@ -301,7 +314,7 @@ it('validates amazon configuration requires credentials', function (): void {
     ]);
 
     expect(fn () => $source->validateConfiguration())
-        ->toThrow(InvalidArgumentException::class, 'client ID');
+        ->toThrow(InvalidArgumentException::class, 'client credentials');
 });
 
 it('validates amazon configuration requires mfa to be enabled', function (): void {
@@ -354,6 +367,10 @@ it('imports sandbox order with full quantities even when already fulfilled', fun
         'driver' => AmazonSource::class,
         'enabled' => true,
         'channel_name' => 'Amazon',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
+        'refresh_token' => 'test-refresh-token',
+        'marketplace_id' => 'ATVPDKIKX0DER',
         'shipping_method' => null,
         'lookback_days' => 30,
         'export' => ['enabled' => false, 'field_mapping' => []],
@@ -403,6 +420,10 @@ it('calculates item unit prices correctly from proceeds breakdowns', function ()
         'driver' => AmazonSource::class,
         'enabled' => true,
         'channel_name' => 'Amazon',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
+        'refresh_token' => 'test-refresh-token',
+        'marketplace_id' => 'ATVPDKIKX0DER',
         'shipping_method' => null,
         'lookback_days' => 30,
         'export' => ['enabled' => false, 'field_mapping' => []],
@@ -422,9 +443,6 @@ it('calculates item unit prices correctly from proceeds breakdowns', function ()
 });
 
 it('validates when per-source client_id and client_secret are present without tenant credentials', function (): void {
-    Setting::where('group', 'amazon')->delete();
-    app(SettingsService::class)->clearCache();
-
     $source = new AmazonSource([
         'client_id' => 'per_source_client_id',
         'client_secret' => 'per_source_client_secret',
@@ -439,9 +457,6 @@ it('validates when per-source client_id and client_secret are present without te
 });
 
 it('fails validation when only per-source client_id but no client_secret and no tenant credentials', function (): void {
-    Setting::where('group', 'amazon')->delete();
-    app(SettingsService::class)->clearCache();
-
     $source = new AmazonSource([
         'client_id' => 'per_source_client_id',
         'refresh_token' => 'per_source_refresh_token',
@@ -450,8 +465,7 @@ it('fails validation when only per-source client_id but no client_secret and no 
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
-    // hasOwnCredentials is false (client_secret absent), so falls through to global check.
-    // Global client_id is also absent → "client ID" error fires first.
+    // client_secret is absent, so the source has no usable credentials.
     expect(fn () => $source->validateConfiguration())
-        ->toThrow(InvalidArgumentException::class, 'client ID');
+        ->toThrow(InvalidArgumentException::class, 'client credentials');
 });

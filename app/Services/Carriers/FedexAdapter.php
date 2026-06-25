@@ -59,8 +59,7 @@ class FedexAdapter implements CarrierAdapterInterface
 
     private function resolveAccountNumber(): ?string
     {
-        return $this->currentAccount?->credential('account_number')
-            ?? app(SettingsService::class)->get('fedex.account_number');
+        return $this->currentAccount?->credential('account_number');
     }
 
     public function serviceCapability(string $serviceCode): ServiceCapability
@@ -108,6 +107,14 @@ class FedexAdapter implements CarrierAdapterInterface
         'FEDEX_2_DAY' => 4,          // Thursday → Saturday (2-day)
         'EXPRESS_SAVER' => 3,        // Wednesday → Saturday (3-day)
     ];
+
+    /**
+     * @return array<int|string, int>
+     */
+    protected function saturdayDeliveryDayMap(): array
+    {
+        return self::SATURDAY_DELIVERY_DAY_MAP;
+    }
 
     private const SMART_POST_SERVICE_CODE = 'SMART_POST';
 
@@ -626,6 +633,7 @@ class FedexAdapter implements CarrierAdapterInterface
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
                 appliedServices: $appliedServices,
+                carrierAccountId: $this->currentAccount?->id,
             );
         } catch (\Exception $e) {
             logger()->error('FedEx createShipment error', [
@@ -823,16 +831,14 @@ class FedexAdapter implements CarrierAdapterInterface
 
     public function isConfigured(): bool
     {
-        $settings = app(SettingsService::class);
         $carrierId = Carrier::where('name', 'FedEx')->value('id');
 
-        if ($carrierId && CarrierAccount::active()->where('carrier_id', $carrierId)->exists()) {
-            return true;
-        }
-
-        return filled($settings->get('fedex.api_key'))
-            && filled($settings->get('fedex.api_secret'))
-            && filled($settings->get('fedex.account_number'));
+        return $carrierId !== null
+            && CarrierAccount::active()
+                ->where('carrier_id', $carrierId)
+                ->with('carrier')
+                ->get()
+                ->contains(fn (CarrierAccount $account): bool => $account->hasUsableCredentials());
     }
 
     public function supportsMultiPackage(): bool

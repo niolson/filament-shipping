@@ -25,7 +25,6 @@ use App\Models\CarrierAccount;
 use App\Models\Package;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\Carriers\Concerns\HasSaturdayDelivery;
-use App\Services\SettingsService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
@@ -56,8 +55,7 @@ class UpsAdapter implements CarrierAdapterInterface
 
     private function resolveAccountNumber(): ?string
     {
-        return $this->currentAccount?->credential('account_number')
-            ?? app(SettingsService::class)->get('ups.account_number');
+        return $this->currentAccount?->credential('account_number');
     }
 
     public function serviceCapability(string $serviceCode): ServiceCapability
@@ -97,6 +95,14 @@ class UpsAdapter implements CarrierAdapterInterface
         '02' => 4,  // 2nd Day Air — Thursday → Saturday
         '12' => 3,  // 3 Day Select — Wednesday → Saturday
     ];
+
+    /**
+     * @return array<int|string, int>
+     */
+    protected function saturdayDeliveryDayMap(): array
+    {
+        return self::SATURDAY_DELIVERY_DAY_MAP;
+    }
 
     public function getCarrierName(): string
     {
@@ -599,6 +605,7 @@ class UpsAdapter implements CarrierAdapterInterface
                 labelFormat: $isZpl ? 'zpl' : 'image',
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
+                carrierAccountId: $this->currentAccount?->id,
             );
         } catch (\Exception $e) {
             logger()->error('UPS createShipment error', [
@@ -646,16 +653,14 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function isConfigured(): bool
     {
-        $settings = app(SettingsService::class);
         $carrierId = Carrier::where('name', 'UPS')->value('id');
 
-        if ($carrierId && CarrierAccount::active()->where('carrier_id', $carrierId)->exists()) {
-            return true;
-        }
-
-        return filled($settings->get('ups.client_id'))
-            && filled($settings->get('ups.client_secret'))
-            && filled($settings->get('ups.account_number'));
+        return $carrierId !== null
+            && CarrierAccount::active()
+                ->where('carrier_id', $carrierId)
+                ->with('carrier')
+                ->get()
+                ->contains(fn (CarrierAccount $account): bool => $account->hasUsableCredentials());
     }
 
     public function supportsMultiPackage(): bool

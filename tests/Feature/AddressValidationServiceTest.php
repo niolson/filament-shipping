@@ -2,6 +2,7 @@
 
 use App\Enums\Deliverability;
 use App\Http\Integrations\USPS\Requests\Address;
+use App\Models\CarrierAccount;
 use App\Models\Shipment;
 use App\Services\AddressValidationService;
 use Saloon\Http\Faking\MockResponse;
@@ -9,6 +10,7 @@ use Saloon\Laravel\Facades\Saloon;
 
 beforeEach(function (): void {
     $this->service = app(AddressValidationService::class);
+    createUspsAccount();
 });
 
 // Scenario 1: Not checked (non-US address is skipped)
@@ -254,6 +256,46 @@ it('leaves shipment unchecked on server error', function (): void {
     $shipment->refresh();
     expect($shipment->deliverability)->toBe(Deliverability::NotChecked)
         ->and($shipment->validation_message)->toBeNull()
+        ->and($shipment->checked)->toBeFalse();
+});
+
+// Regression: the validator authenticates with the resolved CarrierAccount's client
+// credentials (the demo.polybag.app 500 happened when it used empty global settings).
+it('authenticates with the resolved carrier account credentials', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Address::class => MockResponse::make([
+            'matches' => [['code' => '31']],
+            'address' => [
+                'streetAddress' => '1600 PENNSYLVANIA AVE NW',
+                'city' => 'WASHINGTON',
+                'state' => 'DC',
+                'ZIPCode' => '20500',
+            ],
+            'additionalInfo' => ['DPVConfirmation' => 'Y', 'business' => 'N'],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    $this->service->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->deliverability)->toBe(Deliverability::Yes)
+        ->and($shipment->checked)->toBeTrue();
+});
+
+// Regression: with no USPS carrier account configured, validation must skip gracefully
+// rather than bubble an OAuthConfigValidationException up into a 500 error page.
+it('skips gracefully when no USPS carrier account is configured', function (): void {
+    CarrierAccount::query()->delete();
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    $this->service->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->deliverability)->toBe(Deliverability::NotChecked)
         ->and($shipment->checked)->toBeFalse();
 });
 

@@ -6,7 +6,6 @@ use App\Contracts\DataSourceInterface;
 use App\Contracts\ExportDestinationInterface;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Http\Integrations\Shopify\ShopifyConnector;
-use App\Services\SettingsService;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use RuntimeException;
@@ -74,28 +73,17 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
 
     public function validateConfiguration(): void
     {
-        $shopDomain = filled($this->config['shop_domain'] ?? null)
-            ? $this->config['shop_domain']
-            : app(SettingsService::class)->get('shopify.shop_domain');
-
-        if (empty($shopDomain)) {
-            throw new InvalidArgumentException('Shopify shop domain is not configured (SHOPIFY_SHOP_DOMAIN).');
+        if (empty($this->config['shop_domain'] ?? null)) {
+            throw new InvalidArgumentException('Shopify shop domain is not configured for this source.');
         }
 
-        // Skip tenant-level credential check when the source has its own token or app credentials.
         $hasOwnToken = filled($this->config['access_token'] ?? null)
             || filled($this->config['oauth_access_token'] ?? null);
         $hasOwnCredentials = filled($this->config['client_id'] ?? null)
             && filled($this->config['client_secret'] ?? null);
 
         if (! $hasOwnToken && ! $hasOwnCredentials) {
-            if (empty(app(SettingsService::class)->get('shopify.client_id'))) {
-                throw new InvalidArgumentException('Shopify client ID is not configured (SHOPIFY_CLIENT_ID).');
-            }
-
-            if (empty(app(SettingsService::class)->get('shopify.client_secret'))) {
-                throw new InvalidArgumentException('Shopify client secret is not configured (SHOPIFY_CLIENT_SECRET).');
-            }
+            throw new InvalidArgumentException('Shopify API credentials are not configured for this source.');
         }
 
         if (empty($this->config['channel_name'])) {
@@ -225,10 +213,13 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
 
     public function validateExportConfiguration(): void
     {
-        if (empty(app(SettingsService::class)->get('shopify.shop_domain'))
-            || empty(app(SettingsService::class)->get('shopify.client_id'))
-            || empty(app(SettingsService::class)->get('shopify.client_secret'))) {
-            throw new InvalidArgumentException('Shopify credentials are not configured.');
+        $hasToken = filled($this->config['access_token'] ?? null)
+            || filled($this->config['oauth_access_token'] ?? null);
+        $hasCredentials = filled($this->config['client_id'] ?? null)
+            && filled($this->config['client_secret'] ?? null);
+
+        if (empty($this->config['shop_domain'] ?? null) || (! $hasToken && ! $hasCredentials)) {
+            throw new InvalidArgumentException('Shopify credentials are not configured for this source.');
         }
     }
 

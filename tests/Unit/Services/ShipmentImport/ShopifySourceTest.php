@@ -1,8 +1,6 @@
 <?php
 
 use App\Http\Integrations\Shopify\Requests\GraphQL;
-use App\Models\Setting;
-use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use Illuminate\Support\Facades\Cache;
 use Saloon\Http\Faking\MockResponse;
@@ -14,6 +12,9 @@ function shopifyConfig(array $overrides = []): array
         'driver' => ShopifySource::class,
         'enabled' => true,
         'channel_name' => 'Shopify',
+        'shop_domain' => 'test-shop.myshopify.com',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
         'shipping_method' => null,
         'notify_customer' => false,
         'export' => [
@@ -89,40 +90,25 @@ function mockShopifyOrders(array $nodes, bool $hasNextPage = false, ?string $end
 }
 
 beforeEach(function (): void {
-    Setting::updateOrCreate(['key' => 'shopify.shop_domain'], ['value' => 'test-shop.myshopify.com', 'type' => 'string', 'group' => 'shopify']);
-    Setting::updateOrCreate(['key' => 'shopify.client_id'], ['value' => 'test-client-id', 'type' => 'string', 'group' => 'shopify']);
-    Setting::updateOrCreate(['key' => 'shopify.client_secret'], ['value' => 'test-client-secret', 'type' => 'string', 'group' => 'shopify']);
-    Setting::updateOrCreate(['key' => 'shopify.api_version'], ['value' => '2025-01', 'type' => 'string', 'group' => 'shopify']);
-    app(SettingsService::class)->clearCache();
-
     // Pre-seed cached token so the connector doesn't make a real HTTP call.
     // Key format: shopify_access_token_ + md5(shop_domain)
     Cache::put('shopify_access_token_'.md5('test-shop.myshopify.com'), 'shpat_test_token', 3600);
 });
 
 it('throws when shop domain is not configured', function (): void {
-    Setting::where('key', 'shopify.shop_domain')->delete();
-    app(SettingsService::class)->clearCache();
-
-    $source = new ShopifySource(shopifyConfig());
+    $source = new ShopifySource(shopifyConfig(['shop_domain' => null]));
     $source->validateConfiguration();
 })->throws(InvalidArgumentException::class, 'shop domain');
 
 it('throws when client id is not configured', function (): void {
-    Setting::where('key', 'shopify.client_id')->delete();
-    app(SettingsService::class)->clearCache();
-
-    $source = new ShopifySource(shopifyConfig());
+    $source = new ShopifySource(shopifyConfig(['client_id' => null]));
     $source->validateConfiguration();
-})->throws(InvalidArgumentException::class, 'client ID');
+})->throws(InvalidArgumentException::class, 'credentials are not configured');
 
 it('throws when client secret is not configured', function (): void {
-    Setting::where('key', 'shopify.client_secret')->delete();
-    app(SettingsService::class)->clearCache();
-
-    $source = new ShopifySource(shopifyConfig());
+    $source = new ShopifySource(shopifyConfig(['client_secret' => null]));
     $source->validateConfiguration();
-})->throws(InvalidArgumentException::class, 'client secret');
+})->throws(InvalidArgumentException::class, 'credentials are not configured');
 
 it('throws when channel name is not configured', function (): void {
     $source = new ShopifySource(shopifyConfig(['channel_name' => null]));

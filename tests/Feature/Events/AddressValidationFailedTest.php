@@ -8,6 +8,10 @@ use Illuminate\Support\Facades\Event;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
+beforeEach(function (): void {
+    createUspsAccount();
+});
+
 it('dispatches AddressValidationFailed on API error', function (): void {
     Event::fake([AddressValidationFailed::class]);
 

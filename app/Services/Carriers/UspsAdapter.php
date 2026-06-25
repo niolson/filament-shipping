@@ -26,7 +26,6 @@ use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Package;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
-use App\Services\SettingsService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -75,10 +74,9 @@ class UspsAdapter implements CarrierAdapterInterface
             return collect();
         }
 
-        $connector = USPSConnector::getAuthenticatedConnector(
-            $this->resolveAccount($request->locationId, $request->clientId)
-        );
-        $apiRequest = $this->buildRateApiRequest($request);
+        $account = $this->resolveAccount($request->locationId, $request->clientId);
+        $connector = USPSConnector::getAuthenticatedConnector($account);
+        $apiRequest = $this->buildRateApiRequest($request, $account);
 
         try {
             $response = $connector->send($apiRequest);
@@ -86,7 +84,7 @@ class UspsAdapter implements CarrierAdapterInterface
             if ($this->getPricingType() === 'CONTRACT') {
                 logger()->warning('USPS CONTRACT pricing returned 403 — falling back to RETAIL and retrying');
                 Cache::put(self::PRICING_TYPE_CACHE_KEY, 'RETAIL', now()->addDays(7));
-                $apiRequest = $this->buildRateApiRequest($request);
+                $apiRequest = $this->buildRateApiRequest($request, $account);
                 $response = $connector->send($apiRequest);
             } else {
                 throw $e;
@@ -102,10 +100,9 @@ class UspsAdapter implements CarrierAdapterInterface
             return null;
         }
 
-        $connector = USPSConnector::getAuthenticatedConnector(
-            $this->resolveAccount($request->locationId, $request->clientId)
-        );
-        $apiRequest = $this->buildRateApiRequest($request);
+        $account = $this->resolveAccount($request->locationId, $request->clientId);
+        $connector = USPSConnector::getAuthenticatedConnector($account);
+        $apiRequest = $this->buildRateApiRequest($request, $account);
         $pendingRequest = $connector->createPendingRequest($apiRequest);
 
         return new PreparedRateRequest(
@@ -182,7 +179,7 @@ class UspsAdapter implements CarrierAdapterInterface
     /**
      * Build the USPS rate API request.
      */
-    private function buildRateApiRequest(RateRequest $request): ShippingOptions
+    private function buildRateApiRequest(RateRequest $request, ?CarrierAccount $account = null): ShippingOptions
     {
         $package = $request->packages[0];
         $isInternational = $request->destinationCountry !== 'US';
@@ -191,10 +188,9 @@ class UspsAdapter implements CarrierAdapterInterface
         $pricingOption = ['priceType' => $pricingType];
 
         if ($pricingType === 'CONTRACT') {
-            $settings = app(SettingsService::class);
             $pricingOption['paymentAccount'] = [
                 'accountType' => 'EPS',
-                'accountNumber' => $settings->get('usps.eps_account', $settings->get('usps.crid')),
+                'accountNumber' => $account?->credential('eps_account') ?? $account?->credential('crid'),
             ];
         }
 
@@ -425,6 +421,7 @@ class UspsAdapter implements CarrierAdapterInterface
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
                 appliedServices: $request->saturdayDelivery ? ['saturday_delivery'] : [],
+                carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
             logger()->error('USPS createDomesticShipment error', [
@@ -531,6 +528,7 @@ class UspsAdapter implements CarrierAdapterInterface
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
                 appliedServices: $request->saturdayDelivery ? ['saturday_delivery'] : [],
+                carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
             logger()->error('USPS createInternationalShipment error', [
@@ -618,15 +616,12 @@ class UspsAdapter implements CarrierAdapterInterface
     {
         $carrierId = Carrier::where('name', 'USPS')->value('id');
 
-        if ($carrierId && CarrierAccount::active()->where('carrier_id', $carrierId)->exists()) {
-            return true;
-        }
-
-        $settings = app(SettingsService::class);
-
-        return filled($settings->get('usps.client_id'))
-            && filled($settings->get('usps.client_secret'))
-            && filled($settings->get('usps.crid'));
+        return $carrierId !== null
+            && CarrierAccount::active()
+                ->where('carrier_id', $carrierId)
+                ->with('carrier')
+                ->get()
+                ->contains(fn (CarrierAccount $account): bool => $account->hasUsableCredentials());
     }
 
     public function supportsMultiPackage(): bool

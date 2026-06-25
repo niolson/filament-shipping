@@ -6,6 +6,7 @@ use App\Enums\TrackingStatus;
 use App\Exceptions\Carriers\CarrierRateFetchException;
 use App\Http\Integrations\Ups\Requests\Rate;
 use App\Http\Integrations\Ups\Requests\TrackShipment;
+use App\Models\CarrierAccount;
 use App\Models\Package;
 use App\Services\Carriers\UpsAdapter;
 use Saloon\Exceptions\Request\RequestException;
@@ -14,6 +15,19 @@ use Saloon\Laravel\Facades\Saloon;
 
 beforeEach(function (): void {
     $this->adapter = new UpsAdapter;
+    createUpsAccount();
+});
+
+it('returns false when only an empty active account exists', function (): void {
+    $carrierId = CarrierAccount::query()->firstOrFail()->carrier_id;
+    CarrierAccount::query()->delete();
+    CarrierAccount::factory()->create([
+        'carrier_id' => $carrierId,
+        'credentials' => null,
+        'secret_credentials' => null,
+    ]);
+
+    expect($this->adapter->isConfigured())->toBeFalse();
 });
 
 it('supports tracking', function (): void {

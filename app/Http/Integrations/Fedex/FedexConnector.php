@@ -86,18 +86,15 @@ class FedexConnector extends Connector
 
     private function resolveAuthenticatorCacheKey(): string
     {
-        $settings = app(SettingsService::class);
-        $childKey = $this->carrierAccount?->secret('child_key') ?? $settings->get('fedex.child_key');
+        $childKey = $this->carrierAccount?->secret('child_key');
 
         if (filled($childKey)) {
-            $env = $this->carrierAccount
-                ? ($this->carrierAccount->credential('child_env') ?? 'production')
-                : $settings->get('fedex.child_env', 'production');
+            $env = $this->carrierAccount->credential('child_env') ?? 'production';
 
             return 'fedex_authenticator_child_'.$env.'_'.hash('sha256', $childKey);
         }
 
-        $isSandbox = (bool) $settings->get('sandbox_mode', false);
+        $isSandbox = (bool) app(SettingsService::class)->get('sandbox_mode', false);
 
         return $isSandbox ? 'fedex_authenticator_sandbox' : 'fedex_authenticator';
     }
@@ -143,14 +140,11 @@ class FedexConnector extends Connector
 
     public function resolveBaseUrl(): string
     {
-        $settings = app(SettingsService::class);
-        $childKey = $this->carrierAccount?->secret('child_key') ?? $settings->get('fedex.child_key');
+        $childKey = $this->carrierAccount?->secret('child_key');
 
         $isSandbox = filled($childKey)
-            ? ($this->carrierAccount
-                ? $this->carrierAccount->credential('child_env') === 'sandbox'
-                : $settings->get('fedex.child_env') === 'sandbox')
-            : (bool) $settings->get('sandbox_mode', false);
+            ? $this->carrierAccount->credential('child_env') === 'sandbox'
+            : (bool) app(SettingsService::class)->get('sandbox_mode', false);
 
         return $isSandbox
             ? config('services.fedex.sandbox_url', 'https://apis-sandbox.fedex.com')
@@ -177,8 +171,7 @@ class FedexConnector extends Connector
         bool $returnResponse = false,
         ?callable $requestModifier = null,
     ): OAuthAuthenticator|Response {
-        $settings = app(SettingsService::class);
-        $childKey = $this->carrierAccount?->secret('child_key') ?? $settings->get('fedex.child_key');
+        $childKey = $this->carrierAccount?->secret('child_key');
 
         if (filled($childKey)) {
             // Child credentials (OAuth-provisioned) require the broker — it holds the parent
@@ -188,10 +181,10 @@ class FedexConnector extends Connector
                 && filled(config('services.oauth.broker_secret'));
 
             if ($hasBroker) {
-                return $this->getBrokeredChildAccessToken($settings, $childKey);
+                return $this->getBrokeredChildAccessToken($childKey);
             }
 
-            return $this->getDirectChildAccessToken($settings, $childKey);
+            return $this->getDirectChildAccessToken($childKey);
         }
 
         $requestedScopes = $scopes === [] ? $this->oauthConfig()->getDefaultScopes() : $scopes;
@@ -221,16 +214,7 @@ class FedexConnector extends Connector
 
     protected static function getAuthenticatorCacheKey(): string
     {
-        $settings = app(SettingsService::class);
-        $childKey = $settings->get('fedex.child_key');
-
-        if (filled($childKey)) {
-            $env = $settings->get('fedex.child_env', 'production');
-
-            return 'fedex_authenticator_child_'.$env.'_'.hash('sha256', $childKey);
-        }
-
-        $isSandbox = (bool) $settings->get('sandbox_mode', false);
+        $isSandbox = (bool) app(SettingsService::class)->get('sandbox_mode', false);
 
         return $isSandbox ? 'fedex_authenticator_sandbox' : 'fedex_authenticator';
     }
@@ -300,12 +284,10 @@ class FedexConnector extends Connector
         return self::getAuthenticatedConnector();
     }
 
-    private function getBrokeredChildAccessToken(SettingsService $settings, string $childKey): OAuthAuthenticator
+    private function getBrokeredChildAccessToken(string $childKey): OAuthAuthenticator
     {
-        $childSecret = $this->carrierAccount?->secret('child_secret') ?? $settings->get('fedex.child_secret');
-        $childEnv = $this->carrierAccount
-            ? $this->carrierAccount->credential('child_env')
-            : $settings->get('fedex.child_env');
+        $childSecret = $this->carrierAccount?->secret('child_secret');
+        $childEnv = $this->carrierAccount?->credential('child_env');
         $isSandbox = $childEnv === 'sandbox';
         $brokerUrl = rtrim(config('services.oauth.broker_url'), '/');
         $proxyPath = '/fedex/token';
@@ -348,9 +330,9 @@ class FedexConnector extends Connector
         return new AccessTokenAuthenticator($data['access_token'], null, $expiresAt);
     }
 
-    private function getDirectChildAccessToken(SettingsService $settings, string $childKey): OAuthAuthenticator
+    private function getDirectChildAccessToken(string $childKey): OAuthAuthenticator
     {
-        $childSecret = $this->carrierAccount?->secret('child_secret') ?? $settings->get('fedex.child_secret');
+        $childSecret = $this->carrierAccount?->secret('child_secret');
         ['clientId' => $clientId, 'clientSecret' => $clientSecret] = $this->getParentCredentials();
         $uri = rtrim($this->resolveBaseUrl(), '/').'/oauth/token';
 
@@ -417,26 +399,23 @@ class FedexConnector extends Connector
      */
     private function getParentCredentials(): array
     {
-        $settings = app(SettingsService::class);
-        $childKey = $this->carrierAccount?->secret('child_key') ?? $settings->get('fedex.child_key');
-        $childEnv = $this->carrierAccount
-            ? $this->carrierAccount->credential('child_env')
-            : $settings->get('fedex.child_env');
+        $childKey = $this->carrierAccount?->secret('child_key');
+        $childEnv = $this->carrierAccount?->credential('child_env');
 
         $isSandbox = filled($childKey)
             ? $childEnv === 'sandbox'
-            : (bool) $settings->get('sandbox_mode', false);
+            : (bool) app(SettingsService::class)->get('sandbox_mode', false);
 
         if ($isSandbox) {
             return [
-                'clientId' => (string) ($this->carrierAccount?->secret('sandbox_api_key') ?? $settings->get('fedex.sandbox_api_key') ?? config('services.fedex.sandbox_api_key', '')),
-                'clientSecret' => (string) ($this->carrierAccount?->secret('sandbox_api_secret') ?? $settings->get('fedex.sandbox_api_secret') ?? config('services.fedex.sandbox_api_secret', '')),
+                'clientId' => (string) ($this->carrierAccount?->secret('sandbox_api_key') ?? ''),
+                'clientSecret' => (string) ($this->carrierAccount?->secret('sandbox_api_secret') ?? ''),
             ];
         }
 
         return [
-            'clientId' => (string) ($this->carrierAccount?->secret('api_key') ?? $settings->get('fedex.api_key') ?? config('services.fedex.api_key', '')),
-            'clientSecret' => (string) ($this->carrierAccount?->secret('api_secret') ?? $settings->get('fedex.api_secret') ?? config('services.fedex.api_secret', '')),
+            'clientId' => (string) ($this->carrierAccount?->secret('api_key') ?? ''),
+            'clientSecret' => (string) ($this->carrierAccount?->secret('api_secret') ?? ''),
         ];
     }
 }

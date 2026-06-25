@@ -463,12 +463,12 @@ it('logs child authorization artifacts when brokered child credentials request a
         'services.oauth.broker_secret' => 'broker-secret',
     ]);
 
-    Setting::create(['key' => 'fedex.child_key', 'value' => 'child-key-123', 'type' => 'string', 'encrypted' => true, 'group' => 'fedex']);
-    Setting::create(['key' => 'fedex.child_secret', 'value' => 'child-secret-456', 'type' => 'string', 'encrypted' => true, 'group' => 'fedex']);
-    Setting::create(['key' => 'fedex.child_env', 'value' => 'production', 'type' => 'string', 'group' => 'fedex']);
-    app(SettingsService::class)->clearCache();
+    $account = createFedexAccount(
+        ['child_key' => 'child-key-123', 'child_secret' => 'child-secret-456'],
+        ['child_env' => 'production'],
+    );
 
-    $authenticator = (new FedexConnector)->getAccessToken();
+    $authenticator = FedexConnector::forAccount($account)->getAccessToken();
 
     expect($authenticator->getAccessToken())->toBe('child-access-token');
 
@@ -503,12 +503,19 @@ it('uses direct child authorization when broker mode is disabled', function (): 
     ]);
 
     Setting::create(['key' => 'sandbox_mode', 'value' => '1', 'type' => 'boolean', 'group' => 'testing']);
-    Setting::create(['key' => 'fedex.child_key', 'value' => 'child-key-123', 'type' => 'string', 'encrypted' => true, 'group' => 'fedex']);
-    Setting::create(['key' => 'fedex.child_secret', 'value' => 'child-secret-456', 'type' => 'string', 'encrypted' => true, 'group' => 'fedex']);
-    Setting::create(['key' => 'fedex.child_env', 'value' => 'sandbox', 'type' => 'string', 'group' => 'fedex']);
     app(SettingsService::class)->clearCache();
 
-    $authenticator = (new FedexConnector)->getAccessToken();
+    $account = createFedexAccount(
+        [
+            'child_key' => 'child-key-123',
+            'child_secret' => 'child-secret-456',
+            'sandbox_api_key' => 'parent-sandbox-key',
+            'sandbox_api_secret' => 'parent-sandbox-secret',
+        ],
+        ['child_env' => 'sandbox'],
+    );
+
+    $authenticator = FedexConnector::forAccount($account)->getAccessToken();
 
     expect($authenticator->getAccessToken())->toBe('child-access-token');
 

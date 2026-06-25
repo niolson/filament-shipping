@@ -1,12 +1,48 @@
 <?php
 
 use App\Enums\PackageStatus;
+use App\Http\Integrations\USPS\Requests\ScanForm;
+use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\Manifest;
 use App\Models\Package;
 use App\Services\ManifestService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use Saloon\Http\Faking\MockResponse;
+use Saloon\Laravel\Facades\Saloon;
 
 uses(RefreshDatabase::class);
+
+function fakeUspsScanForm(array $carrierAccountIds): void
+{
+    $boundary = 'test-boundary';
+    $jsonPart = json_encode(['manifestNumber' => 'MN12345', 'trackingNumbers' => ['9400111']]);
+    $pdfPart = base64_encode('fake-manifest-pdf');
+
+    $multipartBody = "--{$boundary}\r\n"
+        ."Content-Type: application/json\r\n\r\n{$jsonPart}\r\n"
+        ."--{$boundary}\r\n"
+        ."Content-Type: application/pdf\r\n\r\n{$pdfPart}\r\n"
+        ."--{$boundary}--";
+
+    // Pre-cache a fake authenticator per account so no OAuth request is made.
+    foreach ($carrierAccountIds as $id) {
+        Cache::put("usps_authenticator:{$id}", [
+            'access_token' => 'fake-test-token',
+            'refresh_token' => null,
+            'expires_at' => (new DateTimeImmutable('+1 hour'))->getTimestamp(),
+        ], 3600);
+    }
+
+    Saloon::fake([
+        ScanForm::class => MockResponse::make(
+            body: $multipartBody,
+            status: 200,
+            headers: ['Content-Type' => "multipart/mixed; boundary={$boundary}"],
+        ),
+    ]);
+}
 
 it('returns unmanifested packages grouped by carrier', function (): void {
     Package::factory()->shipped()->create(['carrier' => 'USPS', 'tracking_number' => '9400111']);
@@ -79,4 +115,56 @@ it('returns failure for FedEx manifest stub', function (): void {
 
     expect($result->success)->toBeFalse()
         ->and($result->errorMessage)->toContain('not yet implemented');
+});
+
+it('creates a separate USPS SCAN form per purchasing carrier account', function (): void {
+    // The manifest resolves each package's stored purchasing account directly, so the
+    // accounts need credentials but no scopes (avoiding the global-scope unique index).
+    $carrier = Carrier::firstOrCreate(['name' => 'USPS']);
+    $makeAccount = fn (): CarrierAccount => CarrierAccount::create([
+        'carrier_id' => $carrier->id,
+        'name' => 'USPS '.fake()->unique()->numerify('Account-####'),
+        'active' => true,
+        'credentials' => ['crid' => 'test_crid'],
+        'secret_credentials' => ['client_id' => 'test_client_id', 'client_secret' => 'test_client_secret'],
+    ]);
+
+    $accountA = $makeAccount();
+    $accountB = $makeAccount();
+
+    $packageA = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_number' => '9400111111111111111111',
+        'carrier_account_id' => $accountA->id,
+    ]);
+    $packageB = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_number' => '9400222222222222222222',
+        'carrier_account_id' => $accountB->id,
+    ]);
+
+    fakeUspsScanForm([$accountA->id, $accountB->id]);
+
+    $result = app(ManifestService::class)->createManifest('USPS', collect([$packageA, $packageB]));
+
+    expect($result->success)->toBeTrue();
+
+    // One SCAN form request per purchasing account (authenticators are cached, so
+    // the only requests sent are the two ScanForm calls).
+    Saloon::assertSentCount(2);
+    Saloon::assertSent(ScanForm::class);
+});
+
+it('fails the USPS manifest when a package has no resolvable carrier account', function (): void {
+    // Shipped package with no stored account and no carrier account configured to resolve.
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_number' => '9400333333333333333333',
+        'carrier_account_id' => null,
+    ]);
+
+    $result = app(ManifestService::class)->createManifest('USPS', collect([$package]));
+
+    expect($result->success)->toBeFalse()
+        ->and($result->errorMessage)->toContain('No USPS carrier account could be resolved');
 });

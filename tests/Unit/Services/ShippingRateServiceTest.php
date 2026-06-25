@@ -26,6 +26,11 @@ use Saloon\Laravel\Facades\Saloon;
 beforeEach(function (): void {
     $this->uspsCarrier = Carrier::factory()->usps()->create();
     $this->fedexCarrier = Carrier::factory()->fedex()->create();
+
+    // Credentials live on CarrierAccount now; configure both carriers so the
+    // adapters resolve credentials and report isConfigured().
+    createUspsAccount();
+    createFedexAccount();
 });
 
 afterEach(function (): void {

@@ -20,7 +20,7 @@ beforeEach(function (): void {
     $this->actingAs(User::factory()->admin()->create());
 });
 
-function fakeUspsManifestResponse(): void
+function fakeUspsManifestResponse(int $carrierAccountId): void
 {
     $boundary = 'test-boundary';
     $jsonPart = json_encode(['manifestNumber' => 'MN12345', 'trackingNumbers' => ['9400111']]);
@@ -37,7 +37,7 @@ function fakeUspsManifestResponse(): void
         ."--{$boundary}--";
 
     // Pre-cache a fake authenticator so no OAuth request is made
-    Cache::put('usps_authenticator', [
+    Cache::put("usps_authenticator:{$carrierAccountId}", [
         'access_token' => 'fake-test-token',
         'refresh_token' => null,
         'expires_at' => (new DateTimeImmutable('+1 hour'))->getTimestamp(),
@@ -53,12 +53,15 @@ function fakeUspsManifestResponse(): void
 }
 
 it('generateManifest creates manifest and dispatches print event', function (): void {
+    $account = createUspsAccount();
+
     Package::factory()->shipped()->create([
         'carrier' => 'USPS',
+        'carrier_account_id' => $account->id,
         'tracking_number' => '9400111899223456789012',
     ]);
 
-    fakeUspsManifestResponse();
+    fakeUspsManifestResponse($account->id);
 
     Livewire::test(EndOfDay::class)
         ->call('generateManifest', 'USPS')
@@ -88,13 +91,15 @@ it('generateManifest shows warning when no packages for carrier', function (): v
 it('generateManifest suppresses printing when suppress_printing setting is true', function (): void {
     Setting::create(['key' => 'suppress_printing', 'value' => '1', 'type' => 'boolean', 'group' => 'testing']);
     app(SettingsService::class)->clearCache();
+    $account = createUspsAccount();
 
     Package::factory()->shipped()->create([
         'carrier' => 'USPS',
+        'carrier_account_id' => $account->id,
         'tracking_number' => '9400111899223456789012',
     ]);
 
-    fakeUspsManifestResponse();
+    fakeUspsManifestResponse($account->id);
 
     Livewire::test(EndOfDay::class)
         ->call('generateManifest', 'USPS')
