@@ -28,6 +28,10 @@
 		# bypass — Caddy rejects any TLS client that doesn't present a cert
 		# chaining to OUR uploaded CA. The one-click AOP toggle uses a
 		# Cloudflare-wide cert and does NOT do this; we require our own.
+		#
+		# FIRST INSTALL: comment this whole client_auth block out until
+		# Cloudflare is actually presenting the cert (README steps 5–6).
+		# Enabling it too early rejects ALL traffic = outage for every tenant.
 		client_auth {
 			mode require_and_verify
 			# Caddy 2.8+ syntax:
