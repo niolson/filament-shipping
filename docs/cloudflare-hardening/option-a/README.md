@@ -14,11 +14,19 @@ Cloudflare AND only when Cloudflare presents our Authenticated-Origin-Pulls cert
 The firewall lockdown (step 9) is the other lock-yourself-out step, so it's near
 the end. Every risky step below has a one-line rollback.
 
+> **Marketing site:** `polybag.app` and `www.polybag.app` are served by Cloudflare
+> Pages, not this origin. Leave those DNS records exactly as they are — they're
+> separate from the `*.polybag.app` wildcard, and a specific record always wins
+> over the wildcard, so nothing here touches them. Pages is served internally by
+> Cloudflare, so the origin firewall, Origin CA cert, and AOP never apply to it;
+> only `Full (Strict)` (zone-wide) reaches it, and that's safe for Pages.
+
 ## 0. Prereqs (one-time cert material)
 
 **Origin CA cert** (lets Cloudflare trust the origin under Full (Strict)):
 - CF dashboard → SSL/TLS → Origin Server → Create Certificate
-- Hostnames: `*.polybag.app` and `polybag.app`
+- Hostnames: `*.polybag.app` (apex `polybag.app` is the Pages marketing site and
+  never served by Caddy, so its SAN is optional future-proofing only)
 - Save cert → `/opt/caddy/certs/origin.pem`, key → `/opt/caddy/certs/origin.key`
 - Note: an Origin CA cert is trusted by Cloudflare only, **not** browsers — so
   don't leave a hostname grey-clouded with this cert live for long (step 2 → 4).
@@ -130,8 +138,10 @@ Rollback: re-comment `client_auth` and reload.
 
 ## 7. Go wide
 
-Flip the wildcard `*.polybag.app` (and apex if proxied) to **Proxied**. Re-verify
-a couple of other tenants load and show real `client_ip`s.
+Flip the wildcard `*.polybag.app` (and any app-specific subdomain records) to
+**Proxied**. Leave the `polybag.app` / `www.polybag.app` Pages records alone —
+they serve marketing, not the origin. Re-verify a couple of tenants load and show
+real `client_ip`s, and confirm the marketing site still loads.
 
 ## 8. fail2ban
 
