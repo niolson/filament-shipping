@@ -353,6 +353,7 @@ info "Adding Caddy route for ${DOMAIN}..."
 cat >> "${CADDY_DIR}/Caddyfile" << EOF
 
 ${DOMAIN} {
+    import cf_origin
     reverse_proxy ${TENANT}-nginx-1:80
 }
 EOF
@@ -360,6 +361,52 @@ EOF
 info "Reloading Caddy..."
 docker compose -f "${CADDY_DIR}/docker-compose.yml" exec caddy caddy reload --config /etc/caddy/Caddyfile
 ok "Caddy reloaded."
+
+# --- Enable per-hostname Authenticated Origin Pulls (Cloudflare) -------------
+# Only relevant for Cloudflare-fronted polybag.app tenants. Skipped if AOP isn't
+# configured, so standalone/on-prem and custom-domain provisioning are untouched.
+CF_API_TOKEN=$(grep '^CF_API_TOKEN=' "${SHARED_DIR}/shared-secrets.env" 2>/dev/null | cut -d= -f2- || true)
+CF_ZONE_ID=$(grep '^CF_ZONE_ID=' "${SHARED_DIR}/shared-secrets.env" 2>/dev/null | cut -d= -f2- || true)
+AOP_CERT_ID=$(grep '^AOP_CERT_ID=' "${SHARED_DIR}/shared-secrets.env" 2>/dev/null | cut -d= -f2- || true)
+
+if [[ "${MODE}" == "shared" && -n "${CF_API_TOKEN}" && -n "${CF_ZONE_ID}" && -n "${AOP_CERT_ID}" ]]; then
+    info "Enabling Authenticated Origin Pulls for ${DOMAIN}..."
+
+    # Rebuild the FULL set of *.polybag.app hostnames from the Caddyfile and PUT
+    # it whole: correct whether Cloudflare's PUT replaces or merges associations,
+    # and a re-run self-heals. Custom-domain tenants are in other zones, excluded.
+    mapfile -t AOP_HOSTS < <(
+        grep -oE '^[a-z0-9][a-z0-9.-]*\.polybag\.app' "${CADDY_DIR}/Caddyfile" | sort -u
+    )
+
+    if [[ "${#AOP_HOSTS[@]}" -eq 0 ]]; then
+        error "No polybag.app hostnames found in Caddyfile — skipping AOP (unexpected)."
+    else
+        AOP_CONFIG=$(printf '%s\n' "${AOP_HOSTS[@]}" \
+            | jq -R . \
+            | jq -s --arg cert "${AOP_CERT_ID}" \
+                '[.[] | {hostname: ., cert_id: $cert, enabled: true}]')
+
+        AOP_RESP=$(mktemp)
+        HTTP_CODE=$(curl -sS -o "${AOP_RESP}" -w '%{http_code}' \
+            -X PUT "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/origin_tls_client_auth/hostnames" \
+            -H "Authorization: Bearer ${CF_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"config\": ${AOP_CONFIG}}")
+
+        if [[ "${HTTP_CODE}" == "200" ]] && jq -e '.success == true' "${AOP_RESP}" >/dev/null 2>&1; then
+            ok "AOP enabled for ${#AOP_HOSTS[@]} hostname(s)."
+        else
+            error "AOP enable FAILED (HTTP ${HTTP_CODE}):"
+            jq -r '.errors // .' "${AOP_RESP}" >&2 2>/dev/null || cat "${AOP_RESP}" >&2
+            error "Tenant ${DOMAIN} is live but NOT AOP-protected — fix before"
+            error "relying on the firewall, or it is reachable via the CF bypass."
+        fi
+        rm -f "${AOP_RESP}"
+    fi
+else
+    info "Skipping AOP enablement (not shared mode, or AOP env not configured)."
+fi
 
 # --- Summary ---
 

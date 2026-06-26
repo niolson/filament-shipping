@@ -165,6 +165,51 @@ else
     warn "No Caddy entry found for ${DOMAIN} — skipping."
 fi
 
+# --- Disable per-hostname Authenticated Origin Pulls (Cloudflare) ------------
+# Runs after the Caddy block is gone, so the rebuilt hostname set already
+# excludes ${DOMAIN}. Only for Cloudflare-fronted polybag.app tenants.
+CF_API_TOKEN=$(grep '^CF_API_TOKEN=' "${SHARED_DIR}/shared-secrets.env" 2>/dev/null | cut -d= -f2- || true)
+CF_ZONE_ID=$(grep '^CF_ZONE_ID=' "${SHARED_DIR}/shared-secrets.env" 2>/dev/null | cut -d= -f2- || true)
+AOP_CERT_ID=$(grep '^AOP_CERT_ID=' "${SHARED_DIR}/shared-secrets.env" 2>/dev/null | cut -d= -f2- || true)
+
+if [[ "${MODE}" == "shared" && "${DOMAIN}" == *.polybag.app \
+      && -n "${CF_API_TOKEN}" && -n "${CF_ZONE_ID}" && -n "${AOP_CERT_ID}" ]]; then
+    info "Disabling Authenticated Origin Pulls for ${DOMAIN}..."
+
+    # Send every REMAINING polybag.app host as enabled, PLUS the just-removed
+    # ${DOMAIN} as explicitly disabled — correct whether Cloudflare's PUT merges
+    # (which wouldn't drop the removed host on its own) or replaces.
+    mapfile -t AOP_HOSTS < <(
+        grep -oE '^[a-z0-9][a-z0-9.-]*\.polybag\.app' "${CADDY_FILE}" 2>/dev/null | sort -u
+    )
+
+    AOP_CONFIG=$(
+        printf '%s\n' "${AOP_HOSTS[@]}" \
+        | jq -R 'select(length > 0)' \
+        | jq -s --arg cert "${AOP_CERT_ID}" --arg removed "${DOMAIN}" '
+            [ .[] | {hostname: ., cert_id: $cert, enabled: true} ]
+            + [ {hostname: $removed, cert_id: $cert, enabled: false} ]'
+    )
+
+    AOP_RESP=$(mktemp)
+    HTTP_CODE=$(curl -sS -o "${AOP_RESP}" -w '%{http_code}' \
+        -X PUT "https://api.cloudflare.com/client/v4/zones/${CF_ZONE_ID}/origin_tls_client_auth/hostnames" \
+        -H "Authorization: Bearer ${CF_API_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d "{\"config\": ${AOP_CONFIG}}")
+
+    if [[ "${HTTP_CODE}" == "200" ]] && jq -e '.success == true' "${AOP_RESP}" >/dev/null 2>&1; then
+        ok "AOP association removed for ${DOMAIN} (${#AOP_HOSTS[@]} hostname(s) still protected)."
+    else
+        warn "AOP disable returned HTTP ${HTTP_CODE} — the tenant is gone but a stale"
+        warn "association for ${DOMAIN} may remain in Cloudflare. Response:"
+        jq -r '.errors // .' "${AOP_RESP}" >&2 2>/dev/null || cat "${AOP_RESP}" >&2
+    fi
+    rm -f "${AOP_RESP}"
+else
+    info "Skipping AOP teardown (not a shared polybag.app tenant, or AOP env not configured)."
+fi
+
 # --- Delete tenant directory ---
 
 info "Deleting ${TENANT_DIR}..."
