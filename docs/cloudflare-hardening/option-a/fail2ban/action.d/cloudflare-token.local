@@ -1,0 +1,13 @@
+# /etc/fail2ban/action.d/cloudflare-token.local
+#
+# Override for the stock cloudflare-token action's unban. The shipped actionunban
+# looks the rule up by `notes` via an un-encoded GET query, and the default notes
+# ("Fail2Ban <jail>") contain a space that breaks the lookup — so unbans silently
+# fail and bans become permanent (they outlive bantime). Look the rule up
+# precisely by IP instead, and parse with jq.
+#
+# fail2ban merges this .local over cloudflare-token.conf, so only actionunban is
+# replaced; actionban / _cf_api_url / params come from the shipped .conf.
+[Definition]
+actionunban = id=$(curl -s -X GET "<_cf_api_url>?configuration.value=<ip>&configuration.target=<cftarget>" <_cf_api_prms> | jq -r '.result[0].id // empty')
+              if [ -n "$id" ]; then curl -s -X DELETE "<_cf_api_url>/$id" <_cf_api_prms> --data '{"cascade":"none"}' >/dev/null; fi

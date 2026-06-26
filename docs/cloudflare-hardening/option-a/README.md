@@ -147,15 +147,41 @@ real `client_ip`s, and confirm the marketing site still loads.
 
 ## 8. fail2ban
 
-Copy `fail2ban/filter.d/caddy-4xx.conf` and `fail2ban/jail.d/polybag.local` into
-`/etc/fail2ban/`. Set the real CF token. Validate, then reload:
+Bans abusive 4xx-generating IPs as **zone-scoped** Cloudflare IP Access Rules
+(local iptables bans are no-ops behind the proxy). The API token needs
+**Zone → Firewall Services → Edit** on the polybag.app zone.
+
+Install the filter, the unban-fix action override, and the jail:
 ```bash
-fail2ban-regex /var/log/caddy/access.log /etc/fail2ban/filter.d/caddy-4xx.conf
-systemctl reload fail2ban
+install -m644 fail2ban/filter.d/caddy-4xx.conf          /etc/fail2ban/filter.d/
+install -m644 fail2ban/action.d/cloudflare-token.local  /etc/fail2ban/action.d/
+```
+The jail holds the token, so fill it from `shared-secrets.env` and lock it down:
+```bash
+source /opt/shared/shared-secrets.env
+sed -e "s|<CF_ZONE_ID>|${CF_ZONE_ID}|" -e "s|<CF_API_TOKEN>|${CF_API_TOKEN}|" \
+    -e "s|<ORIGIN_IPV4>|<this box's v4>|" -e "s|<ORIGIN_IPV6_PREFIX>|<this box's v6 /64>|" \
+    fail2ban/jail.d/polybag.local > /etc/fail2ban/jail.d/polybag.local
+chmod 600 /etc/fail2ban/jail.d/polybag.local
+```
+Validate the filter + timestamp parsing, then reload:
+```bash
+fail2ban-regex /var/log/caddy/access.log /etc/fail2ban/filter.d/caddy-4xx.conf  # expect matched lines + "ts":{EPOCH} hits
+fail2ban-client reload
 fail2ban-client status caddy-4xx
 ```
-Trigger it deliberately (hammer a 404) and confirm an IP Access Rule appears in
-the Cloudflare dashboard. (Remember: the ban shows up at CF, not in iptables.)
+Test the **full** cycle with a TEST-NET IP (don't hammer real traffic — and note
+`set banip` bypasses `ignoreip`, so never test with a real/own IP):
+```bash
+fail2ban-client set caddy-4xx banip 192.0.2.123    # -> creates a CF rule
+fail2ban-client set caddy-4xx unbanip 192.0.2.123  # -> removes it (verify in CF)
+```
+Why the `cloudflare-token.local` override: the stock `actionunban` looks rules up
+by `notes`, and the default notes' space breaks the lookup — so unbans silently
+fail and bans become permanent. The override looks up by IP instead.
+
+> Tuning: 404 is in the filter (catches path-scanners) but a client hitting many
+> missing assets could contribute; `maxretry`/`findtime`/`bantime` are in the jail.
 
 ## 9. Network lockdown — restrict the origin web ports to Cloudflare
 
