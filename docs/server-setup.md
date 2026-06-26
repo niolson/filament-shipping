@@ -416,6 +416,41 @@ ufw logging medium
 ufw enable
 ```
 
+> In shared/proxied mode the `:80`/`:443` allows above are only a baseline — to
+> actually *restrict* them to Cloudflare, see the next subsection. ufw alone can't
+> (Docker publishes those ports and bypasses ufw).
+
+### Cloudflare-only origin lockdown (shared / proxied mode)
+
+When the server sits behind the Cloudflare proxy (orange-cloud — see
+`docs/cloudflare-hardening/`), restrict the origin web ports to Cloudflare so the
+WAF/proxy can't be bypassed by hitting the origin IP directly.
+
+> **`ufw` cannot do this.** Caddy's `:80`/`:443` are published by Docker, which
+> inserts iptables rules that run *before* ufw's INPUT filtering — so `ufw deny` on
+> those ports is silently ignored. The restriction must go in the `DOCKER-USER`
+> chain instead.
+
+Install the script + self-healing timer from `docs/cloudflare-hardening/option-a/`:
+
+```bash
+install -m744 cf-origin-firewall.sh /usr/local/sbin/cf-origin-firewall.sh
+install -m644 systemd/cf-origin-firewall.service /etc/systemd/system/
+install -m644 systemd/cf-origin-firewall.timer   /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now cf-origin-firewall.timer
+systemctl start cf-origin-firewall.service
+```
+
+This drops non-Cloudflare traffic to `:80`/`:443` (v4 + v6) via `DOCKER-USER` and
+reapplies every 2 min (a Docker daemon restart flushes the chain). SSH (`:22`) is a
+host service in the INPUT chain and is intentionally left open (key-only +
+fail2ban), not IP-pinned. Verify from *outside* the box: a direct hit to the origin
+IP on `:443` should time out while the Cloudflare path still serves.
+
+Full context — including the Cloudflare-side setup (Origin CA cert + Authenticated
+Origin Pulls) — is in `docs/cloudflare-hardening/option-a/README.md`.
+
 ### SSH Hardening
 
 Edit `/etc/ssh/sshd_config` (or a file in `/etc/ssh/sshd_config.d/`):
