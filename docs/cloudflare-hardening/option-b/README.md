@@ -28,8 +28,9 @@ In `/opt/caddy/docker-compose.yml`, add to the caddy service `volumes:`
 ```
 `mkdir -p /var/log/caddy`. (No `certs` mount needed in Option B.)
 
-Prepend `Caddyfile.head` to `/opt/caddy/Caddyfile`. Set `trusted_proxies` to the
-real proxy subnet:
+Prepend `Caddyfile.head` to `/opt/caddy/Caddyfile`. Its `trusted_proxies` is
+already set to test.polybag.app's current proxy subnet (`172.18.0.0/16`).
+Re-confirm if the network has been recreated since:
 ```bash
 docker network inspect proxy -f '{{(index .IPAM.Config 0).Subnet}}'
 ```

@@ -15,9 +15,10 @@
 	servers {
 		# The only thing in front of Caddy is cloudflared, which connects from
 		# the docker `proxy` network. Trust that subnet and read the real visitor
-		# from CF-Connecting-IP. Set this to the ACTUAL proxy subnet:
+		# from CF-Connecting-IP. Value below is test.polybag.app's current proxy
+		# subnet (verified via the command). Re-check if the network is recreated:
 		#   docker network inspect proxy -f '{{(index .IPAM.Config 0).Subnet}}'
-		trusted_proxies static 172.20.0.0/16
+		trusted_proxies static 172.18.0.0/16
 		client_ip_headers Cf-Connecting-Ip
 		# Preserve X-Forwarded-Proto=https that cloudflared sends, instead of
 		# overwriting it with the http scheme of the internal hop. Because
