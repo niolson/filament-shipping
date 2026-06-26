@@ -1,0 +1,30 @@
+# /etc/fail2ban/jail.d/polybag.local
+#
+# Bans abusive client IPs at the Cloudflare edge via the API. This matters
+# because once traffic is proxied, the L3 source at the origin is always a
+# Cloudflare edge IP — a local iptables/ufw ban would be a no-op. We must push
+# the ban UP to Cloudflare instead.
+
+[caddy-4xx]
+enabled  = true
+backend  = polling
+filter   = caddy-4xx
+logpath  = /var/log/caddy/access.log
+findtime = 60
+maxretry = 30
+bantime  = 3600
+
+# --- Cloudflare edge ban -----------------------------------------------------
+# Param names vary across fail2ban versions. Open the installed action file
+#   /etc/fail2ban/action.d/cloudflare-token.conf
+# and align the names below with what it expects (older builds use `cfuser`/
+# `cftoken` against the per-user access_rules API; newer ones differ).
+#
+# The API token needs permission to create IP Access Rules:
+#   Account → "Account Firewall Access Rules" → Edit   (or the user-level equiv).
+# Store the token in /opt/shared/shared-secrets.env and reference it; do NOT
+# commit it. Lock this file down:  chmod 600 /etc/fail2ban/jail.d/polybag.local
+action = cloudflare-token[cftoken="CHANGEME_SCOPED_TOKEN"]
+
+# Optional: also write a local record (does not block, just audit trail).
+#         = %(action_)s

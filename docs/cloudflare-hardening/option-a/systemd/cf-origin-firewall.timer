@@ -1,0 +1,16 @@
+# /etc/systemd/system/cf-origin-firewall.timer
+# Reapplies the DOCKER-USER rules at boot and every 2 minutes. The periodic
+# reapply is the self-heal: a Docker daemon restart flushes DOCKER-USER, and
+# this puts the Cloudflare-only rules back within ~2 min. Reapply is idempotent
+# (the script flushes + rebuilds the chain). Enable: systemctl enable --now
+# cf-origin-firewall.timer
+[Unit]
+Description=Reapply Cloudflare-only origin firewall (self-heal after docker restarts)
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=2min
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+# /etc/systemd/system/cf-origin-firewall.service
+# Applies the Cloudflare-only DOCKER-USER rules once. Triggered by the .timer
+# (at boot and every 2 min) so it self-heals after a Docker daemon restart
+# flushes the DOCKER-USER chain.
+[Unit]
+Description=Cloudflare-only origin firewall (DOCKER-USER chain)
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cf-origin-firewall.sh
