@@ -1,0 +1,9 @@
+--- a/scripts/provision-tenant.sh
++++ b/scripts/provision-tenant.sh
+@@ -353,6 +353,7 @@ cat >> "${CADDY_DIR}/Caddyfile" << EOF
+
+ ${DOMAIN} {
++    import cf_origin
+     reverse_proxy ${TENANT}-nginx-1:80
+ }
+ EOF

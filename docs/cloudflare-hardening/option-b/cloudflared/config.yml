@@ -1,0 +1,20 @@
+# /opt/cloudflared/config.yml  (locally-managed tunnel — ingress lives in this
+# file, not the dashboard, so it's reviewable/version-controllable).
+#
+# Created via:
+#   cloudflared tunnel login                       # browser auth -> cert.pem
+#   cloudflared tunnel create polybag              # -> <TUNNEL_ID>.json creds
+# Then add a PROXIED wildcard DNS record by hand (cloudflared can't create a
+# wildcard route): CNAME  *.polybag.app -> <TUNNEL_ID>.cfargotunnel.com
+
+tunnel: <TUNNEL_ID>
+credentials-file: /etc/cloudflared/<TUNNEL_ID>.json
+no-autoupdate: true
+
+# Send every tenant hostname to Caddy over the private network on plain HTTP.
+# cloudflared preserves the original Host header by default, which is what lets
+# Caddy host-route to the right tenant — do NOT set httpHostHeader.
+ingress:
+  - hostname: "*.polybag.app"
+    service: http://caddy:80
+  - service: http_status:404

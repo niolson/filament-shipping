@@ -1,0 +1,46 @@
+# ============================================================================
+#  Option B — Caddy behind a cloudflared tunnel.
+#  Caddy no longer terminates TLS or talks to the internet at all: cloudflared
+#  connects to it over the private `proxy` network on plain HTTP. So there are
+#  NO origin certs, NO ACME, NO Authenticated Origin Pulls here.
+#  Prepend this to the TOP of /opt/caddy/Caddyfile.
+# ============================================================================
+
+{
+	# cloudflared handles all public TLS at the Cloudflare edge. Caddy serves
+	# plain HTTP on :80 internally — disable all of Caddy's TLS automation so it
+	# never tries to grab a cert or bind :443.
+	auto_https off
+
+	servers {
+		# The only thing in front of Caddy is cloudflared, which connects from
+		# the docker `proxy` network. Trust that subnet and read the real visitor
+		# from CF-Connecting-IP. Set this to the ACTUAL proxy subnet:
+		#   docker network inspect proxy -f '{{(index .IPAM.Config 0).Subnet}}'
+		trusted_proxies static 172.20.0.0/16
+		client_ip_headers Cf-Connecting-Ip
+		# Preserve X-Forwarded-Proto=https that cloudflared sends, instead of
+		# overwriting it with the http scheme of the internal hop. Because
+		# cloudflared is a trusted proxy, Caddy keeps the forwarded scheme — this
+		# is what keeps Laravel's isSecure()/secure cookies correct over the
+		# plain-HTTP origin leg.
+		trusted_proxies_strict
+	}
+}
+
+# Imported by every tenant vhost. No TLS block — just the real-IP access log
+# that fail2ban consumes.
+(cf_origin) {
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 50MiB
+			roll_keep  5
+		}
+		format json
+	}
+}
+
+# Tenant blocks remain `${DOMAIN} { import cf_origin; reverse_proxy ...-nginx-1:80 }`.
+# With auto_https off, a bare-hostname block is served on :80 — which is exactly
+# what cloudflared dials. If you ever see Caddy still attempting TLS, pin the
+# address explicitly as `${DOMAIN}:80 { ... }` in provision-tenant.sh.
