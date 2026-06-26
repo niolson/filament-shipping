@@ -11,8 +11,10 @@ Cloudflare AND only when Cloudflare presents our Authenticated-Origin-Pulls cert
 > need a one-time bulk enable (step 5). Do this in a low-traffic window and canary
 > one tenant (step 4) before going wide.
 
-The firewall lockdown (step 9) is the other lock-yourself-out step, so it's near
-the end. Every risky step below has a one-line rollback.
+The network lockdown (step 9) goes near the end as defense-in-depth. It does NOT
+risk an SSH lockout (SSH is left open + key-only/fail2ban, not IP-pinned); its
+only failure mode is mis-restricting Cloudflare, which takes the sites down (not
+your SSH) and reverts in one command. Every risky step below has a one-line rollback.
 
 > **Marketing site:** `polybag.app` and `www.polybag.app` are served by Cloudflare
 > Pages, not this origin. Leave those DNS records exactly as they are — they're
@@ -155,13 +157,37 @@ fail2ban-client status caddy-4xx
 Trigger it deliberately (hammer a 404) and confirm an IP Access Rule appears in
 the Cloudflare dashboard. (Remember: the ban shows up at CF, not in iptables.)
 
-## 9. Firewall lockdown (LAST — can lock you out)
+## 9. Network lockdown — restrict the origin web ports to Cloudflare
 
-Open a second SSH session first.
+Defense-in-depth: AOP (step 6) already rejects any non-Cloudflare client at the
+TLS layer, so this *adds* a network-layer block rather than being the sole control.
+
+**Do NOT use plain `ufw` for this.** Docker publishes `:80`/`:443` with its own
+iptables rules that run before ufw's INPUT filtering, so `ufw deny`/allow on those
+ports is silently ineffective. The restriction goes in the `DOCKER-USER` chain.
+
 ```bash
-MGMT_IP=<your.public.ip> ./ufw-cloudflare.sh
+install -m744 cf-origin-firewall.sh /usr/local/sbin/cf-origin-firewall.sh
+install -m644 systemd/cf-origin-firewall.service /etc/systemd/system/
+install -m644 systemd/cf-origin-firewall.timer   /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now cf-origin-firewall.timer
+systemctl start cf-origin-firewall.service
 ```
-Verify the second session survives, then re-test the app and a tenant renewal.
+
+This drops non-Cloudflare traffic to `:80`/`:443` (v4 + v6) and self-heals every
+2 min (a Docker daemon restart flushes `DOCKER-USER`). **SSH (`:22`) is left
+untouched** — it's a host service governed by ufw/INPUT, and stays key-only +
+fail2ban rather than IP-pinned (admin IP is dynamic), so there's no lockout risk
+from this step. The only failure mode is mis-restricting Cloudflare itself, which
+takes the sites down (not SSH) and is reverted with `iptables -F DOCKER-USER`.
+
+Verify from **outside** the box (testing from the server itself can hairpin and
+mislead): direct origin should now time out, Cloudflare should still serve.
+```bash
+curl -k --resolve <host>.polybag.app:443:<origin-ip> https://<host>.polybag.app/ --max-time 8   # expect TIMEOUT
+curl https://<host>.polybag.app/                                                                # expect 200/302
+```
 
 ## 10. App tidy-up (after origin is CF-only)
 
@@ -177,4 +203,6 @@ custom cert can't lapse unnoticed.
 Config-only at every stage — nothing here changes app data:
 - Enforcement issue → re-comment `client_auth`, reload Caddy.
 - Proxy issue → grey-cloud the DNS record / set SSL-TLS back to the prior mode.
-- Firewall issue → `ufw disable` (or delete the cf-https rules).
+- Network-lockdown issue (sites down, SSH unaffected) → `systemctl stop
+  cf-origin-firewall.timer && iptables -F DOCKER-USER && ip6tables -F DOCKER-USER`
+  (stop the timer first so it doesn't re-apply within 2 min).

@@ -10,12 +10,13 @@ at Caddy, not nginx. Both options also assume bans are pushed to the Cloudflare
 edge via fail2ban's API action — a local iptables/ufw ban is a no-op once the L3
 source is always a Cloudflare IP.
 
-## [Option A](./option-a/) — orange-cloud proxy + origin cert + ufw allowlist
+## [Option A](./option-a/) — orange-cloud proxy + origin cert + DOCKER-USER lockdown
 
 - DNS proxied; SSL/TLS Full (Strict) with a Cloudflare **Origin CA** cert on Caddy.
-- ufw allows :443 only from Cloudflare's ranges.
+- Origin `:80`/`:443` restricted to Cloudflare ranges via the **`DOCKER-USER`**
+  iptables chain (plain ufw can't filter Docker-published ports).
 - **Authenticated Origin Pulls (custom cert)** is the control that actually closes
-  the "any Cloudflare customer can reach your origin" bypass — without it, the IP
+  the "any Cloudflare customer can reach your origin" bypass — without it, an IP
   allowlist alone is bypassable. AOP enablement is per-hostname and is automated
   into the provision/deprovision scripts.
 - Keeps a local fallback path (grey-cloud + open firewall) if Cloudflare misbehaves.
@@ -36,9 +37,9 @@ source is always a Cloudflare IP.
 |---|---|---|
 | Origin certs / ACME | Origin CA cert required | none |
 | Bypass closer | custom-cert AOP (per-tenant) | n/a (no inbound listener) |
-| Firewall | allowlist :443 to CF | deny-all inbound |
+| Firewall | DOCKER-USER: :80/:443 to CF only | deny-all inbound |
 | New failure mode | cert/AOP misconfig | tunnel down = all tenants down, no fallback |
-| Files to maintain | certs + AOP + allowlist | one tunnel + token |
+| Files to maintain | certs + AOP + CF-range firewall | one tunnel + token |
 
 For the **Amazon SP-API network-protection questionnaire**, both let you attest
 truthfully — but the bare IP allowlist is the weakest line in a submission. Option
