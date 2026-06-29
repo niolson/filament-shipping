@@ -172,7 +172,16 @@ openssl genrsa -out storage/app/private/qz-private-key.pem 2048 2>/dev/null
 openssl req -x509 -new -sha256 -key storage/app/private/qz-private-key.pem \
     -out public/qz-certificate.pem -days 3650 \
     -subj "/CN=${QZ_DOMAIN}" 2>/dev/null
-chmod 644 storage/app/private/qz-private-key.pem
+# The container reads this key through a read-only bind mount as www-data
+# (uid 33). Hand ownership to that uid and restrict to 0600 when we have the
+# privileges; otherwise fall back to world-readable so the container can still
+# read it through the mount.
+if chown 33:33 storage/app/private/qz-private-key.pem 2>/dev/null; then
+    chmod 600 storage/app/private/qz-private-key.pem
+else
+    chmod 644 storage/app/private/qz-private-key.pem
+    info "QZ private key left world-readable; re-run as root to restrict it to the container user."
+fi
 ok "QZ Tray certificate generated for ${QZ_DOMAIN}."
 
 # --- Generate SSH keypair for import tunneling ---
