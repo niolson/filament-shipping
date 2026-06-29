@@ -1,0 +1,15 @@
+# Hadolint configuration — https://github.com/hadolint/hadolint
+# Fail the build on warning-level findings and above; real hardening issues
+# (root USER, ADD over COPY, secrets in ENV, curl|bash) stay enforced.
+failure-threshold: warning
+
+ignored:
+  # DL3008 — "Pin versions in apt-get install". We deliberately run
+  # `apt-get upgrade -y` to pull the latest security patches at build time;
+  # pinning exact apt versions would freeze packages at known-vulnerable
+  # releases and break on every upstream update. Base images are already
+  # digest-pinned for reproducibility.
+  - DL3008
+  # DL3059 — "Multiple consecutive RUN instructions". The php-fpm / php.ini
+  # setup steps are intentionally separate so each carries its own comment.
+  - DL3059
