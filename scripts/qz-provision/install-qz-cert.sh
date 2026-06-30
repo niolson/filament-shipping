@@ -125,3 +125,4 @@ esac
 
 echo ""
 ok "Done. PolyBag is now a trusted signer for this workstation (all users)."
+info "Restart your browser to apply. If the prompt still appears, restart the workstation."
