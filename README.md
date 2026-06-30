@@ -6,6 +6,7 @@ Built with **Laravel 13**, **Filament 5**, and **Tailwind CSS 4**.
 
 ## Features
 
+- **Picking workflow** — Optionally generate pick batches and print picking summaries before packing; can be required before shipments are packed or batch shipped (toggled in Settings)
 - **Packing workflow** — Scan box codes, scan items into packages, read weight from a USB scale, with command barcodes for ship/reprint/cancel
 - **Shipping workflow** — Compare carrier rates with delivery date awareness, purchase postage, and print labels (PDF or ZPL)
 - **Batch shipping** — Select multiple shipments and generate labels in bulk via background jobs
@@ -76,7 +77,7 @@ Once a scale is paired, it auto-reconnects on subsequent visits. The backend can
 
 ### Device Settings
 
-Each workstation configures its own hardware through the **Device Settings** page (`/app/device-settings`). All settings are stored in the browser's `localStorage` — no server-side configuration required.
+Each workstation configures its own hardware through the **Device Settings** page (`/device-settings`). All settings are stored in the browser's `localStorage` — no server-side configuration required.
 
 - **Label Printer** — Select from printers detected by QZ Tray (4x6 shipping labels)
 - **Report Printer** — Separate printer for packing slips and customs forms
@@ -104,7 +105,7 @@ cd polybag
 composer run setup
 ```
 
-After setup, log in and configure **App Settings** (`/app/settings`) with your company address and carrier API credentials.
+After setup, log in and configure **App Settings** (`/settings`) with your company address and carrier API credentials.
 
 ## Development
 
@@ -170,16 +171,16 @@ The `.env` file also supports shipment import source configuration (database con
 
 ### App Settings (Database)
 
-Most operational configuration is managed through the **App Settings** page (`/app/settings`), accessible to admins:
+Most operational configuration is managed through the **App Settings** page (`/settings`), accessible to admins:
 
 - **Company info** — Company name and ship-from address (used on labels)
-- **Feature flags** — Packing validation, transparency codes, batch shipping, manual shipping, multi-location, multi-client
+- **Feature flags** — Picking, packing validation, transparency codes, batch shipping, manual shipping, multi-location, multi-client
 - **Sandbox mode** — Use carrier test endpoints with optional print suppression
 - **Carrier API timeout** — Configurable request timeout (5–60 seconds)
 
 Carrier API credentials are managed under **Carrier Accounts** (Shipping Config nav group) — each account stores its own OAuth tokens and credentials, and can be scoped to specific locations and/or clients via account scopes.
 
-Import source credentials (Shopify, Amazon, database connection strings) are managed under **Import Sources** (Integrations nav group) — each source stores encrypted secrets and can be assigned to a client with its own schedule.
+Import source credentials (Shopify, Amazon, database connection strings) are managed under **Data Sources** (Integrations nav group) — each source stores encrypted secrets and can be assigned to a client with its own schedule.
 
 ## Artisan Commands
 
@@ -210,7 +211,7 @@ php artisan app:generate-test-data --cleanup    # Remove all test data (TD- pref
 
 ## Shipment Import
 
-Shipments are imported from external data sources using a pluggable source system defined by `ImportSourceInterface`. Sources are configured as **Import Source** records in the database (Integrations nav group) with encrypted credentials and per-source schedules.
+Shipments are imported from external data sources using a pluggable source system defined by `DataSourceInterface`. Sources are configured as **Data Source** records in the database (Integrations nav group) with encrypted credentials and per-source schedules.
 
 **Supported drivers:**
 
@@ -262,7 +263,7 @@ The USPS-corrected address is stored alongside the original so operators can com
 | **Manifest** | End-of-day carrier manifests with stored images |
 | **CarrierAccount** | Per-carrier API credentials; supports multiple accounts per carrier |
 | **CarrierAccountScope** | Routes a `CarrierAccount` to a specific location and/or client, with priority-based resolution |
-| **ImportSource** | Configurable shipment import source (Database/Shopify/Amazon) with encrypted credentials and per-source scheduling |
+| **DataSource** | Configurable shipment import/export source (Database/Shopify/Amazon) with encrypted credentials and per-source scheduling |
 | **Location** | Warehouse / fulfillment center with address, timezone, and carrier associations |
 | **Client** | 3PL brand/retailer; scopes shipments, products, import sources, and shipping rules; stores return address and pack slip branding |
 | **Setting** | Encrypted key-value store for app configuration |
@@ -283,7 +284,7 @@ Three roles with hierarchical permissions:
 | Box Sizes, Products, Shipping Methods | — | CRUD | CRUD |
 | Batch Shipping | — | — | Y |
 | Users, Carriers, Carrier Services, Channels | — | — | CRUD |
-| Carrier Accounts, Import Sources | — | — | CRUD |
+| Carrier Accounts, Data Sources | — | — | CRUD |
 | Clients, Locations | — | — | CRUD |
 | App Settings | — | — | Y |
 

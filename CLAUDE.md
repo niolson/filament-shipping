@@ -89,11 +89,12 @@ Each tenant's `default` network is isolated. The `shared` network connects app/q
 
 ## Key Workflows
 
-1. **Packing** (`/pack/{shipment_id}`) — Scan box code, scan items, read weight from scale; shows client indicator when multi-client is enabled
-2. **Shipping** (`/ship/{package_id}`) — Get rates, buy postage, print label; rate requests are scoped by location and client
-3. **Manual Ship** (`/manual-ship`) — Ship without a pre-existing shipment
-4. **Batch Ship** — Generate labels for multiple packages
-5. **End of Day** (`/end-of-day`) — Create USPS SCAN forms / manifests; location-scoped when multi-location is enabled
+1. **Picking** (`/generate-pick-batch`) — Optional; generate pick batches and print picking summaries before packing. Gated by `picking_enabled`; `require_picking_before_shipping` enforces it before packing/batch shipping
+2. **Packing** (`/pack/{shipment_id}`) — Scan box code, scan items, read weight from scale; shows client indicator when multi-client is enabled
+3. **Shipping** (`/ship/{package_id}`) — Get rates, buy postage, print label; rate requests are scoped by location and client
+4. **Manual Ship** (`/manual-ship`) — Ship without a pre-existing shipment
+5. **Batch Ship** — Generate labels for multiple packages
+6. **End of Day** (`/end-of-day`) — Create USPS SCAN forms / manifests; location-scoped when multi-location is enabled
 
 ## Hardware Integration
 
@@ -137,7 +138,7 @@ Export: `app/Services/ShipmentImport/PackageExportService.php` — supports per-
 ## Commands
 
 ```bash
-# Local Development (Laravel Herd / Valet)
+# Local Development (Valet Linux)
 composer run setup       # Initial setup (install deps, migrate, build assets)
 composer run dev         # Run server + queue + Vite concurrently
 npm run dev              # Vite dev server only
