@@ -296,10 +296,16 @@ For `*.polybag.app` tenants, a shared QZ Tray signing certificate avoids generat
 ```bash
 mkdir -p /opt/shared/qz
 openssl genrsa -out /opt/shared/qz/qz-private-key.pem 2048
-openssl req -x509 -new -key /opt/shared/qz/qz-private-key.pem \
+openssl req -x509 -new -sha256 -key /opt/shared/qz/qz-private-key.pem \
   -out /opt/shared/qz/qz-certificate.pem -days 3650 \
   -subj "/CN=*.polybag.app"
 ```
+
+> Keep `-sha256`: QZ Tray rejects SHA-1-signed certificates with an "Invalid
+> Certificate" popup.
+
+To pre-trust this certificate on workstations and suppress QZ Tray's Allow/Block
+prompt, see [QZ Tray Certificate Provisioning](qz-tray-provisioning.md).
 
 ## 10. OAuth Broker (Optional)
 

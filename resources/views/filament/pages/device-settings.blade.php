@@ -2,7 +2,7 @@
     <!-- QZ Tray Setup -->
     <x-filament::section>
         <x-slot name="heading">QZ Tray Setup</x-slot>
-        <x-slot name="description">QZ Tray must be installed and running on each workstation to print labels and read USB scales. After installing, download the certificate and add it to QZ Tray's trusted sites via the site manager.</x-slot>
+        <x-slot name="description">QZ Tray must be installed and running on each workstation to print labels and read USB scales. After installing, either run the workstation trust script below (recommended — auto-trusts this site so no Allow/Block prompt appears), or download the certificate and add it manually via QZ Tray's site manager.</x-slot>
 
         <div class="flex flex-wrap gap-3">
             <x-filament::button
@@ -18,6 +18,24 @@
             <x-filament::button
                 tag="a"
                 color="gray"
+                icon="heroicon-o-bolt"
+                href="{{ route('qz.provision-script', 'windows-cmd') }}"
+            >
+                Trust Installer (Windows)
+            </x-filament::button>
+
+            <x-filament::button
+                tag="a"
+                color="gray"
+                icon="heroicon-o-command-line"
+                href="{{ route('qz.provision-script', 'unix') }}"
+            >
+                Trust Script (Mac/Linux)
+            </x-filament::button>
+
+            <x-filament::button
+                tag="a"
+                color="gray"
                 icon="heroicon-o-document-arrow-down"
                 href="/qz-certificate.pem"
                 download="qz-certificate.pem"
@@ -25,6 +43,11 @@
                 Download Certificate
             </x-filament::button>
         </div>
+
+        <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            The trust installer bakes in this site's address. On Windows, just double-click it and approve the admin prompt; on Mac/Linux, run the script with <code>sudo</code>. QZ Tray must already be installed. See
+            <a href="https://github.com/qzind/tray/wiki/Provisioning" target="_blank" class="underline">QZ provisioning</a> for details.
+        </p>
     </x-filament::section>
 
     <!-- QZ Tray Status -->
