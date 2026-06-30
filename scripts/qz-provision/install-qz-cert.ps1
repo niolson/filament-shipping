@@ -147,3 +147,4 @@ if (Test-Path $exe) {
 
 Write-Host ""
 Write-Ok "Done. PolyBag is now a trusted signer for this workstation (all users)."
+Write-Info "Restart your browser to apply. If the prompt still appears, restart the workstation."

@@ -45,8 +45,7 @@
         </div>
 
         <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-            The trust installer bakes in this site's address. On Windows, just double-click it and approve the admin prompt; on Mac/Linux, run the script with <code>sudo</code>. QZ Tray must already be installed. See
-            <a href="https://github.com/qzind/tray/wiki/Provisioning" target="_blank" class="underline">QZ provisioning</a> for details.
+            The trust installer adds the PolyBag certificate to your system. On Windows, just double-click it and approve the admin prompt; on Mac/Linux, run the script with <code>sudo</code>. QZ Tray must already be installed. After running, restart your browser to apply the trust. If Windows shows a security warning, right-click the file &rarr; Properties &rarr; Unblock first.
         </p>
     </x-filament::section>
 

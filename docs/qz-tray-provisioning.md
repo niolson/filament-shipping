@@ -45,6 +45,23 @@ From the app's **Device Settings → Trust Installer (Windows)**, download
 they **double-click it and approve the admin (UAC) prompt** — no terminal, no
 typing. The `.cmd` self-elevates, extracts the bundled PowerShell, and runs it.
 
+#### About the security warnings
+
+A `.cmd` downloaded with a browser carries Windows' **Mark-of-the-Web**, so
+double-clicking shows an *"Open File – Security Warning"* (no digital signature).
+Because the script self-elevates by relaunching itself as admin, that warning
+appears **twice** (initial launch + elevated relaunch), followed by the UAC
+"allow changes" prompt. To avoid the file warnings, **right-click the `.cmd` →
+Properties → check *Unblock* → OK** before running — that strips the
+Mark-of-the-Web and leaves only the UAC prompt (UAC is unavoidable: writing under
+`Program Files` requires admin).
+
+At fleet scale this is a non-issue: files pushed via GPO/Intune/Jamf are not in the
+internet zone, so they carry no Mark-of-the-Web and show no warnings. Removing the
+warnings for *manual* downloads entirely would require Authenticode code-signing
+the `.cmd`, which we deliberately don't do (it needs a signing certificate and per-OS
+signing pipeline).
+
 ### Windows — PowerShell (advanced / scripted)
 
 ```powershell
@@ -95,9 +112,14 @@ The certificate and `qz-tray.properties` are written here:
 
 ## Verifying
 
-After the script restarts QZ Tray, open the PolyBag packing or device-settings
-page in a fresh browser session and confirm **no** Allow/Block dialog appears and
-a test print/label dispatches. If the prompt still appears, see Troubleshooting.
+After the script restarts QZ Tray, **restart the browser** (the QZ Tray
+connection is negotiated per browser session, so an already-open browser keeps the
+old untrusted state), then open the PolyBag packing or device-settings page and
+confirm **no** Allow/Block dialog appears and a test print/label dispatches.
+
+If the prompt still appears after a browser restart, **restart the workstation**
+(ensures QZ Tray fully reloads `qz-tray.properties`), then retry. If it still
+appears after that, see Troubleshooting.
 
 ## Scope and caveats
 
