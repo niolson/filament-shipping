@@ -17,6 +17,7 @@ use App\Models\Location;
 use App\Models\Package;
 use App\Models\Shipment;
 use App\Services\Carriers\FedexAdapter;
+use App\Services\SettingsService;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
@@ -51,6 +52,34 @@ it('returns false when only an empty active account exists', function (): void {
         'credentials' => null,
         'secret_credentials' => null,
     ]);
+
+    expect($this->adapter->isConfigured())->toBeFalse();
+});
+
+it('is configured in sandbox mode with only sandbox credentials', function (): void {
+    CarrierAccount::query()->delete();
+    createFedexAccount([
+        'api_key' => null,
+        'api_secret' => null,
+        'sandbox_api_key' => 'sandbox_key',
+        'sandbox_api_secret' => 'sandbox_secret',
+    ]);
+
+    app(SettingsService::class)->set('sandbox_mode', true);
+
+    expect($this->adapter->isConfigured())->toBeTrue();
+});
+
+it('is not configured in production mode when only sandbox credentials are set', function (): void {
+    CarrierAccount::query()->delete();
+    createFedexAccount([
+        'api_key' => null,
+        'api_secret' => null,
+        'sandbox_api_key' => 'sandbox_key',
+        'sandbox_api_secret' => 'sandbox_secret',
+    ]);
+
+    app(SettingsService::class)->set('sandbox_mode', false);
 
     expect($this->adapter->isConfigured())->toBeFalse();
 });

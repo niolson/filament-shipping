@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Http\Integrations\Fedex\FedexConnector;
+use App\Services\SettingsService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -100,10 +102,7 @@ class CarrierAccount extends Model
             'FedEx' => filled($this->credential('account_number'))
                 && (
                     filled($this->secret('child_key'))
-                    || (
-                        filled($this->secret('api_key'))
-                        && filled($this->secret('api_secret'))
-                    )
+                    || $this->hasDirectFedexCredentials()
                 ),
             'USPS' => filled($this->credential('crid'))
                 && (
@@ -123,6 +122,27 @@ class CarrierAccount extends Model
                 ),
             default => false,
         };
+    }
+
+    /**
+     * Whether this FedEx account has direct client key/secret credentials for the
+     * currently active environment. In sandbox mode the connector authenticates
+     * with the sandbox_api_key/sandbox_api_secret pair, so those must gate
+     * configuration too — otherwise a sandbox-only account is treated as unset up.
+     *
+     * @see FedexConnector::getParentCredentials()
+     */
+    private function hasDirectFedexCredentials(): bool
+    {
+        $isSandbox = (bool) app(SettingsService::class)->get('sandbox_mode', false);
+
+        if ($isSandbox) {
+            return filled($this->secret('sandbox_api_key'))
+                && filled($this->secret('sandbox_api_secret'));
+        }
+
+        return filled($this->secret('api_key'))
+            && filled($this->secret('api_secret'));
     }
 
     /**
