@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ContentSecurityPolicy;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsManager;
 use Illuminate\Console\Scheduling\Schedule;
@@ -63,6 +64,7 @@ return Application::configure(basePath: dirname(__DIR__))
             '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
         ]);
         $middleware->redirectGuestsTo(fn () => route('filament.app.auth.login'));
+        $middleware->append(ContentSecurityPolicy::class);
         $middleware->alias([
             'admin' => EnsureUserIsAdmin::class,
             'manager' => EnsureUserIsManager::class,

@@ -1,0 +1,21 @@
+/*
+ * DM Sans (variable) — self-hosted from the Google Fonts release (see OFL.txt).
+ * Replaces fonts.bunny.net so the Content-Security-Policy needs no external
+ * font/style origin. Weight axis 100–1000; optical sizing is applied
+ * automatically by the browser (font-optical-sizing: auto is the default).
+ */
+@font-face {
+    font-family: 'DM Sans';
+    font-style: normal;
+    font-weight: 100 1000;
+    font-display: swap;
+    src: url('DMSans-Variable.woff2') format('woff2');
+}
+
+@font-face {
+    font-family: 'DM Sans';
+    font-style: italic;
+    font-weight: 100 1000;
+    font-display: swap;
+    src: url('DMSans-Italic-Variable.woff2') format('woff2');
+}

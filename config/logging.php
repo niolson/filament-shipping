@@ -138,6 +138,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Browser CSP violation reports (report-uri), for local policy tuning.
+        'csp' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/csp.log'),
+            'level' => 'debug',
+            'days' => 14,
+            'replace_placeholders' => true,
+        ],
+
         /*
         | Carrier validation channels log full API request/response payloads,
         | which contain recipient PII (names, addresses, phones). They must
