@@ -57,3 +57,6 @@ node_modules/
 /playwright/.auth/
 /e2e/.auth/
 /tests/Browser/Screenshots/
+
+# Security scan reports (may contain origin details)
+/security-reports/
