@@ -9,6 +9,7 @@ use App\Http\Middleware\EnsureSetupComplete;
 use App\Services\SettingsService;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Enums\ThemeMode;
+use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -60,7 +61,12 @@ class AppPanelProvider extends PanelProvider
             ->darkModeBrandLogo(new HtmlString('<div style="display:flex;align-items:center;gap:0.625rem;"><svg width="20" height="24" viewBox="0 0 32 38" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="32" height="38" rx="4" fill="#0d9488"/><rect x="0" y="0" width="32" height="9" rx="4" fill="rgba(255,255,255,0.18)"/><rect x="0" y="5" width="32" height="4" fill="rgba(255,255,255,0.18)"/><line x1="15" y1="26" x2="15" y2="34" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="18.5" y1="26" x2="18.5" y2="34" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="22" y1="26" x2="22" y2="34" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="25.5" y1="26" x2="25.5" y2="34" stroke="white" stroke-width="2.5" stroke-linecap="round"/></svg><span style="font-weight:600;font-size:1.125rem;color:#f1f5f9;">'.$escapedAppName.'</span></div>'))
             ->brandLogoHeight('2rem')
             ->favicon(secure_asset('favicon.svg'))
-            ->font('DM Sans')
+            ->font(
+                'DM Sans',
+                url: secure_asset('fonts/dm-sans/dm-sans.css'),
+                provider: LocalFontProvider::class,
+                preload: [secure_asset('fonts/dm-sans/DMSans-Variable.woff2')],
+            )
             ->defaultAvatarProvider(LocalAvatarProvider::class)
             ->defaultThemeMode(ThemeMode::System)
             ->colors([
