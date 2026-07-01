@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Auth\EmailAuthenticationForEmailUsers;
+use App\Filament\AvatarProviders\LocalAvatarProvider;
 use App\Filament\Pages\Auth\Login;
 use App\Http\Middleware\EnsureSetupComplete;
 use App\Services\SettingsService;
@@ -60,6 +61,7 @@ class AppPanelProvider extends PanelProvider
             ->brandLogoHeight('2rem')
             ->favicon(secure_asset('favicon.svg'))
             ->font('DM Sans')
+            ->defaultAvatarProvider(LocalAvatarProvider::class)
             ->defaultThemeMode(ThemeMode::System)
             ->colors([
                 'primary' => '#0d9488',
