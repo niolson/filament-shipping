@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\TestPackageController;
 use App\Http\Controllers\Auth\AzureController;
 use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\Auth\SsoCallbackController;
+use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\OAuthCallbackController;
 use App\Http\Controllers\PickBatchController;
 use App\Http\Controllers\QzProvisionScriptController;
@@ -42,6 +43,14 @@ Route::get('/auth/azure/redirect', [AzureController::class, 'redirect'])->name('
 Route::get('/auth/azure/callback', [AzureController::class, 'callback'])->name('auth.azure.callback');
 
 Route::get('/auth/sso/{provider}/receive', [SsoCallbackController::class, 'receive'])->name('auth.sso.receive');
+
+// Collects browser CSP violation reports for local policy tuning. Enabled only
+// in local/testing; see App\Http\Middleware\ContentSecurityPolicy.
+if (app()->environment(['local', 'testing'])) {
+    Route::post('/csp-report', CspReportController::class)
+        ->name('csp.report')
+        ->withoutMiddleware([PreventRequestForgery::class]);
+}
 
 Route::prefix('api')->group(function (): void {
     if (app()->environment(['local', 'testing'])) {
