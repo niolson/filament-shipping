@@ -80,12 +80,16 @@ deploy_tenant() {
     info "Pulling latest code..."
     git pull
 
-    # Rebuild and recreate all containers
+    # Rebuild and recreate all containers.
+    # Capture the exit code explicitly: this function runs inside an `if`
+    # condition at the call site, which disables `set -e` for the whole body,
+    # so a failed build would otherwise fall through to the health check and
+    # report success against the previously-built (stale) images.
     info "Rebuilding containers..."
     if [ "$mode" = "standalone" ]; then
-        docker compose --profile standalone up -d --build
+        docker compose --profile standalone up -d --build || { error "Build/start failed for ${tenant} — old containers may still be running stale code."; return 1; }
     else
-        docker compose up -d --build
+        docker compose up -d --build || { error "Build/start failed for ${tenant} — old containers may still be running stale code."; return 1; }
     fi
 
     # Wait for app to become healthy
