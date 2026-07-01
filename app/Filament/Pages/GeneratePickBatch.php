@@ -124,7 +124,7 @@ class GeneratePickBatch extends Page implements HasForms
             channelId: $data['channel_id'] ? (int) $data['channel_id'] : null,
             shippingMethodId: $data['shipping_method_id'] ? (int) $data['shipping_method_id'] : null,
             user: auth()->user(),
-            clientId: $data['client_id'] ? (int) $data['client_id'] : null,
+            clientId: ($data['client_id'] ?? null) ? (int) $data['client_id'] : null,
         );
 
         if ($batch === null) {
