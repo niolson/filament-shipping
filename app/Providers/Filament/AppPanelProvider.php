@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Auth\EmailAuthenticationForEmailUsers;
 use App\Filament\AvatarProviders\LocalAvatarProvider;
+use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Login;
 use App\Http\Middleware\EnsureSetupComplete;
 use App\Services\SettingsService;
@@ -42,7 +43,7 @@ class AppPanelProvider extends PanelProvider
             ->path('/')
             ->viteTheme('resources/css/filament/app/theme.css')
             ->login(Login::class)
-            ->profile()
+            ->profile(EditProfile::class, isSimple: false)
             ->multiFactorAuthentication(
                 [
                     AppAuthentication::make()->recoverable(),
