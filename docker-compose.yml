@@ -4,6 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: app
+      args:
+        APT_CACHE_BUST: ${APT_CACHE_BUST:-1}
     restart: unless-stopped
     env_file:
       - path: /opt/shared/shared-secrets.env
@@ -92,6 +94,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: app
+      args:
+        APT_CACHE_BUST: ${APT_CACHE_BUST:-1}
     restart: unless-stopped
     env_file:
       - path: /opt/shared/shared-secrets.env
@@ -115,6 +119,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: app
+      args:
+        APT_CACHE_BUST: ${APT_CACHE_BUST:-1}
     restart: unless-stopped
     env_file:
       - path: /opt/shared/shared-secrets.env

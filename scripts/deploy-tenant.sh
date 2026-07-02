@@ -85,7 +85,13 @@ deploy_tenant() {
     # condition at the call site, which disables `set -e` for the whole body,
     # so a failed build would otherwise fall through to the health check and
     # report success against the previously-built (stale) images.
+    #
+    # APT_CACHE_BUST changes daily so the app image's `apt-get update && upgrade`
+    # layer is never silently reused from Docker's build cache — otherwise OS
+    # security patches published after the last build wouldn't land until
+    # something else invalidated that layer.
     info "Rebuilding containers..."
+    export APT_CACHE_BUST="$(date +%Y%m%d)"
     if [ "$mode" = "standalone" ]; then
         docker compose --profile standalone up -d --build || { error "Build/start failed for ${tenant} — old containers may still be running stale code."; return 1; }
     else

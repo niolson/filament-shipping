@@ -25,6 +25,11 @@ RUN npm run build
 # Stage 3: PHP application
 FROM php:8.4.22-fpm@sha256:1b222a9493186c707cb15778b7fd0cf90b20ff54e826164faeb29150ea5f1391 AS app
 
+# Changing this on every build forces apt-get to re-fetch the package index
+# instead of reusing a stale cached layer, so OS security patches (e.g. Debian
+# security-tracker fixes published after the last build) actually land.
+ARG APT_CACHE_BUST=1
+
 # Install system dependencies
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
     curl \
