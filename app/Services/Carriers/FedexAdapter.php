@@ -39,9 +39,6 @@ class FedexAdapter implements CarrierAdapterInterface
     use HasDefaultServiceCapabilities;
     use HasSaturdayDelivery;
 
-    /** Resolved once per public method call; private helpers read this. */
-    private ?CarrierAccount $currentAccount = null;
-
     private function resolveAccount(?int $locationId, ?int $clientId = null): ?CarrierAccount
     {
         static $carrierId = null;
@@ -52,14 +49,14 @@ class FedexAdapter implements CarrierAdapterInterface
             : null;
     }
 
-    private function resolveConnector(): FedexConnector
+    private function resolveConnector(?CarrierAccount $account): FedexConnector
     {
-        return FedexConnector::getAuthenticatedConnector($this->currentAccount);
+        return FedexConnector::getAuthenticatedConnector($account);
     }
 
-    private function resolveAccountNumber(): ?string
+    private function resolveAccountNumber(?CarrierAccount $account): ?string
     {
-        return $this->currentAccount?->credential('account_number');
+        return $account?->credential('account_number');
     }
 
     public function serviceCapability(string $serviceCode): ServiceCapability
@@ -147,17 +144,15 @@ class FedexAdapter implements CarrierAdapterInterface
         //     return $this->getMockInternationalRates($request, $internationalCodes);
         // }
 
-        $this->currentAccount = $this->resolveAccount($request->locationId, $request->clientId);
         $prepared = $this->prepareRateRequest($request, $serviceCodes);
 
         if (! $prepared) {
-            $this->currentAccount = null;
-
             return collect();
         }
 
-        $connector = $this->resolveConnector();
-        $apiRequest = $this->buildRateApiRequest($this->adjustRequestForSaturday($request, $serviceCodes), $serviceCodes);
+        $account = $this->resolveAccount($request->locationId, $request->clientId);
+        $connector = $this->resolveConnector($account);
+        $apiRequest = $this->buildRateApiRequest($this->adjustRequestForSaturday($request, $serviceCodes), $serviceCodes, $account);
 
         try {
             $response = $connector->send($apiRequest);
@@ -183,9 +178,9 @@ class FedexAdapter implements CarrierAdapterInterface
             return null;
         }
 
-        $this->currentAccount ??= $this->resolveAccount($request->locationId, $request->clientId);
-        $connector = $this->resolveConnector();
-        $apiRequest = $this->buildRateApiRequest($this->adjustRequestForSaturday($request, $serviceCodes), $serviceCodes);
+        $account = $this->resolveAccount($request->locationId, $request->clientId);
+        $connector = $this->resolveConnector($account);
+        $apiRequest = $this->buildRateApiRequest($this->adjustRequestForSaturday($request, $serviceCodes), $serviceCodes, $account);
         $pendingRequest = $connector->createPendingRequest($apiRequest);
 
         return new PreparedRateRequest(
@@ -196,6 +191,8 @@ class FedexAdapter implements CarrierAdapterInterface
 
     public function parseRateResponse(Response $response, RateRequest $request, array $serviceCodes): Collection
     {
+        $account = $this->resolveAccount($request->locationId, $request->clientId);
+
         if (! $response->successful()) {
             // If Saturday delivery was requested, retry without it
             if ($request->saturdayDelivery) {
@@ -207,8 +204,8 @@ class FedexAdapter implements CarrierAdapterInterface
                 if ($isSaturdayError) {
                     logger()->info('FedEx Saturday delivery not available for this destination, retrying without');
                     $requestWithout = $this->withoutSaturdayDelivery($request);
-                    $connector = $this->resolveConnector();
-                    $apiRequest = $this->buildRateApiRequest($requestWithout, $serviceCodes);
+                    $connector = $this->resolveConnector($account);
+                    $apiRequest = $this->buildRateApiRequest($requestWithout, $serviceCodes, $account);
                     $retryResponse = $connector->send($apiRequest);
 
                     return $this->parseRateResponse($retryResponse, $requestWithout, $serviceCodes);
@@ -231,8 +228,8 @@ class FedexAdapter implements CarrierAdapterInterface
         // a follow-up with Saturday for eligible services and merge results
         if ($request->saturdayDelivery && $this->classifySaturdayEligibility($serviceCodes, $request) === 'mixed') {
             try {
-                $connector = $this->resolveConnector();
-                $saturdayApiRequest = $this->buildRateApiRequest($request, $serviceCodes);
+                $connector = $this->resolveConnector($account);
+                $saturdayApiRequest = $this->buildRateApiRequest($request, $serviceCodes, $account);
                 $saturdayResponse = $connector->send($saturdayApiRequest);
 
                 if ($saturdayResponse->successful()) {
@@ -259,7 +256,7 @@ class FedexAdapter implements CarrierAdapterInterface
 
         // Fetch One Rate prices if eligible and merge them in
         if ($this->isOneRateEligible($request)) {
-            $oneRateResults = $this->fetchOneRateRates($request, $serviceCodes);
+            $oneRateResults = $this->fetchOneRateRates($request, $serviceCodes, $account);
             $results = $results->merge($oneRateResults);
         }
 
@@ -269,7 +266,7 @@ class FedexAdapter implements CarrierAdapterInterface
     /**
      * Build the FedEx rate API request.
      */
-    private function buildRateApiRequest(RateRequest $request, array $serviceCodes): Rates
+    private function buildRateApiRequest(RateRequest $request, array $serviceCodes, ?CarrierAccount $account): Rates
     {
         if ($this->isSandbox()) {
             // The FedEx sandbox returns truncated (unparseable) JSON for most request
@@ -299,7 +296,7 @@ class FedexAdapter implements CarrierAdapterInterface
 
         $apiRequest->body()->set([
             'accountNumber' => [
-                'value' => $this->resolveAccountNumber(),
+                'value' => $this->resolveAccountNumber($account),
             ],
             'rateRequestControlParameters' => [
                 'returnTransitTimes' => true,
@@ -445,10 +442,10 @@ class FedexAdapter implements CarrierAdapterInterface
 
     public function createShipment(ShipRequest $request): ShipResponse
     {
-        $this->currentAccount = $this->resolveAccount($request->locationId, $request->clientId);
+        $account = $this->resolveAccount($request->locationId, $request->clientId);
 
         try {
-            $connector = $this->resolveConnector();
+            $connector = $this->resolveConnector($account);
 
             $requestedShipment = [
                 'shipper' => $this->buildContact($request->fromAddress),
@@ -468,7 +465,7 @@ class FedexAdapter implements CarrierAdapterInterface
                     'payor' => [
                         'responsibleParty' => [
                             'accountNumber' => [
-                                'value' => $this->resolveAccountNumber(),
+                                'value' => $this->resolveAccountNumber($account),
                             ],
                         ],
                     ],
@@ -505,7 +502,7 @@ class FedexAdapter implements CarrierAdapterInterface
 
             // Add customs clearance detail for international shipments
             if ($request->toAddress->country !== $request->fromAddress->country && ! empty($request->customsItems)) {
-                $requestedShipment['customsClearanceDetail'] = $this->buildCustomsClearanceDetail($request);
+                $requestedShipment['customsClearanceDetail'] = $this->buildCustomsClearanceDetail($request, $account);
             }
 
             // Build special service types
@@ -523,7 +520,7 @@ class FedexAdapter implements CarrierAdapterInterface
                 ];
             }
 
-            $response = $this->sendCreateShipment($connector, $requestedShipment);
+            $response = $this->sendCreateShipment($connector, $requestedShipment, $account);
             $responseData = $response->json();
 
             // If Saturday delivery was rejected, retry without it
@@ -565,7 +562,7 @@ class FedexAdapter implements CarrierAdapterInterface
                     } else {
                         $requestedShipment['shipmentSpecialServices']['specialServiceTypes'] = $remainingTypes;
                     }
-                    $response = $this->sendCreateShipment($connector, $requestedShipment);
+                    $response = $this->sendCreateShipment($connector, $requestedShipment, $account);
                     $responseData = $response->json();
                 }
             }
@@ -633,7 +630,7 @@ class FedexAdapter implements CarrierAdapterInterface
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
                 appliedServices: $appliedServices,
-                carrierAccountId: $this->currentAccount?->id,
+                carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
             logger()->error('FedEx createShipment error', [
@@ -648,15 +645,15 @@ class FedexAdapter implements CarrierAdapterInterface
 
     public function cancelShipment(string $trackingNumber, Package $package): CancelResponse
     {
-        $this->currentAccount = $this->resolveAccount($package->location_id, $package->shipment?->client_id);
+        $account = $this->resolveAccount($package->location_id, $package->shipment?->client_id);
 
         try {
-            $connector = $this->resolveConnector();
+            $connector = $this->resolveConnector($account);
 
             $apiRequest = new CancelShipmentRequest;
             $apiRequest->body()->set([
                 'accountNumber' => [
-                    'value' => $this->resolveAccountNumber(),
+                    'value' => $this->resolveAccountNumber($account),
                 ],
                 'trackingNumber' => $trackingNumber,
             ]);
@@ -685,8 +682,9 @@ class FedexAdapter implements CarrierAdapterInterface
             if (config('services.oauth.broker_url')) {
                 $connector = new FedexRegistrationProxyConnector;
             } else {
-                $this->currentAccount = $this->resolveAccount($package->location_id, $package->shipment?->client_id);
-                $connector = $this->resolveConnector();
+                $connector = $this->resolveConnector(
+                    $this->resolveAccount($package->location_id, $package->shipment?->client_id)
+                );
             }
 
             $trackRequest = new TrackShipment($package->tracking_number);
@@ -965,11 +963,11 @@ class FedexAdapter implements CarrierAdapterInterface
      * Fetch One Rate rates from FedEx API.
      * Returns empty collection on failure (non-fatal).
      */
-    private function fetchOneRateRates(RateRequest $request, array $serviceCodes): Collection
+    private function fetchOneRateRates(RateRequest $request, array $serviceCodes, ?CarrierAccount $account): Collection
     {
         try {
-            $connector = $this->resolveConnector();
-            $apiRequest = $this->buildOneRateApiRequest($request);
+            $connector = $this->resolveConnector($account);
+            $apiRequest = $this->buildOneRateApiRequest($request, $account);
             $response = $connector->send($apiRequest);
 
             if (! $response->successful()) {
@@ -992,14 +990,14 @@ class FedexAdapter implements CarrierAdapterInterface
     /**
      * Build the FedEx One Rate API request.
      */
-    private function buildOneRateApiRequest(RateRequest $request): Rates
+    private function buildOneRateApiRequest(RateRequest $request, ?CarrierAccount $account): Rates
     {
         $package = $request->packages[0];
 
         $apiRequest = new Rates;
         $apiRequest->body()->set([
             'accountNumber' => [
-                'value' => $this->resolveAccountNumber(),
+                'value' => $this->resolveAccountNumber($account),
             ],
             'rateRequestControlParameters' => [
                 'returnTransitTimes' => true,
@@ -1103,13 +1101,13 @@ class FedexAdapter implements CarrierAdapterInterface
         return $results;
     }
 
-    private function sendCreateShipment($connector, array $requestedShipment): Response
+    private function sendCreateShipment($connector, array $requestedShipment, ?CarrierAccount $account): Response
     {
         $apiRequest = new CreateShipment;
         $apiRequest->body()->set([
             'labelResponseOptions' => 'LABEL',
             'accountNumber' => [
-                'value' => $this->resolveAccountNumber(),
+                'value' => $this->resolveAccountNumber($account),
             ],
             'requestedShipment' => $requestedShipment,
         ]);
@@ -1150,7 +1148,7 @@ class FedexAdapter implements CarrierAdapterInterface
      *
      * @return array<string, mixed>
      */
-    private function buildCustomsClearanceDetail(ShipRequest $request): array
+    private function buildCustomsClearanceDetail(ShipRequest $request, ?CarrierAccount $account): array
     {
         $commodities = [];
 
@@ -1198,7 +1196,7 @@ class FedexAdapter implements CarrierAdapterInterface
                             'countryCode' => $request->fromAddress->country,
                         ],
                         'accountNumber' => [
-                            'value' => $this->resolveAccountNumber(),
+                            'value' => $this->resolveAccountNumber($account),
                         ],
                     ],
                 ],

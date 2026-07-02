@@ -36,8 +36,6 @@ class UpsAdapter implements CarrierAdapterInterface
     use HasDefaultServiceCapabilities;
     use HasSaturdayDelivery;
 
-    private ?CarrierAccount $currentAccount = null;
-
     private function resolveAccount(?int $locationId, ?int $clientId = null): ?CarrierAccount
     {
         static $carrierId = null;
@@ -48,14 +46,14 @@ class UpsAdapter implements CarrierAdapterInterface
             : null;
     }
 
-    private function resolveConnector(): UpsConnector
+    private function resolveConnector(?CarrierAccount $account): UpsConnector
     {
-        return UpsConnector::getAuthenticatedConnector($this->currentAccount);
+        return UpsConnector::getAuthenticatedConnector($account);
     }
 
-    private function resolveAccountNumber(): ?string
+    private function resolveAccountNumber(?CarrierAccount $account): ?string
     {
-        return $this->currentAccount?->credential('account_number');
+        return $account?->credential('account_number');
     }
 
     public function serviceCapability(string $serviceCode): ServiceCapability
@@ -111,18 +109,16 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function getRates(RateRequest $request, array $serviceCodes): Collection
     {
-        $this->currentAccount = $this->resolveAccount($request->locationId, $request->clientId);
-
         try {
             $prepared = $this->prepareRateRequest($request, $serviceCodes);
 
             if (! $prepared) {
-                $this->currentAccount = null;
-
                 return collect();
             }
 
-            $connector = $this->resolveConnector();
+            $connector = $this->resolveConnector(
+                $this->resolveAccount($request->locationId, $request->clientId)
+            );
             $apiRequest = $this->buildRateApiRequest($this->adjustRequestForSaturday($request, $serviceCodes));
             $response = $connector->send($apiRequest);
 
@@ -139,8 +135,9 @@ class UpsAdapter implements CarrierAdapterInterface
             return null;
         }
 
-        $this->currentAccount ??= $this->resolveAccount($request->locationId, $request->clientId);
-        $connector = $this->resolveConnector();
+        $connector = $this->resolveConnector(
+            $this->resolveAccount($request->locationId, $request->clientId)
+        );
         $apiRequest = $this->buildRateApiRequest($this->adjustRequestForSaturday($request, $serviceCodes));
         $pendingRequest = $connector->createPendingRequest($apiRequest);
 
@@ -167,7 +164,9 @@ class UpsAdapter implements CarrierAdapterInterface
         // a follow-up with Saturday for eligible services and merge results
         if ($request->saturdayDelivery && $this->classifySaturdayEligibility($serviceCodes, $request) === 'mixed') {
             try {
-                $connector = $this->resolveConnector();
+                $connector = $this->resolveConnector(
+                    $this->resolveAccount($request->locationId, $request->clientId)
+                );
                 $saturdayApiRequest = $this->buildRateApiRequest($request);
                 $saturdayResponse = $connector->send($saturdayApiRequest);
 
@@ -202,8 +201,9 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function trackShipment(Package $package): TrackShipmentResponse
     {
-        $this->currentAccount = $this->resolveAccount($package->location_id, $package->shipment?->client_id);
-        $connector = $this->resolveConnector();
+        $connector = $this->resolveConnector(
+            $this->resolveAccount($package->location_id, $package->shipment?->client_id)
+        );
         $trackRequest = new TrackShipment($package->tracking_number);
         $requestUri = rtrim($connector->resolveBaseUrl(), '/').$trackRequest->resolveEndpoint();
 
@@ -444,10 +444,10 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function createShipment(ShipRequest $request): ShipResponse
     {
-        $this->currentAccount = $this->resolveAccount($request->locationId, $request->clientId);
+        $account = $this->resolveAccount($request->locationId, $request->clientId);
 
         try {
-            $connector = $this->resolveConnector();
+            $connector = $this->resolveConnector($account);
 
             $serviceCode = $request->selectedRate->metadata['serviceCode'] ?? $request->selectedRate->serviceCode;
 
@@ -455,7 +455,7 @@ class UpsAdapter implements CarrierAdapterInterface
                 'Description' => 'Shipment',
                 'Shipper' => [
                     'Name' => trim($request->fromAddress->company ?: $request->fromAddress->firstName.' '.$request->fromAddress->lastName),
-                    'ShipperNumber' => $this->resolveAccountNumber(),
+                    'ShipperNumber' => $this->resolveAccountNumber($account),
                     'Address' => $this->buildAddress($request->fromAddress),
                 ],
                 'ShipTo' => [
@@ -471,7 +471,7 @@ class UpsAdapter implements CarrierAdapterInterface
                         [
                             'Type' => '01',
                             'BillShipper' => [
-                                'AccountNumber' => $this->resolveAccountNumber(),
+                                'AccountNumber' => $this->resolveAccountNumber($account),
                             ],
                         ],
                     ],
@@ -605,7 +605,7 @@ class UpsAdapter implements CarrierAdapterInterface
                 labelFormat: $isZpl ? 'zpl' : 'image',
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
-                carrierAccountId: $this->currentAccount?->id,
+                carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
             logger()->error('UPS createShipment error', [
@@ -620,10 +620,10 @@ class UpsAdapter implements CarrierAdapterInterface
 
     public function cancelShipment(string $trackingNumber, Package $package): CancelResponse
     {
-        $this->currentAccount = $this->resolveAccount($package->location_id, $package->shipment?->client_id);
-
         try {
-            $connector = $this->resolveConnector();
+            $connector = $this->resolveConnector(
+                $this->resolveAccount($package->location_id, $package->shipment?->client_id)
+            );
 
             $apiRequest = new VoidShipment($trackingNumber);
 

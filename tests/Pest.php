@@ -1,5 +1,7 @@
 <?php
 
+use App\DataTransferObjects\Shipping\PackageData;
+use App\DataTransferObjects\Shipping\RateRequest;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierAccountScope;
@@ -57,6 +59,16 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+function rateRequestForClient(int $clientId): RateRequest
+{
+    return new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: '90210',
+        packages: [new PackageData(weight: 5.0, length: 12, width: 10, height: 8)],
+        clientId: $clientId,
+    );
 }
 
 /*

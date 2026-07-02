@@ -83,6 +83,7 @@ trait HasSaturdayDelivery
             packages: $request->packages,
             saturdayDelivery: false,
             locationId: $request->locationId,
+            clientId: $request->clientId,
             shipDate: $request->shipDate,
         );
     }

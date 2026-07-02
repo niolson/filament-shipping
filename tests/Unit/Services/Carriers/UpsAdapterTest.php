@@ -6,7 +6,10 @@ use App\Enums\TrackingStatus;
 use App\Exceptions\Carriers\CarrierRateFetchException;
 use App\Http\Integrations\Ups\Requests\Rate;
 use App\Http\Integrations\Ups\Requests\TrackShipment;
+use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\CarrierAccountScope;
+use App\Models\Client;
 use App\Models\Package;
 use App\Services\Carriers\UpsAdapter;
 use Saloon\Exceptions\Request\RequestException;
@@ -32,6 +35,38 @@ it('returns false when only an empty active account exists', function (): void {
 
 it('supports tracking', function (): void {
     expect($this->adapter->supportsTracking())->toBeTrue();
+});
+
+it('prepares UPS rates without keeping account state on the adapter', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rate::class => MockResponse::make(['RateResponse' => ['RatedShipment' => []]]),
+    ]);
+
+    CarrierAccount::query()->delete();
+
+    $carrier = Carrier::firstOrCreate(['name' => 'UPS']);
+    $firstClient = Client::factory()->create();
+    $secondClient = Client::factory()->create();
+
+    $firstAccount = CarrierAccount::factory()->create([
+        'carrier_id' => $carrier->id,
+        'credentials' => ['account_number' => 'first_account'],
+        'secret_credentials' => ['client_id' => 'first_key', 'client_secret' => 'first_secret'],
+    ]);
+    $secondAccount = CarrierAccount::factory()->create([
+        'carrier_id' => $carrier->id,
+        'credentials' => ['account_number' => 'second_account'],
+        'secret_credentials' => ['client_id' => 'second_key', 'client_secret' => 'second_secret'],
+    ]);
+
+    CarrierAccountScope::factory()->forAccount($firstAccount)->clientScoped($firstClient)->create();
+    CarrierAccountScope::factory()->forAccount($secondAccount)->clientScoped($secondClient)->create();
+
+    $this->adapter->getRates(rateRequestForClient($firstClient->id), ['03']);
+    $this->adapter->getRates(rateRequestForClient($secondClient->id), ['03']);
+
+    expect((new ReflectionClass($this->adapter))->hasProperty('currentAccount'))->toBeFalse();
 });
 
 it('throws CarrierRateFetchException when the UPS rate API fails', function (): void {

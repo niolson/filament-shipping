@@ -6,6 +6,7 @@ use App\DataTransferObjects\Shipping\PackageData;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
+use App\Enums\FedexPackageType;
 use App\Enums\TrackingStatus;
 use App\Http\Integrations\Fedex\Requests\CancelShipment;
 use App\Http\Integrations\Fedex\Requests\CreateShipment;
@@ -13,12 +14,16 @@ use App\Http\Integrations\Fedex\Requests\Rates;
 use App\Http\Integrations\Fedex\Requests\TrackShipment;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\CarrierAccountScope;
+use App\Models\Client;
 use App\Models\Location;
 use App\Models\Package;
 use App\Models\Shipment;
 use App\Services\Carriers\FedexAdapter;
 use App\Services\SettingsService;
+use Carbon\CarbonImmutable;
 use Saloon\Http\Faking\MockResponse;
+use Saloon\Http\PendingRequest;
 use Saloon\Laravel\Facades\Saloon;
 
 beforeEach(function (): void {
@@ -82,6 +87,117 @@ it('is not configured in production mode when only sandbox credentials are set',
     app(SettingsService::class)->set('sandbox_mode', false);
 
     expect($this->adapter->isConfigured())->toBeFalse();
+});
+
+it('prepares FedEx rates without keeping account state on the adapter', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rates::class => MockResponse::make(['output' => ['rateReplyDetails' => []]]),
+    ]);
+
+    CarrierAccount::query()->delete();
+
+    $carrier = Carrier::firstOrCreate(['name' => 'FedEx']);
+    $firstClient = Client::factory()->create();
+    $secondClient = Client::factory()->create();
+
+    $firstAccount = CarrierAccount::factory()->fedex()->create([
+        'carrier_id' => $carrier->id,
+        'credentials' => ['account_number' => 'first_account'],
+        'secret_credentials' => ['api_key' => 'first_key', 'api_secret' => 'first_secret'],
+    ]);
+    $secondAccount = CarrierAccount::factory()->fedex()->create([
+        'carrier_id' => $carrier->id,
+        'credentials' => ['account_number' => 'second_account'],
+        'secret_credentials' => ['api_key' => 'second_key', 'api_secret' => 'second_secret'],
+    ]);
+
+    CarrierAccountScope::factory()->forAccount($firstAccount)->clientScoped($firstClient)->create();
+    CarrierAccountScope::factory()->forAccount($secondAccount)->clientScoped($secondClient)->create();
+
+    $this->adapter->getRates(rateRequestForClient($firstClient->id), ['FEDEX_GROUND']);
+    $this->adapter->getRates(rateRequestForClient($secondClient->id), ['FEDEX_GROUND']);
+
+    Saloon::assertSent(function ($request): bool {
+        return $request instanceof Rates
+            && data_get($request->body()->all(), 'accountNumber.value') === 'second_account';
+    });
+
+    expect((new ReflectionClass($this->adapter))->hasProperty('currentAccount'))->toBeFalse();
+});
+
+it('keeps the client account through FedEx Saturday retry and One Rate follow-up', function (): void {
+    $sentAccountNumbers = [];
+    $oneRateAccountNumbers = [];
+
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        function (PendingRequest $pendingRequest) use (&$sentAccountNumbers): MockResponse {
+            $body = $pendingRequest->body()->all();
+            $sentAccountNumbers[] = data_get($body, 'accountNumber.value');
+
+            return MockResponse::make([
+                'errors' => [
+                    ['code' => 'SERVICE.PACKAGECOMBINATION.INVALID', 'message' => 'Saturday delivery is not available.'],
+                ],
+            ], 400);
+        },
+        function (PendingRequest $pendingRequest) use (&$sentAccountNumbers): MockResponse {
+            $body = $pendingRequest->body()->all();
+            $sentAccountNumbers[] = data_get($body, 'accountNumber.value');
+
+            return MockResponse::make(['output' => ['rateReplyDetails' => []]]);
+        },
+        function (PendingRequest $pendingRequest) use (&$sentAccountNumbers, &$oneRateAccountNumbers): MockResponse {
+            $body = $pendingRequest->body()->all();
+            $sentAccountNumbers[] = data_get($body, 'accountNumber.value');
+
+            if (in_array('FEDEX_ONE_RATE', data_get($body, 'requestedShipment.shipmentSpecialServices.specialServiceTypes', []), true)) {
+                $oneRateAccountNumbers[] = data_get($body, 'accountNumber.value');
+            }
+
+            return MockResponse::make(['output' => ['rateReplyDetails' => []]]);
+        },
+    ]);
+
+    CarrierAccount::query()->delete();
+
+    $carrier = Carrier::firstOrCreate(['name' => 'FedEx']);
+    $client = Client::factory()->create();
+
+    $globalAccount = CarrierAccount::factory()->fedex()->create([
+        'carrier_id' => $carrier->id,
+        'credentials' => ['account_number' => 'global_account'],
+        'secret_credentials' => ['api_key' => 'global_key', 'api_secret' => 'global_secret'],
+    ]);
+    $clientAccount = CarrierAccount::factory()->fedex()->create([
+        'carrier_id' => $carrier->id,
+        'credentials' => ['account_number' => 'client_account'],
+        'secret_credentials' => ['api_key' => 'client_key', 'api_secret' => 'client_secret'],
+    ]);
+
+    CarrierAccountScope::factory()->forAccount($globalAccount)->global()->create();
+    CarrierAccountScope::factory()->forAccount($clientAccount)->clientScoped($client)->create();
+
+    $request = new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: '90210',
+        packages: [new PackageData(
+            weight: 5.0,
+            length: 12,
+            width: 10,
+            height: 8,
+            fedexPackageType: FedexPackageType::FEDEX_SMALL_BOX,
+        )],
+        saturdayDelivery: true,
+        clientId: $client->id,
+        shipDate: CarbonImmutable::parse('2026-07-03'),
+    );
+
+    $this->adapter->getRates($request, ['FIRST_OVERNIGHT']);
+
+    expect($sentAccountNumbers)->toBe(['client_account', 'client_account', 'client_account'])
+        ->and($oneRateAccountNumbers)->toBe(['client_account']);
 });
 
 it('fetches rates from FedEx API', function (): void {
