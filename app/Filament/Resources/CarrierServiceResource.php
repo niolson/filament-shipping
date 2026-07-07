@@ -80,7 +80,7 @@ class CarrierServiceResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            CarrierServiceResource\RelationManagers\SpecialServicesRelationManager::class,
         ];
     }
 

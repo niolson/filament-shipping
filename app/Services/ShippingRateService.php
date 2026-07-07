@@ -9,6 +9,7 @@ use App\Enums\ServiceCapability;
 use App\Exceptions\Carriers\CarrierRateFetchException;
 use App\Exceptions\NoActiveCarrierServicesException;
 use App\Models\CarrierService;
+use App\Models\CarrierServiceSpecialService;
 use App\Models\Package;
 use App\Models\ShippingMethod;
 use App\Models\SpecialService;
@@ -58,6 +59,17 @@ class ShippingRateService
         $shippingMethod = $shipment->shippingMethod;
         $rateRequest = RateRequest::fromPackage($package);
 
+        $resolver = app(SpecialServiceResolver::class);
+        $methodCodes = $resolver->methodCodesByMode($shippingMethod);
+        $productCodes = $resolver->resolveProductRequiredCodes($package)->keys()->all();
+        $requiredCodes = array_values(array_unique([...$methodCodes['required'], ...$productCodes]));
+        $defaultCodes = array_values(array_diff($methodCodes['default'], $requiredCodes));
+
+        $this->exclusions = [];
+        $scopeMap = $this->loadServiceScopes([...$requiredCodes, ...$defaultCodes]);
+        $serviceNames = SpecialService::whereIn('code', [...$requiredCodes, ...$defaultCodes])
+            ->pluck('name', 'code');
+
         // Build the list of carriers to query
         $carrierTasks = [];
 
@@ -78,23 +90,41 @@ class ShippingRateService
             $carrierServicesByCarrier = $activeCarrierServices->groupBy('carrier_id');
 
             foreach ($carrierServicesByCarrier as $services) {
-                $carrier = $services->first()->carrier;
-                $serviceCodes = $services->pluck('service_code')->toArray();
-                $carrierTasks[] = ['name' => $carrier->name, 'serviceCodes' => $serviceCodes];
+                $task = $this->buildCarrierTask(
+                    $services->first()->carrier->name,
+                    $services,
+                    $requiredCodes,
+                    $defaultCodes,
+                    $scopeMap,
+                    $serviceNames,
+                    $rateRequest->destinationCountry,
+                );
+
+                if ($task) {
+                    $carrierTasks[] = $task;
+                }
             }
         } else {
             logger()->debug('ShippingRateService: No shipping method assigned, querying all configured carriers', [
                 'package_id' => $packageId,
             ]);
 
-            foreach (app(CarrierRegistry::class)->getConfiguredAdapters() as $name => $adapter) {
-                $carrierTasks[] = ['name' => $name, 'serviceCodes' => []];
+            foreach (array_keys(app(CarrierRegistry::class)->getConfiguredAdapters()) as $name) {
+                $task = $this->buildCarrierTask(
+                    $name,
+                    collect(),
+                    $requiredCodes,
+                    $defaultCodes,
+                    $scopeMap,
+                    $serviceNames,
+                    $rateRequest->destinationCountry,
+                );
+
+                if ($task) {
+                    $carrierTasks[] = $task;
+                }
             }
         }
-
-        $this->exclusions = [];
-        $requiredServiceCodes = $this->getRequiredServiceCodes($shippingMethod ?? null);
-        $carrierTasks = $this->filterProhibitedCarriers($carrierTasks, $requiredServiceCodes);
 
         $rateOptions = $this->fetchRatesConcurrently($carrierTasks, $rateRequest);
 
@@ -113,7 +143,7 @@ class ShippingRateService
     /**
      * Fetch rates from multiple carriers concurrently using a shared Guzzle sender.
      *
-     * @param  array<int, array{name: string, serviceCodes: array<string>}>  $carrierTasks
+     * @param  array<int, array{name: string, serviceCodes: array<string>, specialServiceCodes: array<string>}>  $carrierTasks
      * @return Collection<int, RateResponse>
      */
     private function fetchRatesConcurrently(array $carrierTasks, RateRequest $rateRequest): Collection
@@ -147,7 +177,9 @@ class ShippingRateService
                 }
 
                 $shipDate = $shipDateService->getShipDate($carrierName, $rateRequest->locationId);
-                $carrierRateRequest = $rateRequest->withShipDate($shipDate);
+                $carrierRateRequest = $rateRequest
+                    ->withShipDate($shipDate)
+                    ->withSpecialServiceCodes($task['specialServiceCodes']);
 
                 $prepared = $adapter->prepareRateRequest($carrierRateRequest, $serviceCodes);
 
@@ -252,61 +284,168 @@ class ShippingRateService
     }
 
     /**
-     * Get the special service codes that are required or defaulted on a shipping method.
-     * These are the services that will always be applied to packages using this method,
-     * so they must be checked against each carrier's capabilities.
+     * Build the rate task for one carrier, applying capability and carrier-service
+     * scope checks. Hard-required codes (shipping-method required mode + product
+     * compliance) drop carrier services that aren't scoped for them and exclude
+     * the carrier entirely when nothing survives (or the carrier prohibits /
+     * hasn't implemented the code). Default-mode codes never drop a carrier
+     * service — the code is stripped from the carrier's request instead.
      *
-     * @return array<string>
-     */
-    private function getRequiredServiceCodes(?ShippingMethod $shippingMethod): array
-    {
-        if (! $shippingMethod) {
-            return [];
-        }
-
-        return $shippingMethod->specialServices()
-            ->whereIn('shipping_method_special_service.mode', ['required', 'default'])
-            ->pluck('code')
-            ->all();
-    }
-
-    /**
-     * Filter out carrier tasks where the carrier prohibits any of the required services.
-     * Records the reason for each excluded carrier in $this->exclusions.
+     * Returns null (recording the reason in $this->exclusions) when the carrier
+     * is excluded.
      *
-     * @param  array<int, array{name: string, serviceCodes: array<string>}>  $carrierTasks
-     * @param  array<string>  $requiredServiceCodes
-     * @return array<int, array{name: string, serviceCodes: array<string>}>
+     * @param  Collection<int, CarrierService>  $services  Empty when no shipping method is assigned
+     * @param  array<int, string>  $requiredCodes
+     * @param  array<int, string>  $defaultCodes
+     * @param  array<string, array<int, array<int, array<int, string>|null>>>  $scopeMap
+     * @param  Collection<string, string>  $serviceNames
+     * @return array{name: string, serviceCodes: array<int, string>, specialServiceCodes: array<int, string>}|null
      */
-    private function filterProhibitedCarriers(array $carrierTasks, array $requiredServiceCodes): array
-    {
-        if (empty($requiredServiceCodes)) {
-            return $carrierTasks;
-        }
-
+    private function buildCarrierTask(
+        string $carrierName,
+        Collection $services,
+        array $requiredCodes,
+        array $defaultCodes,
+        array $scopeMap,
+        Collection $serviceNames,
+        string $destinationCountry,
+    ): ?array {
         $registry = app(CarrierRegistry::class);
-        $serviceNames = SpecialService::whereIn('code', $requiredServiceCodes)
-            ->pluck('name', 'code');
+        $specialServiceCodes = [];
 
-        return array_values(array_filter($carrierTasks, function (array $task) use ($registry, $requiredServiceCodes, $serviceNames): bool {
-            $carrierName = $task['name'];
+        $adapter = $registry->has($carrierName) ? $registry->get($carrierName) : null;
 
-            if (! $registry->has($carrierName)) {
-                return true;
+        foreach ($requiredCodes as $code) {
+            if ($adapter && $adapter->serviceCapability($code) !== ServiceCapability::Supported) {
+                // Prohibited and NotImplemented both exclude: a hard-required
+                // service the carrier can't actually apply must not be skipped.
+                $this->exclusions[$carrierName] = $carrierName.' does not support '.$serviceNames->get($code, $code).'.';
+
+                return null;
             }
 
-            $adapter = $registry->get($carrierName);
+            $carrierScopes = $this->scopesForCarrier($scopeMap, $code, $services);
 
-            foreach ($requiredServiceCodes as $code) {
-                if ($adapter->serviceCapability($code) === ServiceCapability::Prohibited) {
-                    $this->exclusions[$carrierName] = $carrierName.' does not support '.$serviceNames->get($code, $code).'.';
+            if ($carrierScopes !== null) {
+                $services = $services->filter(
+                    fn (CarrierService $service): bool => $this->scopeAllows($carrierScopes, $service->id, $destinationCountry)
+                );
 
-                    return false;
+                if ($services->isEmpty()) {
+                    $this->exclusions[$carrierName] = $carrierName.' has no services that support '.$serviceNames->get($code, $code).' for this destination.';
+
+                    return null;
                 }
             }
 
-            return true;
-        }));
+            $specialServiceCodes[] = $code;
+        }
+
+        foreach ($defaultCodes as $code) {
+            if ($adapter) {
+                $capability = $adapter->serviceCapability($code);
+
+                if ($capability === ServiceCapability::Prohibited) {
+                    $this->exclusions[$carrierName] = $carrierName.' does not support '.$serviceNames->get($code, $code).'.';
+
+                    return null;
+                }
+
+                if ($capability === ServiceCapability::NotImplemented) {
+                    continue;
+                }
+            }
+
+            $carrierScopes = $this->scopesForCarrier($scopeMap, $code, $services);
+
+            if ($carrierScopes !== null && $services->doesntContain(
+                fn (CarrierService $service): bool => $this->scopeAllows($carrierScopes, $service->id, $destinationCountry)
+            )) {
+                logger()->debug("ShippingRateService: {$carrierName} has no services scoped for default service {$code}, requesting rates without it");
+
+                continue;
+            }
+
+            $specialServiceCodes[] = $code;
+        }
+
+        return [
+            'name' => $carrierName,
+            'serviceCodes' => $services->pluck('service_code')->values()->all(),
+            'specialServiceCodes' => $specialServiceCodes,
+        ];
+    }
+
+    /**
+     * Carrier-service scope rows for one code, limited to this carrier.
+     * Returns null when the code has no rows for any of this carrier's services —
+     * the code is unscoped for this carrier and only the carrier-wide capability
+     * check applies. Also null when there is no carrier-service list to filter
+     * (no shipping method assigned).
+     *
+     * @param  array<string, array<int, array<int, array<int, string>|null>>>  $scopeMap
+     * @param  Collection<int, CarrierService>  $services
+     * @return array<int, array<int, string>|null>|null carrier_service_id => restricted_countries
+     */
+    private function scopesForCarrier(array $scopeMap, string $code, Collection $services): ?array
+    {
+        if ($services->isEmpty() || ! isset($scopeMap[$code])) {
+            return null;
+        }
+
+        $carrierId = $services->first()->carrier_id;
+
+        return $scopeMap[$code][$carrierId] ?? null;
+    }
+
+    /**
+     * @param  array<int, array<int, string>|null>  $carrierScopes  carrier_service_id => restricted_countries
+     */
+    private function scopeAllows(array $carrierScopes, int $carrierServiceId, string $destinationCountry): bool
+    {
+        if (! array_key_exists($carrierServiceId, $carrierScopes)) {
+            return false;
+        }
+
+        $restrictedCountries = $carrierScopes[$carrierServiceId];
+
+        return empty($restrictedCountries) || in_array($destinationCountry, $restrictedCountries, true);
+    }
+
+    /**
+     * Load carrier_service_special_service rows for the given codes into a
+     * lookup of code => carrier_id => carrier_service_id => restricted_countries.
+     *
+     * @param  array<int, string>  $codes
+     * @return array<string, array<int, array<int, array<int, string>|null>>>
+     */
+    private function loadServiceScopes(array $codes): array
+    {
+        if (empty($codes)) {
+            return [];
+        }
+
+        $codesByServiceId = SpecialService::whereIn('code', $codes)->pluck('code', 'id');
+
+        if ($codesByServiceId->isEmpty()) {
+            return [];
+        }
+
+        $rows = CarrierServiceSpecialService::whereIn('special_service_id', $codesByServiceId->keys())->get();
+
+        $carrierIdsByServiceId = CarrierService::whereIn('id', $rows->pluck('carrier_service_id'))
+            ->pluck('carrier_id', 'id');
+
+        $map = [];
+
+        foreach ($rows as $row) {
+            $code = $codesByServiceId[$row->special_service_id];
+            $carrierId = (int) $carrierIdsByServiceId[$row->carrier_service_id];
+
+            $map[$code][$carrierId][(int) $row->carrier_service_id] = $row->restricted_countries;
+        }
+
+        return $map;
     }
 
     /**

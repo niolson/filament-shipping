@@ -12,7 +12,9 @@ class SpecialServiceSeeder extends Seeder
      * Seed the special services catalog.
      *
      * This is a code-owned registry — rows are managed here, not via admin UI.
-     * Use the `active` flag to deprecate services without deleting them.
+     * Only services wired end-to-end (DTO → adapter API fields) are `active`;
+     * inactive services are hidden from shipping-method attachment and ignored
+     * by product-compliance resolution until their adapter work lands.
      */
     public function run(): void
     {
@@ -152,12 +154,14 @@ class SpecialServiceSeeder extends Seeder
             ],
         ];
 
+        $wiredCodes = ['saturday_delivery'];
+
         foreach ($services as $service) {
             SpecialService::updateOrCreate(
                 ['code' => $service['code']],
                 array_merge($service, [
                     'config_schema' => $service['config_schema'] ? json_encode($service['config_schema']) : null,
-                    'active' => true,
+                    'active' => in_array($service['code'], $wiredCodes, true),
                 ]),
             );
         }

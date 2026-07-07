@@ -3,9 +3,14 @@
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageStatus;
 use App\Enums\ShipmentStatus;
+use App\Enums\SpecialServiceSource;
 use App\Models\CarrierAccount;
 use App\Models\Package;
+use App\Models\PackageItem;
+use App\Models\PackageSpecialService;
+use App\Models\Product;
 use App\Models\Shipment;
+use App\Models\SpecialService;
 use App\Models\User;
 
 it('marks a package as shipped from ShipResponse', function (): void {
@@ -97,4 +102,70 @@ it('preserves dimension fields when clearing shipping', function (): void {
         ->and((float) $package->height)->toBe(10.00)
         ->and((float) $package->width)->toBe(8.00)
         ->and((float) $package->length)->toBe(6.00);
+});
+
+it('records product-required special services with Product source', function (): void {
+    $alcohol = SpecialService::create([
+        'code' => 'alcohol',
+        'name' => 'Alcohol',
+        'scope' => 'package',
+        'category' => 'compliance',
+        'requires_value' => false,
+        'active' => true,
+    ]);
+
+    $package = Package::factory()->create();
+    $product = Product::factory()->create(['contains_alcohol' => true]);
+    PackageItem::factory()->for($package)->create(['product_id' => $product->id]);
+
+    $package->markShipped(ShipResponse::success(
+        trackingNumber: '9400111899223456789012',
+        cost: 8.50,
+        carrier: 'FedEx',
+        service: 'FEDEX_GROUND',
+        labelData: base64_encode('PDF content'),
+        appliedServices: ['alcohol'],
+    ));
+
+    $applied = PackageSpecialService::where('package_id', $package->id)
+        ->where('special_service_id', $alcohol->id)
+        ->first();
+
+    expect($applied)->not->toBeNull()
+        ->and($applied->source)->toBe(SpecialServiceSource::Product)
+        ->and($applied->source_reference)->toBe((string) $product->id);
+});
+
+it('records applied services from inactive-compliance packages with System source', function (): void {
+    // Product flag present but service inactive: not product-required, so an
+    // applied code (e.g. carrier default) falls through to System attribution
+    $alcohol = SpecialService::create([
+        'code' => 'alcohol',
+        'name' => 'Alcohol',
+        'scope' => 'package',
+        'category' => 'compliance',
+        'requires_value' => false,
+        'active' => false,
+    ]);
+
+    $package = Package::factory()->create();
+    $product = Product::factory()->create(['contains_alcohol' => true]);
+    PackageItem::factory()->for($package)->create(['product_id' => $product->id]);
+
+    $package->markShipped(ShipResponse::success(
+        trackingNumber: '9400111899223456789013',
+        cost: 8.50,
+        carrier: 'FedEx',
+        service: 'FEDEX_GROUND',
+        labelData: base64_encode('PDF content'),
+        appliedServices: ['alcohol'],
+    ));
+
+    $applied = PackageSpecialService::where('package_id', $package->id)
+        ->where('special_service_id', $alcohol->id)
+        ->first();
+
+    expect($applied)->not->toBeNull()
+        ->and($applied->source)->toBe(SpecialServiceSource::System)
+        ->and($applied->source_reference)->toBeNull();
 });

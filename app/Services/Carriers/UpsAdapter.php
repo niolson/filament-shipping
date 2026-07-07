@@ -162,7 +162,7 @@ class UpsAdapter implements CarrierAdapterInterface
 
         // Mixed Saturday: initial request was sent without Saturday, now send
         // a follow-up with Saturday for eligible services and merge results
-        if ($request->saturdayDelivery && $this->classifySaturdayEligibility($serviceCodes, $request) === 'mixed') {
+        if ($request->hasSpecialService('saturday_delivery') && $this->classifySaturdayEligibility($serviceCodes, $request) === 'mixed') {
             try {
                 $connector = $this->resolveConnector(
                     $this->resolveAccount($request->locationId, $request->clientId)
@@ -426,7 +426,7 @@ class UpsAdapter implements CarrierAdapterInterface
                             'Date' => $request->shipDate->format('Ymd'),
                         ] : null,
                     ]),
-                    ...($request->saturdayDelivery ? [
+                    ...($request->hasSpecialService('saturday_delivery') ? [
                         'ShipmentServiceOptions' => [
                             'SaturdayDeliveryIndicator' => '',
                         ],
@@ -504,7 +504,7 @@ class UpsAdapter implements CarrierAdapterInterface
             ];
 
             // Add Saturday delivery if requested
-            if ($request->saturdayDelivery) {
+            if ($request->hasSpecialService('saturday_delivery')) {
                 $shipment['ShipmentServiceOptions'] = array_merge(
                     $shipment['ShipmentServiceOptions'] ?? [],
                     ['SaturdayDeliveryIndicator' => ''],
@@ -520,7 +520,7 @@ class UpsAdapter implements CarrierAdapterInterface
             $responseData = $response->json();
 
             // If Saturday delivery was rejected, retry without it
-            if ($request->saturdayDelivery && ! $response->successful()) {
+            if ($request->hasSpecialService('saturday_delivery') && ! $response->successful()) {
                 $errorJson = json_encode($responseData);
                 if (str_contains(strtolower($errorJson), 'saturday')) {
                     logger()->info('UPS Saturday delivery rejected, retrying without', [

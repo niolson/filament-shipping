@@ -4,12 +4,14 @@ namespace App\DataTransferObjects\Shipping;
 
 use App\Models\Package;
 use App\Services\ShipDateService;
+use App\Services\SpecialServiceResolver;
 use Carbon\CarbonImmutable;
 
 readonly class ShipRequest
 {
     /**
      * @param  array<int, CustomsItem>  $customsItems
+     * @param  array<int, string>  $specialServiceCodes
      */
     public function __construct(
         public AddressData $fromAddress,
@@ -19,11 +21,43 @@ readonly class ShipRequest
         public array $customsItems = [],
         public string $labelFormat = 'pdf',
         public ?int $labelDpi = null,
-        public bool $saturdayDelivery = false,
+        public array $specialServiceCodes = [],
         public ?int $locationId = null,
         public ?int $clientId = null,
         public ?CarbonImmutable $shipDate = null,
     ) {}
+
+    public function hasSpecialService(string $code): bool
+    {
+        return in_array($code, $this->specialServiceCodes, true);
+    }
+
+    public function withoutSpecialService(string $code): self
+    {
+        return $this->withSpecialServiceCodes(
+            array_values(array_diff($this->specialServiceCodes, [$code])),
+        );
+    }
+
+    /**
+     * @param  array<int, string>  $codes
+     */
+    public function withSpecialServiceCodes(array $codes): self
+    {
+        return new self(
+            fromAddress: $this->fromAddress,
+            toAddress: $this->toAddress,
+            packageData: $this->packageData,
+            selectedRate: $this->selectedRate,
+            customsItems: $this->customsItems,
+            labelFormat: $this->labelFormat,
+            labelDpi: $this->labelDpi,
+            specialServiceCodes: $codes,
+            locationId: $this->locationId,
+            clientId: $this->clientId,
+            shipDate: $this->shipDate,
+        );
+    }
 
     /**
      * Scale customs item weights proportionally so their total matches the package weight.
@@ -63,7 +97,7 @@ readonly class ShipRequest
             customsItems: $scaledItems,
             labelFormat: $this->labelFormat,
             labelDpi: $this->labelDpi,
-            saturdayDelivery: $this->saturdayDelivery,
+            specialServiceCodes: $this->specialServiceCodes,
             locationId: $this->locationId,
             clientId: $this->clientId,
             shipDate: $this->shipDate,
@@ -90,8 +124,6 @@ readonly class ShipRequest
             ? AddressData::fromLocation($package->location)
             : AddressData::fromConfig();
 
-        $shippingMethod = $package->shipment->shippingMethod;
-
         $shipDate = app(ShipDateService::class)->getShipDate($rate->carrier, $package->location_id);
 
         return new self(
@@ -102,7 +134,7 @@ readonly class ShipRequest
             customsItems: $customsItems,
             labelFormat: $labelFormat,
             labelDpi: $labelDpi,
-            saturdayDelivery: (bool) $shippingMethod?->hasDefaultService('saturday_delivery'),
+            specialServiceCodes: app(SpecialServiceResolver::class)->resolveForPackageAndRate($package, $rate),
             locationId: $package->location_id,
             clientId: $package->shipment->client_id,
             shipDate: $shipDate,

@@ -8,6 +8,7 @@ use App\Enums\SpecialServiceSource;
 use App\Enums\TrackingStatus;
 use App\Events\PackageCancelled;
 use App\Events\PackageShipped;
+use App\Services\SpecialServiceResolver;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -241,6 +242,7 @@ class Package extends Model
 
         $shippingMethod = $this->shipment?->shippingMethod;
         $services = SpecialService::whereIn('code', $appliedServiceCodes)->get()->keyBy('code');
+        $productRequiredCodes = app(SpecialServiceResolver::class)->resolveProductRequiredCodes($this);
         $now = now();
 
         foreach ($appliedServiceCodes as $code) {
@@ -250,12 +252,17 @@ class Package extends Model
                 continue;
             }
 
-            $pivotMode = $shippingMethod?->specialServices()
-                ->where('code', $code)
-                ->value('shipping_method_special_service.mode');
+            if ($productRequiredCodes->has($code)) {
+                $source = SpecialServiceSource::Product;
+                $sourceReference = (string) $productRequiredCodes->get($code);
+            } else {
+                $pivotMode = $shippingMethod?->specialServices()
+                    ->where('code', $code)
+                    ->value('shipping_method_special_service.mode');
 
-            $source = $pivotMode ? SpecialServiceSource::ShippingMethod : SpecialServiceSource::System;
-            $sourceReference = $pivotMode ? (string) $shippingMethod->id : null;
+                $source = $pivotMode ? SpecialServiceSource::ShippingMethod : SpecialServiceSource::System;
+                $sourceReference = $pivotMode ? (string) $shippingMethod->id : null;
+            }
 
             $this->specialServices()->updateOrCreate(
                 ['special_service_id' => $service->id],

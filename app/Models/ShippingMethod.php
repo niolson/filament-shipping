@@ -64,15 +64,4 @@ class ShippingMethod extends Model
             ->withPivot(['mode', 'config'])
             ->withTimestamps();
     }
-
-    /**
-     * Check if this shipping method has a special service set as default or required.
-     */
-    public function hasDefaultService(string $code): bool
-    {
-        return $this->specialServices()
-            ->where('code', $code)
-            ->whereIn('shipping_method_special_service.mode', ['default', 'required'])
-            ->exists();
-    }
 }

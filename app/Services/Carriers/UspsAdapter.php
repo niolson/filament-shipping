@@ -420,7 +420,7 @@ class UspsAdapter implements CarrierAdapterInterface
                 labelFormat: $request->labelFormat,
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
-                appliedServices: $request->saturdayDelivery ? ['saturday_delivery'] : [],
+                appliedServices: $request->hasSpecialService('saturday_delivery') ? ['saturday_delivery'] : [],
                 carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
@@ -527,7 +527,7 @@ class UspsAdapter implements CarrierAdapterInterface
                 labelFormat: $request->labelFormat,
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
-                appliedServices: $request->saturdayDelivery ? ['saturday_delivery'] : [],
+                appliedServices: $request->hasSpecialService('saturday_delivery') ? ['saturday_delivery'] : [],
                 carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {

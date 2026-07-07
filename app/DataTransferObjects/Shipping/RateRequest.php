@@ -3,12 +3,14 @@
 namespace App\DataTransferObjects\Shipping;
 
 use App\Models\Package;
+use App\Services\SpecialServiceResolver;
 use Carbon\CarbonImmutable;
 
 readonly class RateRequest
 {
     /**
      * @param  array<PackageData>  $packages
+     * @param  array<int, string>  $specialServiceCodes
      */
     public function __construct(
         public string $originPostalCode,
@@ -19,7 +21,7 @@ readonly class RateRequest
         public ?string $destinationStateOrProvince = null,
         public ?bool $residential = null,
         public array $packages = [],
-        public bool $saturdayDelivery = false,
+        public array $specialServiceCodes = [],
         public ?int $locationId = null,
         public ?int $clientId = null,
         public ?CarbonImmutable $shipDate = null,
@@ -39,8 +41,6 @@ readonly class RateRequest
             }
         }
 
-        $shippingMethod = $shipment->shippingMethod;
-
         return new self(
             originPostalCode: $origin->postalCode ?? '',
             destinationPostalCode: $shipment->validated_postal_code ?? $shipment->postal_code,
@@ -50,9 +50,42 @@ readonly class RateRequest
             destinationStateOrProvince: $shipment->validated_state_or_province ?? $shipment->state_or_province,
             residential: $shipment->validated_residential ?? $shipment->residential,
             packages: [PackageData::fromPackage($package)],
-            saturdayDelivery: (bool) $shippingMethod?->hasDefaultService('saturday_delivery'),
+            specialServiceCodes: app(SpecialServiceResolver::class)->resolveForPackage($package),
             locationId: $package->location_id,
             clientId: $package->shipment->client_id,
+        );
+    }
+
+    public function hasSpecialService(string $code): bool
+    {
+        return in_array($code, $this->specialServiceCodes, true);
+    }
+
+    public function withoutSpecialService(string $code): self
+    {
+        return $this->withSpecialServiceCodes(
+            array_values(array_diff($this->specialServiceCodes, [$code])),
+        );
+    }
+
+    /**
+     * @param  array<int, string>  $codes
+     */
+    public function withSpecialServiceCodes(array $codes): self
+    {
+        return new self(
+            originPostalCode: $this->originPostalCode,
+            destinationPostalCode: $this->destinationPostalCode,
+            originCountry: $this->originCountry,
+            destinationCountry: $this->destinationCountry,
+            destinationCity: $this->destinationCity,
+            destinationStateOrProvince: $this->destinationStateOrProvince,
+            residential: $this->residential,
+            packages: $this->packages,
+            specialServiceCodes: $codes,
+            locationId: $this->locationId,
+            clientId: $this->clientId,
+            shipDate: $this->shipDate,
         );
     }
 
@@ -67,7 +100,7 @@ readonly class RateRequest
             destinationStateOrProvince: $this->destinationStateOrProvince,
             residential: $this->residential,
             packages: $this->packages,
-            saturdayDelivery: $this->saturdayDelivery,
+            specialServiceCodes: $this->specialServiceCodes,
             locationId: $this->locationId,
             clientId: $this->clientId,
             shipDate: $date,

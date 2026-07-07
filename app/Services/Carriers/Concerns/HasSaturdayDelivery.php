@@ -63,7 +63,7 @@ trait HasSaturdayDelivery
      */
     private function adjustRequestForSaturday(RateRequest $request, array $serviceCodes): RateRequest
     {
-        if ($request->saturdayDelivery && $this->classifySaturdayEligibility($serviceCodes, $request) !== 'all') {
+        if ($request->hasSpecialService('saturday_delivery') && $this->classifySaturdayEligibility($serviceCodes, $request) !== 'all') {
             return $this->withoutSaturdayDelivery($request);
         }
 
@@ -72,19 +72,6 @@ trait HasSaturdayDelivery
 
     private function withoutSaturdayDelivery(RateRequest $request): RateRequest
     {
-        return new RateRequest(
-            originPostalCode: $request->originPostalCode,
-            destinationPostalCode: $request->destinationPostalCode,
-            originCountry: $request->originCountry,
-            destinationCountry: $request->destinationCountry,
-            destinationCity: $request->destinationCity,
-            destinationStateOrProvince: $request->destinationStateOrProvince,
-            residential: $request->residential,
-            packages: $request->packages,
-            saturdayDelivery: false,
-            locationId: $request->locationId,
-            clientId: $request->clientId,
-            shipDate: $request->shipDate,
-        );
+        return $request->withoutSpecialService('saturday_delivery');
     }
 }

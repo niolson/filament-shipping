@@ -189,7 +189,7 @@ it('keeps the client account through FedEx Saturday retry and One Rate follow-up
             height: 8,
             fedexPackageType: FedexPackageType::FEDEX_SMALL_BOX,
         )],
-        saturdayDelivery: true,
+        specialServiceCodes: ['saturday_delivery'],
         clientId: $client->id,
         shipDate: CarbonImmutable::parse('2026-07-03'),
     );

@@ -11,9 +11,12 @@ use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Models\Carrier;
 use App\Models\CarrierService;
 use App\Models\Package;
+use App\Models\PackageItem;
+use App\Models\Product;
 use App\Models\Setting;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
+use App\Models\SpecialService;
 use App\Services\Carriers\CarrierRegistry;
 use App\Services\Carriers\UspsAdapter;
 use App\Services\SettingsService;
@@ -737,4 +740,276 @@ it('continues when carrier rate fetch exception has no previous exception', func
     $rates = app(ShippingRateService::class)->getShippingRates($package->id);
 
     expect($rates)->toHaveCount(0);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Special service capability + carrier-service scope filtering
+|--------------------------------------------------------------------------
+*/
+
+function createScopedSpecialService(string $code, string $name, bool $active = true): SpecialService
+{
+    return SpecialService::create([
+        'code' => $code,
+        'name' => $name,
+        'scope' => 'shipment',
+        'category' => 'delivery',
+        'requires_value' => false,
+        'active' => $active,
+    ]);
+}
+
+function fakeUspsGroundAdvantageRate(float $price = 8.50): MockResponse
+{
+    return MockResponse::make([
+        'pricingOptions' => [
+            [
+                'shippingOptions' => [
+                    [
+                        'rateOptions' => [
+                            [
+                                'totalBasePrice' => $price,
+                                'commitment' => ['name' => '2-5 Business Days'],
+                                'rates' => [
+                                    [
+                                        'mailClass' => 'USPS_GROUND_ADVANTAGE',
+                                        'processingCategory' => 'MACHINABLE',
+                                        'rateIndicator' => 'SP',
+                                        'destinationEntryFacilityType' => 'NONE',
+                                        'description' => 'USPS Ground Advantage',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ]);
+}
+
+it('drops carrier services not scoped for a required special service', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        FedexRates::class => MockResponse::make([
+            'output' => [
+                'rateReplyDetails' => [
+                    [
+                        'serviceType' => 'FEDEX_GROUND',
+                        'serviceName' => 'FedEx Ground',
+                        'ratedShipmentDetails' => [['totalNetCharge' => 11.50]],
+                        'commit' => ['transitDays' => 'THREE_DAYS'],
+                    ],
+                    [
+                        'serviceType' => 'PRIORITY_OVERNIGHT',
+                        'serviceName' => 'FedEx Priority Overnight',
+                        'ratedShipmentDetails' => [['totalNetCharge' => 42.00]],
+                        'commit' => ['transitDays' => 'ONE_DAY'],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $saturday = createScopedSpecialService('saturday_delivery', 'Saturday Delivery');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($saturday->id, ['mode' => 'required']);
+
+    $ground = CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create();
+    $overnight = CarrierService::factory()->for($this->fedexCarrier)->create([
+        'name' => 'FedEx Priority Overnight',
+        'service_code' => 'PRIORITY_OVERNIGHT',
+    ]);
+    $shippingMethod->carrierServices()->attach([$ground->id, $overnight->id]);
+
+    // Only Priority Overnight is scoped as Saturday-capable
+    $saturday->carrierServices()->attach($overnight->id);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create(['postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->metadata['serviceType'])->toBe('PRIORITY_OVERNIGHT')
+        ->and($service->getExclusions())->toBeEmpty();
+});
+
+it('excludes a carrier when no services survive a required special service scope', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => fakeUspsGroundAdvantageRate(),
+    ]);
+
+    $saturday = createScopedSpecialService('saturday_delivery', 'Saturday Delivery');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($saturday->id, ['mode' => 'required']);
+
+    $fedexGround = CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create();
+    $uspsService = CarrierService::factory()->uspsGroundAdvantage()->for($this->uspsCarrier)->create();
+    $shippingMethod->carrierServices()->attach([$fedexGround->id, $uspsService->id]);
+
+    // Saturday is scoped for FedEx, but only on a service this method doesn't use
+    $overnight = CarrierService::factory()->for($this->fedexCarrier)->create([
+        'name' => 'FedEx Priority Overnight',
+        'service_code' => 'PRIORITY_OVERNIGHT',
+    ]);
+    $saturday->carrierServices()->attach($overnight->id);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create(['postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    // USPS is unscoped for Saturday (no rows for any USPS service) and unaffected
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('USPS')
+        ->and($service->getExclusions())->toHaveCount(1)
+        ->and($service->getExclusions()[0]['carrier'])->toBe('FedEx')
+        ->and($service->getExclusions()[0]['reason'])->toContain('Saturday Delivery');
+});
+
+it('strips a default-mode special service instead of excluding the carrier', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        FedexRates::class => MockResponse::make([
+            'output' => [
+                'rateReplyDetails' => [
+                    [
+                        'serviceType' => 'FEDEX_GROUND',
+                        'serviceName' => 'FedEx Ground',
+                        'ratedShipmentDetails' => [['totalNetCharge' => 11.50]],
+                        'commit' => ['transitDays' => 'THREE_DAYS'],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $saturday = createScopedSpecialService('saturday_delivery', 'Saturday Delivery');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($saturday->id, ['mode' => 'default']);
+
+    $fedexGround = CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create();
+    $shippingMethod->carrierServices()->attach($fedexGround->id);
+
+    // Saturday scoped for FedEx but not on Ground — default mode strips the
+    // code rather than dropping the carrier service
+    $overnight = CarrierService::factory()->for($this->fedexCarrier)->create([
+        'name' => 'FedEx Priority Overnight',
+        'service_code' => 'PRIORITY_OVERNIGHT',
+    ]);
+    $saturday->carrierServices()->attach($overnight->id);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create(['postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('FedEx')
+        ->and($service->getExclusions())->toBeEmpty();
+});
+
+it('excludes a carrier that has not implemented a required special service', function (): void {
+    $signature = createScopedSpecialService('signature_required', 'Signature Required');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($signature->id, ['mode' => 'required']);
+
+    $fedexGround = CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create();
+    $shippingMethod->carrierServices()->attach($fedexGround->id);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create(['postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(0)
+        ->and($service->getExclusions())->toHaveCount(1)
+        ->and($service->getExclusions()[0]['carrier'])->toBe('FedEx')
+        ->and($service->getExclusions()[0]['reason'])->toContain('Signature Required');
+});
+
+it('respects restricted_countries on a carrier service scope', function (): void {
+    $saturday = createScopedSpecialService('saturday_delivery', 'Saturday Delivery');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($saturday->id, ['mode' => 'required']);
+
+    $overnight = CarrierService::factory()->for($this->fedexCarrier)->create([
+        'name' => 'FedEx Priority Overnight',
+        'service_code' => 'PRIORITY_OVERNIGHT',
+    ]);
+    $shippingMethod->carrierServices()->attach($overnight->id);
+
+    // Scoped, but only for Canadian destinations — US shipment must exclude FedEx
+    $saturday->carrierServices()->attach($overnight->id, ['restricted_countries' => ['CA']]);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create(['postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(0)
+        ->and($service->getExclusions())->toHaveCount(1)
+        ->and($service->getExclusions()[0]['reason'])->toContain('for this destination');
+});
+
+it('excludes carriers that cannot carry an active product compliance service', function (): void {
+    createScopedSpecialService('alcohol', 'Alcohol');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $uspsService = CarrierService::factory()->uspsGroundAdvantage()->for($this->uspsCarrier)->create();
+    $fedexGround = CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create();
+    $shippingMethod->carrierServices()->attach([$uspsService->id, $fedexGround->id]);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create(['postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+    $product = Product::factory()->create(['contains_alcohol' => true]);
+    PackageItem::factory()->for($package)->create(['product_id' => $product->id]);
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    // USPS prohibits alcohol; FedEx hasn't implemented it — both must be
+    // excluded for a compliance-required code
+    expect($rates)->toHaveCount(0)
+        ->and($service->getExclusions())->toHaveCount(2)
+        ->and(collect($service->getExclusions())->pluck('carrier')->sort()->values()->all())->toBe(['FedEx', 'USPS']);
+});
+
+it('ignores product compliance flags while their special service is inactive', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => fakeUspsGroundAdvantageRate(),
+    ]);
+
+    createScopedSpecialService('alcohol', 'Alcohol', active: false);
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $uspsService = CarrierService::factory()->uspsGroundAdvantage()->for($this->uspsCarrier)->create();
+    $shippingMethod->carrierServices()->attach($uspsService->id);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create(['postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+    $product = Product::factory()->create(['contains_alcohol' => true]);
+    PackageItem::factory()->for($package)->create(['product_id' => $product->id]);
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    // Inactive compliance service = not enforced yet; package ships as before
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('USPS')
+        ->and($service->getExclusions())->toBeEmpty();
 });

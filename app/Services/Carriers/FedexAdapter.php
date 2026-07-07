@@ -195,7 +195,7 @@ class FedexAdapter implements CarrierAdapterInterface
 
         if (! $response->successful()) {
             // If Saturday delivery was requested, retry without it
-            if ($request->saturdayDelivery) {
+            if ($request->hasSpecialService('saturday_delivery')) {
                 $errors = $response->json('errors', []);
                 $isSaturdayError = collect($errors)->contains(
                     fn ($e) => ($e['code'] ?? '') === 'SERVICE.PACKAGECOMBINATION.INVALID'
@@ -226,7 +226,7 @@ class FedexAdapter implements CarrierAdapterInterface
 
         // Mixed Saturday: initial request was sent without Saturday, now send
         // a follow-up with Saturday for eligible services and merge results
-        if ($request->saturdayDelivery && $this->classifySaturdayEligibility($serviceCodes, $request) === 'mixed') {
+        if ($request->hasSpecialService('saturday_delivery') && $this->classifySaturdayEligibility($serviceCodes, $request) === 'mixed') {
             try {
                 $connector = $this->resolveConnector($account);
                 $saturdayApiRequest = $this->buildRateApiRequest($request, $serviceCodes, $account);
@@ -333,7 +333,7 @@ class FedexAdapter implements CarrierAdapterInterface
                 ...($request->shipDate ? [
                     'shipDateStamp' => $request->shipDate->format('Y-m-d'),
                 ] : []),
-                ...($request->saturdayDelivery ? [
+                ...($request->hasSpecialService('saturday_delivery') ? [
                     'shipmentSpecialServices' => [
                         'specialServiceTypes' => ['SATURDAY_DELIVERY'],
                     ],
@@ -510,7 +510,7 @@ class FedexAdapter implements CarrierAdapterInterface
             if (! empty($request->selectedRate->metadata['isOneRate'])) {
                 $specialServiceTypes[] = 'FEDEX_ONE_RATE';
             }
-            $saturdayRequested = $request->saturdayDelivery;
+            $saturdayRequested = $request->hasSpecialService('saturday_delivery');
             if ($saturdayRequested) {
                 $specialServiceTypes[] = 'SATURDAY_DELIVERY';
             }
@@ -1032,7 +1032,7 @@ class FedexAdapter implements CarrierAdapterInterface
                 'shipmentSpecialServices' => [
                     'specialServiceTypes' => array_filter([
                         'FEDEX_ONE_RATE',
-                        $request->saturdayDelivery ? 'SATURDAY_DELIVERY' : null,
+                        $request->hasSpecialService('saturday_delivery') ? 'SATURDAY_DELIVERY' : null,
                     ]),
                 ],
             ],

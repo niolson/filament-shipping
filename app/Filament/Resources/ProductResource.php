@@ -109,13 +109,13 @@ class ProductResource extends Resource
                     ->schema([
                         Forms\Components\Toggle::make('contains_alcohol')
                             ->label('Contains Alcohol')
-                            ->helperText('Requires adult signature at delivery. FedEx and UPS domestic only; USPS not supported.')
+                            ->helperText('Marks the product for the alcohol special service. Carriers that cannot carry alcohol are excluded from rate shopping once that service is activated; carrier-specific alcohol paperwork is not yet automated.')
                             ->columnSpanFull(),
                         Forms\Components\Select::make('hazmat_class')
                             ->label('Hazmat Classification')
                             ->options(HazmatClass::class)
                             ->placeholder('None')
-                            ->helperText('Automatically applies the appropriate carrier hazmat/dangerous goods service.')
+                            ->helperText('Marks the product for the matching hazmat special service. Carriers that cannot handle it are excluded from rate shopping once that service is activated; carrier-specific hazmat paperwork is not yet automated.')
                             ->columnSpanFull(),
                     ]),
             ]);

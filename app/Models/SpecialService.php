@@ -48,4 +48,17 @@ class SpecialService extends Model
             ->withPivot(['source', 'source_reference', 'config', 'applied_at'])
             ->withTimestamps();
     }
+
+    /**
+     * Carrier services explicitly scoped as able to carry this special service.
+     *
+     * @return BelongsToMany<CarrierService, $this, CarrierServiceSpecialService>
+     */
+    public function carrierServices(): BelongsToMany
+    {
+        return $this->belongsToMany(CarrierService::class)
+            ->using(CarrierServiceSpecialService::class)
+            ->withPivot('restricted_countries')
+            ->withTimestamps();
+    }
 }
