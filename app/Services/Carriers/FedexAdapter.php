@@ -275,6 +275,9 @@ class FedexAdapter implements CarrierAdapterInterface
             $apiRequest = new Rates;
             $apiRequest->body()->set([
                 'accountNumber' => ['value' => '740561073'],
+                'rateRequestControlParameters' => [
+                    'returnTransitTimes' => true,
+                ],
                 'requestedShipment' => [
                     'shipper' => ['address' => ['postalCode' => '65247', 'countryCode' => 'US']],
                     'recipient' => ['address' => ['postalCode' => '72348', 'countryCode' => 'US']],

@@ -55,6 +55,19 @@ it('sorts each group cheapest first', function (): void {
         ->and($classified[3]->rate->price)->toBe(12.00);
 });
 
+it('treats a same-day delivery as on-time even when the deadline is midnight and the delivery commitment has a later time-of-day', function (): void {
+    // Shipment::getDeliverByDate() returns a date-only Carbon (midnight), while carrier
+    // commitments (e.g. FedEx) can include a time-of-day like 5pm on the deadline day.
+    $deadline = Carbon::tomorrow()->startOfDay();
+
+    $classified = app(RateSelector::class)->classify(
+        collect([makeRate(5.00, Carbon::tomorrow()->setTime(17, 0)->toIso8601String(), carrier: 'FedEx')]),
+        $deadline,
+    );
+
+    expect($classified[0]->isOnTime)->toBeTrue();
+});
+
 it('treats unknown delivery date as late when deadline exists', function (): void {
     $deadline = Carbon::tomorrow()->endOfDay();
 

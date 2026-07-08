@@ -56,6 +56,8 @@ class RateSelector
 
         $deliveryDate = $rate->parsedDeliveryDate();
 
-        return $deliveryDate !== null && $deliveryDate->lte($deadline);
+        // Deadlines are calendar dates (midnight); ignore the carrier's time-of-day
+        // commitment so a same-day delivery at, e.g., 5pm isn't flagged late.
+        return $deliveryDate !== null && $deliveryDate->startOfDay()->lte($deadline->copy()->startOfDay());
     }
 }
