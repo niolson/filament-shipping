@@ -138,6 +138,11 @@ sed -i "s|^APP_URL=.*|APP_URL=https://${DOMAIN}|" .env
 sed -i "s|^DB_CONNECTION=.*|DB_CONNECTION=mysql|" .env
 sed -i "s|^QUEUE_CONNECTION=.*|QUEUE_CONNECTION=redis|" .env
 sed -i "s|^SESSION_DRIVER=.*|SESSION_DRIVER=redis|" .env
+# Tenants are always served over HTTPS (APP_URL above), so the session cookie
+# must carry the `secure` flag. Set it explicitly rather than relying on the
+# .env.example default (which stays false for plain-HTTP local dev). This is the
+# mechanism whose absence let a tenant ship without it — see pentest issue 05.
+sed -i "s|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=true|" .env
 sed -i "s|^CACHE_STORE=.*|CACHE_STORE=redis|" .env
 if grep -q '^SENTRY_ENVIRONMENT=' .env; then
     sed -i "s|^SENTRY_ENVIRONMENT=.*|SENTRY_ENVIRONMENT=${TENANT}|" .env

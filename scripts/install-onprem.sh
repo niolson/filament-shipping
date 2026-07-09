@@ -94,6 +94,14 @@ if [ "$SKIP_ENV" = false ]; then
     sed -i "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=${REDIS_PASSWORD}|" .env
     sed -i "s|^QUEUE_CONNECTION=.*|QUEUE_CONNECTION=redis|" .env
     sed -i "s|^SESSION_DRIVER=.*|SESSION_DRIVER=redis|" .env
+    # Match the secure-cookie flag to the resolved protocol: HTTPS installs must
+    # set it (so the session cookie carries `secure`), HTTP (IP) installs must
+    # not (or login breaks over plain HTTP). See pentest issue 05.
+    if [[ "$APP_URL" == https://* ]]; then
+        sed -i "s|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=true|" .env
+    else
+        sed -i "s|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=false|" .env
+    fi
     sed -i "s|^CACHE_STORE=.*|CACHE_STORE=redis|" .env
     sed -i "s|^GOTENBERG_URL=.*|GOTENBERG_URL=http://gotenberg:3000|" .env
 
