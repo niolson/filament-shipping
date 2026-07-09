@@ -1,0 +1,76 @@
+<?php
+
+use App\Enums\AuditAction;
+use App\Models\AuditLog;
+use App\Services\ShipmentImport\Sources\DatabaseSource;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
+
+function guardedSource(array $config): DatabaseSource
+{
+    return new DatabaseSource(array_merge([
+        'connection' => config('database.default'),
+        'data_source_id' => 7,
+    ], $config));
+}
+
+it('refuses a destructive mark_exported query before executing it', function (): void {
+    // A canary table the destructive query would wipe if the guard let it run.
+    DB::statement('CREATE TABLE canary (id INTEGER)');
+    DB::table('canary')->insert([['id' => 1], ['id' => 2], ['id' => 3]]);
+
+    $source = guardedSource([
+        'mark_exported' => [
+            'enabled' => true,
+            'query' => 'DELETE FROM canary WHERE :shipment_reference IS NOT NULL',
+        ],
+    ]);
+
+    $threw = false;
+    try {
+        $source->markExported('ref-1');
+    } catch (InvalidArgumentException) {
+        $threw = true;
+    }
+
+    expect($threw)->toBeTrue();
+    // The DELETE never ran…
+    expect(DB::table('canary')->count())->toBe(3);
+    // …and nothing was audited as executed.
+    expect(AuditLog::where('action', AuditAction::DataSourceQueryExecuted)->exists())->toBeFalse();
+});
+
+it('refuses a non-SELECT custom shipments query', function (): void {
+    $source = guardedSource([
+        'shipments_query' => 'DELETE FROM shipments',
+    ]);
+
+    expect(fn () => $source->fetchShipments())->toThrow(InvalidArgumentException::class);
+});
+
+it('refuses a CREATE TABLE export query (self-referential DDL)', function (): void {
+    $source = guardedSource([
+        'export' => [
+            'enabled' => true,
+            'query' => 'CREATE TABLE evil (id INTEGER)',
+        ],
+    ]);
+
+    expect(fn () => $source->exportPackage([]))->toThrow(InvalidArgumentException::class);
+});
+
+it('still runs a legitimate UPDATE mark_exported query', function (): void {
+    DB::statement('CREATE TABLE marks (ref TEXT, exported TEXT)');
+    DB::table('marks')->insert(['ref' => 'ref-1', 'exported' => 'n']);
+
+    $source = guardedSource([
+        'mark_exported' => [
+            'enabled' => true,
+            'query' => "UPDATE marks SET exported = 'y' WHERE ref = :shipment_reference",
+        ],
+    ]);
+
+    expect($source->markExported('ref-1'))->toBeTrue();
+    expect(DB::table('marks')->where('ref', 'ref-1')->value('exported'))->toBe('y');
+});

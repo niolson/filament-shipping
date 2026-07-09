@@ -7,6 +7,7 @@ use App\Contracts\ExportDestinationInterface;
 use App\Enums\AuditAction;
 use App\Models\AuditLog;
 use App\Services\ShipmentImport\FieldMapper;
+use App\Services\ShipmentImport\RawSqlGuard;
 use App\Services\SshTunnel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -58,6 +59,7 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
         // Use custom query if provided
         if (! empty($this->config['shipments_query'])) {
             $query = $this->normalizeQuery($this->config['shipments_query']);
+            RawSqlGuard::assertStatementType($query, RawSqlGuard::READ, 'custom shipments query');
             $results = $this->executeLogged(
                 'fetch_shipments',
                 $query,
@@ -104,6 +106,7 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
         // Use custom query if provided
         if (! empty($this->config['shipment_items_query'])) {
             $query = $this->normalizeQuery($this->config['shipment_items_query']);
+            RawSqlGuard::assertStatementType($query, RawSqlGuard::READ, 'custom items query');
             $results = $this->executeLogged(
                 'fetch_shipment_items',
                 $query,
@@ -138,6 +141,7 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
         }
 
         $query = $this->normalizeQuery($markExported['query']);
+        RawSqlGuard::assertStatementType($query, RawSqlGuard::MARK_EXPORTED, 'mark-exported query');
         $this->executeLogged(
             'mark_exported',
             $query,
@@ -164,6 +168,7 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
         }
 
         $query = $this->normalizeQuery($exportConfig['query']);
+        RawSqlGuard::assertStatementType($query, RawSqlGuard::EXPORT, 'export query');
 
         // Only pass parameters that the query actually references,
         // so the field_mapping can be a superset of what the query needs.
