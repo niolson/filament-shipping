@@ -16,4 +16,9 @@ trait HasDefaultServiceCapabilities
     {
         return ServiceCapability::NotImplemented;
     }
+
+    public function declaredValueCap(): ?float
+    {
+        return null;
+    }
 }

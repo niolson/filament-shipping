@@ -18,5 +18,18 @@ readonly class PackageShippingOptions
         public bool $allRatesLate,
         public array $exclusions = [],
         public ?int $selectedRateIndex = null,
+        public ?string $blockingError = null,
     ) {}
+
+    public static function blocked(string $message): self
+    {
+        return new self(
+            rateOptions: [],
+            rateOptionLabels: [],
+            rateOptionDescriptions: [],
+            deliverByDate: null,
+            allRatesLate: false,
+            blockingError: $message,
+        );
+    }
 }

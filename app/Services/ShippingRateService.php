@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\CarrierAdapterInterface;
 use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
@@ -65,6 +66,12 @@ class ShippingRateService
         $requiredCodes = array_values(array_unique([...$methodCodes['required'], ...$productCodes]));
         $defaultCodes = array_values(array_diff($methodCodes['default'], $requiredCodes));
 
+        // Superseded variants never travel together (adult signature implies signature)
+        if (in_array('adult_signature_required', [...$requiredCodes, ...$defaultCodes], true)) {
+            $requiredCodes = array_values(array_diff($requiredCodes, ['signature_required']));
+            $defaultCodes = array_values(array_diff($defaultCodes, ['signature_required']));
+        }
+
         $this->exclusions = [];
         $scopeMap = $this->loadServiceScopes([...$requiredCodes, ...$defaultCodes]);
         $serviceNames = SpecialService::whereIn('code', [...$requiredCodes, ...$defaultCodes])
@@ -97,7 +104,7 @@ class ShippingRateService
                     $defaultCodes,
                     $scopeMap,
                     $serviceNames,
-                    $rateRequest->destinationCountry,
+                    $rateRequest,
                 );
 
                 if ($task) {
@@ -117,7 +124,7 @@ class ShippingRateService
                     $defaultCodes,
                     $scopeMap,
                     $serviceNames,
-                    $rateRequest->destinationCountry,
+                    $rateRequest,
                 );
 
                 if ($task) {
@@ -308,8 +315,9 @@ class ShippingRateService
         array $defaultCodes,
         array $scopeMap,
         Collection $serviceNames,
-        string $destinationCountry,
+        RateRequest $rateRequest,
     ): ?array {
+        $destinationCountry = $rateRequest->destinationCountry;
         $registry = app(CarrierRegistry::class);
         $specialServiceCodes = [];
 
@@ -320,6 +328,12 @@ class ShippingRateService
                 // Prohibited and NotImplemented both exclude: a hard-required
                 // service the carrier can't actually apply must not be skipped.
                 $this->exclusions[$carrierName] = $carrierName.' does not support '.$serviceNames->get($code, $code).'.';
+
+                return null;
+            }
+
+            if ($capReason = $this->declaredValueCapViolation($code, $adapter, $rateRequest, $carrierName)) {
+                $this->exclusions[$carrierName] = $capReason;
 
                 return null;
             }
@@ -356,6 +370,14 @@ class ShippingRateService
                 }
             }
 
+            if ($capReason = $this->declaredValueCapViolation($code, $adapter, $rateRequest, $carrierName)) {
+                // Stripping a default declared value silently would under-insure
+                // the package — exclude the carrier visibly instead.
+                $this->exclusions[$carrierName] = $capReason;
+
+                return null;
+            }
+
             $carrierScopes = $this->scopesForCarrier($scopeMap, $code, $services);
 
             if ($carrierScopes !== null && $services->doesntContain(
@@ -374,6 +396,35 @@ class ShippingRateService
             'serviceCodes' => $services->pluck('service_code')->values()->all(),
             'specialServiceCodes' => $specialServiceCodes,
         ];
+    }
+
+    /**
+     * Exclusion reason when the package's declared value exceeds the carrier's
+     * cap, or null when the code isn't declared_value / no cap applies.
+     */
+    private function declaredValueCapViolation(
+        string $code,
+        ?CarrierAdapterInterface $adapter,
+        RateRequest $rateRequest,
+        string $carrierName,
+    ): ?string {
+        if ($code !== 'declared_value' || ! $adapter) {
+            return null;
+        }
+
+        $cap = $adapter->declaredValueCap();
+        $amount = $rateRequest->specialServiceConfig('declared_value')['amount'] ?? null;
+
+        if ($cap === null || $amount === null || $amount <= $cap) {
+            return null;
+        }
+
+        return sprintf(
+            '%s cannot declare a value of $%s — its maximum is $%s.',
+            $carrierName,
+            number_format((float) $amount, 2),
+            number_format($cap, 0),
+        );
     }
 
     /**

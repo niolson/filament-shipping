@@ -264,12 +264,19 @@ class Package extends Model
                 $sourceReference = $pivotMode ? (string) $shippingMethod->id : null;
             }
 
+            $config = null;
+
+            if ($code === 'declared_value') {
+                $amount = app(SpecialServiceResolver::class)->declaredValueForPackage($this);
+                $config = $amount !== null ? ['amount' => $amount, 'currency' => 'USD'] : null;
+            }
+
             $this->specialServices()->updateOrCreate(
                 ['special_service_id' => $service->id],
                 [
                     'source' => $source,
                     'source_reference' => $sourceReference,
-                    'config' => null,
+                    'config' => $config,
                     'applied_at' => $now,
                 ],
             );

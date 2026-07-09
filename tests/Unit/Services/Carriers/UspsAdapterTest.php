@@ -898,3 +898,151 @@ it('handles residential vs commercial addresses', function (): void {
 
     expect($rates)->toHaveCount(1);
 });
+
+function uspsSpecialServiceShipRequest(array $codes, array $config = []): ShipRequest
+{
+    return new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: '456 Main St',
+            city: 'Los Angeles',
+            stateOrProvince: 'CA',
+            postalCode: '90210',
+        ),
+        packageData: new PackageData(weight: 2.0, length: 10, width: 8, height: 4),
+        selectedRate: new RateResponse(
+            carrier: 'USPS',
+            serviceCode: 'USPS_GROUND_ADVANTAGE',
+            serviceName: 'USPS Ground Advantage',
+            price: 12.75,
+            metadata: [
+                'mailClass' => 'USPS_GROUND_ADVANTAGE',
+                'processingCategory' => 'MACHINABLE',
+                'rateIndicator' => 'SP',
+                'destinationEntryFacilityType' => 'NONE',
+            ],
+        ),
+        specialServiceCodes: $codes,
+        specialServiceConfig: $config,
+    );
+}
+
+function fakeUspsLabelEndpoints(): void
+{
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        PaymentAuthorization::class => MockResponse::make(['paymentAuthorizationToken' => 'test_payment_token']),
+        Label::class => MockResponse::make(
+            body: "--boundary\r\nContent-Type: application/json\r\n\r\n{\"trackingNumber\":\"9400111899223456789012\",\"postage\":8.50}\r\n--boundary\r\nContent-Type: application/pdf\r\n\r\nJVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh\r\n--boundary--",
+            headers: ['Content-Type' => 'multipart/mixed; boundary=boundary']
+        ),
+    ]);
+}
+
+it('maps signature and declared value into the domestic label request', function (): void {
+    fakeUspsLabelEndpoints();
+
+    $response = $this->adapter->createShipment(uspsSpecialServiceShipRequest(
+        ['adult_signature_required', 'declared_value'],
+        ['declared_value' => ['amount' => 750.00, 'currency' => 'USD']],
+    ));
+
+    expect($response->success)->toBeTrue()
+        ->and($response->appliedServices)->toBe(['adult_signature_required', 'declared_value']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Label) {
+            return false;
+        }
+
+        $description = $request->body()->all()['packageDescription'] ?? [];
+        $options = $description['packageOptions'] ?? [];
+
+        // $750 declared value crosses the $500 threshold: 931, not 930.
+        // packageValue/physicalSignatureRequired live in packageOptions
+        // (sandbox-verified — the API silently ignores them elsewhere).
+        return ($description['extraServices'] ?? null) === [922, 931]
+            && ($options['packageValue'] ?? null) === 750.00
+            && ($options['physicalSignatureRequired'] ?? null) === false;
+    });
+});
+
+it('uses insurance code 930 with packageValue for declared values at or below the threshold', function (): void {
+    fakeUspsLabelEndpoints();
+
+    $this->adapter->createShipment(uspsSpecialServiceShipRequest(
+        ['declared_value'],
+        ['declared_value' => ['amount' => 200.00, 'currency' => 'USD']],
+    ));
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Label) {
+            return false;
+        }
+
+        $options = $request->body()->all()['packageDescription']['packageOptions'] ?? [];
+
+        // 930 needs packageValue but not physicalSignatureRequired
+        return ($request->body()->all()['packageDescription']['extraServices'] ?? null) === [930]
+            && ($options['packageValue'] ?? null) === 200.00
+            && ! array_key_exists('physicalSignatureRequired', $options);
+    });
+});
+
+it('maps battery codes with hazmat content type into the domestic label request', function (): void {
+    fakeUspsLabelEndpoints();
+
+    $response = $this->adapter->createShipment(uspsSpecialServiceShipRequest(['lithium_battery_standalone']));
+
+    expect($response->success)->toBeTrue()
+        ->and($response->appliedServices)->toBe(['lithium_battery_standalone']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Label) {
+            return false;
+        }
+
+        $description = $request->body()->all()['packageDescription'] ?? [];
+
+        return ($description['extraServices'] ?? null) === [820]
+            && ($description['contentType'] ?? null) === 'HAZMAT'
+            && ! array_key_exists('packageOptions', $description);
+    });
+});
+
+it('includes mapped extra services in the rating request so quotes carry surcharges', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => MockResponse::make(['pricingOptions' => []]),
+    ]);
+
+    $request = new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: '90210',
+        packages: [new PackageData(weight: 2.0, length: 10, width: 8, height: 4)],
+        specialServiceCodes: ['signature_required', 'declared_value'],
+        specialServiceConfig: ['declared_value' => ['amount' => 100.00, 'currency' => 'USD']],
+    );
+
+    $this->adapter->getRates($request, ['USPS_GROUND_ADVANTAGE']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof ShippingOptions) {
+            return false;
+        }
+
+        $description = $request->body()->all()['packageDescription'] ?? [];
+
+        return ($description['extraServices'] ?? null) === [921, 930]
+            && ($description['packageValue'] ?? null) === 100.00;
+    });
+});

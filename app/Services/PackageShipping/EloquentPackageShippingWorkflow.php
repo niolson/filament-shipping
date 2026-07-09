@@ -11,12 +11,15 @@ use App\DataTransferObjects\Shipping\ClassifiedRate;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
 use App\Enums\PackageStatus;
+use App\Exceptions\MissingDeclaredValueException;
 use App\Models\Package;
+use App\Models\SpecialService;
 use App\Services\Carriers\CarrierRegistry;
 use App\Services\RateQuoteLogger;
 use App\Services\RateSelector;
 use App\Services\RuleEvaluator;
 use App\Services\ShippingRateService;
+use App\Services\SpecialServiceResolver;
 use Saloon\Exceptions\Request\RequestException;
 use Saloon\Exceptions\Request\Statuses\RequestTimeOutException;
 
@@ -34,7 +37,12 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
     {
         $package->loadMissing(['shipment.shippingMethod']);
 
-        $rates = $this->shippingRateService->getShippingRates($package->id);
+        try {
+            $rates = $this->shippingRateService->getShippingRates($package->id);
+        } catch (MissingDeclaredValueException $e) {
+            return PackageShippingOptions::blocked($e->getMessage());
+        }
+
         $exclusions = $this->shippingRateService->getExclusions();
 
         $ruleResult = $this->ruleEvaluator->evaluate($package->shipment);
@@ -47,6 +55,16 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
         $deadline = $package->shipment->getDeliverByDate();
         $classified = $this->rateSelector->classify($rates, $deadline);
 
+        // Per-rate special service visibility: which requested services will
+        // actually be purchased with each rate, and which get stripped by
+        // carrier-service scoping — so behavioral differences between rates
+        // are never silent on the Ship page.
+        $resolver = app(SpecialServiceResolver::class);
+        $requestedCodes = $resolver->resolveForPackage($package);
+        $serviceNames = $requestedCodes === []
+            ? collect()
+            : SpecialService::whereIn('code', $requestedCodes)->pluck('name', 'code');
+
         $labels = [];
         $descriptions = [];
         $options = [];
@@ -58,7 +76,20 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
                 $description .= ' — LATE';
             }
             $descriptions[$key] = $description;
-            $options[$key] = $classifiedRate->rate->toArray();
+            $rateArray = $classifiedRate->rate->toArray();
+
+            if ($requestedCodes !== []) {
+                $appliedCodes = $resolver->resolveForPackageAndRate($package, $classifiedRate->rate);
+                $toNames = fn (array $codes): array => array_values(
+                    array_map(fn (string $code): string => $serviceNames->get($code, $code), $codes)
+                );
+                $rateArray['specialServices'] = [
+                    'applied' => $toNames($appliedCodes),
+                    'stripped' => $toNames(array_values(array_diff($requestedCodes, $appliedCodes))),
+                ];
+            }
+
+            $options[$key] = $rateArray;
         }
 
         return new PackageShippingOptions(
@@ -102,6 +133,8 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
             $package->markShipped($response, $request->userId);
 
             return PackageShippingResult::shipped($response, $request->selectedRate);
+        } catch (MissingDeclaredValueException $e) {
+            return PackageShippingResult::failed('Declared Value Required', $e->getMessage());
         } catch (RequestTimeOutException) {
             logger()->error('Carrier API timeout', [
                 'carrier' => $request->selectedRate->carrier,

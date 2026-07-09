@@ -109,13 +109,13 @@ class ProductResource extends Resource
                     ->schema([
                         Forms\Components\Toggle::make('contains_alcohol')
                             ->label('Contains Alcohol')
-                            ->helperText('Marks the product for the alcohol special service. Carriers that cannot carry alcohol are excluded from rate shopping once that service is activated; carrier-specific alcohol paperwork is not yet automated.')
+                            ->helperText('Packages containing this product get FedEx rates only (USPS prohibits alcohol; UPS parcel is unsupported), ship with the FedEx alcohol declaration, and automatically require an adult signature.')
                             ->columnSpanFull(),
                         Forms\Components\Select::make('hazmat_class')
                             ->label('Hazmat Classification')
                             ->options(HazmatClass::class)
                             ->placeholder('None')
-                            ->helperText('Marks the product for the matching hazmat special service. Carriers that cannot handle it are excluded from rate shopping once that service is activated; carrier-specific hazmat paperwork is not yet automated.')
+                            ->helperText('Battery classes gate rates to eligible carrier services and add the carrier battery declaration where one exists. USPS battery labels assume packages physically carry the required lithium battery marks. Dry ice and cremated remains are not yet wired to carriers.')
                             ->columnSpanFull(),
                     ]),
             ]);

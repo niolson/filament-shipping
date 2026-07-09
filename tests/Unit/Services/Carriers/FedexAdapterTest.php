@@ -910,3 +910,217 @@ it('maps FedEx ready for pickup statuses away from pre-transit', function (): vo
 
     expect($response->status)->toBe(TrackingStatus::Exception);
 });
+
+it('maps package-level special services and declared value into the ship request', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        CreateShipment::class => MockResponse::make([
+            'output' => [
+                'transactionShipments' => [
+                    [
+                        'masterTrackingNumber' => '794644790138',
+                        'pieceResponses' => [
+                            [
+                                'trackingNumber' => '794644790138',
+                                'packageDocuments' => [
+                                    ['encodedLabel' => 'JVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+            phone: '555-123-4567',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: '456 Main St',
+            city: 'Los Angeles',
+            stateOrProvince: 'CA',
+            postalCode: '90210',
+            phone: '555-987-6543',
+        ),
+        packageData: new PackageData(weight: 5.0, length: 12, width: 10, height: 8),
+        selectedRate: new RateResponse(
+            carrier: 'FedEx',
+            serviceCode: 'FEDEX_GROUND',
+            serviceName: 'FedEx Ground',
+            price: 12.75,
+            metadata: ['serviceType' => 'FEDEX_GROUND'],
+        ),
+        specialServiceCodes: ['adult_signature_required', 'alcohol', 'declared_value'],
+        specialServiceConfig: ['declared_value' => ['amount' => 250.00, 'currency' => 'USD']],
+    );
+
+    $response = $this->adapter->createShipment($request);
+
+    expect($response->success)->toBeTrue()
+        ->and($response->appliedServices)->toBe(['adult_signature_required', 'alcohol', 'declared_value']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $lineItem = $request->body()->all()['requestedShipment']['requestedPackageLineItems'][0] ?? [];
+        $special = $lineItem['packageSpecialServices'] ?? [];
+
+        return ($special['specialServiceTypes'] ?? null) === ['SIGNATURE_OPTION', 'ALCOHOL']
+            && ($special['signatureOptionType'] ?? null) === 'ADULT'
+            && ($special['alcoholDetail']['alcoholRecipientType'] ?? null) === 'CONSUMER'
+            && ($lineItem['declaredValue'] ?? null) === ['amount' => 250.00, 'currency' => 'USD'];
+    });
+});
+
+it('omits battery fields from ground ship requests', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        CreateShipment::class => MockResponse::make([
+            'output' => [
+                'transactionShipments' => [
+                    [
+                        'masterTrackingNumber' => '794644790138',
+                        'pieceResponses' => [
+                            [
+                                'trackingNumber' => '794644790138',
+                                'packageDocuments' => [
+                                    ['encodedLabel' => 'JVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+            phone: '555-123-4567',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: '456 Main St',
+            city: 'Los Angeles',
+            stateOrProvince: 'CA',
+            postalCode: '90210',
+            phone: '555-987-6543',
+        ),
+        packageData: new PackageData(weight: 5.0, length: 12, width: 10, height: 8),
+        selectedRate: new RateResponse(
+            carrier: 'FedEx',
+            serviceCode: 'FEDEX_GROUND',
+            serviceName: 'FedEx Ground',
+            price: 12.75,
+            metadata: ['serviceType' => 'FEDEX_GROUND'],
+        ),
+        specialServiceCodes: ['lithium_battery_in_equipment'],
+    );
+
+    $response = $this->adapter->createShipment($request);
+
+    // Ground network: battery declaration is an Express/IATA construct —
+    // ground ships clean (package marks only, no API fields)
+    expect($response->success)->toBeTrue()
+        ->and($response->appliedServices)->toBe([]);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $lineItem = $request->body()->all()['requestedShipment']['requestedPackageLineItems'][0] ?? [];
+
+        return ! array_key_exists('packageSpecialServices', $lineItem);
+    });
+});
+
+it('maps battery details into express ship requests', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        CreateShipment::class => MockResponse::make([
+            'output' => [
+                'transactionShipments' => [
+                    [
+                        'masterTrackingNumber' => '794644790138',
+                        'pieceResponses' => [
+                            [
+                                'trackingNumber' => '794644790138',
+                                'packageDocuments' => [
+                                    ['encodedLabel' => 'JVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh'],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+            phone: '555-123-4567',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: '456 Main St',
+            city: 'Los Angeles',
+            stateOrProvince: 'CA',
+            postalCode: '90210',
+            phone: '555-987-6543',
+        ),
+        packageData: new PackageData(weight: 5.0, length: 12, width: 10, height: 8),
+        selectedRate: new RateResponse(
+            carrier: 'FedEx',
+            serviceCode: 'PRIORITY_OVERNIGHT',
+            serviceName: 'FedEx Priority Overnight',
+            price: 42.10,
+            metadata: ['serviceType' => 'PRIORITY_OVERNIGHT'],
+        ),
+        specialServiceCodes: ['lithium_battery_in_equipment'],
+    );
+
+    $response = $this->adapter->createShipment($request);
+
+    expect($response->success)->toBeTrue()
+        ->and($response->appliedServices)->toBe(['lithium_battery_in_equipment']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $special = $request->body()->all()['requestedShipment']['requestedPackageLineItems'][0]['packageSpecialServices'] ?? [];
+
+        // Exact combination the production availability API enumerates (UN3481, PI967)
+        return ($special['specialServiceTypes'] ?? null) === ['BATTERY']
+            && ($special['batteryDetails'][0]['batteryPackingType'] ?? null) === 'CONTAINED_IN_EQUIPMENT'
+            && ($special['batteryDetails'][0]['batteryMaterialType'] ?? null) === 'LITHIUM_ION';
+    });
+});

@@ -65,6 +65,29 @@ class SpecialServiceResource extends Resource
                 Tables\Columns\IconColumn::make('requires_value')
                     ->boolean()
                     ->label('Needs Value'),
+                Tables\Columns\TextColumn::make('carrier_scope')
+                    ->label('Carrier Services')
+                    ->state(function (SpecialService $record): string {
+                        $byCarrier = $record->carrierServices()
+                            ->with('carrier')
+                            ->get()
+                            ->groupBy(fn ($carrierService) => $carrierService->carrier->name);
+
+                        if ($byCarrier->isEmpty()) {
+                            return 'Unrestricted';
+                        }
+
+                        return $byCarrier
+                            ->map(fn ($group, $carrierName): string => $carrierName.' ('.$group->count().')')
+                            ->implode(', ');
+                    })
+                    ->tooltip(function (SpecialService $record): ?string {
+                        $names = $record->carrierServices()->with('carrier')->get()
+                            ->map(fn ($carrierService) => $carrierService->carrier->name.': '.$carrierService->name);
+
+                        return $names->isEmpty() ? null : $names->implode(', ');
+                    })
+                    ->color(fn (string $state): string => $state === 'Unrestricted' ? 'gray' : 'info'),
                 Tables\Columns\ToggleColumn::make('active'),
             ])
             ->defaultSort('category')

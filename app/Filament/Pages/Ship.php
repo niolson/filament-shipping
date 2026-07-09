@@ -77,6 +77,10 @@ class Ship extends Page
 
         $options = app(PackageShippingWorkflow::class)->prepareRates($this->package);
 
+        if ($options->blockingError) {
+            $this->notifyError('Declared Value Required', $options->blockingError);
+        }
+
         foreach ($options->exclusions as $exclusion) {
             $this->notifyWarning($exclusion['carrier'].' excluded', $exclusion['reason']);
         }
@@ -114,6 +118,10 @@ class Ship extends Page
         }
 
         $options = app(PackageShippingWorkflow::class)->prepareRates($this->package);
+
+        if ($options->blockingError) {
+            $this->notifyError('Declared Value Required', $options->blockingError);
+        }
 
         $this->rateOptions = $options->rateOptions;
         $this->formRateOptionDescriptions = $options->rateOptionDescriptions;

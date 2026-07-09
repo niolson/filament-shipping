@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\DataTransferObjects\Shipping\RateResponse;
+use App\Exceptions\MissingDeclaredValueException;
 use App\Models\CarrierService;
 use App\Models\CarrierServiceSpecialService;
 use App\Models\Package;
@@ -29,12 +30,12 @@ class SpecialServiceResolver
 
         $byMode = $this->methodCodesByMode($package->shipment?->shippingMethod);
 
-        return collect($byMode['required'])
+        $codes = collect($byMode['required'])
             ->merge($byMode['default'])
             ->merge($this->resolveProductRequiredCodes($package)->keys())
-            ->unique()
-            ->values()
-            ->all();
+            ->unique();
+
+        return self::normalizeCodes($codes)->values()->all();
     }
 
     /**
@@ -70,7 +71,23 @@ class SpecialServiceResolver
             );
         }
 
-        return $requiredCodes->merge($defaultCodes)->unique()->values()->all();
+        return self::normalizeCodes($requiredCodes->merge($defaultCodes)->unique())->values()->all();
+    }
+
+    /**
+     * Drop codes superseded by a stronger variant in the same set: adult
+     * signature implies signature, so both are never sent together.
+     *
+     * @param  Collection<int, string>  $codes
+     * @return Collection<int, string>
+     */
+    public static function normalizeCodes(Collection $codes): Collection
+    {
+        if ($codes->contains('adult_signature_required')) {
+            return $codes->reject(fn (string $code): bool => $code === 'signature_required');
+        }
+
+        return $codes;
     }
 
     /**
@@ -135,11 +152,78 @@ class SpecialServiceResolver
         }
 
         $activeCodes = SpecialService::where('active', true)
-            ->whereIn('code', $candidates->keys())
+            ->whereIn('code', $candidates->keys()->push('adult_signature_required')->unique())
             ->pluck('code')
             ->all();
 
-        return $candidates->only($activeCodes);
+        $candidates = $candidates->only($activeCodes);
+
+        // Alcohol requires an adult signature at delivery — pair it automatically
+        // so the compliance backstop can't be forgotten at the method level.
+        // Paired only after the active filter: deactivating the alcohol service
+        // fully disables alcohol compliance, including the paired signature.
+        if ($candidates->has('alcohol')
+            && ! $candidates->has('adult_signature_required')
+            && in_array('adult_signature_required', $activeCodes, true)) {
+            $candidates->put('adult_signature_required', $candidates->get('alcohol'));
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * Per-code config values to send alongside the resolved codes.
+     * Currently only declared_value carries config (the amount).
+     *
+     * @param  array<int, string>  $codes
+     * @return array<string, array<string, mixed>>
+     *
+     * @throws MissingDeclaredValueException when declared_value resolves but no amount can be derived
+     */
+    public function configForPackage(Package $package, array $codes): array
+    {
+        $config = [];
+
+        if (in_array('declared_value', $codes, true)) {
+            $amount = $this->declaredValueForPackage($package);
+
+            if ($amount === null) {
+                throw new MissingDeclaredValueException($package->id);
+            }
+
+            $config['declared_value'] = ['amount' => $amount, 'currency' => 'USD'];
+        }
+
+        return $config;
+    }
+
+    /**
+     * Declared value for one package. Single-package shipments use the
+     * shipment-level value first; multi-package shipments skip it (declaring
+     * the full shipment value on every label would over-declare) and use the
+     * per-package item sum. Null when no usable value exists — callers must
+     * surface that to the operator rather than guessing.
+     */
+    public function declaredValueForPackage(Package $package): ?float
+    {
+        $package->loadMissing(['shipment.packages', 'packageItems.shipmentItem']);
+        $shipment = $package->shipment;
+
+        if (! $shipment) {
+            return null;
+        }
+
+        $shipmentValue = (float) ($shipment->value ?? 0);
+
+        if ($shipmentValue > 0 && $shipment->packages->count() <= 1) {
+            return round($shipmentValue, 2);
+        }
+
+        $itemSum = $package->packageItems->sum(
+            fn ($packageItem): float => (float) ($packageItem->shipmentItem?->value ?? 0) * (int) ($packageItem->quantity ?? 1)
+        );
+
+        return $itemSum > 0 ? round($itemSum, 2) : null;
     }
 
     /**

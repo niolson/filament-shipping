@@ -12,6 +12,7 @@ readonly class ShipRequest
     /**
      * @param  array<int, CustomsItem>  $customsItems
      * @param  array<int, string>  $specialServiceCodes
+     * @param  array<string, array<string, mixed>>  $specialServiceConfig  Per-code config values (e.g. declared_value amount)
      */
     public function __construct(
         public AddressData $fromAddress,
@@ -25,11 +26,20 @@ readonly class ShipRequest
         public ?int $locationId = null,
         public ?int $clientId = null,
         public ?CarbonImmutable $shipDate = null,
+        public array $specialServiceConfig = [],
     ) {}
 
     public function hasSpecialService(string $code): bool
     {
         return in_array($code, $this->specialServiceCodes, true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function specialServiceConfig(string $code): array
+    {
+        return $this->specialServiceConfig[$code] ?? [];
     }
 
     public function withoutSpecialService(string $code): self
@@ -56,6 +66,7 @@ readonly class ShipRequest
             locationId: $this->locationId,
             clientId: $this->clientId,
             shipDate: $this->shipDate,
+            specialServiceConfig: $this->specialServiceConfig,
         );
     }
 
@@ -101,6 +112,7 @@ readonly class ShipRequest
             locationId: $this->locationId,
             clientId: $this->clientId,
             shipDate: $this->shipDate,
+            specialServiceConfig: $this->specialServiceConfig,
         );
     }
 
@@ -126,6 +138,9 @@ readonly class ShipRequest
 
         $shipDate = app(ShipDateService::class)->getShipDate($rate->carrier, $package->location_id);
 
+        $resolver = app(SpecialServiceResolver::class);
+        $specialServiceCodes = $resolver->resolveForPackageAndRate($package, $rate);
+
         return new self(
             fromAddress: $fromAddress,
             toAddress: AddressData::fromShipment($package->shipment),
@@ -134,10 +149,11 @@ readonly class ShipRequest
             customsItems: $customsItems,
             labelFormat: $labelFormat,
             labelDpi: $labelDpi,
-            specialServiceCodes: app(SpecialServiceResolver::class)->resolveForPackageAndRate($package, $rate),
+            specialServiceCodes: $specialServiceCodes,
             locationId: $package->location_id,
             clientId: $package->shipment->client_id,
             shipDate: $shipDate,
+            specialServiceConfig: $resolver->configForPackage($package, $specialServiceCodes),
         );
     }
 }

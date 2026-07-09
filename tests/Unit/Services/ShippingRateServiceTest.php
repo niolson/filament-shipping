@@ -4,6 +4,7 @@ use App\Contracts\CarrierAdapterInterface;
 use App\DataTransferObjects\Shipping\PackageData;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\Exceptions\Carriers\CarrierRateFetchException;
+use App\Exceptions\MissingDeclaredValueException;
 use App\Exceptions\NoActiveCarrierServicesException;
 use App\Http\Integrations\Fedex\Requests\Rates as FedexRates;
 use App\Http\Integrations\Ups\Requests\Rate as UpsRate;
@@ -919,10 +920,10 @@ it('strips a default-mode special service instead of excluding the carrier', fun
 });
 
 it('excludes a carrier that has not implemented a required special service', function (): void {
-    $signature = createScopedSpecialService('signature_required', 'Signature Required');
+    $holdAtLocation = createScopedSpecialService('hold_at_location', 'Hold at Location');
 
     $shippingMethod = ShippingMethod::factory()->create();
-    $shippingMethod->specialServices()->attach($signature->id, ['mode' => 'required']);
+    $shippingMethod->specialServices()->attach($holdAtLocation->id, ['mode' => 'required']);
 
     $fedexGround = CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create();
     $shippingMethod->carrierServices()->attach($fedexGround->id);
@@ -936,7 +937,7 @@ it('excludes a carrier that has not implemented a required special service', fun
     expect($rates)->toHaveCount(0)
         ->and($service->getExclusions())->toHaveCount(1)
         ->and($service->getExclusions()[0]['carrier'])->toBe('FedEx')
-        ->and($service->getExclusions()[0]['reason'])->toContain('Signature Required');
+        ->and($service->getExclusions()[0]['reason'])->toContain('Hold at Location');
 });
 
 it('respects restricted_countries on a carrier service scope', function (): void {
@@ -966,6 +967,11 @@ it('respects restricted_countries on a carrier service scope', function (): void
 });
 
 it('excludes carriers that cannot carry an active product compliance service', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        FedexRates::class => MockResponse::make(['output' => ['rateReplyDetails' => []]]),
+    ]);
+
     createScopedSpecialService('alcohol', 'Alcohol');
 
     $shippingMethod = ShippingMethod::factory()->create();
@@ -981,11 +987,85 @@ it('excludes carriers that cannot carry an active product compliance service', f
     $service = app(ShippingRateService::class);
     $rates = $service->getShippingRates($package->id);
 
-    // USPS prohibits alcohol; FedEx hasn't implemented it — both must be
-    // excluded for a compliance-required code
+    // USPS prohibits alcohol outright; FedEx supports it and proceeds to rate
+    // shopping (the fake returns no rates)
     expect($rates)->toHaveCount(0)
-        ->and($service->getExclusions())->toHaveCount(2)
-        ->and(collect($service->getExclusions())->pluck('carrier')->sort()->values()->all())->toBe(['FedEx', 'USPS']);
+        ->and($service->getExclusions())->toHaveCount(1)
+        ->and($service->getExclusions()[0]['carrier'])->toBe('USPS');
+});
+
+it('excludes a carrier when the declared value exceeds its cap', function (): void {
+    $declaredValue = createScopedSpecialService('declared_value', 'Declared Value');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($declaredValue->id, ['mode' => 'required']);
+    $fedexGround = CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create();
+    $shippingMethod->carrierServices()->attach($fedexGround->id);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create([
+        'postal_code' => '90210',
+        'value' => 60000.00,
+    ]);
+    $package = Package::factory()->for($shipment)->create();
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    // FedEx caps declared value at $50,000 — excluded visibly, never clamped
+    expect($rates)->toHaveCount(0)
+        ->and($service->getExclusions())->toHaveCount(1)
+        ->and($service->getExclusions()[0]['carrier'])->toBe('FedEx')
+        ->and($service->getExclusions()[0]['reason'])->toContain('maximum is $50,000');
+});
+
+it('throws when a required declared value cannot be derived', function (): void {
+    $declaredValue = createScopedSpecialService('declared_value', 'Declared Value');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($declaredValue->id, ['mode' => 'required']);
+    $fedexGround = CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create();
+    $shippingMethod->carrierServices()->attach($fedexGround->id);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create([
+        'postal_code' => '90210',
+        'value' => null,
+    ]);
+    $package = Package::factory()->for($shipment)->create();
+
+    app(ShippingRateService::class)->getShippingRates($package->id);
+})->throws(MissingDeclaredValueException::class);
+
+it('drops signature_required when adult signature is also required instead of excluding the carrier', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => fakeUspsGroundAdvantageRate(),
+    ]);
+
+    $signature = createScopedSpecialService('signature_required', 'Signature Required');
+    $adult = createScopedSpecialService('adult_signature_required', 'Adult Signature Required');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($signature->id, ['mode' => 'required']);
+    $shippingMethod->specialServices()->attach($adult->id, ['mode' => 'required']);
+
+    $uspsService = CarrierService::factory()->uspsGroundAdvantage()->for($this->uspsCarrier)->create();
+    $shippingMethod->carrierServices()->attach($uspsService->id);
+
+    // signature_required is scoped away from USPS entirely (rows exist only for
+    // a FedEx service) — without the supersede rule USPS would be excluded even
+    // though adult signature covers the requirement.
+    $fedexGround = CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create();
+    $signature->carrierServices()->attach($fedexGround->id);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create(['postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('USPS')
+        ->and($service->getExclusions())->toBeEmpty();
 });
 
 it('ignores product compliance flags while their special service is inactive', function (): void {

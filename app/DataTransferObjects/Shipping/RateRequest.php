@@ -11,6 +11,7 @@ readonly class RateRequest
     /**
      * @param  array<PackageData>  $packages
      * @param  array<int, string>  $specialServiceCodes
+     * @param  array<string, array<string, mixed>>  $specialServiceConfig  Per-code config values (e.g. declared_value amount)
      */
     public function __construct(
         public string $originPostalCode,
@@ -25,6 +26,7 @@ readonly class RateRequest
         public ?int $locationId = null,
         public ?int $clientId = null,
         public ?CarbonImmutable $shipDate = null,
+        public array $specialServiceConfig = [],
     ) {}
 
     public static function fromPackage(Package $package): self
@@ -41,6 +43,9 @@ readonly class RateRequest
             }
         }
 
+        $resolver = app(SpecialServiceResolver::class);
+        $specialServiceCodes = $resolver->resolveForPackage($package);
+
         return new self(
             originPostalCode: $origin->postalCode ?? '',
             destinationPostalCode: $shipment->validated_postal_code ?? $shipment->postal_code,
@@ -50,15 +55,24 @@ readonly class RateRequest
             destinationStateOrProvince: $shipment->validated_state_or_province ?? $shipment->state_or_province,
             residential: $shipment->validated_residential ?? $shipment->residential,
             packages: [PackageData::fromPackage($package)],
-            specialServiceCodes: app(SpecialServiceResolver::class)->resolveForPackage($package),
+            specialServiceCodes: $specialServiceCodes,
             locationId: $package->location_id,
             clientId: $package->shipment->client_id,
+            specialServiceConfig: $resolver->configForPackage($package, $specialServiceCodes),
         );
     }
 
     public function hasSpecialService(string $code): bool
     {
         return in_array($code, $this->specialServiceCodes, true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function specialServiceConfig(string $code): array
+    {
+        return $this->specialServiceConfig[$code] ?? [];
     }
 
     public function withoutSpecialService(string $code): self
@@ -86,6 +100,7 @@ readonly class RateRequest
             locationId: $this->locationId,
             clientId: $this->clientId,
             shipDate: $this->shipDate,
+            specialServiceConfig: $this->specialServiceConfig,
         );
     }
 
@@ -104,6 +119,7 @@ readonly class RateRequest
             locationId: $this->locationId,
             clientId: $this->clientId,
             shipDate: $date,
+            specialServiceConfig: $this->specialServiceConfig,
         );
     }
 }
