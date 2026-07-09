@@ -344,6 +344,14 @@ class DataSourceForm
                         ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace("\u{00A0}", ' ', $state) : $state)
                         ->columnSpanFull()
                         ->visible(fn (Get $get): bool => (bool) $get('settings.mark_exported_enabled')),
+
+                    TextInput::make('settings.max_affected_rows')
+                        ->label('Max Affected Rows Per Write')
+                        ->numeric()
+                        ->minValue(1)
+                        ->default(1)
+                        ->helperText('Safety cap for the Mark Exported and Export queries: a write that would affect more rows than this is rolled back. These run once per record, so 1 is correct unless your source stores multiple rows per shipment.')
+                        ->columnSpanFull(),
                 ])
                 ->footerActions([
                     Action::make('test_queries')

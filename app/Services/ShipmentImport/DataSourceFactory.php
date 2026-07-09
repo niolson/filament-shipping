@@ -69,6 +69,7 @@ class DataSourceFactory
             'client_column' => $settings['client_column'] ?? null,
             'shipments_query' => $settings['shipments_query'] ?? null,
             'shipment_items_query' => $settings['shipment_items_query'] ?? null,
+            'max_affected_rows' => max(1, (int) ($settings['max_affected_rows'] ?? 1)),
             'shipment_items' => ['enabled' => true],
             'filters' => $settings['filters'] ?? [],
             'mark_exported' => [

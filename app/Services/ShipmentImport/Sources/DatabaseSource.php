@@ -13,6 +13,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
+use RuntimeException;
 
 class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
 {
@@ -146,9 +147,13 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
             'mark_exported',
             $query,
             ['shipment_reference'],
-            fn () => DB::connection($this->config['connection'])
-                ->statement($query, ['shipment_reference' => $sourceRecordId]),
+            fn (): int => $this->runCappedStatement(
+                $this->config['connection'],
+                $query,
+                ['shipment_reference' => $sourceRecordId],
+            ),
             ['shipment_reference' => $sourceRecordId],
+            fn (int $affected): array => ['affected_rows' => $affected],
         );
 
         return true;
@@ -181,7 +186,9 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
             'export_package',
             $query,
             array_keys($filteredData),
-            fn () => DB::connection($this->config['connection'])->statement($query, $filteredData),
+            fn (): int => $this->runCappedStatement($this->config['connection'], $query, $filteredData),
+            [],
+            fn (int $affected): array => ['affected_rows' => $affected],
         );
     }
 
@@ -231,9 +238,11 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
      * @param  list<string>  $parameterKeys
      * @param  callable(): TResult  $run
      * @param  array<string, mixed>  $extra
+     * @param  (callable(TResult): array<string, mixed>)|null  $successMetadata  Derive extra
+     *                                                                           audit metadata (e.g. affected-row count) from the result on success.
      * @return TResult
      */
-    private function executeLogged(string $operation, string $query, array $parameterKeys, callable $run, array $extra = [])
+    private function executeLogged(string $operation, string $query, array $parameterKeys, callable $run, array $extra = [], ?callable $successMetadata = null)
     {
         try {
             $result = $run();
@@ -242,9 +251,47 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
             throw $e;
         }
 
+        if ($successMetadata !== null) {
+            $extra = array_merge($extra, $successMetadata($result));
+        }
+
         $this->logQueryExecution($operation, $query, $parameterKeys, 'success', $extra);
 
         return $result;
+    }
+
+    /**
+     * Run a single-record write inside a transaction, rolling back (and throwing)
+     * if it affects more rows than the configured cap. mark-exported and export
+     * both run once per record, so a query that touches many rows means a missing
+     * or too-broad WHERE — this bounds the blast radius of such a misconfiguration
+     * even though the statement type itself is allowed. See security review issue 07.
+     */
+    private function runCappedStatement(string $connection, string $query, array $bindings): int
+    {
+        $cap = $this->maxAffectedRows();
+
+        return DB::connection($connection)->transaction(function () use ($connection, $query, $bindings, $cap): int {
+            $affected = DB::connection($connection)->affectingStatement($query, $bindings);
+
+            if ($affected > $cap) {
+                throw new RuntimeException(
+                    "Query affected {$affected} rows, exceeding the configured limit of {$cap} — rolled back."
+                );
+            }
+
+            return $affected;
+        });
+    }
+
+    /**
+     * Per-source cap on how many rows a single mark-exported/export write may
+     * affect. Defaults to 1 (these are per-record operations); raise it only for a
+     * source whose schema legitimately stores multiple rows per shipment.
+     */
+    private function maxAffectedRows(): int
+    {
+        return max(1, (int) ($this->config['max_affected_rows'] ?? 1));
     }
 
     /**
