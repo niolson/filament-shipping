@@ -109,6 +109,7 @@ class FakeCarrierAdapter implements CarrierAdapterInterface
             labelData: $labelData,
             labelFormat: $request->labelFormat,
             shipDate: $request->shipDate,
+            appliedServices: $request->specialServiceCodes,
         );
     }
 

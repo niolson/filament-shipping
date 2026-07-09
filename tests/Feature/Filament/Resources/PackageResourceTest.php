@@ -123,6 +123,11 @@ it('voids a label and clears shipping fields', function (): void {
         {
             return ServiceCapability::NotImplemented;
         }
+
+        public function declaredValueCap(): ?float
+        {
+            return null;
+        }
     });
 
     app(CarrierRegistry::class)->register('USPS', $testAdapterClass);

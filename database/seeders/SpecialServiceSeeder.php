@@ -154,7 +154,16 @@ class SpecialServiceSeeder extends Seeder
             ],
         ];
 
-        $wiredCodes = ['saturday_delivery'];
+        $wiredCodes = [
+            'saturday_delivery',
+            'signature_required',
+            'adult_signature_required',
+            'declared_value',
+            'alcohol',
+            'lithium_battery_in_equipment',
+            'lithium_battery_standalone',
+            'lithium_battery_ground_only',
+        ];
 
         foreach ($services as $service) {
             SpecialService::updateOrCreate(

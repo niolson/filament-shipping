@@ -1,9 +1,13 @@
 <?php
 
+use App\DataTransferObjects\Shipping\AddressData;
 use App\DataTransferObjects\Shipping\PackageData;
 use App\DataTransferObjects\Shipping\RateRequest;
+use App\DataTransferObjects\Shipping\RateResponse;
+use App\DataTransferObjects\Shipping\ShipRequest;
 use App\Enums\TrackingStatus;
 use App\Exceptions\Carriers\CarrierRateFetchException;
+use App\Http\Integrations\Ups\Requests\CreateShipment;
 use App\Http\Integrations\Ups\Requests\Rate;
 use App\Http\Integrations\Ups\Requests\TrackShipment;
 use App\Models\Carrier;
@@ -322,4 +326,135 @@ it('handles non-json UPS tracking errors without crashing', function (): void {
     expect($response->success)->toBeFalse()
         ->and($response->message)->toContain('Response')
         ->and(data_get($response->details, 'raw.body'))->toContain('Service unavailable');
+});
+
+function upsSpecialServiceShipRequest(array $codes, array $config = []): ShipRequest
+{
+    return new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: '456 Main St',
+            city: 'Los Angeles',
+            stateOrProvince: 'CA',
+            postalCode: '90210',
+        ),
+        packageData: new PackageData(weight: 2.0, length: 10, width: 8, height: 4),
+        selectedRate: new RateResponse(
+            carrier: 'UPS',
+            serviceCode: '03',
+            serviceName: 'UPS Ground',
+            price: 11.00,
+            metadata: ['serviceCode' => '03'],
+        ),
+        specialServiceCodes: $codes,
+        specialServiceConfig: $config,
+    );
+}
+
+function fakeUpsShipEndpoints(): void
+{
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        CreateShipment::class => MockResponse::make([
+            'ShipmentResponse' => [
+                'ShipmentResults' => [
+                    'ShipmentIdentificationNumber' => '1Z9999999999999999',
+                    'ShipmentCharges' => [
+                        'TotalCharges' => ['MonetaryValue' => '11.00'],
+                    ],
+                    'PackageResults' => [
+                        'TrackingNumber' => '1Z9999999999999999',
+                        'ShippingLabel' => ['GraphicImage' => 'R0lGODlhAQABAAAAACw='],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+}
+
+it('maps delivery confirmation and declared value into the ship request', function (): void {
+    fakeUpsShipEndpoints();
+
+    $response = $this->adapter->createShipment(upsSpecialServiceShipRequest(
+        ['adult_signature_required', 'declared_value'],
+        ['declared_value' => ['amount' => 1250.50, 'currency' => 'USD']],
+    ));
+
+    expect($response->success)->toBeTrue()
+        ->and($response->appliedServices)->toBe(['adult_signature_required', 'declared_value']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $options = $request->body()->all()['ShipmentRequest']['Shipment']['Package'][0]['PackageServiceOptions'] ?? [];
+
+        // Package-level DCIS code set: 3 = adult signature
+        return ($options['DeliveryConfirmation']['DCISType'] ?? null) === '3'
+            && ($options['DeclaredValue']['CurrencyCode'] ?? null) === 'USD'
+            && ($options['DeclaredValue']['MonetaryValue'] ?? null) === '1250.50';
+    });
+});
+
+it('uses DCIS type 2 for standard signature and sends no options for unwired codes', function (): void {
+    fakeUpsShipEndpoints();
+
+    $response = $this->adapter->createShipment(upsSpecialServiceShipRequest(
+        ['signature_required', 'lithium_battery_in_equipment'],
+    ));
+
+    // Section II in-equipment batteries ship with no UPS API declaration —
+    // only the signature option appears in the payload
+    expect($response->success)->toBeTrue()
+        ->and($response->appliedServices)->toBe(['signature_required']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $options = $request->body()->all()['ShipmentRequest']['Shipment']['Package'][0]['PackageServiceOptions'] ?? [];
+
+        return ($options['DeliveryConfirmation']['DCISType'] ?? null) === '2'
+            && ! array_key_exists('DeclaredValue', $options)
+            && ! array_key_exists('HazMat', $options);
+    });
+});
+
+it('includes package service options in the rating request', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rate::class => MockResponse::make(['RateResponse' => ['RatedShipment' => []]]),
+    ]);
+
+    $request = new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: '90210',
+        packages: [new PackageData(weight: 2.0, length: 10, width: 8, height: 4)],
+        specialServiceCodes: ['signature_required', 'declared_value'],
+        specialServiceConfig: ['declared_value' => ['amount' => 300.00, 'currency' => 'USD']],
+    );
+
+    $this->adapter->getRates($request, ['03']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Rate) {
+            return false;
+        }
+
+        $options = $request->body()->all()['RateRequest']['Shipment']['Package']['PackageServiceOptions'] ?? [];
+
+        return ($options['DeliveryConfirmation']['DCISType'] ?? null) === '2'
+            && ($options['DeclaredValue']['MonetaryValue'] ?? null) === '300.00';
+    });
 });

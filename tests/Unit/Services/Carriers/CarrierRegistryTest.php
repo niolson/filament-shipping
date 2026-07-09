@@ -139,6 +139,11 @@ it('allows registering custom adapters', function (): void {
         {
             return ServiceCapability::NotImplemented;
         }
+
+        public function declaredValueCap(): ?float
+        {
+            return null;
+        }
     };
 
     app(CarrierRegistry::class)->register('CustomCarrier', $mockAdapter::class);

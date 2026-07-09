@@ -112,6 +112,11 @@ it('refreshes a package tracking snapshot and dispatches a status change event',
         {
             return ServiceCapability::NotImplemented;
         }
+
+        public function declaredValueCap(): ?float
+        {
+            return null;
+        }
     };
 
     app(CarrierRegistry::class)->registerInstance('FedEx', $adapter);
@@ -205,6 +210,11 @@ it('returns unsupported tracking safely without changing status unexpectedly', f
         public function serviceCapability(string $serviceCode): ServiceCapability
         {
             return ServiceCapability::NotImplemented;
+        }
+
+        public function declaredValueCap(): ?float
+        {
+            return null;
         }
     };
 
@@ -301,6 +311,11 @@ it('notifies operational users when a package enters exception or is stuck in pr
         public function serviceCapability(string $serviceCode): ServiceCapability
         {
             return ServiceCapability::NotImplemented;
+        }
+
+        public function declaredValueCap(): ?float
+        {
+            return null;
         }
     };
 

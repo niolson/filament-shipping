@@ -2,12 +2,14 @@
 
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\Enums\HazmatClass;
+use App\Exceptions\MissingDeclaredValueException;
 use App\Models\Carrier;
 use App\Models\CarrierService;
 use App\Models\Package;
 use App\Models\PackageItem;
 use App\Models\Product;
 use App\Models\Shipment;
+use App\Models\ShipmentItem;
 use App\Models\ShippingMethod;
 use App\Models\SpecialService;
 use App\Services\SpecialServiceResolver;
@@ -213,6 +215,122 @@ it('never strips required codes when resolving for a selected rate', function ()
     // carrier services that can't satisfy them
     expect(app(SpecialServiceResolver::class)->resolveForPackageAndRate($package, fedexRateFor('FEDEX_GROUND')))
         ->toBe(['saturday_delivery']);
+});
+
+it('drops signature_required when adult_signature_required is also resolved', function (): void {
+    $signature = resolverSpecialService('signature_required');
+    $adult = resolverSpecialService('adult_signature_required');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($signature->id, ['mode' => 'required']);
+    $shippingMethod->specialServices()->attach($adult->id, ['mode' => 'default']);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create();
+    $package = Package::factory()->for($shipment)->create();
+
+    $codes = app(SpecialServiceResolver::class)->resolveForPackage($package);
+
+    expect($codes)->toContain('adult_signature_required')
+        ->and($codes)->not->toContain('signature_required');
+});
+
+it('auto-pairs adult signature with alcohol product compliance', function (): void {
+    resolverSpecialService('alcohol');
+    resolverSpecialService('adult_signature_required');
+
+    $package = Package::factory()->create();
+    $product = Product::factory()->create(['contains_alcohol' => true]);
+    PackageItem::factory()->for($package)->create(['product_id' => $product->id]);
+
+    $codes = app(SpecialServiceResolver::class)->resolveProductRequiredCodes($package);
+
+    expect($codes->all())->toBe([
+        'alcohol' => $product->id,
+        'adult_signature_required' => $product->id,
+    ]);
+});
+
+it('does not enforce adult signature for alcohol products while the alcohol service is inactive', function (): void {
+    resolverSpecialService('alcohol', active: false);
+    resolverSpecialService('adult_signature_required');
+
+    $package = Package::factory()->create();
+    $product = Product::factory()->create(['contains_alcohol' => true]);
+    PackageItem::factory()->for($package)->create(['product_id' => $product->id]);
+
+    // Deactivating alcohol must fully disable alcohol compliance — the paired
+    // signature must not leak through just because it is active itself
+    expect(app(SpecialServiceResolver::class)->resolveProductRequiredCodes($package))->toBeEmpty();
+});
+
+it('does not pair adult signature with alcohol when the signature service is inactive', function (): void {
+    resolverSpecialService('alcohol');
+    resolverSpecialService('adult_signature_required', active: false);
+
+    $package = Package::factory()->create();
+    $product = Product::factory()->create(['contains_alcohol' => true]);
+    PackageItem::factory()->for($package)->create(['product_id' => $product->id]);
+
+    $codes = app(SpecialServiceResolver::class)->resolveProductRequiredCodes($package);
+
+    expect($codes->all())->toBe(['alcohol' => $product->id]);
+});
+
+it('uses the shipment value as declared value for a single-package shipment', function (): void {
+    $shipment = Shipment::factory()->create(['value' => 149.99]);
+    $package = Package::factory()->for($shipment)->create();
+
+    expect(app(SpecialServiceResolver::class)->declaredValueForPackage($package))->toBe(149.99);
+});
+
+it('falls back to the package item value sum when the shipment value is zero', function (): void {
+    $shipment = Shipment::factory()->create(['value' => 0]);
+    $package = Package::factory()->for($shipment)->create();
+    $item = ShipmentItem::factory()->for($shipment)->create(['value' => 25.50]);
+    PackageItem::factory()->for($package)->create(['shipment_item_id' => $item->id, 'quantity' => 2]);
+
+    expect(app(SpecialServiceResolver::class)->declaredValueForPackage($package))->toBe(51.00);
+});
+
+it('uses the per-package item sum instead of the shipment value for multi-package shipments', function (): void {
+    $shipment = Shipment::factory()->create(['value' => 1000.00]);
+    $packageA = Package::factory()->for($shipment)->create();
+    Package::factory()->for($shipment)->create();
+
+    $item = ShipmentItem::factory()->for($shipment)->create(['value' => 40.00]);
+    PackageItem::factory()->for($packageA)->create(['shipment_item_id' => $item->id, 'quantity' => 1]);
+
+    expect(app(SpecialServiceResolver::class)->declaredValueForPackage($packageA))->toBe(40.00);
+});
+
+it('returns null declared value when neither shipment nor items carry a value', function (): void {
+    $shipment = Shipment::factory()->create(['value' => null]);
+    $package = Package::factory()->for($shipment)->create();
+    $item = ShipmentItem::factory()->for($shipment)->create(['value' => 0]);
+    PackageItem::factory()->for($package)->create(['shipment_item_id' => $item->id, 'quantity' => 3]);
+
+    expect(app(SpecialServiceResolver::class)->declaredValueForPackage($package))->toBeNull();
+});
+
+it('builds declared value config and throws when no value is derivable', function (): void {
+    $valued = Shipment::factory()->create(['value' => 200.00]);
+    $valuedPackage = Package::factory()->for($valued)->create();
+
+    expect(app(SpecialServiceResolver::class)->configForPackage($valuedPackage, ['declared_value']))
+        ->toBe(['declared_value' => ['amount' => 200.00, 'currency' => 'USD']]);
+
+    $unvalued = Shipment::factory()->create(['value' => null]);
+    $unvaluedPackage = Package::factory()->for($unvalued)->create();
+
+    expect(fn () => app(SpecialServiceResolver::class)->configForPackage($unvaluedPackage, ['declared_value']))
+        ->toThrow(MissingDeclaredValueException::class);
+});
+
+it('returns empty config when declared_value is not resolved', function (): void {
+    $shipment = Shipment::factory()->create(['value' => null]);
+    $package = Package::factory()->for($shipment)->create();
+
+    expect(app(SpecialServiceResolver::class)->configForPackage($package, ['saturday_delivery']))->toBe([]);
 });
 
 function fedexRateFor(string $serviceCode): RateResponse

@@ -38,8 +38,7 @@ class UpsAdapter implements CarrierAdapterInterface
 
     private function resolveAccount(?int $locationId, ?int $clientId = null): ?CarrierAccount
     {
-        static $carrierId = null;
-        $carrierId ??= Carrier::where('name', 'UPS')->value('id');
+        $carrierId = Carrier::where('name', 'UPS')->value('id');
 
         return $carrierId
             ? CarrierAccount::resolveForShipment($carrierId, $locationId, $clientId)->first()
@@ -60,8 +59,63 @@ class UpsAdapter implements CarrierAdapterInterface
     {
         return match ($serviceCode) {
             'saturday_delivery' => ServiceCapability::Supported,
+            'signature_required' => ServiceCapability::Supported,
+            'adult_signature_required' => ServiceCapability::Supported,
+            'declared_value' => ServiceCapability::Supported,
+            // Section II excepted batteries need package marks only — no UPS API
+            // declaration. Ground-only is additionally scoped to UPS Ground via
+            // carrier-service scope rows.
+            'lithium_battery_in_equipment' => ServiceCapability::Supported,
+            'lithium_battery_ground_only' => ServiceCapability::Supported,
+            // Standalone lithium (UN3480) requires UPS's full HazMat dangerous
+            // goods declaration + DG contract — out of scope (see
+            // .scratch/special-services/issues/06-lithium-battery-family.md)
             default => ServiceCapability::NotImplemented,
         };
+    }
+
+    /**
+     * UPS DeclaredValue accepts up to $50,000 per package (high-value shipments
+     * beyond $5,000 may need account-level enablement — surfaced at rate time).
+     */
+    public function declaredValueCap(): ?float
+    {
+        return 50000.0;
+    }
+
+    /**
+     * Build the UPS PackageServiceOptions payload for the wired special
+     * services. DCISType uses the package-level code set (2 = signature,
+     * 3 = adult signature) — the shipment-level set is numbered differently.
+     *
+     * @param  array<int, string>  $codes
+     * @param  array<string, array<string, mixed>>  $config
+     * @return array{options: array<string, mixed>, appliedCodes: array<int, string>}
+     */
+    private function buildPackageServiceOptions(array $codes, array $config): array
+    {
+        $options = [];
+        $appliedCodes = [];
+
+        if (in_array('adult_signature_required', $codes, true)) {
+            $options['DeliveryConfirmation'] = ['DCISType' => '3'];
+            $appliedCodes[] = 'adult_signature_required';
+        } elseif (in_array('signature_required', $codes, true)) {
+            $options['DeliveryConfirmation'] = ['DCISType' => '2'];
+            $appliedCodes[] = 'signature_required';
+        }
+
+        $declaredAmount = (float) ($config['declared_value']['amount'] ?? 0);
+
+        if (in_array('declared_value', $codes, true) && $declaredAmount > 0) {
+            $options['DeclaredValue'] = [
+                'CurrencyCode' => 'USD',
+                'MonetaryValue' => number_format($declaredAmount, 2, '.', ''),
+            ];
+            $appliedCodes[] = 'declared_value';
+        }
+
+        return ['options' => $options, 'appliedCodes' => $appliedCodes];
     }
 
     /**
@@ -376,6 +430,10 @@ class UpsAdapter implements CarrierAdapterInterface
     private function buildRateApiRequest(RateRequest $request): Rate
     {
         $package = $request->packages[0];
+        $packageServiceOptions = $this->buildPackageServiceOptions(
+            $request->specialServiceCodes,
+            $request->specialServiceConfig,
+        )['options'];
 
         $apiRequest = new Rate;
         $apiRequest->body()->set([
@@ -419,6 +477,9 @@ class UpsAdapter implements CarrierAdapterInterface
                             ],
                             'Weight' => (string) $package->weight,
                         ],
+                        ...($packageServiceOptions !== [] ? [
+                            'PackageServiceOptions' => $packageServiceOptions,
+                        ] : []),
                     ],
                     'DeliveryTimeInformation' => array_filter([
                         'PackageBillType' => '03',
@@ -450,6 +511,8 @@ class UpsAdapter implements CarrierAdapterInterface
             $connector = $this->resolveConnector($account);
 
             $serviceCode = $request->selectedRate->metadata['serviceCode'] ?? $request->selectedRate->serviceCode;
+
+            $mapped = $this->buildPackageServiceOptions($request->specialServiceCodes, $request->specialServiceConfig);
 
             $shipment = [
                 'Description' => 'Shipment',
@@ -499,16 +562,17 @@ class UpsAdapter implements CarrierAdapterInterface
                             'Width' => (string) (int) $request->packageData->width,
                             'Height' => (string) (int) $request->packageData->height,
                         ],
+                        ...($mapped['options'] !== [] ? [
+                            'PackageServiceOptions' => $mapped['options'],
+                        ] : []),
                     ],
                 ],
             ];
 
             // Add Saturday delivery if requested
-            if ($request->hasSpecialService('saturday_delivery')) {
-                $shipment['ShipmentServiceOptions'] = array_merge(
-                    $shipment['ShipmentServiceOptions'] ?? [],
-                    ['SaturdayDeliveryIndicator' => ''],
-                );
+            $saturdayApplied = $request->hasSpecialService('saturday_delivery');
+            if ($saturdayApplied) {
+                $shipment['ShipmentServiceOptions'] = ['SaturdayDeliveryIndicator' => ''];
             }
 
             // Add international forms for non-US destinations
@@ -520,16 +584,14 @@ class UpsAdapter implements CarrierAdapterInterface
             $responseData = $response->json();
 
             // If Saturday delivery was rejected, retry without it
-            if ($request->hasSpecialService('saturday_delivery') && ! $response->successful()) {
+            if ($saturdayApplied && ! $response->successful()) {
                 $errorJson = json_encode($responseData);
                 if (str_contains(strtolower($errorJson), 'saturday')) {
                     logger()->info('UPS Saturday delivery rejected, retrying without', [
                         'body' => $responseData,
                     ]);
-                    unset($shipment['ShipmentServiceOptions']['SaturdayDeliveryIndicator']);
-                    if (empty($shipment['ShipmentServiceOptions'])) {
-                        unset($shipment['ShipmentServiceOptions']);
-                    }
+                    $saturdayApplied = false;
+                    unset($shipment['ShipmentServiceOptions']);
                     $response = $this->sendCreateShipment($connector, $shipment, $request, $serviceCode);
                     $responseData = $response->json();
                 }
@@ -605,6 +667,10 @@ class UpsAdapter implements CarrierAdapterInterface
                 labelFormat: $isZpl ? 'zpl' : 'image',
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
+                appliedServices: [
+                    ...($saturdayApplied ? ['saturday_delivery'] : []),
+                    ...$mapped['appliedCodes'],
+                ],
                 carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {

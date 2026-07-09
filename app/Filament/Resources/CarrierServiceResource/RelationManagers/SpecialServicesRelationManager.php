@@ -2,32 +2,25 @@
 
 namespace App\Filament\Resources\CarrierServiceResource\RelationManagers;
 
-use Filament\Actions;
-use Filament\Forms;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Schemas\Schema;
 use Filament\Tables;
 use Filament\Tables\Table;
 
+/**
+ * Read-only view of which special services this carrier service is scoped to
+ * carry. Scope rows are code-owned carrier facts (seeded by
+ * CarrierServiceSpecialServiceSeeder from the carrier restriction research) —
+ * editing them in the UI would drift from reality and fight reseeding.
+ */
 class SpecialServicesRelationManager extends RelationManager
 {
     protected static string $relationship = 'specialServices';
-
-    public function form(Schema $schema): Schema
-    {
-        return $schema
-            ->components([
-                Forms\Components\TagsInput::make('restricted_countries')
-                    ->label('Restricted countries')
-                    ->placeholder('e.g. US, CA')
-                    ->helperText('ISO country codes this service/special-service combination is limited to. Leave empty for no country restriction.'),
-            ]);
-    }
 
     public function table(Table $table): Table
     {
         return $table
             ->recordTitleAttribute('name')
+            ->description('Managed in code (CarrierServiceSpecialServiceSeeder) — these rows record researched carrier restrictions and are read-only here.')
             ->columns([
                 Tables\Columns\TextColumn::make('name'),
                 Tables\Columns\TextColumn::make('category')
@@ -45,26 +38,8 @@ class SpecialServicesRelationManager extends RelationManager
                     ->placeholder('No restriction'),
             ])
             ->filters([])
-            ->headerActions([
-                Actions\AttachAction::make()
-                    ->recordSelectOptionsQuery(fn ($query) => $query->where('active', true))
-                    ->preloadRecordSelect()
-                    ->form(fn (Actions\AttachAction $action): array => [
-                        $action->getRecordSelect(),
-                        Forms\Components\TagsInput::make('restricted_countries')
-                            ->label('Restricted countries')
-                            ->placeholder('e.g. US, CA')
-                            ->helperText('ISO country codes this service/special-service combination is limited to. Leave empty for no country restriction.'),
-                    ]),
-            ])
-            ->recordActions([
-                Actions\EditAction::make(),
-                Actions\DetachAction::make(),
-            ])
-            ->toolbarActions([
-                Actions\BulkActionGroup::make([
-                    Actions\DetachBulkAction::make(),
-                ]),
-            ]);
+            ->headerActions([])
+            ->recordActions([])
+            ->toolbarActions([]);
     }
 }

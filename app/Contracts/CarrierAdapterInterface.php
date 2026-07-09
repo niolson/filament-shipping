@@ -31,6 +31,13 @@ interface CarrierAdapterInterface
     public function serviceCapability(string $serviceCode): ServiceCapability;
 
     /**
+     * Maximum declared value this carrier accepts per package, or null when
+     * unlimited/not applicable. Rate shopping excludes the carrier (visibly)
+     * when the package's declared value exceeds this — never clamps silently.
+     */
+    public function declaredValueCap(): ?float;
+
+    /**
      * Get shipping rates for the given request (synchronous).
      *
      * @param  array<string>  $serviceCodes  Filter to these service codes only

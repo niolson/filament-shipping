@@ -41,8 +41,7 @@ class FedexAdapter implements CarrierAdapterInterface
 
     private function resolveAccount(?int $locationId, ?int $clientId = null): ?CarrierAccount
     {
-        static $carrierId = null;
-        $carrierId ??= Carrier::where('name', 'FedEx')->value('id');
+        $carrierId = Carrier::where('name', 'FedEx')->value('id');
 
         return $carrierId
             ? CarrierAccount::resolveForShipment($carrierId, $locationId, $clientId)->first()
@@ -63,10 +62,113 @@ class FedexAdapter implements CarrierAdapterInterface
     {
         return match ($serviceCode) {
             'saturday_delivery' => ServiceCapability::Supported,
+            'signature_required' => ServiceCapability::Supported,
+            'adult_signature_required' => ServiceCapability::Supported,
+            'declared_value' => ServiceCapability::Supported,
+            'alcohol' => ServiceCapability::Supported,
+            'lithium_battery_in_equipment' => ServiceCapability::Supported,
+            // Production availability probe (2026-07-09): STANDALONE_BATTERY is
+            // not offered on any FedEx service for US lanes — standalone lithium
+            // is full dangerous-goods territory, which is out of scope.
+            'lithium_battery_standalone' => ServiceCapability::NotImplemented,
+            'lithium_battery_ground_only' => ServiceCapability::Supported,
             // FedEx does not accept cremated remains (service guide prohibition)
             'cremated_remains' => ServiceCapability::Prohibited,
             default => ServiceCapability::NotImplemented,
         };
+    }
+
+    /**
+     * FedEx accepts up to $50,000 declared value for customer packaging.
+     */
+    public function declaredValueCap(): ?float
+    {
+        return 50000.0;
+    }
+
+    /**
+     * FedEx ground-network service codes. The BATTERY special service +
+     * batteryDetails shape is an Express (air/IATA Section II) construct —
+     * the production availability API surfaces ground batteries only as a
+     * DANGEROUS_GOODS subtype. Ground shipments carry no battery API fields
+     * (excepted batteries need package marks, not a declaration).
+     */
+    private const GROUND_NETWORK_SERVICES = ['FEDEX_GROUND', 'GROUND_HOME_DELIVERY', 'SMART_POST'];
+
+    /**
+     * Build the per-line-item packageSpecialServices and declaredValue fields
+     * for the wired package-level special services (shared by the Rate and
+     * Ship APIs, which use the same requestedPackageLineItems shape).
+     *
+     * @param  array<int, string>  $codes
+     * @param  array<string, array<string, mixed>>  $config
+     * @param  array<int, string>  $serviceCodes  FedEx service codes the request targets; battery fields are omitted when they are all ground-network
+     * @return array{lineItemFields: array<string, mixed>, appliedCodes: array<int, string>}
+     */
+    private function buildPackageSpecialServices(array $codes, array $config, array $serviceCodes = []): array
+    {
+        $specialServiceTypes = [];
+        $detail = [];
+        $appliedCodes = [];
+        $lineItemFields = [];
+
+        if (in_array('adult_signature_required', $codes, true)) {
+            $specialServiceTypes[] = 'SIGNATURE_OPTION';
+            $detail['signatureOptionType'] = 'ADULT';
+            $appliedCodes[] = 'adult_signature_required';
+        } elseif (in_array('signature_required', $codes, true)) {
+            $specialServiceTypes[] = 'SIGNATURE_OPTION';
+            $detail['signatureOptionType'] = 'DIRECT';
+            $appliedCodes[] = 'signature_required';
+        }
+
+        if (in_array('alcohol', $codes, true)) {
+            $specialServiceTypes[] = 'ALCOHOL';
+            // Direct-to-consumer is the common 3PL case; LICENSEE shipping
+            // would need per-client config before it can be offered.
+            $detail['alcoholDetail'] = ['alcoholRecipientType' => 'CONSUMER'];
+            $appliedCodes[] = 'alcohol';
+        }
+
+        // Battery declaration is Express-only (IATA Section II); material is
+        // assumed lithium-ion — the consumer-goods default, and the exact
+        // combination the availability API enumerates (UN3481, PI967). Ground
+        // requests carry no battery fields, and mixed rate requests omit them
+        // too so a ground rate is never poisoned by an air-only construct
+        // (express quotes then miss the small battery surcharge — accepted).
+        $expressOnly = $serviceCodes !== []
+            && array_intersect($serviceCodes, self::GROUND_NETWORK_SERVICES) === [];
+        $batteryCode = in_array('lithium_battery_in_equipment', $codes, true)
+            ? 'lithium_battery_in_equipment'
+            : (in_array('lithium_battery_ground_only', $codes, true) ? 'lithium_battery_ground_only' : null);
+
+        if ($batteryCode !== null && $expressOnly) {
+            $specialServiceTypes[] = 'BATTERY';
+            $detail['batteryDetails'] = [[
+                'batteryPackingType' => 'CONTAINED_IN_EQUIPMENT',
+                'batteryMaterialType' => 'LITHIUM_ION',
+            ]];
+            $appliedCodes[] = $batteryCode;
+        }
+
+        if ($specialServiceTypes !== []) {
+            $lineItemFields['packageSpecialServices'] = [
+                'specialServiceTypes' => $specialServiceTypes,
+                ...$detail,
+            ];
+        }
+
+        $declaredAmount = (float) ($config['declared_value']['amount'] ?? 0);
+
+        if (in_array('declared_value', $codes, true) && $declaredAmount > 0) {
+            $lineItemFields['declaredValue'] = [
+                'amount' => round($declaredAmount, 2),
+                'currency' => 'USD',
+            ];
+            $appliedCodes[] = 'declared_value';
+        }
+
+        return ['lineItemFields' => $lineItemFields, 'appliedCodes' => $appliedCodes];
     }
 
     /**
@@ -294,6 +396,11 @@ class FedexAdapter implements CarrierAdapterInterface
 
         $package = $request->packages[0];
         $smartPostInfoDetail = $this->buildSmartPostInfoDetail($request, $serviceCodes);
+        $lineItemFields = $this->buildPackageSpecialServices(
+            $request->specialServiceCodes,
+            $request->specialServiceConfig,
+            $serviceCodes,
+        )['lineItemFields'];
 
         $apiRequest = new Rates;
 
@@ -328,6 +435,7 @@ class FedexAdapter implements CarrierAdapterInterface
                             'units' => 'LB',
                             'value' => $package->weight,
                         ],
+                        ...$lineItemFields,
                     ],
                 ],
                 ...($smartPostInfoDetail ? [
@@ -450,6 +558,12 @@ class FedexAdapter implements CarrierAdapterInterface
         try {
             $connector = $this->resolveConnector($account);
 
+            $packageLevelServices = $this->buildPackageSpecialServices(
+                $request->specialServiceCodes,
+                $request->specialServiceConfig,
+                [$request->selectedRate->metadata['serviceType'] ?? $request->selectedRate->serviceCode],
+            );
+
             $requestedShipment = [
                 'shipper' => $this->buildContact($request->fromAddress),
                 'recipients' => [
@@ -491,6 +605,7 @@ class FedexAdapter implements CarrierAdapterInterface
                             'height' => (int) $request->packageData->height,
                             'units' => 'IN',
                         ],
+                        ...$packageLevelServices['lineItemFields'],
                     ],
                 ],
             ];
@@ -571,7 +686,7 @@ class FedexAdapter implements CarrierAdapterInterface
             }
 
             // Build the list of our service codes that were actually applied
-            $appliedServices = [];
+            $appliedServices = $packageLevelServices['appliedCodes'];
             if ($saturdayApplied) {
                 $appliedServices[] = 'saturday_delivery';
             }

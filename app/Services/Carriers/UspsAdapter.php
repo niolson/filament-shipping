@@ -44,12 +44,93 @@ class UspsAdapter implements CarrierAdapterInterface
             // USPS delivers Saturday as part of standard service — no special flag needed
             'saturday_delivery' => ServiceCapability::Supported,
             'cremated_remains' => ServiceCapability::Supported,
+            'signature_required' => ServiceCapability::Supported,
+            'adult_signature_required' => ServiceCapability::Supported,
+            'declared_value' => ServiceCapability::Supported,
+            'lithium_battery_in_equipment' => ServiceCapability::Supported,
+            'lithium_battery_standalone' => ServiceCapability::Supported,
+            // Surface-only per Pub 52 — carrier-service scope rows restrict to ground mail classes
+            'lithium_battery_ground_only' => ServiceCapability::Supported,
             // Mailing alcohol is prohibited under 27 CFR 72.11 (federal law)
             'alcohol' => ServiceCapability::Prohibited,
-            // USPS uses air transport for express services; ground-only battery shipments cannot be guaranteed
-            'lithium_battery_ground_only' => ServiceCapability::Prohibited,
             default => ServiceCapability::NotImplemented,
         };
+    }
+
+    /**
+     * USPS insurance (extra services 930/931) covers up to $5,000 declared value.
+     */
+    public function declaredValueCap(): ?float
+    {
+        return 5000.0;
+    }
+
+    /**
+     * Extra service codes accepted by the international label endpoint — a
+     * narrower enum than domestic (insurance and intl-valid lithium only).
+     *
+     * @var array<int, int>
+     */
+    private const INTERNATIONAL_EXTRA_SERVICES = [930, 931, 820];
+
+    /**
+     * Map resolved special service codes to USPS numeric extra services plus
+     * the companion fields the Labels API requires alongside them.
+     *
+     * @param  array<int, string>  $codes
+     * @param  array<string, array<string, mixed>>  $config
+     * @return array{extraServices: array<int, int>, packageValue: float|null, packageOptions: array<string, mixed>, hazmat: bool, appliedCodes: array<int, string>}
+     */
+    private function mapExtraServices(array $codes, array $config, bool $isInternational): array
+    {
+        $declaredAmount = (float) ($config['declared_value']['amount'] ?? 0);
+
+        $extraServices = [];
+        $appliedCodes = [];
+
+        foreach ($codes as $code) {
+            $numeric = match ($code) {
+                'signature_required' => 921,
+                'adult_signature_required' => 922,
+                // 930 auto-upgrades to 931 above $500 — send the right code up front
+                'declared_value' => $declaredAmount > 500 ? 931 : 930,
+                'lithium_battery_in_equipment' => 818,
+                'lithium_battery_standalone' => 820,
+                'lithium_battery_ground_only' => 816,
+                default => null,
+            };
+
+            if ($numeric === null) {
+                continue;
+            }
+
+            if ($isInternational && ! in_array($numeric, self::INTERNATIONAL_EXTRA_SERVICES, true)) {
+                continue;
+            }
+
+            $extraServices[] = $numeric;
+            $appliedCodes[] = $code;
+        }
+
+        $hasInsurance = array_intersect($extraServices, [930, 931]) !== [];
+        // 921/922/931 accept the physicalSignatureRequired field; false allows eSOL.
+        // Sandbox-verified 2026-07-09: these live in packageDescription.packageOptions
+        // on the label APIs (packageValue is silently unread anywhere else), while the
+        // rating API reads packageValue directly on its packageDescription.
+        $needsSignatureField = array_intersect($extraServices, [921, 922, 931]) !== [];
+
+        $packageOptions = [
+            ...($hasInsurance ? ['packageValue' => round($declaredAmount, 2)] : []),
+            ...($needsSignatureField ? ['physicalSignatureRequired' => false] : []),
+        ];
+
+        return [
+            'extraServices' => $extraServices,
+            'packageValue' => $hasInsurance ? round($declaredAmount, 2) : null,
+            'packageOptions' => $packageOptions,
+            'hazmat' => array_intersect($extraServices, [816, 818, 820]) !== [],
+            'appliedCodes' => $appliedCodes,
+        ];
     }
 
     public function getCarrierName(): string
@@ -194,6 +275,12 @@ class UspsAdapter implements CarrierAdapterInterface
             ];
         }
 
+        // Include mapped extra services so quoted prices carry their surcharges.
+        // The rating endpoint does not enforce mail-class compatibility (it
+        // false-positives on invalid combos) — carrier-service scope rows are
+        // the real validation layer before purchase.
+        $mapped = $this->mapExtraServices($request->specialServiceCodes, $request->specialServiceConfig, $isInternational);
+
         $body = [
             'pricingOptions' => [$pricingOption],
             'originZIPCode' => $request->originPostalCode,
@@ -204,6 +291,8 @@ class UspsAdapter implements CarrierAdapterInterface
                 'height' => $package->height,
                 'mailClass' => $isInternational ? 'ALL' : 'ALL_OUTBOUND',
                 'mailingDate' => $request->shipDate?->format('Y-m-d') ?? date('Y-m-d'),
+                ...($mapped['extraServices'] !== [] ? ['extraServices' => $mapped['extraServices']] : []),
+                ...($mapped['packageValue'] !== null ? ['packageValue' => $mapped['packageValue']] : []),
             ],
         ];
         if (! $isInternational) {
@@ -359,6 +448,8 @@ class UspsAdapter implements CarrierAdapterInterface
                 $imageInfo['imageType'] = $request->labelDpi === 300 ? 'ZPL300DPI' : 'ZPL203DPI';
             }
 
+            $mapped = $this->mapExtraServices($request->specialServiceCodes, $request->specialServiceConfig, isInternational: false);
+
             $apiRequest->body()->set([
                 'toAddress' => $toAddress,
                 'fromAddress' => $fromAddress,
@@ -373,8 +464,10 @@ class UspsAdapter implements CarrierAdapterInterface
                     'width' => $request->packageData->width,
                     'processingCategory' => $metadata['processingCategory'],
                     'mailingDate' => $request->shipDate?->format('Y-m-d') ?? date('Y-m-d'),
-                    'extraServices' => [],
+                    'extraServices' => $mapped['extraServices'],
                     'destinationEntryFacilityType' => 'NONE',
+                    ...($mapped['packageOptions'] !== [] ? ['packageOptions' => $mapped['packageOptions']] : []),
+                    ...($mapped['hazmat'] ? ['contentType' => 'HAZMAT'] : []),
                 ],
                 'imageInfo' => $imageInfo,
             ]);
@@ -420,7 +513,10 @@ class UspsAdapter implements CarrierAdapterInterface
                 labelFormat: $request->labelFormat,
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
-                appliedServices: $request->hasSpecialService('saturday_delivery') ? ['saturday_delivery'] : [],
+                appliedServices: [
+                    ...($request->hasSpecialService('saturday_delivery') ? ['saturday_delivery'] : []),
+                    ...$mapped['appliedCodes'],
+                ],
                 carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
@@ -459,6 +555,8 @@ class UspsAdapter implements CarrierAdapterInterface
                 $imageInfo['imageType'] = $request->labelDpi === 300 ? 'ZPL300DPI' : 'ZPL203DPI';
             }
 
+            $mapped = $this->mapExtraServices($request->specialServiceCodes, $request->specialServiceConfig, isInternational: true);
+
             $apiRequest->body()->set([
                 'toAddress' => $toAddress,
                 'fromAddress' => $fromAddress,
@@ -473,8 +571,10 @@ class UspsAdapter implements CarrierAdapterInterface
                     'width' => $request->packageData->width,
                     'processingCategory' => $metadata['processingCategory'],
                     'mailingDate' => $request->shipDate?->format('Y-m-d') ?? date('Y-m-d'),
-                    'extraServices' => [],
+                    'extraServices' => $mapped['extraServices'],
                     'destinationEntryFacilityType' => $metadata['destinationEntryFacilityType'] ?? 'INTERNATIONAL_SERVICE_CENTER',
+                    ...($mapped['packageOptions'] !== [] ? ['packageOptions' => $mapped['packageOptions']] : []),
+                    ...($mapped['hazmat'] ? ['contentType' => 'HAZMAT'] : []),
                 ],
                 'customsForm' => $this->buildCustomsForm($request),
                 'imageInfo' => $imageInfo,
@@ -527,7 +627,10 @@ class UspsAdapter implements CarrierAdapterInterface
                 labelFormat: $request->labelFormat,
                 labelDpi: $request->labelDpi,
                 shipDate: $request->shipDate,
-                appliedServices: $request->hasSpecialService('saturday_delivery') ? ['saturday_delivery'] : [],
+                appliedServices: [
+                    ...($request->hasSpecialService('saturday_delivery') ? ['saturday_delivery'] : []),
+                    ...$mapped['appliedCodes'],
+                ],
                 carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
@@ -604,8 +707,7 @@ class UspsAdapter implements CarrierAdapterInterface
 
     private function resolveAccount(?int $locationId, ?int $clientId): ?CarrierAccount
     {
-        static $carrierId = null;
-        $carrierId ??= Carrier::where('name', 'USPS')->value('id');
+        $carrierId = Carrier::where('name', 'USPS')->value('id');
 
         return $carrierId
             ? CarrierAccount::resolveForShipment($carrierId, $locationId, $clientId)->first()

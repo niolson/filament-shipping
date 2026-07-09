@@ -168,6 +168,18 @@
                                         @if(!empty($formRateOptionDescriptions[$index]))
                                             <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ $formRateOptionDescriptions[$index] }}</div>
                                         @endif
+                                        @if(!empty($rate['specialServices']['applied']) || !empty($rate['specialServices']['stripped']))
+                                            <div class="flex flex-wrap gap-1 mt-1">
+                                                @foreach($rate['specialServices']['applied'] ?? [] as $serviceName)
+                                                    <x-filament::badge color="success" size="sm">{{ $serviceName }}</x-filament::badge>
+                                                @endforeach
+                                                @foreach($rate['specialServices']['stripped'] ?? [] as $serviceName)
+                                                    <span title="Not available for this carrier service — the label will be purchased without it">
+                                                        <x-filament::badge color="gray" size="sm"><s>{{ $serviceName }}</s></x-filament::badge>
+                                                    </span>
+                                                @endforeach
+                                            </div>
+                                        @endif
                                     </div>
                                 </label>
                             @endforeach
