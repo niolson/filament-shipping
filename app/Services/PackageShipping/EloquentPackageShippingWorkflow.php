@@ -37,11 +37,7 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
     {
         $package->loadMissing(['shipment.shippingMethod']);
 
-        try {
-            $rates = $this->shippingRateService->getShippingRates($package->id);
-        } catch (MissingDeclaredValueException $e) {
-            return PackageShippingOptions::blocked($e->getMessage());
-        }
+        $rates = $this->shippingRateService->getShippingRates($package->id);
 
         $exclusions = $this->shippingRateService->getExclusions();
 

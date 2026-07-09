@@ -572,10 +572,7 @@ class UpsAdapter implements CarrierAdapterInterface
             // Add Saturday delivery if requested
             $saturdayApplied = $request->hasSpecialService('saturday_delivery');
             if ($saturdayApplied) {
-                $shipment['ShipmentServiceOptions'] = array_merge(
-                    $shipment['ShipmentServiceOptions'] ?? [],
-                    ['SaturdayDeliveryIndicator' => ''],
-                );
+                $shipment['ShipmentServiceOptions'] = ['SaturdayDeliveryIndicator' => ''];
             }
 
             // Add international forms for non-US destinations
@@ -594,10 +591,7 @@ class UpsAdapter implements CarrierAdapterInterface
                         'body' => $responseData,
                     ]);
                     $saturdayApplied = false;
-                    unset($shipment['ShipmentServiceOptions']['SaturdayDeliveryIndicator']);
-                    if (empty($shipment['ShipmentServiceOptions'])) {
-                        unset($shipment['ShipmentServiceOptions']);
-                    }
+                    unset($shipment['ShipmentServiceOptions']);
                     $response = $this->sendCreateShipment($connector, $shipment, $request, $serviceCode);
                     $responseData = $response->json();
                 }

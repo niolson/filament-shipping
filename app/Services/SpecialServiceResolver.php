@@ -220,7 +220,7 @@ class SpecialServiceResolver
         }
 
         $itemSum = $package->packageItems->sum(
-            fn ($packageItem): float => (float) ($packageItem->shipmentItem?->value ?? 0) * (int) ($packageItem->quantity ?? 1)
+            fn ($packageItem): float => (float) ($packageItem->shipmentItem->value ?? 0) * (int) ($packageItem->quantity ?? 1)
         );
 
         return $itemSum > 0 ? round($itemSum, 2) : null;

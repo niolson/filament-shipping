@@ -1509,18 +1509,6 @@ parameters:
 
 
 		-
-			message: '#^Offset ''ShipmentServiceOpti…'' on array\{Description\: ''Shipment'', Shipper\: array\{Name\: string, ShipperNumber\: string\|null, Address\: array\}, ShipTo\: array\{Name\: string, Address\: array\}, ShipFrom\: array\{Name\: string, Address\: array\}, PaymentInformation\: array\{ShipmentCharge\: array\{array\{Type\: ''01'', BillShipper\: array\{AccountNumber\: string\|null\}\}\}\}, Service\: array\{Code\: mixed\}, Package\: array\{array\{Packaging\: array\{Code\: ''02'', Description\: ''Customer Supplied…''\}, PackageWeight\: array\{UnitOfMeasurement\: array\{Code\: ''LBS''\}, Weight\: numeric\-string\}, Dimensions\: array\{UnitOfMeasurement\: array\{Code\: ''IN''\}, Length\: decimal\-int\-string, Width\: decimal\-int\-string, Height\: decimal\-int\-string\}\}\}, ShipmentServiceOptions\: array\{\}, \.\.\.\} in empty\(\) always exists and is always falsy\.$#'
-			identifier: empty.offset
-			count: 1
-			path: app/Services/Carriers/UpsAdapter.php
-
-		-
-			message: '#^Offset ''ShipmentServiceOpti…'' on array\{Description\: ''Shipment'', Shipper\: array\{Name\: string, ShipperNumber\: string\|null, Address\: array\}, ShipTo\: array\{Name\: string, Address\: array\}, ShipFrom\: array\{Name\: string, Address\: array\}, PaymentInformation\: array\{ShipmentCharge\: array\{array\{Type\: ''01'', BillShipper\: array\{AccountNumber\: string\|null\}\}\}\}, Service\: array\{Code\: mixed\}, Package\: array\{array\{Packaging\: array\{Code\: ''02'', Description\: ''Customer Supplied…''\}, PackageWeight\: array\{UnitOfMeasurement\: array\{Code\: ''LBS''\}, Weight\: numeric\-string\}, Dimensions\: array\{UnitOfMeasurement\: array\{Code\: ''IN''\}, Length\: decimal\-int\-string, Width\: decimal\-int\-string, Height\: decimal\-int\-string\}\}\}\} on left side of \?\? does not exist\.$#'
-			identifier: nullCoalesce.offset
-			count: 1
-			path: app/Services/Carriers/UpsAdapter.php
-
-		-
 			message: '#^PHPDoc tag @var for constant App\\Services\\Carriers\\UpsAdapter\:\:SERVICE_NAMES with type array\<string, string\> is not subtype of value array\{''01''\: ''UPS Next Day Air'', ''02''\: ''UPS 2nd Day Air'', ''03''\: ''UPS Ground'', ''07''\: ''UPS Worldwide…'', ''08''\: ''UPS Worldwide…'', 11\: ''UPS Standard'', 12\: ''UPS 3 Day Select'', 13\: ''UPS Next Day Air…'', \.\.\.\}\.$#'
 			identifier: classConstant.phpDocType
 			count: 1
