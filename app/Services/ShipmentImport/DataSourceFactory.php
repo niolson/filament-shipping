@@ -62,6 +62,7 @@ class DataSourceFactory
 
         return [
             'connection' => $connectionName,
+            'data_source_id' => $sourceId,
             'enabled' => true,
             'shipments_table' => $settings['shipments_table'] ?? 'shipments',
             'shipment_items_table' => $settings['shipment_items_table'] ?? 'shipment_items',

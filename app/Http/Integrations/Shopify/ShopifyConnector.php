@@ -4,6 +4,7 @@ namespace App\Http\Integrations\Shopify;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use InvalidArgumentException;
 use RuntimeException;
 use Saloon\Http\Connector;
 
@@ -17,13 +18,31 @@ class ShopifyConnector extends Connector
 
     private const CACHE_KEY_PREFIX = 'shopify_access_token_';
 
+    /**
+     * The Shopify Admin API host is always the store's `*.myshopify.com` domain,
+     * regardless of any custom storefront domain. Constraining `shop_domain` to
+     * this shape prevents an admin-configured value from redirecting the store's
+     * OAuth credentials/access token to an arbitrary host. See security review
+     * issue 16.
+     */
+    private const SHOP_DOMAIN_PATTERN = '/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i';
+
     public function __construct(
         private readonly string $shopDomain,
         private readonly string $clientId,
         private readonly string $clientSecret,
         private readonly string $apiVersion = '2025-01',
         private readonly ?string $accessToken = null,
-    ) {}
+    ) {
+        // Empty is allowed through so callers can surface a friendlier
+        // "not configured" message; any non-empty value must be a real
+        // Shopify host before it is ever used to build a request URL.
+        if ($this->shopDomain !== '' && ! preg_match(self::SHOP_DOMAIN_PATTERN, $this->shopDomain)) {
+            throw new InvalidArgumentException(
+                "Invalid Shopify shop domain [{$this->shopDomain}]: must be a *.myshopify.com host."
+            );
+        }
+    }
 
     public static function fromConfig(): self
     {

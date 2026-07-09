@@ -4,10 +4,13 @@ namespace App\Services\ShipmentImport\Sources;
 
 use App\Contracts\DataSourceInterface;
 use App\Contracts\ExportDestinationInterface;
+use App\Enums\AuditAction;
+use App\Models\AuditLog;
 use App\Services\ShipmentImport\FieldMapper;
 use App\Services\SshTunnel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
 
 class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
@@ -54,8 +57,13 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
 
         // Use custom query if provided
         if (! empty($this->config['shipments_query'])) {
-            $results = DB::connection($connection)
-                ->select($this->normalizeQuery($this->config['shipments_query']));
+            $query = $this->normalizeQuery($this->config['shipments_query']);
+            $results = $this->executeLogged(
+                'fetch_shipments',
+                $query,
+                [],
+                fn () => DB::connection($connection)->select($query),
+            );
         } else {
             $query = DB::connection($connection)
                 ->table($this->config['shipments_table']);
@@ -95,10 +103,14 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
 
         // Use custom query if provided
         if (! empty($this->config['shipment_items_query'])) {
-            $results = DB::connection($connection)
-                ->select($this->normalizeQuery($this->config['shipment_items_query']), [
-                    'shipment_reference' => $sourceRecordId,
-                ]);
+            $query = $this->normalizeQuery($this->config['shipment_items_query']);
+            $results = $this->executeLogged(
+                'fetch_shipment_items',
+                $query,
+                ['shipment_reference'],
+                fn () => DB::connection($connection)->select($query, ['shipment_reference' => $sourceRecordId]),
+                ['shipment_reference' => $sourceRecordId],
+            );
         } else {
             // Default: lookup by shipment_id field matching the reference
             $results = DB::connection($connection)
@@ -125,10 +137,15 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
             return false;
         }
 
-        DB::connection($this->config['connection'])
-            ->statement($this->normalizeQuery($markExported['query']), [
-                'shipment_reference' => $sourceRecordId,
-            ]);
+        $query = $this->normalizeQuery($markExported['query']);
+        $this->executeLogged(
+            'mark_exported',
+            $query,
+            ['shipment_reference'],
+            fn () => DB::connection($this->config['connection'])
+                ->statement($query, ['shipment_reference' => $sourceRecordId]),
+            ['shipment_reference' => $sourceRecordId],
+        );
 
         return true;
     }
@@ -154,8 +171,13 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
         $queryParams = array_flip($matches[1]);
         $filteredData = array_intersect_key($data, $queryParams);
 
-        DB::connection($this->config['connection'])
-            ->statement($query, $filteredData);
+        // Log the bound parameter keys only — values may contain shipment PII.
+        $this->executeLogged(
+            'export_package',
+            $query,
+            array_keys($filteredData),
+            fn () => DB::connection($this->config['connection'])->statement($query, $filteredData),
+        );
     }
 
     public function validateExportConfiguration(): void
@@ -189,6 +211,66 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
             ]);
 
             throw new InvalidArgumentException('Cannot connect to export database. Check connection settings.');
+        }
+    }
+
+    /**
+     * Run an admin-authored raw SQL query and record its execution outcome, so
+     * scheduled import/export runs leave an accurate trace of what actually ran
+     * and whether it succeeded. The query is logged only after it resolves — a
+     * failure is recorded with status `failed` and the exception is re-thrown, so
+     * a failed query never leaves an audit record claiming it executed.
+     *
+     * @template TResult
+     *
+     * @param  list<string>  $parameterKeys
+     * @param  callable(): TResult  $run
+     * @param  array<string, mixed>  $extra
+     * @return TResult
+     */
+    private function executeLogged(string $operation, string $query, array $parameterKeys, callable $run, array $extra = [])
+    {
+        try {
+            $result = $run();
+        } catch (\Throwable $e) {
+            $this->logQueryExecution($operation, $query, $parameterKeys, 'failed', $extra);
+            throw $e;
+        }
+
+        $this->logQueryExecution($operation, $query, $parameterKeys, 'success', $extra);
+
+        return $result;
+    }
+
+    /**
+     * Record a raw-SQL execution to the audit log. Captures the query's identity
+     * (hash + truncated preview), bound parameter keys, and success/failure
+     * status — never secret values or PII. See security review issue 18.
+     *
+     * @param  list<string>  $parameterKeys
+     * @param  array<string, mixed>  $extra
+     */
+    private function logQueryExecution(string $operation, string $query, array $parameterKeys, string $status, array $extra = []): void
+    {
+        try {
+            AuditLog::record(
+                AuditAction::DataSourceQueryExecuted,
+                metadata: array_merge([
+                    'operation' => $operation,
+                    'status' => $status,
+                    'connection' => $this->config['connection'] ?? null,
+                    'data_source_id' => $this->config['data_source_id'] ?? null,
+                    'query_hash' => hash('sha256', $query),
+                    'query_preview' => Str::limit($query, 300),
+                    'parameters' => $parameterKeys,
+                ], $extra),
+            );
+        } catch (\Throwable $e) {
+            // Audit logging must never break an import/export run.
+            logger()->warning('Failed to record DataSource query audit log', [
+                'operation' => $operation,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 

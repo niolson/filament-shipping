@@ -12,6 +12,7 @@ use App\Models\Setting;
 use App\Services\AddressReferenceService;
 use App\Services\PhoneParserService;
 use App\Services\SettingsService;
+use App\Support\SvgUploadSanitizer;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
@@ -164,6 +165,7 @@ class Settings extends Page
                                 ->panelLayout('grid')
                                 ->maxSize(10240)
                                 ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+                                ->saveUploadedFileUsing(SvgUploadSanitizer::saveUsing())
                                 ->visible(fn (): bool => (bool) app(SettingsService::class)->get('multi_client_enabled', false)),
                         ])
                         ->columns(1),
@@ -182,6 +184,7 @@ class Settings extends Page
                                 ->panelLayout('grid')
                                 ->maxSize(10240)
                                 ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+                                ->saveUploadedFileUsing(SvgUploadSanitizer::saveUsing())
                                 ->columnSpanFull(),
                             TextInput::make('client.company_name')
                                 ->label('Company Name')

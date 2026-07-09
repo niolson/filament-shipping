@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Contracts\PackageShippingWorkflow;
+use App\DataTransferObjects\PackageShipping\PackageShippingOptions;
 use App\DataTransferObjects\PackageShipping\PackageShippingRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\Enums\PackageStatus;
@@ -13,6 +14,8 @@ use App\Models\Package;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Session;
 
 class Ship extends Page
@@ -75,7 +78,14 @@ class Ship extends Page
             return;
         }
 
-        $options = app(PackageShippingWorkflow::class)->prepareRates($this->package);
+        // Reuse a recent quote for passive page loads so revisiting/refreshing the
+        // Ship page for the same package doesn't refire concurrent carrier calls
+        // every time. An explicit refresh (refreshRates) bypasses this. See issue 09.
+        $options = Cache::remember(
+            $this->rateCacheKey(),
+            now()->addSeconds(60),
+            fn (): PackageShippingOptions => app(PackageShippingWorkflow::class)->prepareRates($this->package),
+        );
 
         if ($options->blockingError) {
             $this->notifyError('Declared Value Required', $options->blockingError);
@@ -85,11 +95,7 @@ class Ship extends Page
             $this->notifyWarning($exclusion['carrier'].' excluded', $exclusion['reason']);
         }
 
-        $this->rateOptions = $options->rateOptions;
-        $this->formRateOptionDescriptions = $options->rateOptionDescriptions;
-        $this->deliverByDate = $options->deliverByDate;
-        $this->allRatesLate = $options->allRatesLate;
-        $this->selectedRateIndex = $options->selectedRateIndex;
+        $this->applyRateOptions($options);
     }
 
     protected function getHeaderActions(): array
@@ -117,12 +123,49 @@ class Ship extends Page
             return;
         }
 
+        // Explicit refresh fires fresh carrier calls; cap the rate per user so it
+        // can't be scripted into hammering the carriers (or PolyBag). See issue 09.
+        $throttleKey = 'ship-refresh-rates:'.(auth()->id() ?? 'guest');
+
+        if (RateLimiter::tooManyAttempts($throttleKey, maxAttempts: 15)) {
+            $this->notifyWarning(
+                'Slow down',
+                'Too many rate refreshes. Please wait '.RateLimiter::availableIn($throttleKey).'s and try again.',
+            );
+
+            return;
+        }
+
+        RateLimiter::hit($throttleKey, decaySeconds: 60);
+
         $options = app(PackageShippingWorkflow::class)->prepareRates($this->package);
+
+        // Refresh the passive-load cache with the fresh result.
+        Cache::put($this->rateCacheKey(), $options, now()->addSeconds(60));
 
         if ($options->blockingError) {
             $this->notifyError('Declared Value Required', $options->blockingError);
         }
 
+        $this->applyRateOptions($options);
+    }
+
+    /**
+     * Cache key for a package's prepared rates, tied to the package/shipment state
+     * so an edit to either produces a fresh quote rather than serving a stale one.
+     */
+    private function rateCacheKey(): string
+    {
+        return implode(':', [
+            'ship-rates',
+            $this->package->id,
+            $this->package->updated_at->timestamp,
+            $this->package->shipment?->updated_at->timestamp ?? 0,
+        ]);
+    }
+
+    private function applyRateOptions(PackageShippingOptions $options): void
+    {
         $this->rateOptions = $options->rateOptions;
         $this->formRateOptionDescriptions = $options->rateOptionDescriptions;
         $this->deliverByDate = $options->deliverByDate;

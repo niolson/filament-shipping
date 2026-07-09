@@ -92,8 +92,10 @@ class DataSourceForm
                     TextInput::make('settings.shop_domain')
                         ->label('Shop Domain')
                         ->placeholder('your-store.myshopify.com')
+                        ->helperText('Must be your store\'s .myshopify.com domain — this is where the store\'s API credentials are sent.')
                         ->required()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->rule('regex:/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i'),
 
                     TextInput::make('settings.access_token')
                         ->label('Custom Access Token')

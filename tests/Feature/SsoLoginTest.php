@@ -134,6 +134,18 @@ it('handles an error redirect from the broker', function (): void {
     Http::assertNothingSent();
 });
 
+it('throttles the SSO receive route to protect the broker from hammering', function (): void {
+    Http::fake();
+
+    // The error path returns before any broker call, so this exercises the
+    // route's throttle cheaply. The 21st request within the window is rejected.
+    for ($i = 0; $i < 20; $i++) {
+        $this->get('/auth/sso/azure/receive?error=access_denied')->assertRedirect('/login');
+    }
+
+    $this->get('/auth/sso/azure/receive?error=access_denied')->assertStatus(429);
+});
+
 it('rejects an SSO receive when the provider is disabled', function (): void {
     app(SettingsService::class)->set('azure_sso_enabled', false, 'boolean', group: 'system');
     app(SettingsService::class)->clearCache();

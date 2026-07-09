@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Events\PackageCancelled;
 use App\Events\PackageShipped;
 use App\Events\TrackingStatusUpdated;
+use App\Listeners\AuthEventLogger;
 use App\Listeners\InvalidateDashboardCache;
 use Illuminate\Foundation\Support\Providers\EventServiceProvider as ServiceProvider;
 
@@ -20,5 +21,9 @@ class EventServiceProvider extends ServiceProvider
         TrackingStatusUpdated::class => [
             InvalidateDashboardCache::class,
         ],
+    ];
+
+    protected $subscribe = [
+        AuthEventLogger::class,
     ];
 }

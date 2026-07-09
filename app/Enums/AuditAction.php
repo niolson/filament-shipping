@@ -26,6 +26,14 @@ enum AuditAction: string implements HasLabel
     // Setting changes
     case SettingChanged = 'setting_changed';
 
+    // DataSource raw-SQL query execution
+    case DataSourceQueryExecuted = 'datasource_query_executed';
+
+    // Authentication events
+    case LoginSucceeded = 'login_succeeded';
+    case LoginFailed = 'login_failed';
+    case Logout = 'logout';
+
     public function getLabel(): string|Htmlable|null
     {
         return match ($this) {
@@ -42,6 +50,10 @@ enum AuditAction: string implements HasLabel
             self::ModelUpdated => 'Updated',
             self::ModelDeleted => 'Deleted',
             self::SettingChanged => 'Setting Changed',
+            self::DataSourceQueryExecuted => 'Data Source Query Executed',
+            self::LoginSucceeded => 'Login Succeeded',
+            self::LoginFailed => 'Login Failed',
+            self::Logout => 'Logout',
         };
     }
 }
