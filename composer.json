@@ -24,7 +24,6 @@
     "require-dev": {
         "barryvdh/laravel-ide-helper": "^3.7",
         "fakerphp/faker": "^1.23",
-        "filament/blueprint": "^2.2",
         "itsgoingd/clockwork": "^5.3",
         "larastan/larastan": "^3.9",
         "laravel/boost": "^2.4",
@@ -119,10 +118,5 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true,
-    "repositories": [{
-        "name": "filament",
-        "type": "composer",
-        "url": "https://packages.filamentphp.com/composer"
-    }]
+    "prefer-stable": true
 }
