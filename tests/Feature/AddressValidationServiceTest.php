@@ -5,6 +5,7 @@ use App\Http\Integrations\USPS\Requests\Address;
 use App\Models\CarrierAccount;
 use App\Models\Shipment;
 use App\Services\AddressValidationService;
+use App\Services\SettingsService;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
@@ -297,6 +298,24 @@ it('skips gracefully when no USPS carrier account is configured', function (): v
     $shipment->refresh();
     expect($shipment->deliverability)->toBe(Deliverability::NotChecked)
         ->and($shipment->checked)->toBeFalse();
+});
+
+// Regression: OAuth-connected USPS accounts can't be used while sandbox mode is
+// enabled. The connector throws a RuntimeException for this — it must be surfaced
+// as a failed validation, not bubble up into a 500 error page.
+it('sets deliverability to No when sandbox mode is enabled for an OAuth-connected account', function (): void {
+    CarrierAccount::query()->delete();
+    createUspsAccount(['auth_mode' => 'authorization_code']);
+    app(SettingsService::class)->set('sandbox_mode', true);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    $this->service->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->deliverability)->toBe(Deliverability::No)
+        ->and($shipment->validation_message)->toBe('USPS is not available in sandbox mode when connected via OAuth. Disable sandbox mode to use your USPS account.')
+        ->and($shipment->checked)->toBeTrue();
 });
 
 // Unexpected response format

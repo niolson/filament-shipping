@@ -11,6 +11,7 @@ use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Shipment;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Saloon\Exceptions\OAuthConfigValidationException;
 use Saloon\Exceptions\Request\ClientException;
 use Saloon\Exceptions\Request\RequestException;
@@ -97,6 +98,15 @@ class UspsAddressValidator implements AddressValidationInterface
             ]);
 
             return null;
+        } catch (RuntimeException $e) {
+            // Connector-level configuration error (e.g. sandbox mode incompatible
+            // with OAuth). Surface it to the user instead of a 500.
+            Log::channel('usps-validation')->warning('USPS Address Validation configuration error', [
+                'error' => $e->getMessage(),
+                'shipment_id' => $shipment->id,
+            ]);
+
+            return ['error' => ['message' => $e->getMessage()]];
         }
     }
 
