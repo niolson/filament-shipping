@@ -613,12 +613,6 @@ parameters:
 			path: app/Filament/Resources/AuditLogResource.php
 
 		-
-			message: '#^Parameter \#1 \$data of static method App\\Filament\\Resources\\AuditLogResource\:\:formatJson\(\) expects array\|null, string\|null given\.$#'
-			identifier: argument.type
-			count: 3
-			path: app/Filament/Resources/AuditLogResource.php
-
-		-
 			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: property.nonObject
 			count: 1

@@ -200,9 +200,10 @@ it('does not dispatch print-label event when suppress_printing is on', function 
 
 /**
  * A workflow that counts how many times rates are actually prepared, so tests can
- * assert on caching/throttling behavior around carrier calls.
+ * assert on caching/throttling behavior around carrier calls. The return type is
+ * intentionally the anonymous class (no interface hint) so `->calls` stays visible.
  */
-function countingRatesWorkflow(): PackageShippingWorkflow
+function countingRatesWorkflow()
 {
     return new class implements PackageShippingWorkflow
     {
