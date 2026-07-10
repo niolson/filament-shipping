@@ -149,3 +149,8 @@ networks:
     external: true
   shared:
     external: true
+    # Per-tenant isolation: in shared mode each tenant joins its own
+    # `shared-<tenant>` network (the shared datastores are attached to all of
+    # them), so tenants can reach MySQL/Redis/Gotenberg but not each other.
+    # Defaults to the flat `shared` network for standalone/on-prem. See issue 16.
+    name: ${SHARED_NETWORK:-shared}

@@ -106,6 +106,20 @@ else
 fi
 ok "Containers removed."
 
+# --- Shared mode: remove the per-tenant network (see issue 16) ---
+
+if [ "$MODE" = "shared" ]; then
+    TENANT_NETWORK="shared-${TENANT}"
+    if docker network inspect "$TENANT_NETWORK" &>/dev/null; then
+        info "Removing per-tenant network '${TENANT_NETWORK}'..."
+        # Detach the shared datastores so the network can be removed.
+        for svc in shared-mysql shared-redis gotenberg; do
+            docker network disconnect "$TENANT_NETWORK" "$svc" 2>/dev/null || true
+        done
+        docker network rm "$TENANT_NETWORK" 2>/dev/null || true
+    fi
+fi
+
 # --- Shared mode: drop MySQL database and Redis keys ---
 
 if [ "$MODE" = "shared" ]; then

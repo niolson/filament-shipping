@@ -69,6 +69,12 @@ fi
 TENANT="$1"
 DOMAIN="${2:-${TENANT}.${DEFAULT_DOMAIN_SUFFIX}}"
 TENANT_DIR="${TENANTS_DIR}/${TENANT}"
+# Per-tenant shared network (shared mode): isolates this tenant's containers from
+# other tenants while the shared datastores attach to all such networks.
+TENANT_NETWORK="shared-${TENANT}"
+# Shared datastores every tenant reaches container-to-container (not polybag-connect,
+# which is reached via its public URL).
+SHARED_SERVICES=(shared-mysql shared-redis gotenberg)
 
 if [ -d "$TENANT_DIR" ]; then
     error "Tenant directory already exists: ${TENANT_DIR}"
@@ -186,6 +192,18 @@ if [ "$MODE" = "shared" ]; then
     sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=${DB_PASSWORD}|" .env
     sed -i "s|^REDIS_HOST=.*|REDIS_HOST=shared-redis|" .env
     # REDIS_PASSWORD is injected at runtime from /opt/shared/shared-secrets.env via Docker env_file
+
+    # Per-tenant network so this tenant is isolated from other tenants at the
+    # network layer while still reaching the shared datastores (see issue 16).
+    sed -i "s|^SHARED_NETWORK=.*|SHARED_NETWORK=${TENANT_NETWORK}|" .env
+
+    info "Creating per-tenant network '${TENANT_NETWORK}' and attaching shared services..."
+    docker network create "$TENANT_NETWORK" 2>/dev/null || true
+    for svc in "${SHARED_SERVICES[@]}"; do
+        if docker inspect "$svc" &>/dev/null; then
+            docker network connect "$TENANT_NETWORK" "$svc" 2>/dev/null || true
+        fi
+    done
 
     # Set Redis prefix for tenant isolation
     sed -i "s|^# REDIS_PREFIX=.*|REDIS_PREFIX=${TENANT}-|" .env
