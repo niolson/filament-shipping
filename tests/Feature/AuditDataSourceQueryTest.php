@@ -48,7 +48,7 @@ it('records a failed status and rethrows when a query errors', function (): void
     $threw = false;
     try {
         $source->markExported('REF-999');
-    } catch (\Throwable) {
+    } catch (Throwable) {
         $threw = true;
     }
     expect($threw)->toBeTrue();
