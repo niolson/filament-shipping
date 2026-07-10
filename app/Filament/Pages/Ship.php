@@ -14,6 +14,7 @@ use App\Models\Package;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Session;
@@ -22,6 +23,16 @@ class Ship extends Page
 {
     use NotifiesUser;
     use PrintsLabels;
+
+    private const RATE_CACHE_SECONDS = 60;
+
+    /**
+     * Allow a full carrier request to finish before another request may take
+     * over quote generation for the same package.
+     */
+    private const RATE_LOCK_SECONDS = 75;
+
+    private const RATE_LOCK_WAIT_SECONDS = 70;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-paper-airplane';
 
@@ -78,14 +89,13 @@ class Ship extends Page
             return;
         }
 
-        // Reuse a recent quote for passive page loads so revisiting/refreshing the
-        // Ship page for the same package doesn't refire concurrent carrier calls
-        // every time. An explicit refresh (refreshRates) bypasses this. See issue 09.
-        $options = Cache::remember(
-            $this->rateCacheKey(),
-            now()->addSeconds(60),
-            fn (): PackageShippingOptions => app(PackageShippingWorkflow::class)->prepareRates($this->package),
-        );
+        try {
+            $options = $this->prepareCachedRates();
+        } catch (LockTimeoutException) {
+            $this->notifyWarning('Rates are being refreshed', 'Please wait a moment and try again.');
+
+            return;
+        }
 
         if ($options->blockingError) {
             $this->notifyError('Declared Value Required', $options->blockingError);
@@ -138,10 +148,18 @@ class Ship extends Page
 
         RateLimiter::hit($throttleKey, decaySeconds: 60);
 
-        $options = app(PackageShippingWorkflow::class)->prepareRates($this->package);
+        // Invalidate before acquiring the per-package lock. The request that
+        // acquires it obtains fresh rates; concurrent refreshes wait and reuse
+        // that fresh result instead of calling carriers in parallel.
+        Cache::forget($this->rateCacheKey());
 
-        // Refresh the passive-load cache with the fresh result.
-        Cache::put($this->rateCacheKey(), $options, now()->addSeconds(60));
+        try {
+            $options = $this->prepareCachedRates();
+        } catch (LockTimeoutException) {
+            $this->notifyWarning('Rates are being refreshed', 'Please wait a moment and try again.');
+
+            return;
+        }
 
         if ($options->blockingError) {
             $this->notifyError('Declared Value Required', $options->blockingError);
@@ -162,6 +180,40 @@ class Ship extends Page
             $this->package->updated_at->timestamp,
             $this->package->shipment?->updated_at->timestamp ?? 0,
         ]);
+    }
+
+    /**
+     * Return a cached quote or have exactly one request obtain and store a new
+     * quote for this package. Cache::remember() alone is not single-flight: on
+     * a cold cache, concurrent requests would all invoke the carrier workflow.
+     */
+    private function prepareCachedRates(): PackageShippingOptions
+    {
+        $cacheKey = $this->rateCacheKey();
+        $cached = Cache::get($cacheKey);
+
+        if ($cached instanceof PackageShippingOptions) {
+            return $cached;
+        }
+
+        return Cache::lock("{$cacheKey}:lock", self::RATE_LOCK_SECONDS)->block(
+            self::RATE_LOCK_WAIT_SECONDS,
+            function () use ($cacheKey): PackageShippingOptions {
+                // The request that held the lock may have completed while this
+                // request waited, so always check again after acquiring it.
+                $cached = Cache::get($cacheKey);
+
+                if ($cached instanceof PackageShippingOptions) {
+                    return $cached;
+                }
+
+                $options = app(PackageShippingWorkflow::class)->prepareRates($this->package);
+
+                Cache::put($cacheKey, $options, now()->addSeconds(self::RATE_CACHE_SECONDS));
+
+                return $options;
+            },
+        );
     }
 
     private function applyRateOptions(PackageShippingOptions $options): void

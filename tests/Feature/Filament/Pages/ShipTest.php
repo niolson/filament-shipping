@@ -247,6 +247,21 @@ it('reuses a cached quote across passive page loads of the same package', functi
     expect($workflow->calls)->toBe(1);
 });
 
+it('replaces the cached quote when rates are explicitly refreshed', function (): void {
+    $package = createShippablePackage();
+    $workflow = countingRatesWorkflow();
+    app()->instance(PackageShippingWorkflow::class, $workflow);
+
+    $component = Livewire::test(Ship::class, ['package_id' => $package->id]);
+    expect($workflow->calls)->toBe(1);
+
+    $component->call('refreshRates');
+    expect($workflow->calls)->toBe(2);
+
+    Livewire::test(Ship::class, ['package_id' => $package->id]);
+    expect($workflow->calls)->toBe(2);
+});
+
 it('throttles refreshRates once the per-user limit is exceeded', function (): void {
     $package = createShippablePackage();
     $workflow = countingRatesWorkflow();
