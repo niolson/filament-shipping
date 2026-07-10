@@ -10,6 +10,7 @@ use App\Models\Client;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Services\AddressReferenceService;
+use App\Services\PasswordPolicyService;
 use App\Services\PhoneParserService;
 use App\Services\SettingsService;
 use App\Support\SvgUploadSanitizer;
@@ -83,11 +84,11 @@ class Settings extends Page
             'pii_retention_days' => $settings->get('pii_retention_days', 90),
             'archiving_enabled' => $settings->get('archiving_enabled', false),
             'archive_retention_days' => $settings->get('archive_retention_days', 365),
-            'password_min_length' => $settings->get('password_min_length', 8),
-            'password_require_mixed_case' => $settings->get('password_require_mixed_case', true),
-            'password_require_numbers' => $settings->get('password_require_numbers', true),
-            'password_require_symbols' => $settings->get('password_require_symbols', false),
-            'password_expiration_days' => $settings->get('password_expiration_days', 0),
+            'password_min_length' => $settings->get('password_min_length', PasswordPolicyService::DEFAULT_MIN_LENGTH),
+            'password_require_mixed_case' => $settings->get('password_require_mixed_case', PasswordPolicyService::DEFAULT_REQUIRE_MIXED_CASE),
+            'password_require_numbers' => $settings->get('password_require_numbers', PasswordPolicyService::DEFAULT_REQUIRE_NUMBERS),
+            'password_require_symbols' => $settings->get('password_require_symbols', PasswordPolicyService::DEFAULT_REQUIRE_SYMBOLS),
+            'password_expiration_days' => $settings->get('password_expiration_days', PasswordPolicyService::DEFAULT_EXPIRATION_DAYS),
             'google_sso_enabled' => $settings->get('google_sso_enabled', false),
             'azure_sso_enabled' => $settings->get('azure_sso_enabled', false),
             'require_mfa' => $settings->get('require_mfa', false),
@@ -392,27 +393,27 @@ class Settings extends Page
                                 ->numeric()
                                 ->minValue(8)
                                 ->maxValue(128)
-                                ->default(8)
+                                ->default(PasswordPolicyService::DEFAULT_MIN_LENGTH)
                                 ->suffix('characters'),
                             Toggle::make('password_require_mixed_case')
                                 ->label('Require Mixed Case')
                                 ->helperText('Require at least one uppercase and one lowercase letter.')
-                                ->default(true),
+                                ->default(PasswordPolicyService::DEFAULT_REQUIRE_MIXED_CASE),
                             Toggle::make('password_require_numbers')
                                 ->label('Require Numbers')
                                 ->helperText('Require at least one numeric character.')
-                                ->default(true),
+                                ->default(PasswordPolicyService::DEFAULT_REQUIRE_NUMBERS),
                             Toggle::make('password_require_symbols')
                                 ->label('Require Symbols')
                                 ->helperText('Require at least one special character.')
-                                ->default(false),
+                                ->default(PasswordPolicyService::DEFAULT_REQUIRE_SYMBOLS),
                             TextInput::make('password_expiration_days')
                                 ->label('Password Expiration')
                                 ->helperText('Force users to change passwords after this many days. Set to 0 to disable.')
                                 ->numeric()
                                 ->minValue(0)
                                 ->maxValue(3650)
-                                ->default(0)
+                                ->default(PasswordPolicyService::DEFAULT_EXPIRATION_DAYS)
                                 ->suffix('days'),
                         ])
                         ->columns(2),
@@ -530,11 +531,11 @@ class Settings extends Page
             'pii_retention_days' => (int) ($data['pii_retention_days'] ?? 90),
             'archiving_enabled' => (bool) ($data['archiving_enabled'] ?? false),
             'archive_retention_days' => (int) ($data['archive_retention_days'] ?? 365),
-            'password_min_length' => (int) ($data['password_min_length'] ?? 8),
-            'password_require_mixed_case' => (bool) ($data['password_require_mixed_case'] ?? true),
-            'password_require_numbers' => (bool) ($data['password_require_numbers'] ?? true),
-            'password_require_symbols' => (bool) ($data['password_require_symbols'] ?? false),
-            'password_expiration_days' => (int) ($data['password_expiration_days'] ?? 0),
+            'password_min_length' => (int) ($data['password_min_length'] ?? PasswordPolicyService::DEFAULT_MIN_LENGTH),
+            'password_require_mixed_case' => (bool) ($data['password_require_mixed_case'] ?? PasswordPolicyService::DEFAULT_REQUIRE_MIXED_CASE),
+            'password_require_numbers' => (bool) ($data['password_require_numbers'] ?? PasswordPolicyService::DEFAULT_REQUIRE_NUMBERS),
+            'password_require_symbols' => (bool) ($data['password_require_symbols'] ?? PasswordPolicyService::DEFAULT_REQUIRE_SYMBOLS),
+            'password_expiration_days' => (int) ($data['password_expiration_days'] ?? PasswordPolicyService::DEFAULT_EXPIRATION_DAYS),
             'google_sso_enabled' => (bool) ($data['google_sso_enabled'] ?? false),
             'azure_sso_enabled' => (bool) ($data['azure_sso_enabled'] ?? false),
             'require_mfa' => (bool) ($data['require_mfa'] ?? false),
