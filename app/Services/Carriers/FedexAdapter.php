@@ -315,7 +315,7 @@ class FedexAdapter implements CarrierAdapterInterface
             }
 
             $errors = $response->json('errors', []);
-            logger()->error('FedEx API Error', [
+            Log::channel('fedex-validation')->error('FedEx API Error', [
                 'status' => $response->status(),
                 'errors' => $errors,
                 'body' => $response->json(),
@@ -323,6 +323,11 @@ class FedexAdapter implements CarrierAdapterInterface
 
             return collect();
         }
+
+        Log::channel('fedex-validation')->debug('RATE RESPONSE', [
+            'status' => $response->status(),
+            'body' => $response->json(),
+        ]);
 
         $results = $this->extractRateDetails($response, $serviceCodes);
 
@@ -346,7 +351,7 @@ class FedexAdapter implements CarrierAdapterInterface
                         $results = $results->merge($saturdayRates);
                     }
                 } else {
-                    logger()->warning('FedEx Saturday delivery rate request failed', [
+                    Log::channel('fedex-validation')->warning('FedEx Saturday delivery rate request failed', [
                         'status' => $saturdayResponse->status(),
                         'errors' => $saturdayResponse->json('errors', []),
                     ]);
@@ -638,6 +643,10 @@ class FedexAdapter implements CarrierAdapterInterface
                 ];
             }
 
+            Log::channel('fedex-validation')->debug('LABEL REQUEST', [
+                'payload' => $requestedShipment,
+            ]);
+
             $response = $this->sendCreateShipment($connector, $requestedShipment, $account);
             $responseData = $response->json();
 
@@ -668,7 +677,7 @@ class FedexAdapter implements CarrierAdapterInterface
                 });
 
                 if ($isSaturdayError) {
-                    logger()->info('FedEx Saturday delivery rejected, retrying without', [
+                    Log::channel('fedex-validation')->info('FedEx Saturday delivery rejected, retrying without', [
                         'errors' => $errors,
                     ]);
                     $saturdayApplied = false;
@@ -694,7 +703,7 @@ class FedexAdapter implements CarrierAdapterInterface
             if (! $response->successful()) {
                 $errors = $responseData['errors'] ?? [];
                 $errorMessage = ! empty($errors) ? ($errors[0]['message'] ?? 'Unknown FedEx error') : 'FedEx API error';
-                logger()->error('FedEx createShipment API error', [
+                Log::channel('fedex-validation')->error('FedEx createShipment API error', [
                     'status' => $response->status(),
                     'errors' => $errors,
                     'body' => $responseData,
@@ -703,10 +712,14 @@ class FedexAdapter implements CarrierAdapterInterface
                 return ShipResponse::failure($errorMessage);
             }
 
+            Log::channel('fedex-validation')->debug('LABEL RESPONSE', [
+                'body' => $responseData,
+            ]);
+
             $shipmentData = $responseData['output']['transactionShipments'][0] ?? null;
 
             if (! $shipmentData) {
-                logger()->error('FedEx createShipment missing shipment data', [
+                Log::channel('fedex-validation')->error('FedEx createShipment missing shipment data', [
                     'output' => $responseData['output'] ?? null,
                 ]);
 
@@ -718,7 +731,7 @@ class FedexAdapter implements CarrierAdapterInterface
                 ?? null;
 
             if (empty($trackingNumber)) {
-                logger()->error('FedEx createShipment missing tracking number', [
+                Log::channel('fedex-validation')->error('FedEx createShipment missing tracking number', [
                     'shipmentData' => $shipmentData,
                 ]);
 
@@ -728,7 +741,7 @@ class FedexAdapter implements CarrierAdapterInterface
             $labelData = $shipmentData['pieceResponses'][0]['packageDocuments'][0]['encodedLabel'] ?? null;
 
             if (empty($labelData)) {
-                logger()->error('FedEx createShipment missing label data', [
+                Log::channel('fedex-validation')->error('FedEx createShipment missing label data', [
                     'pieceResponses' => $shipmentData['pieceResponses'] ?? null,
                 ]);
 
@@ -751,7 +764,7 @@ class FedexAdapter implements CarrierAdapterInterface
                 carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
-            logger()->error('FedEx createShipment error', [
+            Log::channel('fedex-validation')->error('FedEx createShipment error', [
                 'exception' => $e::class,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -859,7 +872,7 @@ class FedexAdapter implements CarrierAdapterInterface
                 ],
             );
         } catch (\Throwable $e) {
-            logger()->error('FedEx trackShipment error', [
+            Log::channel('fedex-validation')->error('FedEx trackShipment error', [
                 'tracking_number' => $package->tracking_number,
                 'error' => $e->getMessage(),
             ]);
@@ -997,7 +1010,7 @@ class FedexAdapter implements CarrierAdapterInterface
         }
 
         if (! is_array($rateReplyDetails)) {
-            logger()->warning('FedEx API returned invalid rateReplyDetails', [
+            Log::channel('fedex-validation')->warning('FedEx API returned invalid rateReplyDetails', [
                 'status' => $response->status(),
                 'body' => $response->body(),
             ]);
@@ -1089,13 +1102,18 @@ class FedexAdapter implements CarrierAdapterInterface
             $response = $connector->send($apiRequest);
 
             if (! $response->successful()) {
-                logger()->warning('FedEx One Rate request failed', [
+                Log::channel('fedex-validation')->warning('FedEx One Rate request failed', [
                     'status' => $response->status(),
                     'errors' => $response->json('errors', []),
                 ]);
 
                 return collect();
             }
+
+            Log::channel('fedex-validation')->debug('RATE RESPONSE (One Rate)', [
+                'status' => $response->status(),
+                'body' => $response->json(),
+            ]);
 
             return $this->parseOneRateResponse($response, $request, $serviceCodes);
         } catch (\Exception $e) {
@@ -1156,8 +1174,8 @@ class FedexAdapter implements CarrierAdapterInterface
             ],
         ]);
 
-        logger()->debug('FedEx One Rate API Request', [
-            'body' => $apiRequest->body(),
+        Log::channel('fedex-validation')->debug('RATE REQUEST (One Rate)', [
+            'payload' => $apiRequest->body()->all(),
         ]);
 
         return $apiRequest;

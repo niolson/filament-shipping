@@ -2,6 +2,7 @@
 
 use App\Logging\CustomizeFormatter;
 use App\Logging\DeepNormalizerTap;
+use App\Logging\PiiRedactionTap;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -148,46 +149,53 @@ return [
         ],
 
         /*
-        | Carrier validation channels log full API request/response payloads,
-        | which contain recipient PII (names, addresses, phones). They must
-        | stay disabled in production — Amazon's SP-API data protection policy
-        | forbids logging buyer PII. Enable CARRIER_API_LOGGING only for
-        | carrier certification runs or local debugging.
+        | Carrier validation channels log full API request/response payloads.
+        | PII (names, addresses, phones) is redacted by default via
+        | PiiRedactionTap. Set CARRIER_API_LOGGING=true to log unredacted —
+        | needed for FedEx certification runs, which require real evidence —
+        | and only for that or local debugging, never left on in production.
         */
 
-        'fedex-validation' => env('CARRIER_API_LOGGING', false) ? [
-            'driver' => 'single',
+        'fedex-validation' => [
+            'driver' => 'daily',
             'path' => storage_path('logs/fedex-validation.log'),
             'level' => 'debug',
+            'days' => 14,
             'replace_placeholders' => true,
-            'tap' => [DeepNormalizerTap::class],
-        ] : [
-            'driver' => 'monolog',
-            'handler' => NullHandler::class,
+            'tap' => [DeepNormalizerTap::class, PiiRedactionTap::class],
         ],
 
-        'usps-validation' => env('CARRIER_API_LOGGING', false) ? [
-            'driver' => 'single',
+        'usps-validation' => [
+            'driver' => 'daily',
             'path' => storage_path('logs/usps-validation.log'),
             'level' => 'debug',
+            'days' => 14,
             'replace_placeholders' => true,
-            'tap' => [DeepNormalizerTap::class],
-        ] : [
-            'driver' => 'monolog',
-            'handler' => NullHandler::class,
+            'tap' => [DeepNormalizerTap::class, PiiRedactionTap::class],
         ],
 
-        'ups-validation' => env('CARRIER_API_LOGGING', false) ? [
-            'driver' => 'single',
+        'ups-validation' => [
+            'driver' => 'daily',
             'path' => storage_path('logs/ups-validation.log'),
             'level' => 'debug',
+            'days' => 14,
             'replace_placeholders' => true,
-            'tap' => [DeepNormalizerTap::class],
-        ] : [
-            'driver' => 'monolog',
-            'handler' => NullHandler::class,
+            'tap' => [DeepNormalizerTap::class, PiiRedactionTap::class],
         ],
 
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Carrier API Logging (unredacted)
+    |--------------------------------------------------------------------------
+    |
+    | When true, the carrier validation channels above log full unredacted
+    | payloads. Needed for FedEx certification runs; otherwise PII is
+    | redacted by PiiRedactionTap. Never leave this true in production.
+    |
+    */
+
+    'carrier_api_logging' => env('CARRIER_API_LOGGING', false),
 
 ];

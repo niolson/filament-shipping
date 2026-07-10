@@ -1517,7 +1517,7 @@ parameters:
 		-
 			message: '#^Access to an undefined property Saloon\\Http\\Response\:\:\$metadata\.$#'
 			identifier: property.notFound
-			count: 3
+			count: 5
 			path: app/Services/Carriers/UspsAdapter.php
 
 		-

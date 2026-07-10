@@ -10,6 +10,7 @@ use App\Http\Integrations\USPS\USPSConnector;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Shipment;
+use Illuminate\Support\Facades\Log;
 use Saloon\Exceptions\OAuthConfigValidationException;
 use Saloon\Exceptions\Request\ClientException;
 use Saloon\Exceptions\Request\RequestException;
@@ -43,18 +44,24 @@ class UspsAddressValidator implements AddressValidationInterface
             $connector = USPSConnector::getAuthenticatedConnector($this->resolveAccount($shipment));
 
             $request = new Address;
-            $request->query()->set([
+            $query = [
                 'streetAddress' => $shipment->address1,
                 'secondaryAddress' => $shipment->address2,
                 'city' => $shipment->city,
                 'state' => $shipment->state_or_province,
                 'ZIPCode' => substr($shipment->postal_code, 0, 5),
+            ];
+            $request->query()->set($query);
+
+            Log::channel('usps-validation')->debug('VALIDATION REQUEST', [
+                'shipment_id' => $shipment->id,
+                'query' => $query,
             ]);
 
             $response = $connector->send($request);
 
             if ($response->serverError()) {
-                logger()->warning('USPS Address Validation server error', [
+                Log::channel('usps-validation')->warning('USPS Address Validation server error', [
                     'status' => $response->status(),
                     'shipment_id' => $shipment->id,
                 ]);
@@ -67,7 +74,7 @@ class UspsAddressValidator implements AddressValidationInterface
             $body = json_decode($e->getResponse()->body(), true);
             $message = $body['error']['message'] ?? $e->getMessage();
 
-            logger()->debug('USPS Address Validation client error', [
+            Log::channel('usps-validation')->debug('USPS Address Validation client error', [
                 'status' => $e->getResponse()->status(),
                 'message' => $message,
                 'shipment_id' => $shipment->id,
@@ -75,7 +82,7 @@ class UspsAddressValidator implements AddressValidationInterface
 
             return ['error' => ['message' => $message]];
         } catch (RequestException $e) {
-            logger()->warning('USPS Address Validation request failed', [
+            Log::channel('usps-validation')->warning('USPS Address Validation request failed', [
                 'error' => $e->getMessage(),
                 'shipment_id' => $shipment->id,
             ]);
@@ -114,7 +121,7 @@ class UspsAddressValidator implements AddressValidationInterface
     protected function processResponse(Shipment $shipment, array $response): void
     {
         $shipment->checked = true;
-        logger()->debug('USPS Address Validation Response', ['response' => $response]);
+        Log::channel('usps-validation')->debug('USPS Address Validation Response', ['response' => $response]);
 
         if (isset($response['error'])) {
             $this->handleError($shipment, $response['error']['message'] ?? 'Unknown error');

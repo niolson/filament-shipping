@@ -195,7 +195,7 @@ class UspsAdapter implements CarrierAdapterInterface
     public function parseRateResponse(Response $response, RateRequest $request, array $serviceCodes): Collection
     {
         if (! $response->successful()) {
-            logger()->error('USPS API Error', [
+            Log::channel('usps-validation')->error('USPS API Error', [
                 'status' => $response->status(),
                 'body' => $response->json(),
             ]);
@@ -206,13 +206,18 @@ class UspsAdapter implements CarrierAdapterInterface
         $pricingOptions = $response->json('pricingOptions', []);
 
         if (empty($pricingOptions) || ! is_array($pricingOptions)) {
-            logger()->warning('USPS API returned empty or invalid pricingOptions', [
+            Log::channel('usps-validation')->warning('USPS API returned empty or invalid pricingOptions', [
                 'status' => $response->status(),
                 'body' => $response->json(),
             ]);
 
             return collect();
         }
+
+        Log::channel('usps-validation')->debug('RATE RESPONSE', [
+            'status' => $response->status(),
+            'body' => $response->json(),
+        ]);
 
         $package = $request->packages[0];
         $results = collect();
@@ -305,6 +310,10 @@ class UspsAdapter implements CarrierAdapterInterface
 
         $apiRequest = new ShippingOptions;
         $apiRequest->body()->set($body);
+
+        Log::channel('usps-validation')->debug('RATE REQUEST', [
+            'payload' => $body,
+        ]);
 
         return $apiRequest;
     }
@@ -414,7 +423,7 @@ class UspsAdapter implements CarrierAdapterInterface
                 ['raw' => $rawResponse],
             );
         } catch (\Throwable $e) {
-            logger()->error('USPS trackShipment error', [
+            Log::channel('usps-validation')->error('USPS trackShipment error', [
                 'tracking_number' => $package->tracking_number,
                 'error' => $e->getMessage(),
             ]);
@@ -450,7 +459,7 @@ class UspsAdapter implements CarrierAdapterInterface
 
             $mapped = $this->mapExtraServices($request->specialServiceCodes, $request->specialServiceConfig, isInternational: false);
 
-            $apiRequest->body()->set([
+            $body = [
                 'toAddress' => $toAddress,
                 'fromAddress' => $fromAddress,
                 'packageDescription' => [
@@ -470,13 +479,19 @@ class UspsAdapter implements CarrierAdapterInterface
                     ...($mapped['hazmat'] ? ['contentType' => 'HAZMAT'] : []),
                 ],
                 'imageInfo' => $imageInfo,
+            ];
+
+            $apiRequest->body()->set($body);
+
+            Log::channel('usps-validation')->debug('LABEL REQUEST', [
+                'payload' => $body,
             ]);
 
             $response = $connector->send($apiRequest);
 
             if (! $response->successful()) {
                 $errorMessage = $response->json('error.message') ?? $response->json('message') ?? 'Unknown USPS error';
-                logger()->error('USPS createDomesticShipment API error', [
+                Log::channel('usps-validation')->error('USPS createDomesticShipment API error', [
                     'status' => $response->status(),
                     'error' => $errorMessage,
                     'body' => $response->json(),
@@ -487,9 +502,13 @@ class UspsAdapter implements CarrierAdapterInterface
 
             $response->parseBody();
 
+            Log::channel('usps-validation')->debug('LABEL RESPONSE', [
+                'metadata' => $response->metadata,
+            ]);
+
             // Validate required response fields
             if (empty($response->metadata['trackingNumber'])) {
-                logger()->error('USPS createDomesticShipment missing tracking number', [
+                Log::channel('usps-validation')->error('USPS createDomesticShipment missing tracking number', [
                     'metadata' => $response->metadata,
                 ]);
 
@@ -497,7 +516,7 @@ class UspsAdapter implements CarrierAdapterInterface
             }
 
             if (empty($response->label)) {
-                logger()->error('USPS createDomesticShipment missing label data', [
+                Log::channel('usps-validation')->error('USPS createDomesticShipment missing label data', [
                     'metadata' => $response->metadata,
                 ]);
 
@@ -520,7 +539,7 @@ class UspsAdapter implements CarrierAdapterInterface
                 carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
-            logger()->error('USPS createDomesticShipment error', [
+            Log::channel('usps-validation')->error('USPS createDomesticShipment error', [
                 'exception' => $e::class,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -557,7 +576,7 @@ class UspsAdapter implements CarrierAdapterInterface
 
             $mapped = $this->mapExtraServices($request->specialServiceCodes, $request->specialServiceConfig, isInternational: true);
 
-            $apiRequest->body()->set([
+            $body = [
                 'toAddress' => $toAddress,
                 'fromAddress' => $fromAddress,
                 'packageDescription' => [
@@ -578,13 +597,19 @@ class UspsAdapter implements CarrierAdapterInterface
                 ],
                 'customsForm' => $this->buildCustomsForm($request),
                 'imageInfo' => $imageInfo,
+            ];
+
+            $apiRequest->body()->set($body);
+
+            Log::channel('usps-validation')->debug('LABEL REQUEST', [
+                'payload' => $body,
             ]);
 
             $response = $connector->send($apiRequest);
 
             if (! $response->successful()) {
                 $errorMessage = $response->json('error.message') ?? $response->json('message') ?? 'Unknown USPS error';
-                logger()->error('USPS createInternationalShipment API error', [
+                Log::channel('usps-validation')->error('USPS createInternationalShipment API error', [
                     'status' => $response->status(),
                     'error' => $errorMessage,
                     'body' => $response->json(),
@@ -595,6 +620,10 @@ class UspsAdapter implements CarrierAdapterInterface
 
             $response->parseBody();
 
+            Log::channel('usps-validation')->debug('LABEL RESPONSE', [
+                'metadata' => $response->metadata,
+            ]);
+
             // International responses use 'internationalTrackingNumber' instead of 'trackingNumber'
             $trackingNumber = $response->metadata['internationalTrackingNumber']
                 ?? $response->metadata['trackingNumber']
@@ -602,7 +631,7 @@ class UspsAdapter implements CarrierAdapterInterface
 
             // Validate required response fields
             if (empty($trackingNumber)) {
-                logger()->error('USPS createInternationalShipment missing tracking number', [
+                Log::channel('usps-validation')->error('USPS createInternationalShipment missing tracking number', [
                     'metadata' => $response->metadata,
                 ]);
 
@@ -610,7 +639,7 @@ class UspsAdapter implements CarrierAdapterInterface
             }
 
             if (empty($response->label)) {
-                logger()->error('USPS createInternationalShipment missing label data', [
+                Log::channel('usps-validation')->error('USPS createInternationalShipment missing label data', [
                     'metadata' => $response->metadata,
                 ]);
 
@@ -634,7 +663,7 @@ class UspsAdapter implements CarrierAdapterInterface
                 carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
-            logger()->error('USPS createInternationalShipment error', [
+            Log::channel('usps-validation')->error('USPS createInternationalShipment error', [
                 'exception' => $e::class,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),

@@ -149,7 +149,7 @@ class FedexRunTestCases extends Command
             $this->line('Artifacts saved under: storage/app/'.$artifactDirectory);
         }
 
-        $this->line('Full request/response logged to: storage/logs/fedex-validation.log');
+        $this->line('Full request/response logged to: storage/logs/fedex-validation-'.now()->format('Y-m-d').'.log');
 
         return $failed > 0 ? self::FAILURE : self::SUCCESS;
     }

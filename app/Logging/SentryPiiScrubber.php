@@ -17,10 +17,6 @@ use Sentry\Event;
  */
 class SentryPiiScrubber
 {
-    private const REDACTED = '[REDACTED]';
-
-    private const PII_KEY_PATTERN = '/first_?name|last_?name|person_?name|full_?name|company|email|phone|street|address|city|postal|zip_?code|recipient|contact/i';
-
     public static function scrub(Event $event): Event
     {
         $event->setExtra(self::scrubArray($event->getExtra()));
@@ -51,14 +47,6 @@ class SentryPiiScrubber
      */
     private static function scrubArray(array $data): array
     {
-        foreach ($data as $key => $value) {
-            if (is_string($key) && preg_match(self::PII_KEY_PATTERN, $key)) {
-                $data[$key] = self::REDACTED;
-            } elseif (is_array($value)) {
-                $data[$key] = self::scrubArray($value);
-            }
-        }
-
-        return $data;
+        return PiiRedactor::redact($data);
     }
 }
