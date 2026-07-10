@@ -31,6 +31,10 @@ class DataSource extends Model
         'secret_settings',
     ];
 
+    protected $hidden = [
+        'secret_settings',
+    ];
+
     protected $casts = [
         'active' => 'boolean',
         'global_export' => 'boolean',
