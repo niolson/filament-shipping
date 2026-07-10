@@ -14,7 +14,6 @@ use App\Models\Shipment;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Monolog\Handler\NullHandler;
 use Saloon\Http\Request;
 
 /**
@@ -39,8 +38,8 @@ class FedexRunEtdTestCase extends Command
 
     public function handle(): int
     {
-        if (config('logging.channels.fedex-validation.handler') === NullHandler::class) {
-            $this->error('CARRIER_API_LOGGING is disabled — certification evidence would not be written to fedex-validation.log. Set CARRIER_API_LOGGING=true and retry.');
+        if (! config('logging.carrier_api_logging')) {
+            $this->error('CARRIER_API_LOGGING is disabled — certification evidence in fedex-validation-'.now()->format('Y-m-d').'.log would be redacted and incomplete. Set CARRIER_API_LOGGING=true and retry.');
 
             return self::FAILURE;
         }
@@ -315,7 +314,7 @@ class FedexRunEtdTestCase extends Command
             $this->line("  ✓ Package record created: ID {$recordIds['package_id']} (Shipment ID {$recordIds['shipment_id']})");
         }
 
-        $this->line('  Full request/response logged to: storage/logs/fedex-validation.log');
+        $this->line('  Full request/response logged to: storage/logs/fedex-validation-'.now()->format('Y-m-d').'.log');
         Log::channel('fedex-validation')->info("{$label} completed — tracking: {$trackingNumber}");
 
         return self::SUCCESS;

@@ -10,9 +10,10 @@ use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
 beforeEach(function (): void {
-    // The command refuses to run when fedex-validation routes to NullHandler
-    // (CARRIER_API_LOGGING off). Use the in-memory TestHandler so the guard
-    // passes without writing payloads to disk during tests.
+    // The command refuses to run unless CARRIER_API_LOGGING is enabled. Use
+    // the in-memory TestHandler so the guard passes without writing payloads
+    // to disk during tests.
+    config()->set('logging.carrier_api_logging', true);
     config()->set('logging.channels.fedex-validation', [
         'driver' => 'monolog',
         'handler' => TestHandler::class,

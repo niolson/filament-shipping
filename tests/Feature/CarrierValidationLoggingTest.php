@@ -1,16 +1,18 @@
 <?php
 
+use App\Logging\Processors\PiiRedactionProcessor;
 use Illuminate\Support\Facades\Log;
-use Monolog\Handler\NullHandler;
 
-it('routes carrier validation channels to a null handler when CARRIER_API_LOGGING is off', function (string $channel): void {
-    // CARRIER_API_LOGGING is unset in the test environment, so the channels
-    // must not write anywhere — payloads contain recipient PII and Amazon's
-    // data protection policy forbids logging it in production.
+it('redacts carrier validation channel logs by default via PiiRedactionProcessor', function (string $channel): void {
+    // CARRIER_API_LOGGING is unset in the test environment, so payloads must
+    // be redacted before they're written — recipient PII must never land in
+    // these files by default.
     $logger = Log::channel($channel)->getLogger();
 
-    expect($logger->getHandlers())->toHaveCount(1)
-        ->and($logger->getHandlers()[0])->toBeInstanceOf(NullHandler::class);
+    $hasRedactionProcessor = collect($logger->getProcessors())
+        ->contains(fn ($processor) => $processor instanceof PiiRedactionProcessor);
+
+    expect($hasRedactionProcessor)->toBeTrue();
 })->with(['fedex-validation', 'usps-validation', 'ups-validation']);
 
 it('refuses to run FedEx certification commands when carrier API logging is disabled', function (string $command): void {

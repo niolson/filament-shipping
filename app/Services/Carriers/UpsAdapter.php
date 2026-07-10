@@ -26,6 +26,7 @@ use App\Models\Package;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\Carriers\Concerns\HasSaturdayDelivery;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Saloon\Exceptions\Request\RequestException;
@@ -204,13 +205,18 @@ class UpsAdapter implements CarrierAdapterInterface
     public function parseRateResponse(Response $response, RateRequest $request, array $serviceCodes): Collection
     {
         if (! $response->successful()) {
-            logger()->error('UPS Rate API Error', [
+            Log::channel('ups-validation')->error('UPS Rate API Error', [
                 'status' => $response->status(),
                 'body' => $response->json(),
             ]);
 
             return collect();
         }
+
+        Log::channel('ups-validation')->debug('RATE RESPONSE', [
+            'status' => $response->status(),
+            'body' => $response->json(),
+        ]);
 
         $results = $this->extractRateDetails($response, $serviceCodes);
 
@@ -235,7 +241,7 @@ class UpsAdapter implements CarrierAdapterInterface
                         $results = $results->merge($saturdayRates);
                     }
                 } else {
-                    logger()->warning('UPS Saturday delivery rate request failed', [
+                    Log::channel('ups-validation')->warning('UPS Saturday delivery rate request failed', [
                         'status' => $saturdayResponse->status(),
                         'errors' => $saturdayResponse->json(),
                     ]);
@@ -266,7 +272,7 @@ class UpsAdapter implements CarrierAdapterInterface
             Log::channel('ups-validation')->info('TRACK REQUEST', [
                 'tracking_number' => $package->tracking_number,
                 'uri' => $requestUri,
-                'headers' => $trackRequest->headers()->all(),
+                'headers' => Arr::except($trackRequest->headers()->all(), ['Authorization']),
                 'query' => $trackRequest->query()->all(),
             ]);
 
@@ -341,7 +347,7 @@ class UpsAdapter implements CarrierAdapterInterface
                 ['raw' => $rawResponse],
             );
         } catch (\Throwable $e) {
-            logger()->error('UPS trackShipment error', [
+            Log::channel('ups-validation')->error('UPS trackShipment error', [
                 'tracking_number' => $package->tracking_number,
                 'error' => $e->getMessage(),
             ]);
@@ -358,7 +364,7 @@ class UpsAdapter implements CarrierAdapterInterface
         $ratedShipments = $response->json('RateResponse.RatedShipment', []);
 
         if (! is_array($ratedShipments)) {
-            logger()->warning('UPS Rate API returned invalid RatedShipment', [
+            Log::channel('ups-validation')->warning('UPS Rate API returned invalid RatedShipment', [
                 'body' => $response->json(),
             ]);
 
@@ -496,8 +502,8 @@ class UpsAdapter implements CarrierAdapterInterface
             ],
         ]);
 
-        logger()->debug('UPS Rate API Request', [
-            'body' => $apiRequest->body(),
+        Log::channel('ups-validation')->debug('RATE REQUEST', [
+            'payload' => $apiRequest->body()->all(),
         ]);
 
         return $apiRequest;
@@ -587,7 +593,7 @@ class UpsAdapter implements CarrierAdapterInterface
             if ($saturdayApplied && ! $response->successful()) {
                 $errorJson = json_encode($responseData);
                 if (str_contains(strtolower($errorJson), 'saturday')) {
-                    logger()->info('UPS Saturday delivery rejected, retrying without', [
+                    Log::channel('ups-validation')->info('UPS Saturday delivery rejected, retrying without', [
                         'body' => $responseData,
                     ]);
                     $saturdayApplied = false;
@@ -601,7 +607,7 @@ class UpsAdapter implements CarrierAdapterInterface
                 $errorMessage = $responseData['response']['errors'][0]['message']
                     ?? $responseData['errors'][0]['message']
                     ?? 'UPS API error';
-                logger()->error('UPS createShipment API error', [
+                Log::channel('ups-validation')->error('UPS createShipment API error', [
                     'status' => $response->status(),
                     'body' => $responseData,
                 ]);
@@ -612,7 +618,7 @@ class UpsAdapter implements CarrierAdapterInterface
             $shipmentResults = $responseData['ShipmentResponse']['ShipmentResults'] ?? null;
 
             if (! $shipmentResults) {
-                logger()->error('UPS createShipment missing ShipmentResults', [
+                Log::channel('ups-validation')->error('UPS createShipment missing ShipmentResults', [
                     'body' => $responseData,
                 ]);
 
@@ -622,7 +628,7 @@ class UpsAdapter implements CarrierAdapterInterface
             $trackingNumber = $shipmentResults['ShipmentIdentificationNumber'] ?? null;
 
             if (empty($trackingNumber)) {
-                logger()->error('UPS createShipment missing tracking number', [
+                Log::channel('ups-validation')->error('UPS createShipment missing tracking number', [
                     'shipmentResults' => $shipmentResults,
                 ]);
 
@@ -638,7 +644,7 @@ class UpsAdapter implements CarrierAdapterInterface
             $labelData = $packageResults[0]['ShippingLabel']['GraphicImage'] ?? null;
 
             if (empty($labelData)) {
-                logger()->error('UPS createShipment missing label data', [
+                Log::channel('ups-validation')->error('UPS createShipment missing label data', [
                     'packageResults' => $packageResults,
                 ]);
 
@@ -674,7 +680,7 @@ class UpsAdapter implements CarrierAdapterInterface
                 carrierAccountId: $account?->id,
             );
         } catch (\Exception $e) {
-            logger()->error('UPS createShipment error', [
+            Log::channel('ups-validation')->error('UPS createShipment error', [
                 'exception' => $e::class,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
@@ -751,7 +757,7 @@ class UpsAdapter implements CarrierAdapterInterface
     private function sendCreateShipment($connector, array $shipment, ShipRequest $request, string $serviceCode): Response
     {
         $apiRequest = new CreateShipment;
-        $apiRequest->body()->set([
+        $body = [
             'ShipmentRequest' => [
                 'Request' => [
                     'SubVersion' => '2409',
@@ -771,13 +777,22 @@ class UpsAdapter implements CarrierAdapterInterface
                     ],
                 ],
             ],
+        ];
+
+        $apiRequest->body()->set($body);
+
+        Log::channel('ups-validation')->debug('LABEL REQUEST', [
+            'payload' => $body,
         ]);
 
-        logger()->debug('UPS CreateShipment API Request', [
-            'serviceCode' => $serviceCode,
+        $response = $connector->send($apiRequest);
+
+        Log::channel('ups-validation')->debug('LABEL RESPONSE', [
+            'status' => $response->status(),
+            'body' => $response->json(),
         ]);
 
-        return $connector->send($apiRequest);
+        return $response;
     }
 
     private function buildAddress(AddressData $address): array
