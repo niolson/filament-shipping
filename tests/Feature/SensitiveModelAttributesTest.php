@@ -8,9 +8,8 @@ it('does not serialize carrier account credentials', function (): void {
         'secret_credentials' => ['client_secret' => 'carrier-account-secret'],
     ]);
 
-    expect($account->toArray())
-        ->not->toHaveKey('secret_credentials')
-        ->not->toContain('carrier-account-secret');
+    $this->assertArrayNotHasKey('secret_credentials', $account->toArray());
+    $this->assertNotContains('carrier-account-secret', $account->toArray());
 });
 
 it('does not serialize data source secrets', function (): void {
@@ -18,7 +17,6 @@ it('does not serialize data source secrets', function (): void {
         'secret_settings' => ['db_password' => 'data-source-secret'],
     ]);
 
-    expect($dataSource->toArray())
-        ->not->toHaveKey('secret_settings')
-        ->not->toContain('data-source-secret');
+    $this->assertArrayNotHasKey('secret_settings', $dataSource->toArray());
+    $this->assertNotContains('data-source-secret', $dataSource->toArray());
 });
