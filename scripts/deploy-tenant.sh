@@ -78,7 +78,7 @@ deploy_tenant() {
 
     # Pull latest code
     info "Pulling latest code..."
-    git pull
+    git pull || { error "git pull failed for ${tenant} — refusing to rebuild stale code."; return 1; }
 
     # Rebuild and recreate all containers.
     # Capture the exit code explicitly: this function runs inside an `if`

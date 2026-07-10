@@ -33,10 +33,26 @@ class QzSignController extends Controller
     public function sign(Request $request)
     {
         $validated = $request->validate([
-            'request' => 'required|string|max:2048',
+            'request' => ['required', 'string', 'regex:/^[a-f0-9]{64}$/i'],
+            'payload' => ['required', 'string', 'max:6000000'],
         ]);
 
-        if (! $this->isSignableCall($validated['request'])) {
+        // QZ Tray's JS client SHA-256-hashes {call, params, timestamp} before ever
+        // invoking the signature promise, so `request` is always that digest, never
+        // the call itself — `payload` is the exact pre-hash string the browser
+        // hashed (captured via a Sha256 shim in qz-tray-script.blade.php). Confirming
+        // it reproduces `request` proves it's the true preimage rather than a
+        // client-declared label, which is what makes the allow-list check below
+        // meaningful instead of trivially spoofable.
+        if (! hash_equals(hash('sha256', $validated['payload']), strtolower($validated['request']))) {
+            logger()->warning('QZ Tray signing rejected: payload does not match signed digest', [
+                'user_id' => $request->user()?->getAuthIdentifier(),
+            ]);
+
+            return response()->json(['error' => 'Unsupported signing request'], 422);
+        }
+
+        if (! $this->isSignableCall($validated['payload'])) {
             logger()->warning('QZ Tray signing rejected: payload is not an allowed QZ Tray call', [
                 'user_id' => $request->user()?->getAuthIdentifier(),
             ]);
@@ -61,7 +77,7 @@ class QzSignController extends Controller
         }
 
         $signature = null;
-        openssl_sign($request->input('request'), $signature, $privateKey, OPENSSL_ALGO_SHA512);
+        openssl_sign($validated['request'], $signature, $privateKey, OPENSSL_ALGO_SHA512);
 
         return response(base64_encode($signature))
             ->header('Content-Type', 'text/plain');
