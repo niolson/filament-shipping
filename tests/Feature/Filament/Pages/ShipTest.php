@@ -197,3 +197,86 @@ it('does not dispatch print-label event when suppress_printing is on', function 
         ->assertNotDispatched('print-label')
         ->assertNotified();
 });
+
+/**
+ * A workflow that counts how many times rates are actually prepared, so tests can
+ * assert on caching/throttling behavior around carrier calls. The return type is
+ * intentionally the anonymous class (no interface hint) so `->calls` stays visible.
+ */
+function countingRatesWorkflow()
+{
+    return new class implements PackageShippingWorkflow
+    {
+        public int $calls = 0;
+
+        public function prepareRates(Package $package): PackageShippingOptions
+        {
+            $this->calls++;
+
+            return new PackageShippingOptions(
+                rateOptions: [],
+                rateOptionLabels: [],
+                rateOptionDescriptions: [],
+                deliverByDate: null,
+                allRatesLate: false,
+                selectedRateIndex: null,
+            );
+        }
+
+        public function ship(Package $package, PackageShippingRequest $request): PackageShippingResult
+        {
+            return PackageShippingResult::failed('Unused', 'Unused');
+        }
+
+        public function autoShip(Package $package, PackageAutoShippingRequest $request): PackageShippingResult
+        {
+            return PackageShippingResult::failed('Unused', 'Unused');
+        }
+    };
+}
+
+it('reuses a cached quote across passive page loads of the same package', function (): void {
+    $package = createShippablePackage();
+    $workflow = countingRatesWorkflow();
+    app()->instance(PackageShippingWorkflow::class, $workflow);
+
+    Livewire::test(Ship::class, ['package_id' => $package->id]);
+    Livewire::test(Ship::class, ['package_id' => $package->id]);
+
+    // Second mount served the cached quote instead of refiring carrier calls.
+    expect($workflow->calls)->toBe(1);
+});
+
+it('replaces the cached quote when rates are explicitly refreshed', function (): void {
+    $package = createShippablePackage();
+    $workflow = countingRatesWorkflow();
+    app()->instance(PackageShippingWorkflow::class, $workflow);
+
+    $component = Livewire::test(Ship::class, ['package_id' => $package->id]);
+    expect($workflow->calls)->toBe(1);
+
+    $component->call('refreshRates');
+    expect($workflow->calls)->toBe(2);
+
+    Livewire::test(Ship::class, ['package_id' => $package->id]);
+    expect($workflow->calls)->toBe(2);
+});
+
+it('throttles refreshRates once the per-user limit is exceeded', function (): void {
+    $package = createShippablePackage();
+    $workflow = countingRatesWorkflow();
+    app()->instance(PackageShippingWorkflow::class, $workflow);
+
+    $component = Livewire::test(Ship::class, ['package_id' => $package->id]);
+    $workflow->calls = 0; // isolate the refresh calls from the mount
+
+    for ($i = 0; $i < 15; $i++) {
+        $component->call('refreshRates');
+    }
+
+    expect($workflow->calls)->toBe(15);
+
+    // The 16th refresh in the window is throttled and does not fire carrier calls.
+    $component->call('refreshRates')->assertNotified();
+    expect($workflow->calls)->toBe(15);
+});

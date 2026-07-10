@@ -50,8 +50,13 @@ class AuditableObserver
     }
 
     /**
-     * Remove hidden attributes (password, remember_token) and timestamps from audit data.
-     * Mask password if present rather than exposing the hash.
+     * Remove timestamps and mask sensitive attributes from audit data: hidden
+     * attributes (password, remember_token) become `[hidden]`, and any
+     * encrypted-cast column (e.g. secret_credentials, secret_settings) becomes
+     * `[encrypted]` so no secret — even in ciphertext — lands in the audit trail.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
      */
     private function filterAttributes(array $attributes, Model $model): array
     {
@@ -62,6 +67,13 @@ class AuditableObserver
         foreach ($model->getHidden() as $hidden) {
             if (array_key_exists($hidden, $attributes)) {
                 $attributes[$hidden] = '[hidden]';
+            }
+        }
+
+        // Mask encrypted columns (secret_credentials, secret_settings, etc.)
+        foreach ($model->getCasts() as $key => $cast) {
+            if (array_key_exists($key, $attributes) && str_starts_with($cast, 'encrypted')) {
+                $attributes[$key] = '[encrypted]';
             }
         }
 

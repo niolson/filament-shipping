@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Clients\Schemas;
 
 use App\Services\AddressReferenceService;
 use App\Services\SettingsService;
+use App\Support\SvgUploadSanitizer;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -40,6 +41,7 @@ class ClientForm
                             ->panelLayout('grid')
                             ->maxSize(10240)
                             ->acceptedFileTypes(['image/svg+xml', 'image/png', 'image/jpeg', 'image/gif', 'image/webp'])
+                            ->saveUploadedFileUsing(SvgUploadSanitizer::saveUsing())
                             ->columnSpanFull(),
                     ])
                     ->columns(2),

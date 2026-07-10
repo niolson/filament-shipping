@@ -384,3 +384,48 @@ it('fails validation when neither token nor credentials exist', function (): voi
 
     expect(fn () => $source->validateConfiguration())->toThrow(InvalidArgumentException::class, 'credentials are not configured');
 });
+
+// ── Raw-SQL statement-type validation (issue 07) ──────────────────────────────
+
+it('rejects a destructive mark exported query in the form', function (): void {
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'name' => 'Bad Source',
+            'driver' => DatabaseSource::class,
+            'settings.mark_exported_enabled' => true,
+            'settings.mark_exported_query' => 'DELETE FROM shipments WHERE id = :shipment_reference',
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['settings.mark_exported_query']);
+});
+
+it('rejects a non-SELECT custom shipments query in the form', function (): void {
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'name' => 'Bad Source',
+            'driver' => DatabaseSource::class,
+            'settings.shipments_query' => 'DROP TABLE shipments',
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['settings.shipments_query']);
+});
+
+it('accepts a legitimate UPDATE mark exported query in the form', function (): void {
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'name' => 'Good Source',
+            'driver' => DatabaseSource::class,
+            'settings.mark_exported_enabled' => true,
+            'settings.mark_exported_query' => "UPDATE shipments SET exported = 'y' WHERE id = :shipment_reference",
+        ])
+        ->call('create')
+        // A valid UPDATE draws no error on the query field itself (other required
+        // DB fields are unrelated to the statement-type rule under test).
+        ->assertHasNoFormErrors(['settings.mark_exported_query']);
+});

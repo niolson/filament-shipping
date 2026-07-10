@@ -10,7 +10,9 @@ use App\Http\Integrations\Ups\UpsOAuthProvider;
 use App\Http\Integrations\USPS\UspsOAuthProvider;
 use App\Models\BoxSize;
 use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\CarrierService;
+use App\Models\DataSource;
 use App\Models\Location;
 use App\Models\Product;
 use App\Models\Setting;
@@ -90,7 +92,9 @@ class AppServiceProvider extends ServiceProvider
         AuditableObserver::observe([
             User::class,
             Carrier::class,
+            CarrierAccount::class,
             CarrierService::class,
+            DataSource::class,
             Location::class,
             BoxSize::class,
             ShippingMethod::class,

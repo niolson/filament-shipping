@@ -19,7 +19,11 @@ class QzProvisionScriptController extends Controller
      */
     public function download(Request $request, string $platform): Response
     {
-        $baseUrl = $request->getSchemeAndHttpHost();
+        // Bake in the app's own configured URL, never the request's Host header.
+        // This artifact is a self-elevating trust-provisioning script, so an
+        // attacker-influenced Host must not be able to redirect the workstation's
+        // QZ Tray trust setup to another host. See security review issue 10.
+        $baseUrl = rtrim((string) config('app.url'), '/');
 
         if ($platform === 'windows-cmd') {
             return $this->fileResponse(

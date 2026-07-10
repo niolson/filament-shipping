@@ -34,7 +34,7 @@ Route::middleware(['auth', 'manager'])->group(function (): void {
 
 Route::get('/oauth/{provider}/receive', [OAuthCallbackController::class, 'receive'])
     ->name('oauth.receive')
-    ->middleware(['auth', 'admin']);
+    ->middleware(['auth', 'admin', 'throttle:20,1']);
 
 Route::get('/auth/google/redirect', [GoogleController::class, 'redirect'])->name('auth.google.redirect');
 Route::get('/auth/google/callback', [GoogleController::class, 'callback'])->name('auth.google.callback');
@@ -42,7 +42,11 @@ Route::get('/auth/google/callback', [GoogleController::class, 'callback'])->name
 Route::get('/auth/azure/redirect', [AzureController::class, 'redirect'])->name('auth.azure.redirect');
 Route::get('/auth/azure/callback', [AzureController::class, 'callback'])->name('auth.azure.callback');
 
-Route::get('/auth/sso/{provider}/receive', [SsoCallbackController::class, 'receive'])->name('auth.sso.receive');
+// Throttled: unauthenticated, and every hit proxies an outbound call to the
+// external OAuth broker — cap the rate at which it can be driven. See issue 14.
+Route::get('/auth/sso/{provider}/receive', [SsoCallbackController::class, 'receive'])
+    ->name('auth.sso.receive')
+    ->middleware('throttle:20,1');
 
 // Collects browser CSP violation reports for local policy tuning. Enabled only
 // in local/testing; see App\Http\Middleware\ContentSecurityPolicy.

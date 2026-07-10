@@ -74,6 +74,19 @@ it('serves a self-elevating Windows launcher with the embedded script and URL', 
         ->and($body)->not->toContain('__SKIP__');
 });
 
+it('ignores a spoofed Host header and bakes in the configured app URL', function (): void {
+    config(['app.url' => 'https://real.polybag.app']);
+    $this->actingAs(User::factory()->create());
+
+    $response = $this->get(route('qz.provision-script', 'unix'), [
+        'Host' => 'evil-attacker-host.example',
+    ]);
+
+    $body = $response->assertOk()->getContent();
+    expect($body)->toContain('https://real.polybag.app')
+        ->and($body)->not->toContain('evil-attacker-host.example');
+});
+
 it('returns 404 for an unknown platform', function (): void {
     $this->actingAs(User::factory()->create());
 

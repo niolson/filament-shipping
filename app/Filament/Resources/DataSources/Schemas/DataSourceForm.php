@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\DataSource;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
+use App\Services\ShipmentImport\RawSqlGuard;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
@@ -92,8 +93,10 @@ class DataSourceForm
                     TextInput::make('settings.shop_domain')
                         ->label('Shop Domain')
                         ->placeholder('your-store.myshopify.com')
+                        ->helperText('Must be your store\'s .myshopify.com domain — this is where the store\'s API credentials are sent.')
                         ->required()
-                        ->maxLength(255),
+                        ->maxLength(255)
+                        ->rule('regex:/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i'),
 
                     TextInput::make('settings.access_token')
                         ->label('Custom Access Token')
@@ -314,7 +317,8 @@ class DataSourceForm
                         ->label('Custom Shipments Query')
                         ->nullable()
                         ->rows(3)
-                        ->helperText('Optional. Overrides table + filters. Leave blank to use table-based query.')
+                        ->rule(RawSqlGuard::rule(RawSqlGuard::READ, 'Custom Shipments Query'))
+                        ->helperText('Optional. Overrides table + filters. Leave blank to use table-based query. ⚠️ Runs verbatim against the configured database — must be a single SELECT statement.')
                         ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace("\u{00A0}", ' ', $state) : $state)
                         ->columnSpanFull(),
 
@@ -322,7 +326,8 @@ class DataSourceForm
                         ->label('Custom Items Query')
                         ->nullable()
                         ->rows(3)
-                        ->helperText('Use :shipment_reference as the placeholder. Leave blank to query by shipment_id.')
+                        ->rule(RawSqlGuard::rule(RawSqlGuard::READ, 'Custom Items Query'))
+                        ->helperText('Use :shipment_reference as the placeholder. Leave blank to query by shipment_id. ⚠️ Runs verbatim against the configured database — must be a single SELECT statement.')
                         ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace("\u{00A0}", ' ', $state) : $state)
                         ->columnSpanFull(),
 
@@ -334,10 +339,19 @@ class DataSourceForm
                         ->label('Mark Exported Query')
                         ->nullable()
                         ->rows(2)
-                        ->helperText('Use :shipment_reference as placeholder.')
+                        ->rule(RawSqlGuard::rule(RawSqlGuard::MARK_EXPORTED, 'Mark Exported Query'))
+                        ->helperText('Use :shipment_reference as placeholder. ⚠️ Runs automatically on every import against the configured database — must be a single UPDATE or INSERT statement.')
                         ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace("\u{00A0}", ' ', $state) : $state)
                         ->columnSpanFull()
                         ->visible(fn (Get $get): bool => (bool) $get('settings.mark_exported_enabled')),
+
+                    TextInput::make('settings.max_affected_rows')
+                        ->label('Max Affected Rows Per Write')
+                        ->numeric()
+                        ->minValue(1)
+                        ->default(1)
+                        ->helperText('Safety cap for the Mark Exported and Export queries: a write that would affect more rows than this is rolled back. These run once per record, so 1 is correct unless your source stores multiple rows per shipment.')
+                        ->columnSpanFull(),
                 ])
                 ->footerActions([
                     Action::make('test_queries')
@@ -430,7 +444,8 @@ class DataSourceForm
                         ->label('Export Query')
                         ->nullable()
                         ->rows(3)
-                        ->helperText('Available parameters: :tracking_number, :carrier, :service, :weight, :cost, :shipment_reference')
+                        ->rule(RawSqlGuard::rule(RawSqlGuard::EXPORT, 'Export Query'))
+                        ->helperText('Available parameters: :tracking_number, :carrier, :service, :weight, :cost, :shipment_reference. ⚠️ Runs automatically for every shipped package against the configured database — must be a single INSERT or UPDATE statement.')
                         ->dehydrateStateUsing(fn (?string $state): ?string => $state ? str_replace("\u{00A0}", ' ', $state) : $state)
                         ->columnSpanFull()
                         ->visible(fn (Get $get): bool => (bool) $get('settings.export_enabled')),

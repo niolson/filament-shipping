@@ -24,6 +24,10 @@ class CarrierAccount extends Model
         'active',
     ];
 
+    protected $hidden = [
+        'secret_credentials',
+    ];
+
     protected function casts(): array
     {
         return [

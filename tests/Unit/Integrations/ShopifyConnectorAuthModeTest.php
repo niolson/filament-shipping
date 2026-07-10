@@ -17,6 +17,25 @@ function shopifyAuthConfig(array $overrides = []): array
     ], $overrides);
 }
 
+it('rejects a shop domain that is not a *.myshopify.com host', function (string $domain): void {
+    expect(fn () => ShopifyConnector::fromSettings(shopifyAuthConfig(['shop_domain' => $domain])))
+        ->toThrow(InvalidArgumentException::class);
+})->with([
+    'arbitrary attacker host' => 'internal-metadata-service.attacker-controlled.invalid',
+    'bare domain' => 'evil.com',
+    'suffix smuggling' => 'shop.myshopify.com.evil.com',
+    'path smuggling' => 'shop.myshopify.com/../evil.com',
+]);
+
+it('accepts a valid *.myshopify.com shop domain', function (): void {
+    $connector = ShopifyConnector::fromSettings(shopifyAuthConfig([
+        'oauth_access_token' => 'shpat_oauth_token',
+    ]));
+
+    expect($connector->resolveBaseUrl())
+        ->toBe('https://test-shop.myshopify.com/admin/api/2025-01/graphql.json');
+});
+
 it('uses the per-source OAuth token when one is provided', function (): void {
     $connector = ShopifyConnector::fromSettings(shopifyAuthConfig([
         'oauth_access_token' => 'shpat_oauth_token',
