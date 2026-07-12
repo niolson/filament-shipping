@@ -38,6 +38,7 @@ use App\Services\RuleEvaluator;
 use App\Services\SettingsService;
 use App\Services\ShippingRateService;
 use App\Services\Validation\FakeAddressValidator;
+use App\Services\Validation\GoogleAddressValidator;
 use App\Services\Validation\UspsAddressValidator;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
@@ -68,9 +69,17 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PackageShippingWorkflow::class, EloquentPackageShippingWorkflow::class);
 
         $this->app->singleton(AddressValidationService::class, function () {
-            $validators = config('app.fake_carriers')
-                ? [new FakeAddressValidator]
-                : [new UspsAddressValidator];
+            $settings = $this->app->make(SettingsService::class);
+
+            if (config('app.fake_carriers') || $settings->get('sandbox_mode', false)) {
+                return new AddressValidationService([new FakeAddressValidator]);
+            }
+
+            $validators = [new UspsAddressValidator];
+
+            if ($settings->get('address_validation_google_enabled', false)) {
+                $validators[] = new GoogleAddressValidator;
+            }
 
             return new AddressValidationService($validators);
         });

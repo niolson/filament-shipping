@@ -1,0 +1,160 @@
+<?php
+
+use App\Enums\Deliverability;
+use App\Http\Integrations\Google\Requests\ValidateAddress;
+use App\Models\Shipment;
+use App\Services\Validation\GoogleAddressValidator;
+use Saloon\Http\Faking\MockResponse;
+use Saloon\Laravel\Facades\Saloon;
+
+beforeEach(function (): void {
+    config(['services.google_address_validation.api_key' => 'test-google-key']);
+    $this->validator = new GoogleAddressValidator;
+});
+
+it('supports every country', function (): void {
+    expect($this->validator->supports('US'))->toBeTrue()
+        ->and($this->validator->supports('CA'))->toBeTrue()
+        ->and($this->validator->supports('XX'))->toBeTrue();
+});
+
+it('marks the address deliverable when fully confirmed', function (): void {
+    Saloon::fake([
+        ValidateAddress::class => MockResponse::make([
+            'result' => [
+                'verdict' => ['addressComplete' => true, 'hasUnconfirmedComponents' => false],
+                'address' => [
+                    'postalAddress' => [
+                        'addressLines' => ['1600 Amphitheatre Pkwy'],
+                        'locality' => 'Mountain View',
+                        'administrativeArea' => 'CA',
+                        'postalCode' => '94043',
+                    ],
+                    'addressComponents' => [
+                        ['componentType' => 'street_number', 'confirmationLevel' => 'CONFIRMED'],
+                    ],
+                ],
+                'metadata' => ['business' => true, 'poBox' => false, 'residential' => false],
+            ],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes)
+        ->and($shipment->validated_address1)->toBe('1600 Amphitheatre Pkwy')
+        ->and($shipment->validated_city)->toBe('Mountain View')
+        ->and($shipment->validated_state_or_province)->toBe('CA')
+        ->and($shipment->validated_postal_code)->toBe('94043')
+        ->and($shipment->validated_residential)->toBeFalse();
+});
+
+it('marks the address Maybe when components are unconfirmed but plausible', function (): void {
+    Saloon::fake([
+        ValidateAddress::class => MockResponse::make([
+            'result' => [
+                'verdict' => ['addressComplete' => true, 'hasUnconfirmedComponents' => true],
+                'address' => [
+                    'postalAddress' => [
+                        'addressLines' => ['42 Test St'],
+                        'locality' => 'Testville',
+                        'administrativeArea' => 'TX',
+                        'postalCode' => '73301',
+                    ],
+                    'addressComponents' => [
+                        ['componentType' => 'subpremise', 'confirmationLevel' => 'UNCONFIRMED_BUT_PLAUSIBLE'],
+                    ],
+                ],
+                'metadata' => ['business' => false, 'poBox' => false, 'residential' => true],
+            ],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Maybe)
+        ->and($shipment->validated_residential)->toBeTrue();
+});
+
+it('marks the address No when a component is unconfirmed and suspicious', function (): void {
+    Saloon::fake([
+        ValidateAddress::class => MockResponse::make([
+            'result' => [
+                'verdict' => ['addressComplete' => true, 'hasUnconfirmedComponents' => true],
+                'address' => [
+                    'postalAddress' => [
+                        'addressLines' => ['999 Nowhere Ave'],
+                        'locality' => 'Nowhere',
+                        'administrativeArea' => 'ZZ',
+                        'postalCode' => '00000',
+                    ],
+                    'addressComponents' => [
+                        ['componentType' => 'route', 'confirmationLevel' => 'UNCONFIRMED_AND_SUSPICIOUS'],
+                    ],
+                ],
+                'metadata' => ['business' => false, 'poBox' => false, 'residential' => false],
+            ],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::No);
+});
+
+it('marks the address No when incomplete', function (): void {
+    Saloon::fake([
+        ValidateAddress::class => MockResponse::make([
+            'result' => [
+                'verdict' => ['addressComplete' => false, 'hasUnconfirmedComponents' => true],
+                'address' => ['postalAddress' => [], 'addressComponents' => []],
+                'metadata' => [],
+            ],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::No);
+});
+
+it('leaves the shipment unchecked when neither the broker nor a local API key is configured', function (): void {
+    config([
+        'services.google_address_validation.api_key' => null,
+        'services.oauth.broker_url' => null,
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeFalse()
+        ->and($shipment->deliverability)->toBe(Deliverability::NotChecked);
+
+    Saloon::assertNothingSent();
+});
+
+it('leaves the shipment unchecked on a transport failure', function (): void {
+    Saloon::fake([
+        ValidateAddress::class => MockResponse::make('', 503),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeFalse()
+        ->and($shipment->deliverability)->toBe(Deliverability::NotChecked);
+});

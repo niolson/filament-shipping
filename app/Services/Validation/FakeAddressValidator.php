@@ -3,6 +3,7 @@
 namespace App\Services\Validation;
 
 use App\Contracts\AddressValidationInterface;
+use App\Enums\Deliverability;
 use App\Models\Shipment;
 
 class FakeAddressValidator implements AddressValidationInterface
@@ -15,9 +16,9 @@ class FakeAddressValidator implements AddressValidationInterface
     public function validate(Shipment $shipment): void
     {
         $shipment->update([
-            'address_checked' => true,
-            'address_deliverability' => 'Yes',
-            'address_validation_message' => 'Address confirmed deliverable (fake)',
+            'checked' => true,
+            'deliverability' => Deliverability::Yes->value,
+            'validation_message' => 'Address confirmed deliverable (fake)',
         ]);
     }
 }

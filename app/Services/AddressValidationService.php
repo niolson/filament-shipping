@@ -24,13 +24,17 @@ class AddressValidationService
         $country = $shipment->country ?? 'US';
 
         foreach ($this->validators as $validator) {
-            if ($validator->supports($country)) {
-                $validator->validate($shipment);
+            if (! $validator->supports($country)) {
+                continue;
+            }
 
+            $validator->validate($shipment);
+
+            if ($shipment->checked) {
                 return;
             }
         }
 
-        // No validator for this country — skip validation silently
+        // No validator could attempt validation for this shipment — skip silently
     }
 }

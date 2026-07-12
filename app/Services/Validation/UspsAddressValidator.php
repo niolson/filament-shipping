@@ -11,6 +11,7 @@ use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Shipment;
 use Illuminate\Support\Facades\Log;
+use RuntimeException;
 use Saloon\Exceptions\OAuthConfigValidationException;
 use Saloon\Exceptions\Request\ClientException;
 use Saloon\Exceptions\Request\RequestException;
@@ -71,11 +72,25 @@ class UspsAddressValidator implements AddressValidationInterface
 
             return json_decode($response->body(), true) ?? [];
         } catch (ClientException $e) {
+            $status = $e->getResponse()->status();
             $body = json_decode($e->getResponse()->body(), true);
             $message = $body['error']['message'] ?? $e->getMessage();
 
+            if (in_array($status, [401, 403])) {
+                // Access/authorization failure (e.g. missing Addresses API license) —
+                // USPS was never actually asked about this address, so leave it
+                // unattempted rather than recording a false "not deliverable".
+                Log::channel('usps-validation')->warning('USPS Address Validation access denied', [
+                    'status' => $status,
+                    'message' => $message,
+                    'shipment_id' => $shipment->id,
+                ]);
+
+                return null;
+            }
+
             Log::channel('usps-validation')->debug('USPS Address Validation client error', [
-                'status' => $e->getResponse()->status(),
+                'status' => $status,
                 'message' => $message,
                 'shipment_id' => $shipment->id,
             ]);
@@ -92,6 +107,15 @@ class UspsAddressValidator implements AddressValidationInterface
             // No USPS credentials resolved for this shipment — skip validation
             // gracefully rather than crashing the page with a 500.
             logger()->warning('USPS Address Validation not configured', [
+                'error' => $e->getMessage(),
+                'shipment_id' => $shipment->id,
+            ]);
+
+            return null;
+        } catch (RuntimeException $e) {
+            // Connector-level configuration error (e.g. sandbox mode incompatible
+            // with OAuth) — not attempted, allow fallback to another validator.
+            Log::channel('usps-validation')->warning('USPS Address Validation configuration error', [
                 'error' => $e->getMessage(),
                 'shipment_id' => $shipment->id,
             ]);

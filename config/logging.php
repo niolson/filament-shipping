@@ -174,6 +174,15 @@ return [
             'tap' => [DeepNormalizerTap::class, PiiRedactionTap::class],
         ],
 
+        'google-validation' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/google-validation.log'),
+            'level' => 'debug',
+            'days' => 14,
+            'replace_placeholders' => true,
+            'tap' => [DeepNormalizerTap::class, PiiRedactionTap::class],
+        ],
+
         'ups-validation' => [
             'driver' => 'daily',
             'path' => storage_path('logs/ups-validation.log'),

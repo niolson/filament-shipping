@@ -77,6 +77,14 @@ return [
         'redirect' => '/auth/google/callback',
     ],
 
+    // Separate from the 'google' SSO block above — this is a PolyBag-owned
+    // API key for the Address Validation API, only used as a direct-call
+    // fallback in local dev when polybag-connect isn't running.
+    'google_address_validation' => [
+        'api_key' => env('GOOGLE_ADDRESS_VALIDATION_API_KEY'),
+        'base_url' => 'https://addressvalidation.googleapis.com',
+    ],
+
     'azure' => [
         'client_id' => env('AZURE_CLIENT_ID'),
         'client_secret' => env('AZURE_CLIENT_SECRET'),
