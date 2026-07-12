@@ -72,11 +72,25 @@ class UspsAddressValidator implements AddressValidationInterface
 
             return json_decode($response->body(), true) ?? [];
         } catch (ClientException $e) {
+            $status = $e->getResponse()->status();
             $body = json_decode($e->getResponse()->body(), true);
             $message = $body['error']['message'] ?? $e->getMessage();
 
+            if (in_array($status, [401, 403])) {
+                // Access/authorization failure (e.g. missing Addresses API license) —
+                // USPS was never actually asked about this address, so leave it
+                // unattempted rather than recording a false "not deliverable".
+                Log::channel('usps-validation')->warning('USPS Address Validation access denied', [
+                    'status' => $status,
+                    'message' => $message,
+                    'shipment_id' => $shipment->id,
+                ]);
+
+                return null;
+            }
+
             Log::channel('usps-validation')->debug('USPS Address Validation client error', [
-                'status' => $e->getResponse()->status(),
+                'status' => $status,
                 'message' => $message,
                 'shipment_id' => $shipment->id,
             ]);
@@ -100,13 +114,13 @@ class UspsAddressValidator implements AddressValidationInterface
             return null;
         } catch (RuntimeException $e) {
             // Connector-level configuration error (e.g. sandbox mode incompatible
-            // with OAuth). Surface it to the user instead of a 500.
+            // with OAuth) — not attempted, allow fallback to another validator.
             Log::channel('usps-validation')->warning('USPS Address Validation configuration error', [
                 'error' => $e->getMessage(),
                 'shipment_id' => $shipment->id,
             ]);
 
-            return ['error' => ['message' => $e->getMessage()]];
+            return null;
         }
     }
 

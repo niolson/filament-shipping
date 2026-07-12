@@ -1,11 +1,15 @@
 <?php
 
 use App\Enums\Deliverability;
+use App\Http\Integrations\Google\Requests\ValidateAddress as GoogleValidateAddress;
 use App\Http\Integrations\USPS\Requests\Address;
 use App\Models\CarrierAccount;
 use App\Models\Shipment;
 use App\Services\AddressValidationService;
 use App\Services\SettingsService;
+use App\Services\Validation\FakeAddressValidator;
+use App\Services\Validation\GoogleAddressValidator;
+use App\Services\Validation\UspsAddressValidator;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
@@ -301,9 +305,11 @@ it('skips gracefully when no USPS carrier account is configured', function (): v
 });
 
 // Regression: OAuth-connected USPS accounts can't be used while sandbox mode is
-// enabled. The connector throws a RuntimeException for this — it must be surfaced
-// as a failed validation, not bubble up into a 500 error page.
-it('sets deliverability to No when sandbox mode is enabled for an OAuth-connected account', function (): void {
+// enabled. The connector throws a RuntimeException for this — it's a "couldn't
+// attempt" configuration error (not a real deliverability verdict), so it must
+// leave the shipment unchecked (allowing fallback to another validator) rather
+// than bubbling up into a 500 error page or recording a false "not deliverable".
+it('leaves shipment unchecked when sandbox mode is enabled for an OAuth-connected account', function (): void {
     CarrierAccount::query()->delete();
     createUspsAccount(['auth_mode' => 'authorization_code']);
     app(SettingsService::class)->set('sandbox_mode', true);
@@ -313,9 +319,8 @@ it('sets deliverability to No when sandbox mode is enabled for an OAuth-connecte
     $this->service->validate($shipment);
 
     $shipment->refresh();
-    expect($shipment->deliverability)->toBe(Deliverability::No)
-        ->and($shipment->validation_message)->toBe('USPS is not available in sandbox mode when connected via OAuth. Disable sandbox mode to use your USPS account.')
-        ->and($shipment->checked)->toBeTrue();
+    expect($shipment->deliverability)->toBe(Deliverability::NotChecked)
+        ->and($shipment->checked)->toBeFalse();
 });
 
 // Unexpected response format
@@ -335,4 +340,140 @@ it('sets deliverability to No for unexpected response format', function (): void
     expect($shipment->deliverability)->toBe(Deliverability::No)
         ->and($shipment->validation_message)->toBe('Unexpected USPS response format')
         ->and($shipment->checked)->toBeTrue();
+});
+
+// --- Google fallback dispatch -------------------------------------------------
+
+function googleValidResponse(): array
+{
+    return [
+        'result' => [
+            'verdict' => [
+                'addressComplete' => true,
+                'hasUnconfirmedComponents' => false,
+            ],
+            'address' => [
+                'postalAddress' => [
+                    'addressLines' => ['1600 Amphitheatre Pkwy'],
+                    'locality' => 'Mountain View',
+                    'administrativeArea' => 'CA',
+                    'postalCode' => '94043',
+                ],
+                'addressComponents' => [
+                    ['componentType' => 'street_number', 'confirmationLevel' => 'CONFIRMED'],
+                ],
+            ],
+            'metadata' => [
+                'business' => true,
+                'poBox' => false,
+                'residential' => false,
+            ],
+        ],
+    ];
+}
+
+beforeEach(function (): void {
+    config(['services.google_address_validation.api_key' => 'test-google-key']);
+});
+
+it('falls through to Google when no USPS carrier account is configured', function (): void {
+    CarrierAccount::query()->delete();
+
+    Saloon::fake([
+        GoogleValidateAddress::class => MockResponse::make(googleValidResponse()),
+    ]);
+
+    $service = new AddressValidationService([new UspsAddressValidator, new GoogleAddressValidator]);
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    $service->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes)
+        ->and($shipment->validated_city)->toBe('Mountain View')
+        ->and($shipment->validated_residential)->toBeFalse();
+});
+
+it('falls through to Google when USPS denies access (missing license)', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Address::class => MockResponse::make(['error' => ['message' => 'not authorized']], 403),
+        GoogleValidateAddress::class => MockResponse::make(googleValidResponse()),
+    ]);
+
+    $service = new AddressValidationService([new UspsAddressValidator, new GoogleAddressValidator]);
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    $service->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes);
+});
+
+it('routes non-US addresses straight to Google, skipping USPS', function (): void {
+    Saloon::fake([
+        GoogleValidateAddress::class => MockResponse::make(googleValidResponse()),
+    ]);
+
+    $service = new AddressValidationService([new UspsAddressValidator, new GoogleAddressValidator]);
+    $shipment = Shipment::factory()->create(['country' => 'CA']);
+
+    $service->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes);
+
+    Saloon::assertNotSent(Address::class);
+});
+
+// Regression: Google is opt-in via Settings, billed to PolyBag across every
+// tenant — it must never run unless address_validation_google_enabled is set.
+it('does not include Google in the default container-resolved service', function (): void {
+    CarrierAccount::query()->delete();
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    $this->service->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeFalse()
+        ->and($shipment->deliverability)->toBe(Deliverability::NotChecked);
+});
+
+it('includes Google once the setting is enabled, resolved through the container', function (): void {
+    CarrierAccount::query()->delete();
+    app(SettingsService::class)->set('address_validation_google_enabled', true);
+    app()->forgetInstance(AddressValidationService::class);
+
+    Saloon::fake([
+        GoogleValidateAddress::class => MockResponse::make(googleValidResponse()),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    app(AddressValidationService::class)->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes);
+});
+
+// Regression: sandbox mode is no longer "free" (USPS's TEM environment now
+// requires the same paid license). Sandbox/demo must never make live paid
+// calls — route to the FakeAddressValidator instead.
+it('uses the fake validator when sandbox mode is enabled', function (): void {
+    app(SettingsService::class)->set('sandbox_mode', true);
+    app()->forgetInstance(AddressValidationService::class);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    app(AddressValidationService::class)->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes)
+        ->and($shipment->validation_message)->toBe('Address confirmed deliverable (fake)');
 });

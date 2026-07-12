@@ -79,6 +79,7 @@ class Settings extends Page
             'picking_enabled' => $settings->get('picking_enabled', false),
             'require_picking_before_shipping' => $settings->get('require_picking_before_shipping', false),
             'carrier_api_timeout' => $settings->get('carrier_api_timeout', 15),
+            'address_validation_google_enabled' => $settings->get('address_validation_google_enabled', false),
             'audit_log_retention_days' => $settings->get('audit_log_retention_days', 365),
             'rate_quote_retention_days' => $settings->get('rate_quote_retention_days', 60),
             'pii_retention_days' => $settings->get('pii_retention_days', 90),
@@ -385,6 +386,16 @@ class Settings extends Page
                         ])
                         ->columns(1),
 
+                    Section::make('Address Validation')
+                        ->description('Fallback address validation for tenants without a licensed USPS Addresses API account, or for non-US addresses')
+                        ->schema([
+                            Toggle::make('address_validation_google_enabled')
+                                ->label('Enable Google Address Validation Fallback')
+                                ->helperText('When enabled, Google Address Validation is used for shipments USPS cannot validate (no US account/license, or non-US addresses). Billed to PolyBag, not this tenant — leave off unless you want this fallback.')
+                                ->default(false),
+                        ])
+                        ->columns(1),
+
                     Section::make('Password Policy')
                         ->description('Password requirements for local accounts')
                         ->schema([
@@ -526,6 +537,7 @@ class Settings extends Page
             'picking_enabled' => (bool) ($data['picking_enabled'] ?? false),
             'require_picking_before_shipping' => (bool) ($data['require_picking_before_shipping'] ?? false),
             'carrier_api_timeout' => (int) ($data['carrier_api_timeout'] ?? 15),
+            'address_validation_google_enabled' => (bool) ($data['address_validation_google_enabled'] ?? false),
             'audit_log_retention_days' => (int) ($data['audit_log_retention_days'] ?? 365),
             'rate_quote_retention_days' => (int) ($data['rate_quote_retention_days'] ?? 60),
             'pii_retention_days' => (int) ($data['pii_retention_days'] ?? 90),
