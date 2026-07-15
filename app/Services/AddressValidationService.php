@@ -3,6 +3,8 @@
 namespace App\Services;
 
 use App\Contracts\AddressValidationInterface;
+use App\Enums\Deliverability;
+use App\Events\AddressValidationFailed;
 use App\Models\Shipment;
 
 class AddressValidationService
@@ -31,10 +33,15 @@ class AddressValidationService
             $validator->validate($shipment);
 
             if ($shipment->checked) {
-                return;
+                break;
             }
         }
 
-        // No validator could attempt validation for this shipment — skip silently
+        // Dispatched once the whole fallback chain has had its turn, so an
+        // early validator's inconclusive "no" (still open to fallback) can't
+        // produce a failure log a later validator then contradicts.
+        if ($shipment->deliverability === Deliverability::No) {
+            AddressValidationFailed::dispatch($shipment, $shipment->validation_message ?? 'Address validation failed');
+        }
     }
 }

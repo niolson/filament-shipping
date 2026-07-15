@@ -53,6 +53,7 @@ class DevSettings extends Page
         $this->form->fill([
             'sandbox_mode' => $settings->get('sandbox_mode', false),
             'suppress_printing' => $settings->get('suppress_printing', false),
+            'address_validation_use_real_in_sandbox' => $settings->get('address_validation_use_real_in_sandbox', false),
             'multi_client_enabled' => $settings->get('multi_client_enabled', false),
             'multi_location_enabled' => $settings->get('multi_location_enabled', false),
         ]);
@@ -74,6 +75,11 @@ class DevSettings extends Page
                             Toggle::make('suppress_printing')
                                 ->label('Suppress Printing')
                                 ->helperText('When enabled, label printing is skipped after shipping. Only available in sandbox mode.')
+                                ->default(false)
+                                ->visible(fn (Get $get): bool => (bool) $get('sandbox_mode')),
+                            Toggle::make('address_validation_use_real_in_sandbox')
+                                ->label('Use Real Address Validation')
+                                ->helperText('When enabled, USPS/Google address validation calls are made for real even in sandbox mode (for testing the integration itself). Otherwise sandbox always uses the fake validator.')
                                 ->default(false)
                                 ->visible(fn (Get $get): bool => (bool) $get('sandbox_mode')),
                         ])
@@ -112,11 +118,13 @@ class DevSettings extends Page
 
         $sandboxMode = (bool) ($data['sandbox_mode'] ?? false);
         $suppressPrinting = $sandboxMode ? (bool) ($data['suppress_printing'] ?? false) : false;
+        $useRealAddressValidationInSandbox = $sandboxMode ? (bool) ($data['address_validation_use_real_in_sandbox'] ?? false) : false;
         $previousSandboxMode = (bool) app(SettingsService::class)->get('sandbox_mode', false);
 
         $settings = [
             'sandbox_mode' => $sandboxMode,
             'suppress_printing' => $suppressPrinting,
+            'address_validation_use_real_in_sandbox' => $useRealAddressValidationInSandbox,
             'multi_client_enabled' => (bool) ($data['multi_client_enabled'] ?? false),
             'multi_location_enabled' => (bool) ($data['multi_location_enabled'] ?? false),
         ];

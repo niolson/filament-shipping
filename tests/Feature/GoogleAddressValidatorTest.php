@@ -130,6 +130,141 @@ it('marks the address No when incomplete', function (): void {
         ->and($shipment->deliverability)->toBe(Deliverability::No);
 });
 
+it('prefers USPS DPV data over the geocoding verdict when Google returns it', function (): void {
+    Saloon::fake([
+        ValidateAddress::class => MockResponse::make([
+            'result' => [
+                'verdict' => ['addressComplete' => true, 'hasUnconfirmedComponents' => false],
+                'address' => [
+                    'postalAddress' => [
+                        'addressLines' => ['1600 Amphitheatre Pkwy'],
+                        'locality' => 'Mountain View',
+                        'administrativeArea' => 'CA',
+                        'postalCode' => '94043',
+                    ],
+                    'addressComponents' => [],
+                ],
+                'metadata' => ['residential' => false],
+                'uspsData' => [
+                    'dpvConfirmation' => 'Y',
+                    'carrierRoute' => 'C018',
+                ],
+            ],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes)
+        ->and($shipment->validation_message)->toBe('Address confirmed deliverable');
+});
+
+it('marks the address Maybe when USPS DPV data shows a missing secondary number', function (): void {
+    Saloon::fake([
+        ValidateAddress::class => MockResponse::make([
+            'result' => [
+                'verdict' => ['addressComplete' => true, 'hasUnconfirmedComponents' => false],
+                'address' => ['postalAddress' => [], 'addressComponents' => []],
+                'metadata' => [],
+                'uspsData' => [
+                    'dpvConfirmation' => 'D',
+                    'carrierRoute' => 'C018',
+                ],
+            ],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Maybe)
+        ->and($shipment->validation_message)->toBe('Primary address confirmed, secondary number missing');
+});
+
+it('marks the address No for a phantom route even when the geocoding verdict looks complete', function (): void {
+    Saloon::fake([
+        ValidateAddress::class => MockResponse::make([
+            'result' => [
+                'verdict' => ['addressComplete' => true, 'hasUnconfirmedComponents' => false],
+                'address' => ['postalAddress' => [], 'addressComponents' => []],
+                'metadata' => [],
+                'uspsData' => [
+                    'dpvConfirmation' => 'Y',
+                    'carrierRoute' => 'R777',
+                ],
+            ],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::No)
+        ->and($shipment->validation_message)->toBe('Address exists but is not deliverable (phantom route)');
+});
+
+it('falls back to the geocoding verdict when uspsData is present but has no usable DPV confirmation', function (): void {
+    Saloon::fake([
+        ValidateAddress::class => MockResponse::make([
+            'result' => [
+                'verdict' => ['addressComplete' => true, 'hasUnconfirmedComponents' => false],
+                'address' => [
+                    'postalAddress' => [
+                        'addressLines' => ['1600 Amphitheatre Pkwy'],
+                        'locality' => 'Mountain View',
+                        'administrativeArea' => 'CA',
+                        'postalCode' => '94043',
+                    ],
+                    'addressComponents' => [],
+                ],
+                'metadata' => ['residential' => false],
+                'uspsData' => [],
+            ],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes)
+        ->and($shipment->validation_message)->toBe('Address confirmed deliverable');
+});
+
+it('falls back to the geocoding verdict for non-US addresses with no USPS DPV data', function (): void {
+    Saloon::fake([
+        ValidateAddress::class => MockResponse::make([
+            'result' => [
+                'verdict' => ['addressComplete' => true, 'hasUnconfirmedComponents' => false],
+                'address' => [
+                    'postalAddress' => [
+                        'addressLines' => ['10 Downing St'],
+                        'locality' => 'London',
+                    ],
+                    'addressComponents' => [],
+                ],
+                'metadata' => ['residential' => false],
+            ],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'GB']);
+    $this->validator->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes)
+        ->and($shipment->validation_message)->toBe('Address confirmed deliverable');
+});
+
 it('leaves the shipment unchecked when neither the broker nor a local API key is configured', function (): void {
     config([
         'services.google_address_validation.api_key' => null,
