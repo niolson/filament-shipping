@@ -4,7 +4,6 @@ namespace App\Services\Validation;
 
 use App\Contracts\AddressValidationInterface;
 use App\Enums\Deliverability;
-use App\Events\AddressValidationFailed;
 use App\Http\Integrations\USPS\Requests\Address;
 use App\Http\Integrations\USPS\USPSConnector;
 use App\Models\Carrier;
@@ -144,7 +143,6 @@ class UspsAddressValidator implements AddressValidationInterface
      */
     protected function processResponse(Shipment $shipment, array $response): void
     {
-        $shipment->checked = true;
         Log::channel('usps-validation')->debug('USPS Address Validation Response', ['response' => $response]);
 
         if (isset($response['error'])) {
@@ -160,26 +158,28 @@ class UspsAddressValidator implements AddressValidationInterface
         }
 
         if ($this->isExactMatch($response)) {
+            $shipment->checked = true;
             $this->handleExactMatch($shipment, $response);
 
             return;
         }
 
-        // Unexpected response format
+        // Unexpected response format — USPS never reached a delivery-point
+        // determination, so leave the shipment unchecked to let the fallback
+        // chain (e.g. Google) attempt it.
         $shipment->deliverability = Deliverability::No;
         $shipment->validation_message = 'Unexpected USPS response format';
         $shipment->save();
-
-        AddressValidationFailed::dispatch($shipment, 'Unexpected USPS response format');
     }
 
     protected function handleError(Shipment $shipment, string $message): void
     {
+        // USPS rejected the request outright — not a real deliverability
+        // determination, so leave the shipment unchecked to let the fallback
+        // chain (e.g. Google) attempt it.
         $shipment->deliverability = Deliverability::No;
         $shipment->validation_message = $message;
         $shipment->save();
-
-        AddressValidationFailed::dispatch($shipment, $message);
     }
 
     /**
@@ -201,32 +201,32 @@ class UspsAddressValidator implements AddressValidationInterface
 
         switch ($code) {
             case '32':
-                // Default address: found but needs more info (apartment, suite, box number)
+                // Default address: found but needs more info (apartment, suite, box number).
+                // USPS matched a specific base address, so this is a confident partial result.
+                $shipment->checked = true;
                 $this->applyValidatedAddress($shipment, $response);
                 $shipment->deliverability = Deliverability::Maybe;
                 $shipment->validation_message = $text;
                 break;
 
             case '22':
-                // Multiple addresses found, no default exists
+                // Multiple addresses found, no default exists — USPS couldn't match a
+                // specific address, so leave unchecked to let the fallback chain (e.g.
+                // Google) attempt it.
                 $shipment->deliverability = Deliverability::No;
                 $shipment->validation_message = $text;
-                $validationFailed = $text;
                 break;
 
             default:
-                // Unknown correction code
+                // Unknown correction code (e.g. "Address Not Found") — USPS couldn't match
+                // a specific address, so leave unchecked to let the fallback chain (e.g.
+                // Google) attempt it.
                 $shipment->deliverability = Deliverability::No;
                 $shipment->validation_message = "Unknown correction code: {$code}";
-                $validationFailed = "Unknown correction code: {$code}";
                 break;
         }
 
         $shipment->save();
-
-        if (isset($validationFailed)) {
-            AddressValidationFailed::dispatch($shipment, $validationFailed);
-        }
     }
 
     /**

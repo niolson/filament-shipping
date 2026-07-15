@@ -71,7 +71,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(AddressValidationService::class, function () {
             $settings = $this->app->make(SettingsService::class);
 
-            if (config('app.fake_carriers') || $settings->get('sandbox_mode', false)) {
+            if (config('app.fake_carriers') || SettingsService::isDemoMode()) {
+                return new AddressValidationService([new FakeAddressValidator]);
+            }
+
+            if ($settings->get('sandbox_mode', false) && ! $settings->get('address_validation_use_real_in_sandbox', false)) {
                 return new AddressValidationService([new FakeAddressValidator]);
             }
 

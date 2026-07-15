@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Deliverability;
+use App\Events\AddressValidationFailed;
 use App\Http\Integrations\Google\Requests\ValidateAddress as GoogleValidateAddress;
 use App\Http\Integrations\USPS\Requests\Address;
 use App\Models\CarrierAccount;
@@ -10,6 +11,7 @@ use App\Services\SettingsService;
 use App\Services\Validation\FakeAddressValidator;
 use App\Services\Validation\GoogleAddressValidator;
 use App\Services\Validation\UspsAddressValidator;
+use Illuminate\Support\Facades\Event;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
@@ -48,7 +50,7 @@ it('sets deliverability to No on API error', function (): void {
     $shipment->refresh();
     expect($shipment->deliverability)->toBe(Deliverability::No)
         ->and($shipment->validation_message)->toBe('Address Not Found.')
-        ->and($shipment->checked)->toBeTrue();
+        ->and($shipment->checked)->toBeFalse();
 });
 
 // Scenario 3: Multiple addresses (correction code 22)
@@ -69,7 +71,7 @@ it('sets deliverability to No for multiple addresses found', function (): void {
     $shipment->refresh();
     expect($shipment->deliverability)->toBe(Deliverability::No)
         ->and($shipment->validation_message)->toBe('Multiple addresses were found for the information you entered.')
-        ->and($shipment->checked)->toBeTrue();
+        ->and($shipment->checked)->toBeFalse();
 });
 
 // Scenario 4: Default address (correction code 32)
@@ -339,7 +341,7 @@ it('sets deliverability to No for unexpected response format', function (): void
     $shipment->refresh();
     expect($shipment->deliverability)->toBe(Deliverability::No)
         ->and($shipment->validation_message)->toBe('Unexpected USPS response format')
-        ->and($shipment->checked)->toBeTrue();
+        ->and($shipment->checked)->toBeFalse();
 });
 
 // --- Google fallback dispatch -------------------------------------------------
@@ -412,6 +414,55 @@ it('falls through to Google when USPS denies access (missing license)', function
         ->and($shipment->deliverability)->toBe(Deliverability::Yes);
 });
 
+// Regression: USPS couldn't match the input to a specific address at all (as
+// opposed to matching it and confirming it undeliverable) — this must not
+// block Google from getting a real attempt at the same address.
+it('falls through to Google when USPS cannot match the input address', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Address::class => MockResponse::make([
+            'corrections' => [
+                ['code' => '22', 'text' => 'Multiple addresses were found for the information you entered.'],
+            ],
+        ]),
+        GoogleValidateAddress::class => MockResponse::make(googleValidResponse()),
+    ]);
+
+    $service = new AddressValidationService([new UspsAddressValidator, new GoogleAddressValidator]);
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    $service->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes)
+        ->and($shipment->validated_city)->toBe('Mountain View');
+});
+
+// Regression: USPS's inconclusive result used to fire AddressValidationFailed
+// immediately, before Google got its turn — leaving a contradictory failure
+// audit log on a shipment that Google went on to confirm as deliverable.
+it('does not dispatch AddressValidationFailed when USPS is inconclusive but Google confirms the address', function (): void {
+    Event::fake([AddressValidationFailed::class]);
+
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Address::class => MockResponse::make([
+            'corrections' => [
+                ['code' => '22', 'text' => 'Multiple addresses were found for the information you entered.'],
+            ],
+        ]),
+        GoogleValidateAddress::class => MockResponse::make(googleValidResponse()),
+    ]);
+
+    $service = new AddressValidationService([new UspsAddressValidator, new GoogleAddressValidator]);
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    $service->validate($shipment);
+
+    Event::assertNotDispatched(AddressValidationFailed::class);
+});
+
 it('routes non-US addresses straight to Google, skipping USPS', function (): void {
     Saloon::fake([
         GoogleValidateAddress::class => MockResponse::make(googleValidResponse()),
@@ -466,6 +517,56 @@ it('includes Google once the setting is enabled, resolved through the container'
 // calls — route to the FakeAddressValidator instead.
 it('uses the fake validator when sandbox mode is enabled', function (): void {
     app(SettingsService::class)->set('sandbox_mode', true);
+    app()->forgetInstance(AddressValidationService::class);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    app(AddressValidationService::class)->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes)
+        ->and($shipment->validation_message)->toBe('Address confirmed deliverable (fake)');
+});
+
+// Sandbox mode can opt into real validator calls (for testing the actual
+// integration), overriding the fake-by-default behavior above.
+it('uses real validators when sandbox mode opts into real address validation', function (): void {
+    app(SettingsService::class)->set('sandbox_mode', true);
+    app(SettingsService::class)->set('address_validation_use_real_in_sandbox', true);
+    app()->forgetInstance(AddressValidationService::class);
+
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Address::class => MockResponse::make([
+            'matches' => [['code' => '31']],
+            'address' => [
+                'streetAddress' => '1600 PENNSYLVANIA AVE NW',
+                'city' => 'WASHINGTON',
+                'state' => 'DC',
+                'ZIPCode' => '20500',
+            ],
+            'additionalInfo' => ['DPVConfirmation' => 'Y', 'business' => 'N'],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create(['country' => 'US']);
+
+    app(AddressValidationService::class)->validate($shipment);
+
+    $shipment->refresh();
+    expect($shipment->checked)->toBeTrue()
+        ->and($shipment->deliverability)->toBe(Deliverability::Yes)
+        ->and($shipment->validation_message)->toBe('Address confirmed deliverable');
+});
+
+// Demo mode must always use the fake validator, even if a sandbox instance
+// previously had "use real address validation" turned on — demo tenants must
+// never make live paid calls, no exceptions.
+it('always uses the fake validator in demo mode, even if real validation is enabled for sandbox', function (): void {
+    app(SettingsService::class)->set('sandbox_mode', true);
+    app(SettingsService::class)->set('address_validation_use_real_in_sandbox', true);
+    $this->app['env'] = 'demo';
     app()->forgetInstance(AddressValidationService::class);
 
     $shipment = Shipment::factory()->create(['country' => 'US']);

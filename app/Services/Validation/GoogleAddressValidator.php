@@ -4,7 +4,6 @@ namespace App\Services\Validation;
 
 use App\Contracts\AddressValidationInterface;
 use App\Enums\Deliverability;
-use App\Events\AddressValidationFailed;
 use App\Http\Integrations\Google\GoogleAddressValidationConnector;
 use App\Http\Integrations\Google\GoogleAddressValidationProxyConnector;
 use App\Http\Integrations\Google\Requests\ValidateAddress;
@@ -115,21 +114,7 @@ class GoogleAddressValidator implements AddressValidationInterface
 
         $shipment->checked = true;
 
-        $verdict = $result['verdict'] ?? [];
-        $components = $result['address']['addressComponents'] ?? [];
-
-        $hasSuspiciousComponent = collect($components)
-            ->contains(fn (array $component) => ($component['confirmationLevel'] ?? null) === 'UNCONFIRMED_AND_SUSPICIOUS');
-
-        [$deliverability, $message] = match (true) {
-            $hasSuspiciousComponent || ! ($verdict['addressComplete'] ?? false) => [
-                Deliverability::No, 'Address not confirmed deliverable',
-            ],
-            $verdict['hasUnconfirmedComponents'] ?? false => [
-                Deliverability::Maybe, 'Address confirmed with unconfirmed components',
-            ],
-            default => [Deliverability::Yes, 'Address confirmed deliverable'],
-        };
+        [$deliverability, $message] = $this->classifyResult($result);
 
         $shipment->deliverability = $deliverability;
         $shipment->validation_message = $message;
@@ -144,9 +129,72 @@ class GoogleAddressValidator implements AddressValidationInterface
         $shipment->validated_residential = $result['metadata']['residential'] ?? null;
 
         $shipment->save();
+    }
 
-        if ($deliverability === Deliverability::No) {
-            AddressValidationFailed::dispatch($shipment, $message);
+    /**
+     * @param  array<string, mixed>  $result
+     * @return array{0: Deliverability, 1: string}
+     */
+    protected function classifyResult(array $result): array
+    {
+        $uspsData = $result['uspsData'] ?? null;
+
+        if (is_array($uspsData) && ! empty($uspsData['dpvConfirmation'])) {
+            return $this->classifyFromUspsData($uspsData);
         }
+
+        return $this->classifyFromVerdict($result);
+    }
+
+    /**
+     * Google returns USPS's own licensed DPV data for most US addresses
+     * (result.uspsData) — prefer it over the geocoding verdict below since
+     * it's the same authoritative deliverability signal USPS's own API uses.
+     *
+     * @param  array<string, mixed>  $uspsData
+     * @return array{0: Deliverability, 1: string}
+     */
+    protected function classifyFromUspsData(array $uspsData): array
+    {
+        $carrierRoute = $uspsData['carrierRoute'] ?? '';
+
+        if (in_array($carrierRoute, ['R777', 'R778', 'R779'], true)) {
+            return [Deliverability::No, 'Address exists but is not deliverable (phantom route)'];
+        }
+
+        return match ($uspsData['dpvConfirmation'] ?? '') {
+            'Y' => [Deliverability::Yes, 'Address confirmed deliverable'],
+            'D' => [Deliverability::Maybe, 'Primary address confirmed, secondary number missing'],
+            'S' => [Deliverability::Maybe, 'Primary address confirmed, secondary number not confirmed'],
+            'N' => [Deliverability::No, 'Address found but not confirmed as deliverable'],
+            default => [Deliverability::No, 'DPV confirmation not available'],
+        };
+    }
+
+    /**
+     * Fallback for addresses Google has no USPS DPV data for (non-US
+     * addresses, or US addresses it couldn't standardize to a specific
+     * delivery point) — Google's own geocoding-based confidence signal.
+     *
+     * @param  array<string, mixed>  $result
+     * @return array{0: Deliverability, 1: string}
+     */
+    protected function classifyFromVerdict(array $result): array
+    {
+        $verdict = $result['verdict'] ?? [];
+        $components = $result['address']['addressComponents'] ?? [];
+
+        $hasSuspiciousComponent = collect($components)
+            ->contains(fn (array $component) => ($component['confirmationLevel'] ?? null) === 'UNCONFIRMED_AND_SUSPICIOUS');
+
+        return match (true) {
+            $hasSuspiciousComponent || ! ($verdict['addressComplete'] ?? false) => [
+                Deliverability::No, 'Address not confirmed deliverable',
+            ],
+            $verdict['hasUnconfirmedComponents'] ?? false => [
+                Deliverability::Maybe, 'Address confirmed with unconfirmed components',
+            ],
+            default => [Deliverability::Yes, 'Address confirmed deliverable'],
+        };
     }
 }
