@@ -9,6 +9,7 @@ use App\Jobs\RunDataSourceImportJob;
 use App\Models\DataSource;
 use App\Models\User;
 use App\Services\SettingsService;
+use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use Filament\Actions\Testing\TestAction;
@@ -428,4 +429,76 @@ it('accepts a legitimate UPDATE mark exported query in the form', function (): v
         // A valid UPDATE draws no error on the query field itself (other required
         // DB fields are unrelated to the statement-type rule under test).
         ->assertHasNoFormErrors(['settings.mark_exported_query']);
+});
+
+// ── Amazon SP-API requires org-wide MFA (PII access) ──────────────────────────
+
+it('blocks creating an active Amazon data source when MFA is not required', function (): void {
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'name' => 'Amazon Import',
+            'driver' => AmazonSource::class,
+            'active' => true,
+            'settings.marketplace_id' => 'ATVPDKIKX0DER',
+            'settings.refresh_token' => 'Atzr|test-refresh-token',
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['active']);
+
+    expect(DataSource::where('driver', AmazonSource::class)->exists())->toBeFalse();
+});
+
+it('allows creating an active Amazon data source once MFA is required', function (): void {
+    app(SettingsService::class)->set('require_mfa', true, 'boolean');
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'name' => 'Amazon Import',
+            'driver' => AmazonSource::class,
+            'active' => true,
+            'settings.marketplace_id' => 'ATVPDKIKX0DER',
+            'settings.refresh_token' => 'Atzr|test-refresh-token',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(DataSource::where('driver', AmazonSource::class)->exists())->toBeTrue();
+});
+
+it('allows creating an inactive Amazon data source even when MFA is not required', function (): void {
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'name' => 'Amazon Import',
+            'driver' => AmazonSource::class,
+            'active' => false,
+            'settings.marketplace_id' => 'ATVPDKIKX0DER',
+            'settings.refresh_token' => 'Atzr|test-refresh-token',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(DataSource::where('driver', AmazonSource::class)->exists())->toBeTrue();
+});
+
+it('blocks saving an Amazon data source as active on edit when MFA is not required', function (): void {
+    $this->actingAs($this->admin);
+
+    $source = DataSource::factory()->create([
+        'driver' => AmazonSource::class,
+        'active' => false,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER', 'channel_name' => 'Amazon'],
+        'secret_settings' => ['refresh_token' => 'Atzr|existing-token'],
+    ]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->fillForm(['active' => true])
+        ->call('save')
+        ->assertHasFormErrors(['active']);
+
+    expect($source->fresh()->active)->toBeFalse();
 });

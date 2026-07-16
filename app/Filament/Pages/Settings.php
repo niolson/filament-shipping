@@ -7,12 +7,14 @@ use App\Filament\Resources\LocationResource;
 use App\Filament\Support\AddressForm;
 use App\Models\Carrier;
 use App\Models\Client;
+use App\Models\DataSource;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Services\AddressReferenceService;
 use App\Services\PasswordPolicyService;
 use App\Services\PhoneParserService;
 use App\Services\SettingsService;
+use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Support\SvgUploadSanitizer;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -443,7 +445,7 @@ class Settings extends Page
                         ->schema([
                             Toggle::make('require_mfa')
                                 ->label('Require Multi-Factor Authentication')
-                                ->helperText('When enabled, all users must set up MFA before accessing the app. Users with an email address may use email or authenticator app codes; users without an email must use an authenticator app.')
+                                ->helperText('When enabled, all users must set up MFA before accessing the app. Users with an email address may use email or authenticator app codes; users without an email must use an authenticator app. Required while an active Amazon SP-API data source exists, since it gives access to customer PII.')
                                 ->default(false),
                             Toggle::make('google_sso_enabled')
                                 ->label('Google SSO')
@@ -562,6 +564,20 @@ class Settings extends Page
             'azure_sso_enabled' => (bool) ($data['azure_sso_enabled'] ?? false),
             'require_mfa' => (bool) ($data['require_mfa'] ?? false),
         ];
+
+        if (! $settings['require_mfa'] && DataSource::where('driver', AmazonSource::class)->where('active', true)->exists()) {
+            $message = 'Multi-Factor Authentication cannot be disabled while an active Amazon SP-API data source exists — it gives access to customer PII. Deactivate the Amazon source first (Integrations → Data Sources).';
+
+            Notification::make()
+                ->title('Cannot disable Multi-Factor Authentication')
+                ->body($message)
+                ->danger()
+                ->send();
+
+            $this->addError('data.require_mfa', $message);
+
+            return;
+        }
 
         // Update each standard setting
         foreach ($settings as $key => $value) {
