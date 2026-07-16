@@ -116,11 +116,9 @@ class PasswordPolicyService
     {
         $limit = max(0, $this->historyCount() - 1);
 
-        $staleIds = $user->passwordHistories()->pluck('id')->slice($limit);
+        $keepIds = $user->passwordHistories()->take($limit)->pluck('id');
 
-        if ($staleIds->isNotEmpty()) {
-            $user->passwordHistories()->whereIn('id', $staleIds)->delete();
-        }
+        $user->passwordHistories()->whereNotIn('id', $keepIds)->delete();
     }
 
     /**
