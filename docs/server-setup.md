@@ -289,6 +289,35 @@ database to verify backups without touching production):
   polybag_acme_2026-03-25_080000.k2.sql.gz.enc --into polybag_acme_restore
 ```
 
+### Object storage credential rotation
+
+`S3_ACCESS_KEY`/`S3_SECRET_KEY` in `/opt/shared/backup.env` authenticate to the
+object storage bucket itself (Hetzner Object Storage), separate from the backup
+*encryption* key above. Hetzner has no API for generating or revoking S3 keys —
+that step is Console-only — so `scripts/rotate-storage-key.sh` covers everything
+around it: it verifies a new key can list, write, and read the real bucket
+*before* writing `backup.env`, so a bad paste never breaks the nightly backup.
+
+```bash
+# 1. Hetzner Console -> Object Storage -> generate a new access key/secret.
+# 2. Run the rotation (prompts for the new key/secret; secret input is hidden):
+/opt/tenants/<any-tenant>/scripts/rotate-storage-key.sh
+
+# 3. Confirm end-to-end, then revoke the OLD key shown in the script's output
+#    in the Hetzner Console.
+/opt/tenants/<any-tenant>/scripts/backup-db.sh
+```
+
+Rotate this key on the same cadence as `scripts/rotate-internal-secrets.sh`
+(annually, at minimum) or immediately after any suspected credential exposure or
+security breach.
+
+> There is currently no automated check anywhere (script or cron) that flags
+> when `backup.env`, the backup encryption keyring, or the secrets rotated by
+> `rotate-internal-secrets.sh` are overdue for rotation. Track the annual
+> schedule externally (calendar reminder / key management document) until such
+> a check exists.
+
 ## 9. Generate Wildcard QZ Tray Certificate (Optional)
 
 For `*.polybag.app` tenants, a shared QZ Tray signing certificate avoids generating one per tenant:

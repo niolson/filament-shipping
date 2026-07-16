@@ -12,10 +12,17 @@
 # Sentry check-ins are sent only when a DSN is found, so the script is a no-op
 # on the monitoring side in environments without Sentry configured.
 #
+# Also checks that the object storage credential (backup.env) and the backup
+# encryption keyring haven't gone past their rotation policy — nothing else in
+# the codebase tracks credential age, so this piggybacks on the one thing that
+# already runs daily and pages on failure. A stale credential fails the same
+# Sentry monitor a broken backup would.
+#
 # Config (read from the environment / shared secrets):
 #   SENTRY_LARAVEL_DSN or SENTRY_DSN  - the project DSN (also in /opt/shared/shared-secrets.env)
 #   SENTRY_MONITOR_SLUG               - cron monitor slug (default: polybagapp)
 #   S3_* / BACKUP_*                   - from /opt/shared/backup.env (used by the keyring upload)
+#   MAX_KEY_AGE_DAYS                  - rotation policy in days (default: 370, i.e. annual + slack)
 
 set -uo pipefail
 
@@ -35,6 +42,35 @@ fi
 MONITOR_SLUG="${SENTRY_MONITOR_SLUG:-polybagapp}"
 
 log() { echo "$(date '+%Y-%m-%d %H:%M:%S') [nightly] $*"; }
+
+# --- Key rotation age check ---
+#
+# Neither rotate-internal-secrets.sh nor rotate-storage-key.sh record when they
+# were last run, so this uses each credential file's mtime as a proxy. A file
+# edited (even partially) by a rotation script gets a fresh mtime, so this is
+# reset by the normal rotation scripts without any extra bookkeeping.
+
+MAX_KEY_AGE_DAYS="${MAX_KEY_AGE_DAYS:-370}"
+BACKUP_KEYRING="${BACKUP_KEYRING:-/opt/shared/backup-keys.env}"
+
+# Warns (and signals staleness via return code) if $1 is older than the policy.
+# Missing files are skipped rather than flagged — not every server has a
+# versioned keyring (legacy single-key mode keeps the key in backup.env itself).
+check_key_age() {
+    local file="$1" label="$2" mtime now age_days
+    [ -f "$file" ] || return 0
+
+    mtime=$(stat -c %Y "$file" 2>/dev/null) || { log "WARN: could not stat ${file} for age check"; return 0; }
+    now=$(date +%s)
+    age_days=$(( (now - mtime) / 86400 ))
+
+    if [ "$age_days" -gt "$MAX_KEY_AGE_DAYS" ]; then
+        log "WARN: ${label} (${file}) is ${age_days} days old — exceeds the ${MAX_KEY_AGE_DAYS}-day rotation policy. Rotate it (see docs/server-setup.md)."
+        return 1
+    fi
+    log "${label} age OK (${age_days} days)."
+    return 0
+}
 
 # Send a Sentry Crons check-in. Status is one of: in_progress | ok | error.
 # Sentry associates the terminal check-in with the most recent open one for the
@@ -83,6 +119,10 @@ else
     STATUS="error"
 fi
 rm -f /tmp/keyring
+
+log "Checking credential rotation age..."
+check_key_age "/opt/shared/backup.env" "Object storage credential (S3_ACCESS_KEY/S3_SECRET_KEY)" || STATUS="error"
+check_key_age "$BACKUP_KEYRING" "Backup encryption keyring" || STATUS="error"
 
 sentry_checkin "$STATUS"
 log "Nightly backup finished with status: ${STATUS}"
