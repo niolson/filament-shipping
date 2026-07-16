@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Role;
+use App\Services\PasswordPolicyService;
 use Filament\Auth\MultiFactor\App\Concerns\InteractsWithAppAuthentication;
 use Filament\Auth\MultiFactor\App\Concerns\InteractsWithAppAuthenticationRecovery;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
@@ -13,6 +14,7 @@ use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -58,6 +60,24 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
                 $user->password_changed_at = now();
             }
         });
+
+        static::saved(function (User $user): void {
+            if ($user->wasChanged('password') && $user->getOriginal('password') !== null) {
+                $user->passwordHistories()->create([
+                    'password_hash' => $user->getOriginal('password'),
+                ]);
+
+                app(PasswordPolicyService::class)->pruneHistory($user);
+            }
+        });
+    }
+
+    /**
+     * @return HasMany<PasswordHistory, $this>
+     */
+    public function passwordHistories(): HasMany
+    {
+        return $this->hasMany(PasswordHistory::class)->latest();
     }
 
     /**

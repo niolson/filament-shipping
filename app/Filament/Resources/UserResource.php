@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\Location;
 use App\Models\User;
+use App\Services\PasswordPolicyService;
 use App\Services\SettingsService;
 use BackedEnum;
 use Filament\Actions;
@@ -44,6 +45,10 @@ class UserResource extends Resource
                     ->dehydrateStateUsing(fn (string $state): string => Hash::make($state))
                     ->dehydrated(fn (?string $state): bool => filled($state))
                     ->required(fn (string $operation): bool => $operation === 'create')
+                    ->rules(fn (?User $record): array => [
+                        app(PasswordPolicyService::class)->rule(),
+                        app(PasswordPolicyService::class)->historyRule($record),
+                    ])
                     ->maxLength(255)
                     ->helperText('Leave empty for SSO-only users (no local password).'),
                 Forms\Components\Select::make('role')

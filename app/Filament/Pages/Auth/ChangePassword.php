@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Auth;
 
 use App\Services\PasswordPolicyService;
 use BackedEnum;
+use Closure;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -42,6 +43,7 @@ class ChangePassword extends Page implements HasForms
     public function form(Schema $form): Schema
     {
         $policy = app(PasswordPolicyService::class);
+        $user = auth()->user();
 
         return $form
             ->schema([
@@ -54,7 +56,7 @@ class ChangePassword extends Page implements HasForms
                     ->label('New Password')
                     ->password()
                     ->required()
-                    ->rules(['confirmed', $policy->rule()])
+                    ->rules(['confirmed', $policy->rule(), fn (): Closure => $policy->historyRule($user)])
                     ->different('current_password'),
                 TextInput::make('password_confirmation')
                     ->label('Confirm New Password')
