@@ -4,7 +4,11 @@ namespace App\Filament\Resources\DataSources\Pages;
 
 use App\Filament\Resources\DataSources\DataSourceResource;
 use App\Models\DataSource;
+use App\Services\SettingsService;
+use App\Services\ShipmentImport\Sources\AmazonSource;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Support\Exceptions\Halt;
 
 class CreateDataSource extends CreateRecord
 {
@@ -16,6 +20,8 @@ class CreateDataSource extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $this->validateMfaRequiredForAmazon($data);
+
         $submitted = $data['settings'] ?? [];
         $secrets = [];
 
@@ -30,5 +36,31 @@ class CreateDataSource extends CreateRecord
         $data['secret_settings'] = $secrets ?: null;
 
         return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function validateMfaRequiredForAmazon(array $data): void
+    {
+        if (($data['driver'] ?? null) !== AmazonSource::class || ! ($data['active'] ?? false)) {
+            return;
+        }
+
+        if (app(SettingsService::class)->get('require_mfa', false)) {
+            return;
+        }
+
+        $message = 'Amazon SP-API sources give access to customer PII, so Multi-Factor Authentication must be required for all users before this source can be active. Enable it in App Settings → Authentication first.';
+
+        Notification::make()
+            ->title('Multi-Factor Authentication required')
+            ->body($message)
+            ->danger()
+            ->send();
+
+        $this->addError('data.active', $message);
+
+        throw new Halt;
     }
 }

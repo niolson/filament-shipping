@@ -75,6 +75,13 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
             if ($sandbox) {
                 // v2026-01-01 sandbox test cases only exist for JP/UK/BR marketplaces.
                 // Test Case 1: Japan marketplace with all includedData values.
+                //
+                // A1VC38T7YXB528 is Amazon's JP marketplace ID, which only resolves
+                // against the FE sandbox host — hence services.amazon.sandbox_url
+                // pointing at sandbox.sellingpartnerapi-fe.amazon.com rather than NA.
+                // Sending this marketplace ID to the NA sandbox host 403s with "The
+                // marketplaces you provided are not valid for region"
+                // (see https://github.com/amzn/selling-partner-api-models/issues/5126).
                 $query = [
                     'marketplaceIds' => 'A1VC38T7YXB528',
                     'createdAfter' => '2024-12-25T00:00:00Z',

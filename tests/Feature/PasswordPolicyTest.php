@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Services\PasswordPolicyService;
 use App\Services\SettingsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 
 uses(RefreshDatabase::class);
@@ -40,4 +41,47 @@ it('respects an explicit override of the expiration setting', function (): void 
     $stale = User::factory()->create(['password_changed_at' => now()->subDays(999)]);
 
     expect($service->isPasswordExpired($stale))->toBeFalse();
+});
+
+it('records the replaced password to history and rejects reusing it', function (): void {
+    $service = app(PasswordPolicyService::class);
+
+    $user = User::factory()->create(['password' => Hash::make('Original123!456')]);
+
+    expect($user->passwordHistories()->count())->toBe(0);
+
+    $user->update(['password' => Hash::make('Different456!789')]);
+
+    expect($user->passwordHistories()->count())->toBe(1)
+        ->and($service->isPasswordReused($user->fresh(), 'Original123!456'))->toBeTrue()
+        ->and($service->isPasswordReused($user->fresh(), 'Different456!789'))->toBeTrue()
+        ->and($service->isPasswordReused($user->fresh(), 'BrandNew789!012'))->toBeFalse();
+});
+
+it('prunes password history beyond the configured limit', function (): void {
+    app(SettingsService::class)->set('password_history_count', 3, 'integer');
+    $service = app(PasswordPolicyService::class);
+
+    $user = User::factory()->create(['password' => Hash::make('Password0!23456')]);
+
+    foreach (range(1, 4) as $i) {
+        $user->update(['password' => Hash::make("Password{$i}!23456")]);
+    }
+
+    // Limit 3 keeps the current password + 2 history rows.
+    expect($user->passwordHistories()->count())->toBe(2);
+
+    // The oldest replaced passwords should have aged out and be reusable again.
+    expect($service->isPasswordReused($user->fresh(), 'Password0!23456'))->toBeFalse()
+        ->and($service->isPasswordReused($user->fresh(), 'Password3!23456'))->toBeTrue()
+        ->and($service->isPasswordReused($user->fresh(), 'Password4!23456'))->toBeTrue();
+});
+
+it('disables history checks when the setting is 0', function (): void {
+    app(SettingsService::class)->set('password_history_count', 0, 'integer');
+    $service = app(PasswordPolicyService::class);
+
+    $user = User::factory()->create(['password' => Hash::make('Original123!456')]);
+
+    expect($service->isPasswordReused($user, 'Original123!456'))->toBeFalse();
 });

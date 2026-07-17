@@ -36,6 +36,7 @@ use App\Models\ShippingMethod;
 use App\Models\User;
 use App\Services\SettingsService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
@@ -390,7 +391,7 @@ it('can create a User', function (): void {
         ->fillForm([
             'name' => 'Jane Doe',
             'username' => 'janedoe',
-            'password' => 'securepassword',
+            'password' => 'SecurePass123!456',
             'role' => Role::User->value,
         ])
         ->call('create')
@@ -414,4 +415,25 @@ it('can edit a User', function (): void {
         ->assertHasNoFormErrors();
 
     expect($record->refresh())->name->toBe('Updated Name');
+});
+
+it('enforces the password policy when an admin sets a User password', function (): void {
+    Livewire::test(CreateUser::class)
+        ->fillForm([
+            'name' => 'Jane Doe',
+            'username' => 'janedoe',
+            'password' => 'weakpass',
+            'role' => Role::User->value,
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['password']);
+});
+
+it('rejects reusing a User\'s current password from the admin edit form', function (): void {
+    $record = User::factory()->create(['password' => Hash::make('CurrentPass123!456')]);
+
+    Livewire::test(EditUser::class, ['record' => $record->id])
+        ->fillForm(['password' => 'CurrentPass123!456'])
+        ->call('save')
+        ->assertHasFormErrors(['password']);
 });

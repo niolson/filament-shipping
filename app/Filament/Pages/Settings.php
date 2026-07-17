@@ -7,12 +7,14 @@ use App\Filament\Resources\LocationResource;
 use App\Filament\Support\AddressForm;
 use App\Models\Carrier;
 use App\Models\Client;
+use App\Models\DataSource;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Services\AddressReferenceService;
 use App\Services\PasswordPolicyService;
 use App\Services\PhoneParserService;
 use App\Services\SettingsService;
+use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Support\SvgUploadSanitizer;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -90,6 +92,7 @@ class Settings extends Page
             'password_require_numbers' => $settings->get('password_require_numbers', PasswordPolicyService::DEFAULT_REQUIRE_NUMBERS),
             'password_require_symbols' => $settings->get('password_require_symbols', PasswordPolicyService::DEFAULT_REQUIRE_SYMBOLS),
             'password_expiration_days' => $settings->get('password_expiration_days', PasswordPolicyService::DEFAULT_EXPIRATION_DAYS),
+            'password_history_count' => $settings->get('password_history_count', PasswordPolicyService::DEFAULT_HISTORY_COUNT),
             'google_sso_enabled' => $settings->get('google_sso_enabled', false),
             'azure_sso_enabled' => $settings->get('azure_sso_enabled', false),
             'require_mfa' => $settings->get('require_mfa', false),
@@ -420,12 +423,20 @@ class Settings extends Page
                                 ->default(PasswordPolicyService::DEFAULT_REQUIRE_SYMBOLS),
                             TextInput::make('password_expiration_days')
                                 ->label('Password Expiration')
-                                ->helperText('Force users to change passwords after this many days. Set to 0 to disable.')
+                                ->helperText('Force users to change passwords after this many days.')
                                 ->numeric()
                                 ->minValue(0)
                                 ->maxValue(3650)
                                 ->default(PasswordPolicyService::DEFAULT_EXPIRATION_DAYS)
                                 ->suffix('days'),
+                            TextInput::make('password_history_count')
+                                ->label('Password History')
+                                ->helperText('Number of most recent passwords (including the current one) a user may not reuse.')
+                                ->numeric()
+                                ->minValue(0)
+                                ->maxValue(24)
+                                ->default(PasswordPolicyService::DEFAULT_HISTORY_COUNT)
+                                ->suffix('passwords'),
                         ])
                         ->columns(2),
 
@@ -434,7 +445,7 @@ class Settings extends Page
                         ->schema([
                             Toggle::make('require_mfa')
                                 ->label('Require Multi-Factor Authentication')
-                                ->helperText('When enabled, all users must set up MFA before accessing the app. Users with an email address may use email or authenticator app codes; users without an email must use an authenticator app.')
+                                ->helperText('When enabled, all users must set up MFA before accessing the app. Users with an email address may use email or authenticator app codes; users without an email must use an authenticator app. Required while an active Amazon SP-API data source exists, since it gives access to customer PII.')
                                 ->default(false),
                             Toggle::make('google_sso_enabled')
                                 ->label('Google SSO')
@@ -548,10 +559,25 @@ class Settings extends Page
             'password_require_numbers' => (bool) ($data['password_require_numbers'] ?? PasswordPolicyService::DEFAULT_REQUIRE_NUMBERS),
             'password_require_symbols' => (bool) ($data['password_require_symbols'] ?? PasswordPolicyService::DEFAULT_REQUIRE_SYMBOLS),
             'password_expiration_days' => (int) ($data['password_expiration_days'] ?? PasswordPolicyService::DEFAULT_EXPIRATION_DAYS),
+            'password_history_count' => (int) ($data['password_history_count'] ?? PasswordPolicyService::DEFAULT_HISTORY_COUNT),
             'google_sso_enabled' => (bool) ($data['google_sso_enabled'] ?? false),
             'azure_sso_enabled' => (bool) ($data['azure_sso_enabled'] ?? false),
             'require_mfa' => (bool) ($data['require_mfa'] ?? false),
         ];
+
+        if (! $settings['require_mfa'] && DataSource::where('driver', AmazonSource::class)->where('active', true)->exists()) {
+            $message = 'Multi-Factor Authentication cannot be disabled while an active Amazon SP-API data source exists — it gives access to customer PII. Deactivate the Amazon source first (Integrations → Data Sources).';
+
+            Notification::make()
+                ->title('Cannot disable Multi-Factor Authentication')
+                ->body($message)
+                ->danger()
+                ->send();
+
+            $this->addError('data.require_mfa', $message);
+
+            return;
+        }
 
         // Update each standard setting
         foreach ($settings as $key => $value) {

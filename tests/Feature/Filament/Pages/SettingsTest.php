@@ -11,11 +11,13 @@ use App\Http\Integrations\Fedex\Requests\Registration\VerifyPin;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Client;
+use App\Models\DataSource;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\FedexRegistrationService;
 use App\Services\SettingsService;
+use App\Services\ShipmentImport\Sources\AmazonSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Storage;
@@ -484,4 +486,40 @@ it('does not overwrite location fields when saving in multi-location mode', func
         ->assertNotified();
 
     expect($location->fresh()->name)->toBe('Original Warehouse');
+});
+
+// ─── MFA required while an active Amazon SP-API source exists ─────────────────
+
+it('blocks disabling MFA while an active Amazon data source exists', function (): void {
+    Setting::create(['key' => 'require_mfa', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    DataSource::factory()->create([
+        'driver' => AmazonSource::class,
+        'active' => true,
+    ]);
+
+    Livewire::test(Settings::class)
+        ->fillForm(['require_mfa' => false])
+        ->call('save')
+        ->assertHasErrors(['data.require_mfa']);
+
+    expect(app(SettingsService::class)->get('require_mfa'))->toBeTrue();
+});
+
+it('allows disabling MFA when the only Amazon data source is inactive', function (): void {
+    Setting::create(['key' => 'require_mfa', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    DataSource::factory()->create([
+        'driver' => AmazonSource::class,
+        'active' => false,
+    ]);
+
+    Livewire::test(Settings::class)
+        ->fillForm(['require_mfa' => false])
+        ->call('save')
+        ->assertNotified();
+
+    expect(app(SettingsService::class)->get('require_mfa'))->toBeFalse();
 });

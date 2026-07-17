@@ -68,7 +68,11 @@ return [
 
     'amazon' => [
         'base_url' => 'https://sellingpartnerapi-na.amazon.com',
-        'sandbox_url' => 'https://sandbox.sellingpartnerapi-na.amazon.com',
+        // Intentionally a different region than base_url above: the only working
+        // Orders API v2026-01-01 sandbox test case uses Amazon's JP marketplace ID
+        // (A1VC38T7YXB528, see AmazonSource::fetchShipments()), which only resolves
+        // against the FE sandbox host — the NA sandbox host 403s for it.
+        'sandbox_url' => 'https://sandbox.sellingpartnerapi-fe.amazon.com',
     ],
 
     'google' => [

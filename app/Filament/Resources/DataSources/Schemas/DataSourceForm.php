@@ -4,6 +4,7 @@ namespace App\Filament\Resources\DataSources\Schemas;
 
 use App\Enums\ImportExistingBehavior;
 use App\Enums\ScheduleInterval;
+use App\Filament\Pages\Settings as SettingsPage;
 use App\Models\Client;
 use App\Models\DataSource;
 use App\Services\OAuthService;
@@ -155,6 +156,13 @@ class DataSourceForm
 
             Section::make('Amazon SP-API Connection')
                 ->schema([
+                    Placeholder::make('amazon_mfa_warning')
+                        ->label('')
+                        ->content('⚠ Amazon SP-API sources give access to customer PII. Multi-Factor Authentication must be required for all users before this source can be active. Enable it in [App Settings → Authentication]('.SettingsPage::getUrl().').')
+                        ->markdown()
+                        ->visible(fn (): bool => ! app(SettingsService::class)->get('require_mfa', false))
+                        ->columnSpanFull(),
+
                     TextInput::make('settings.marketplace_id')
                         ->label('Marketplace ID')
                         ->placeholder('ATVPDKIKX0DER')

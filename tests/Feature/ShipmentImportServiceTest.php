@@ -16,6 +16,7 @@ use App\Notifications\ImportCompleted;
 use App\Services\ShipmentImport\ShipmentImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
@@ -968,6 +969,13 @@ it('can import shipments without fetching shipment items when item import is dis
 
 it('returns an error result and notifies admins when fetchShipments throws', function (): void {
     Notification::fake();
+    Log::shouldReceive('channel')
+        ->with(config('shipment-import.logging.channel', 'stack'))
+        ->once()
+        ->andReturnSelf();
+    Log::shouldReceive('log')
+        ->once()
+        ->with('error', 'Import configuration failed', Mockery::type('array'));
 
     $admin = User::factory()->create(['role' => Role::Admin, 'active' => true]);
 

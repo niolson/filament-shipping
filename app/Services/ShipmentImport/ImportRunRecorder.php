@@ -40,6 +40,8 @@ class ImportRunRecorder
 
     public function configurationFailed(string $message, float $duration): ImportResult
     {
+        $this->log('error', 'Import configuration failed', ['error' => $message]);
+
         $this->notifyAdmins(new ImportCompletedNotification([], $this->sourceName, [$message]));
 
         return new ImportResult(errors: [$message], duration: $duration);
