@@ -9,7 +9,7 @@ use Saloon\Laravel\Facades\Saloon;
 function shopifyConfig(array $overrides = []): array
 {
     return array_merge([
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'enabled' => true,
         'channel_name' => 'Shopify',
         'shop_domain' => 'test-shop.myshopify.com',

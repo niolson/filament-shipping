@@ -108,7 +108,7 @@ beforeEach(function (): void {
     Cache::put('shopify_access_token_'.md5('test-shop.myshopify.com'), 'shpat_test_token', 3600);
 
     $this->dataSource = DataSource::factory()->create([
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'name' => 'Shopify',
         'settings' => [
             'channel_name' => 'Shopify',
@@ -130,7 +130,7 @@ it('imports shopify orders into shipments table with metadata', function (): voi
     ]);
 
     $source = new ShopifySource([
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'enabled' => true,
         'channel_name' => 'Shopify',
         'shop_domain' => 'test-shop.myshopify.com',
@@ -174,7 +174,7 @@ it('exports package to shopify as fulfillment', function (): void {
     $channel = Channel::factory()->create(['name' => 'Shopify']);
 
     $exportSource = DataSource::factory()->create([
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'name' => 'Shopify Export',
         'settings' => [
             'channel_name' => 'Shopify',
@@ -238,7 +238,7 @@ it('handles package without metadata gracefully in export', function (): void {
     $channel = Channel::factory()->create(['name' => 'Shopify']);
 
     $exportSource = DataSource::factory()->create([
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'name' => 'Shopify Export',
         'settings' => [
             'channel_name' => 'Shopify',
@@ -296,7 +296,7 @@ it('imports multiple pages of orders', function (): void {
     ]);
 
     $source = new ShopifySource([
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'enabled' => true,
         'channel_name' => 'Shopify',
         'shop_domain' => 'test-shop.myshopify.com',
@@ -325,7 +325,7 @@ it('deduplicates shopify imports by order id instead of displayed name', functio
     ]);
 
     $source = new ShopifySource([
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'enabled' => true,
         'channel_name' => 'Shopify',
         'shop_domain' => 'test-shop.myshopify.com',

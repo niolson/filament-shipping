@@ -77,7 +77,7 @@ it('creates a database DataSource record from the import source step', function 
 
     invokePrivateMethod($component->instance(), 'saveImportSource');
 
-    $record = DataSource::where('driver', DatabaseSource::class)->firstOrFail();
+    $record = DataSource::where('source_type', DatabaseSource::class)->firstOrFail();
 
     expect($record->active)->toBeTrue()
         ->and($record->settings['db_driver'])->toBe('mysql')
@@ -110,7 +110,7 @@ it('does not duplicate the DataSource when the import step is saved twice', func
 
     expect(DataSource::count())->toBe(1);
 
-    $record = DataSource::where('driver', DatabaseSource::class)->firstOrFail();
+    $record = DataSource::where('source_type', DatabaseSource::class)->firstOrFail();
 
     expect($record->settings['db_host'])->toBe('db2.example.com')
         ->and($record->secret('db_password'))->toBe('supersecret');
@@ -124,7 +124,7 @@ it('creates a shopify DataSource record with the shop domain', function (): void
 
     invokePrivateMethod($component->instance(), 'saveImportSource');
 
-    $record = DataSource::where('driver', ShopifySource::class)->firstOrFail();
+    $record = DataSource::where('source_type', ShopifySource::class)->firstOrFail();
 
     expect($record->settings['shop_domain'])->toBe('acme.myshopify.com')
         ->and($record->settings['channel_name'])->toBe('Shopify');
@@ -138,7 +138,7 @@ it('creates an amazon DataSource record from the import source step', function (
 
     invokePrivateMethod($component->instance(), 'saveImportSource');
 
-    $record = DataSource::where('driver', AmazonSource::class)->firstOrFail();
+    $record = DataSource::where('source_type', AmazonSource::class)->firstOrFail();
 
     expect($record->settings['marketplace_id'])->toBe('ATVPDKIKX0DER')
         ->and($record->settings['channel_name'])->toBe('Amazon');
@@ -154,7 +154,7 @@ it('creates no DataSource when import source is none', function (): void {
 });
 
 it('prefills the import source select from an existing DataSource', function (): void {
-    DataSource::factory()->create(['driver' => DatabaseSource::class]);
+    DataSource::factory()->create(['source_type' => DatabaseSource::class]);
 
     Livewire::test(SetupWizard::class)
         ->assertSet('data.import_source', 'database');

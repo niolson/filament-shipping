@@ -54,7 +54,7 @@ class DataSourceForm
                         ->helperText('Leave blank to share this source across all clients (single-tenant mode).')
                         ->visible(fn (): bool => self::multiClientEnabled()),
 
-                    Select::make('driver')
+                    Select::make('source_type')
                         ->label('Driver')
                         ->options(self::DRIVERS)
                         ->required()
@@ -123,7 +123,7 @@ class DataSourceForm
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('Override the tenant-level Shopify app Client Secret for this store.'),
                 ])
-                ->visible(fn (Get $get): bool => $get('driver') === ShopifySource::class)
+                ->visible(fn (Get $get): bool => $get('source_type') === ShopifySource::class)
                 ->columns(2),
 
             Section::make('Shopify Import Settings')
@@ -149,7 +149,7 @@ class DataSourceForm
                         ->label('Write Fulfillment Back to Shopify')
                         ->default(false),
                 ])
-                ->visible(fn (Get $get): bool => $get('driver') === ShopifySource::class)
+                ->visible(fn (Get $get): bool => $get('source_type') === ShopifySource::class)
                 ->columns(2),
 
             // ── Amazon ─────────────────────────────────────────────────────────────
@@ -194,7 +194,7 @@ class DataSourceForm
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('Override the tenant-level SP-API app Client Secret for this seller account.'),
                 ])
-                ->visible(fn (Get $get): bool => $get('driver') === AmazonSource::class)
+                ->visible(fn (Get $get): bool => $get('source_type') === AmazonSource::class)
                 ->columns(2),
 
             Section::make('Amazon Import Settings')
@@ -221,7 +221,7 @@ class DataSourceForm
                         ->label('Confirm Shipment Back to Amazon')
                         ->default(false),
                 ])
-                ->visible(fn (Get $get): bool => $get('driver') === AmazonSource::class)
+                ->visible(fn (Get $get): bool => $get('source_type') === AmazonSource::class)
                 ->columns(2),
 
             // ── Database ───────────────────────────────────────────────────────────
@@ -297,7 +297,7 @@ class DataSourceForm
                             }
                         }),
                 ])
-                ->visible(fn (Get $get): bool => $get('driver') === DatabaseSource::class)
+                ->visible(fn (Get $get): bool => $get('source_type') === DatabaseSource::class)
                 ->columns(2),
 
             Section::make('Database Query')
@@ -432,7 +432,7 @@ class DataSourceForm
                             }
                         }),
                 ])
-                ->visible(fn (Get $get): bool => $get('driver') === DatabaseSource::class)
+                ->visible(fn (Get $get): bool => $get('source_type') === DatabaseSource::class)
                 ->columns(2),
 
             Section::make('Database Export')
@@ -458,7 +458,7 @@ class DataSourceForm
                         ->columnSpanFull()
                         ->visible(fn (Get $get): bool => (bool) $get('settings.export_enabled')),
                 ])
-                ->visible(fn (Get $get): bool => $get('driver') === DatabaseSource::class)
+                ->visible(fn (Get $get): bool => $get('source_type') === DatabaseSource::class)
                 ->columns(2)
                 ->collapsible()
                 ->collapsed(),
@@ -522,7 +522,7 @@ class DataSourceForm
                         ->columnSpanFull()
                         ->visible(fn (Get $get): bool => (bool) $get('settings.ssh_enabled')),
                 ])
-                ->visible(fn (Get $get): bool => $get('driver') === DatabaseSource::class)
+                ->visible(fn (Get $get): bool => $get('source_type') === DatabaseSource::class)
                 ->columns(2)
                 ->collapsible()
                 ->collapsed(),

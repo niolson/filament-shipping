@@ -12,7 +12,7 @@ class DataSourceFactory
 {
     public function make(DataSource $dataSource): DataSourceInterface
     {
-        $driver = $dataSource->driver;
+        $driver = $dataSource->source_type;
 
         if (! $driver || ! class_exists($driver)) {
             throw new InvalidArgumentException(

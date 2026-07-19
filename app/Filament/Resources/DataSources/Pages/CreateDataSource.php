@@ -43,7 +43,7 @@ class CreateDataSource extends CreateRecord
      */
     private function validateMfaRequiredForAmazon(array $data): void
     {
-        if (($data['driver'] ?? null) !== AmazonSource::class || ! ($data['active'] ?? false)) {
+        if (($data['source_type'] ?? null) !== AmazonSource::class || ! ($data['active'] ?? false)) {
             return;
         }
 

@@ -23,7 +23,7 @@ class DataSource extends Model
     protected $fillable = [
         'client_id',
         'name',
-        'driver',
+        'source_type',
         'active',
         'global_export',
         'schedule_interval',

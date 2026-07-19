@@ -36,7 +36,7 @@ it('audits CarrierAccount create, update and delete without leaking the secret',
 
 it('audits DataSource create and masks the encrypted secret_settings', function (): void {
     $source = DataSource::factory()->create([
-        'driver' => DatabaseSource::class,
+        'source_type' => DatabaseSource::class,
         'secret_settings' => ['db_password' => 'DB-PASSWORD-SECRET'],
     ]);
 

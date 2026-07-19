@@ -101,7 +101,7 @@ class SetupWizard extends Page
             'shipping_methods' => [],
 
             // Step 5: Import source (prefill from a previously created data source)
-            'import_source' => match (DataSource::query()->value('driver')) {
+            'import_source' => match (DataSource::query()->value('source_type')) {
                 DatabaseSource::class => 'database',
                 ShopifySource::class => 'shopify',
                 AmazonSource::class => 'amazon',
@@ -575,11 +575,11 @@ class SetupWizard extends Page
                             return 'None (manual entry only)';
                         }
 
-                        $driverLabel = match ($source->driver) {
+                        $driverLabel = match ($source->source_type) {
                             DatabaseSource::class => 'Database',
                             ShopifySource::class => 'Shopify',
                             AmazonSource::class => 'Amazon SP-API',
-                            default => class_basename($source->driver),
+                            default => class_basename($source->source_type),
                         };
 
                         return "{$source->name} ({$driverLabel})";
@@ -822,7 +822,7 @@ class SetupWizard extends Page
             ];
         }
 
-        $record = DataSource::firstOrNew(['driver' => DatabaseSource::class]);
+        $record = DataSource::firstOrNew(['source_type' => DatabaseSource::class]);
         $record->fill([
             'name' => $record->name ?? 'Imported Orders Database',
             'active' => true,
@@ -841,7 +841,7 @@ class SetupWizard extends Page
      */
     private function saveShopifyDataSource(array $data): void
     {
-        $record = DataSource::firstOrNew(['driver' => ShopifySource::class]);
+        $record = DataSource::firstOrNew(['source_type' => ShopifySource::class]);
 
         $newSettings = ['channel_name' => $record->settings['channel_name'] ?? 'Shopify'];
 
@@ -862,7 +862,7 @@ class SetupWizard extends Page
      */
     private function saveAmazonDataSource(array $data): void
     {
-        $record = DataSource::firstOrNew(['driver' => AmazonSource::class]);
+        $record = DataSource::firstOrNew(['source_type' => AmazonSource::class]);
 
         $newSettings = ['channel_name' => $record->settings['channel_name'] ?? 'Amazon'];
 

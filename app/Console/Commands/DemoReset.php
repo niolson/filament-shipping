@@ -157,7 +157,7 @@ class DemoReset extends Command
         if ($sourceId = $this->option('source')) {
             $record = DataSource::find($sourceId);
 
-            if (! $record || $record->driver !== DatabaseSource::class) {
+            if (! $record || $record->source_type !== DatabaseSource::class) {
                 $this->error("DataSource {$sourceId} not found or is not a database source.");
 
                 return null;
@@ -166,7 +166,7 @@ class DemoReset extends Command
             return $record;
         }
 
-        $candidates = DataSource::where('driver', DatabaseSource::class)->where('active', true)->get();
+        $candidates = DataSource::where('source_type', DatabaseSource::class)->where('active', true)->get();
 
         if ($candidates->count() !== 1) {
             $this->error($candidates->isEmpty()

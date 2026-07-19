@@ -19,7 +19,7 @@ class DataSourceFactory extends Factory
     {
         return [
             'name' => fake()->words(2, true),
-            'driver' => DatabaseSource::class,
+            'source_type' => DatabaseSource::class,
             'active' => true,
             'global_export' => false,
             'settings' => [],
@@ -30,7 +30,7 @@ class DataSourceFactory extends Factory
     public function shopify(): static
     {
         return $this->state([
-            'driver' => ShopifySource::class,
+            'source_type' => ShopifySource::class,
             'settings' => [
                 'shop_domain' => 'test.myshopify.com',
                 'channel_name' => 'Shopify',
@@ -41,7 +41,7 @@ class DataSourceFactory extends Factory
     public function globalExport(): static
     {
         return $this->state([
-            'driver' => DatabaseSource::class,
+            'source_type' => DatabaseSource::class,
             'global_export' => true,
             'settings' => ['export_enabled' => true],
         ]);

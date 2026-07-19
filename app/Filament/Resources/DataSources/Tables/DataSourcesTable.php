@@ -46,7 +46,7 @@ class DataSourcesTable
                     ->sortable()
                     ->visible($multiClient),
 
-                TextColumn::make('driver')
+                TextColumn::make('source_type')
                     ->label('Driver')
                     ->formatStateUsing(fn (string $state): string => self::DRIVER_LABELS[$state] ?? class_basename($state))
                     ->badge()

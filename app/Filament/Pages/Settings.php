@@ -565,7 +565,7 @@ class Settings extends Page
             'require_mfa' => (bool) ($data['require_mfa'] ?? false),
         ];
 
-        if (! $settings['require_mfa'] && DataSource::where('driver', AmazonSource::class)->where('active', true)->exists()) {
+        if (! $settings['require_mfa'] && DataSource::where('source_type', AmazonSource::class)->where('active', true)->exists()) {
             $message = 'Multi-Factor Authentication cannot be disabled while an active Amazon SP-API data source exists — it gives access to customer PII. Deactivate the Amazon source first (Integrations → Data Sources).';
 
             Notification::make()
