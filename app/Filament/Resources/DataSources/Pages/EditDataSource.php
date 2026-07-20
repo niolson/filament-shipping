@@ -57,7 +57,7 @@ class EditDataSource extends EditRecord
                 ->label(fn () => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'Reconnect Shopify' : 'Connect with OAuth')
                 ->icon('heroicon-o-link')
                 ->color(fn () => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'warning' : 'primary')
-                ->visible(fn () => $this->record->driver === ShopifySource::class)
+                ->visible(fn () => $this->record->source_type === ShopifySource::class)
                 ->disabled(fn () => ! $this->isBrokerConfigured())
                 ->tooltip(fn () => ! $this->isBrokerConfigured() ? 'OAuth broker not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID in .env.' : null)
                 ->requiresConfirmation()
@@ -74,7 +74,7 @@ class EditDataSource extends EditRecord
                 ->label('Disconnect Shopify')
                 ->icon('heroicon-o-x-mark')
                 ->color('danger')
-                ->visible(fn () => $this->record->driver === ShopifySource::class && app(OAuthService::class)->isDataSourceConnected($this->record))
+                ->visible(fn () => $this->record->source_type === ShopifySource::class && app(OAuthService::class)->isDataSourceConnected($this->record))
                 ->requiresConfirmation()
                 ->modalHeading('Disconnect Shopify OAuth')
                 ->modalDescription('This will remove the OAuth access token. The source will fall back to the custom access token or client credentials flow.')
@@ -138,7 +138,7 @@ class EditDataSource extends EditRecord
      */
     private function validateMfaRequiredForAmazon(array $data): void
     {
-        if (($data['driver'] ?? null) !== AmazonSource::class || ! ($data['active'] ?? false)) {
+        if (($data['source_type'] ?? null) !== AmazonSource::class || ! ($data['active'] ?? false)) {
             return;
         }
 

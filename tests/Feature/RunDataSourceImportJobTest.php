@@ -69,7 +69,7 @@ it('runs the import and notifies the triggering user on success', function (): v
 
     $user = User::factory()->admin()->create();
     $source = DataSource::factory()->create([
-        'driver' => fakeImportDriver(),
+        'source_type' => fakeImportDriver(),
         'active' => true,
     ]);
 
@@ -89,7 +89,7 @@ it('does nothing for an inactive source', function (): void {
 
     $user = User::factory()->admin()->create();
     $source = DataSource::factory()->create([
-        'driver' => fakeImportDriver(),
+        'source_type' => fakeImportDriver(),
         'active' => false,
     ]);
 
@@ -105,7 +105,7 @@ it('leaves error notifications to the import pipeline when the import fails', fu
     $admin = User::factory()->admin()->create();
     $user = User::factory()->create();
     $source = DataSource::factory()->create([
-        'driver' => fakeImportDriver(failFetch: true),
+        'source_type' => fakeImportDriver(failFetch: true),
         'active' => true,
     ]);
 

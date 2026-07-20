@@ -6,6 +6,7 @@ use App\Enums\Role;
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\Location;
 use App\Models\User;
+use App\Services\AccountLockoutService;
 use App\Services\PasswordPolicyService;
 use App\Services\SettingsService;
 use BackedEnum;
@@ -78,6 +79,14 @@ class UserResource extends Resource
                 Tables\Columns\TextColumn::make('role'),
                 Tables\Columns\IconColumn::make('active')
                     ->boolean(),
+                Tables\Columns\IconColumn::make('locked')
+                    ->label('Locked')
+                    ->state(fn (User $record): bool => app(AccountLockoutService::class)->isLocked($record))
+                    ->boolean()
+                    ->trueIcon('heroicon-o-lock-closed')
+                    ->falseIcon('heroicon-o-lock-open')
+                    ->trueColor('danger')
+                    ->falseColor('gray'),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime('M j, Y g:i A', timezone: Location::timezone())
                     ->sortable()
@@ -88,6 +97,13 @@ class UserResource extends Resource
             ])
             ->recordActions([
                 Actions\EditAction::make(),
+                Actions\Action::make('unlock')
+                    ->label('Unlock')
+                    ->icon('heroicon-o-lock-open')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->visible(fn (User $record): bool => app(AccountLockoutService::class)->isLocked($record))
+                    ->action(fn (User $record) => app(AccountLockoutService::class)->resetAttempts($record)),
             ]);
     }
 

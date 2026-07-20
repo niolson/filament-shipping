@@ -85,7 +85,7 @@ function fakeExportSource(bool $exportEnabled = true, ?string $exportError = nul
 function fakeDataSource(string $driverClass, array $fieldMapping = [], bool $exportEnabled = true): DataSource
 {
     return DataSource::factory()->create([
-        'driver' => $driverClass,
+        'source_type' => $driverClass,
         'settings' => [
             'export_enabled' => $exportEnabled,
             'export_field_mapping' => $fieldMapping,
@@ -221,7 +221,7 @@ it('skips export when driver does not implement ExportDestinationInterface', fun
     $driverClass = get_class($importOnlyClass);
     $channel = Channel::factory()->create(['name' => 'TestChannel']);
     $importSource = DataSource::factory()->create([
-        'driver' => $driverClass,
+        'source_type' => $driverClass,
         'settings' => ['export_enabled' => true],
     ]);
     $package = createShippedPackage($channel, $importSource);
@@ -306,7 +306,7 @@ it('exports to global export source even when package has no import source', fun
     $driverClass = fakeExportSource();
 
     $globalSource = DataSource::factory()->create([
-        'driver' => $driverClass,
+        'source_type' => $driverClass,
         'global_export' => true,
         'settings' => [
             'export_enabled' => true,
@@ -332,7 +332,7 @@ it('exports to both primary source and global export source', function (): void 
 
     $primarySource = fakeDataSource($driverClass, ['tracking_number' => 'primary_tracking']);
     $globalSource = DataSource::factory()->create([
-        'driver' => $driverClass,
+        'source_type' => $driverClass,
         'global_export' => true,
         'settings' => [
             'export_enabled' => true,
@@ -360,7 +360,7 @@ it('does not double-export when global source is also the primary source', funct
     $driverClass = fakeExportSource();
 
     $source = DataSource::factory()->create([
-        'driver' => $driverClass,
+        'source_type' => $driverClass,
         'global_export' => true,
         'settings' => [
             'export_enabled' => true,
@@ -381,7 +381,7 @@ it('does not fan out to global export sources in single-client mode', function (
     $driverClass = fakeExportSource();
 
     DataSource::factory()->create([
-        'driver' => $driverClass,
+        'source_type' => $driverClass,
         'global_export' => true,
         'settings' => [
             'export_enabled' => true,
@@ -419,7 +419,7 @@ it('skips inactive global export sources', function (): void {
     $driverClass = fakeExportSource();
 
     DataSource::factory()->create([
-        'driver' => $driverClass,
+        'source_type' => $driverClass,
         'global_export' => true,
         'active' => false,
         'settings' => ['export_enabled' => true],
@@ -440,7 +440,7 @@ it('skips global export sources where export_enabled is false', function (): voi
     $driverClass = fakeExportSource();
 
     DataSource::factory()->create([
-        'driver' => $driverClass,
+        'source_type' => $driverClass,
         'global_export' => true,
         'active' => true,
         'settings' => ['export_enabled' => false],

@@ -1441,6 +1441,18 @@ parameters:
 			path: app/Policies/UserPolicy.php
 
 		-
+			message: '#^Cannot call method isFuture\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/AccountLockoutService.php
+
+		-
+			message: '#^Cannot call method diffForHumans\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: app/Services/AccountLockoutService.php
+
+		-
 			message: '#^Call to function in_array\(\) with arguments ''administrativeArea'', array\<CommerceGuys\\Addressing\\AddressFormat\\AddressField\> and true will always evaluate to false\.$#'
 			identifier: function.impossibleType
 			count: 1
@@ -1695,6 +1707,12 @@ parameters:
 			count: 1
 			path: app/Services/TrackingService.php
 
+
+		-
+			message: '#^Cannot call method isFuture\(\) on string\.$#'
+			identifier: method.nonObject
+			count: 1
+			path: tests/Feature/AccountLockoutTest.php
 
 		-
 			message: '#^Call to an undefined method Psr\\Log\\LoggerInterface\:\:getLogger\(\)\.$#'

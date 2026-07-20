@@ -47,7 +47,7 @@ class RunDataSourceImportJob implements ShouldQueue
             return;
         }
 
-        if ($source->driver === AmazonSource::class && ! $settings->get('require_mfa', false)) {
+        if ($source->source_type === AmazonSource::class && ! $settings->get('require_mfa', false)) {
             User::find($this->userId)?->notify(
                 new ImportCompleted([], $source->name, ['Amazon SP-API imports require Multi-Factor Authentication to be enabled. Enable it in App Settings → Authentication.'])
             );

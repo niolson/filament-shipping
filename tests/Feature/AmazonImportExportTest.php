@@ -104,7 +104,7 @@ beforeEach(function (): void {
     Cache::put('amazon_sp_api_access_token_'.md5('test-refresh-token'), 'test-access-token', 3600);
 
     $this->dataSource = DataSource::factory()->create([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'name' => 'Amazon',
         'settings' => ['channel_name' => 'Amazon', 'marketplace_id' => 'ATVPDKIKX0DER'],
         'secret_settings' => [
@@ -123,7 +123,7 @@ it('imports amazon orders into shipments table with metadata', function (): void
     ]);
 
     $source = new AmazonSource([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'enabled' => true,
         'channel_name' => 'Amazon',
         'client_id' => 'test-client-id',
@@ -165,7 +165,7 @@ it('exports package to amazon as shipment confirmation', function (): void {
     $channel = Channel::factory()->create(['name' => 'Amazon']);
 
     $exportSource = DataSource::factory()->create([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'name' => 'Amazon Export',
         'settings' => [
             'channel_name' => 'Amazon',
@@ -226,7 +226,7 @@ it('handles package without amazon metadata gracefully in export', function (): 
     $channel = Channel::factory()->create(['name' => 'Amazon']);
 
     $exportSource = DataSource::factory()->create([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'name' => 'Amazon Export',
         'settings' => [
             'channel_name' => 'Amazon',
@@ -285,7 +285,7 @@ it('imports multiple pages of amazon orders', function (): void {
     ]);
 
     $source = new AmazonSource([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'enabled' => true,
         'channel_name' => 'Amazon',
         'client_id' => 'test-client-id',
@@ -306,7 +306,7 @@ it('imports multiple pages of amazon orders', function (): void {
 
 it('validates amazon configuration requires credentials', function (): void {
     $source = new AmazonSource([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'enabled' => true,
         'channel_name' => 'Amazon',
         'lookback_days' => 30,
@@ -322,7 +322,7 @@ it('validates amazon configuration requires mfa to be enabled', function (): voi
     app(SettingsService::class)->clearCache();
 
     $source = new AmazonSource([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'enabled' => true,
         'channel_name' => 'Amazon',
         'lookback_days' => 30,
@@ -364,7 +364,7 @@ it('imports sandbox order with full quantities even when already fulfilled', fun
     ]);
 
     $source = new AmazonSource([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'enabled' => true,
         'channel_name' => 'Amazon',
         'client_id' => 'test-client-id',
@@ -417,7 +417,7 @@ it('calculates item unit prices correctly from proceeds breakdowns', function ()
     ]);
 
     $source = new AmazonSource([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'enabled' => true,
         'channel_name' => 'Amazon',
         'client_id' => 'test-client-id',

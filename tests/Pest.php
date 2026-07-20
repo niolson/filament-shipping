@@ -176,7 +176,7 @@ function createShopifyDataSource(array $settings = [], array $secrets = []): Dat
 {
     return DataSource::create([
         'name' => 'Shopify Test',
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'active' => true,
         'settings' => array_merge([
             'channel_name' => 'Shopify',

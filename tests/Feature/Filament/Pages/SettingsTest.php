@@ -495,7 +495,7 @@ it('blocks disabling MFA while an active Amazon data source exists', function ()
     app(SettingsService::class)->clearCache();
 
     DataSource::factory()->create([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'active' => true,
     ]);
 
@@ -512,7 +512,7 @@ it('allows disabling MFA when the only Amazon data source is inactive', function
     app(SettingsService::class)->clearCache();
 
     DataSource::factory()->create([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'active' => false,
     ]);
 

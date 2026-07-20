@@ -46,7 +46,7 @@ it('hides client and global export fields in single-client mode', function (): v
 
     Livewire::test(CreateDataSource::class)
         ->fillForm([
-            'driver' => DatabaseSource::class,
+            'source_type' => DatabaseSource::class,
             'settings.export_enabled' => true,
         ])
         ->assertFormFieldHidden('client_id')
@@ -60,7 +60,7 @@ it('shows client and global export fields in multi-client mode', function (): vo
 
     Livewire::test(CreateDataSource::class)
         ->fillForm([
-            'driver' => DatabaseSource::class,
+            'source_type' => DatabaseSource::class,
             'settings.export_enabled' => true,
         ])
         ->assertFormFieldVisible('client_id')
@@ -141,7 +141,7 @@ it('reveals the mark exported query field when the toggle is enabled', function 
     $this->actingAs($this->admin);
 
     Livewire::test(CreateDataSource::class)
-        ->fillForm(['driver' => DatabaseSource::class])
+        ->fillForm(['source_type' => DatabaseSource::class])
         ->assertFormFieldHidden('settings.mark_exported_query')
         ->fillForm(['settings.mark_exported_enabled' => true])
         ->assertFormFieldVisible('settings.mark_exported_query');
@@ -159,7 +159,7 @@ it('shows the generated ssh public key when database ssh tunneling is enabled', 
 
         Livewire::test(CreateDataSource::class)
             ->fillForm([
-                'driver' => DatabaseSource::class,
+                'source_type' => DatabaseSource::class,
                 'settings.ssh_enabled' => true,
             ])
             ->assertFormFieldVisible('ssh_public_key')
@@ -209,7 +209,7 @@ it('can test the database connection before the source is created', function ():
     Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'New DB Source',
-            'driver' => DatabaseSource::class,
+            'source_type' => DatabaseSource::class,
             'settings.db_driver' => 'sqlite',
             'settings.db_database' => ':memory:',
         ])
@@ -223,7 +223,7 @@ it('reports a failed connection test before the source is created', function ():
     Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'New DB Source',
-            'driver' => DatabaseSource::class,
+            'source_type' => DatabaseSource::class,
             'settings.db_driver' => 'sqlite',
             'settings.db_database' => '/nonexistent/path/db.sqlite',
         ])
@@ -239,7 +239,7 @@ it('routes secret keys to encrypted secret_settings on create', function (): voi
     Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'Shopify Test',
-            'driver' => ShopifySource::class,
+            'source_type' => ShopifySource::class,
             'settings.shop_domain' => 'test.myshopify.com',
             'settings.access_token' => 'shpat_secret_token',
             'settings.client_id' => 'secret_client_id',
@@ -267,7 +267,7 @@ it('routes db_password to secret_settings on create', function (): void {
     Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'DB Source',
-            'driver' => DatabaseSource::class,
+            'source_type' => DatabaseSource::class,
             'settings.db_host' => 'localhost',
             'settings.db_database' => 'orders',
             'settings.db_username' => 'reader',
@@ -394,7 +394,7 @@ it('rejects a destructive mark exported query in the form', function (): void {
     Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'Bad Source',
-            'driver' => DatabaseSource::class,
+            'source_type' => DatabaseSource::class,
             'settings.mark_exported_enabled' => true,
             'settings.mark_exported_query' => 'DELETE FROM shipments WHERE id = :shipment_reference',
         ])
@@ -408,7 +408,7 @@ it('rejects a non-SELECT custom shipments query in the form', function (): void 
     Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'Bad Source',
-            'driver' => DatabaseSource::class,
+            'source_type' => DatabaseSource::class,
             'settings.shipments_query' => 'DROP TABLE shipments',
         ])
         ->call('create')
@@ -421,7 +421,7 @@ it('accepts a legitimate UPDATE mark exported query in the form', function (): v
     Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'Good Source',
-            'driver' => DatabaseSource::class,
+            'source_type' => DatabaseSource::class,
             'settings.mark_exported_enabled' => true,
             'settings.mark_exported_query' => "UPDATE shipments SET exported = 'y' WHERE id = :shipment_reference",
         ])
@@ -439,7 +439,7 @@ it('blocks creating an active Amazon data source when MFA is not required', func
     Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'Amazon Import',
-            'driver' => AmazonSource::class,
+            'source_type' => AmazonSource::class,
             'active' => true,
             'settings.marketplace_id' => 'ATVPDKIKX0DER',
             'settings.refresh_token' => 'Atzr|test-refresh-token',
@@ -447,7 +447,7 @@ it('blocks creating an active Amazon data source when MFA is not required', func
         ->call('create')
         ->assertHasFormErrors(['active']);
 
-    expect(DataSource::where('driver', AmazonSource::class)->exists())->toBeFalse();
+    expect(DataSource::where('source_type', AmazonSource::class)->exists())->toBeFalse();
 });
 
 it('allows creating an active Amazon data source once MFA is required', function (): void {
@@ -457,7 +457,7 @@ it('allows creating an active Amazon data source once MFA is required', function
     Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'Amazon Import',
-            'driver' => AmazonSource::class,
+            'source_type' => AmazonSource::class,
             'active' => true,
             'settings.marketplace_id' => 'ATVPDKIKX0DER',
             'settings.refresh_token' => 'Atzr|test-refresh-token',
@@ -465,7 +465,7 @@ it('allows creating an active Amazon data source once MFA is required', function
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect(DataSource::where('driver', AmazonSource::class)->exists())->toBeTrue();
+    expect(DataSource::where('source_type', AmazonSource::class)->exists())->toBeTrue();
 });
 
 it('allows creating an inactive Amazon data source even when MFA is not required', function (): void {
@@ -474,7 +474,7 @@ it('allows creating an inactive Amazon data source even when MFA is not required
     Livewire::test(CreateDataSource::class)
         ->fillForm([
             'name' => 'Amazon Import',
-            'driver' => AmazonSource::class,
+            'source_type' => AmazonSource::class,
             'active' => false,
             'settings.marketplace_id' => 'ATVPDKIKX0DER',
             'settings.refresh_token' => 'Atzr|test-refresh-token',
@@ -482,14 +482,14 @@ it('allows creating an inactive Amazon data source even when MFA is not required
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect(DataSource::where('driver', AmazonSource::class)->exists())->toBeTrue();
+    expect(DataSource::where('source_type', AmazonSource::class)->exists())->toBeTrue();
 });
 
 it('blocks saving an Amazon data source as active on edit when MFA is not required', function (): void {
     $this->actingAs($this->admin);
 
     $source = DataSource::factory()->create([
-        'driver' => AmazonSource::class,
+        'source_type' => AmazonSource::class,
         'active' => false,
         'settings' => ['marketplace_id' => 'ATVPDKIKX0DER', 'channel_name' => 'Amazon'],
         'secret_settings' => ['refresh_token' => 'Atzr|existing-token'],

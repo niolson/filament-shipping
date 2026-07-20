@@ -11,7 +11,7 @@ it('--all --dry-run does not run real imports', function (): void {
     // Create an active DataSource backed by a mock driver that would fail if import() ran
     DataSource::factory()->create([
 
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'active' => true,
         'settings' => [
             'shop_domain' => 'test.myshopify.com',
@@ -34,7 +34,7 @@ it('--all --dry-run does not run real imports', function (): void {
 it('--all --validate-only does not run real imports', function (): void {
     DataSource::factory()->create([
 
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'active' => true,
         'settings' => [
             'shop_domain' => 'test.myshopify.com',
@@ -55,7 +55,7 @@ it('--all --validate-only does not run real imports', function (): void {
 it('--all without flags runs real imports (not dry-run) for each source', function (): void {
     DataSource::factory()->create([
 
-        'driver' => ShopifySource::class,
+        'source_type' => ShopifySource::class,
         'active' => true,
         'settings' => [
             'shop_domain' => 'test.myshopify.com',
