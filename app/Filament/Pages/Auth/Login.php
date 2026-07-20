@@ -3,6 +3,7 @@
 namespace App\Filament\Pages\Auth;
 
 use App\Models\User;
+use App\Services\AccountLockoutService;
 use App\Services\PasswordPolicyService;
 use App\Services\SettingsService;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse;
@@ -49,7 +50,9 @@ class Login extends BaseLogin
 
     /**
      * After successful authentication, check for password expiration
-     * and SSO-only users.
+     * and SSO-only users. Also enforces account lockout: too many
+     * consecutive failed attempts locks the account for a configured
+     * duration, independent of Filament's IP-based rate limiting.
      */
     public function authenticate(): ?LoginResponse
     {
@@ -66,7 +69,31 @@ class Login extends BaseLogin
             ]);
         }
 
-        $response = parent::authenticate();
+        $lockout = app(AccountLockoutService::class);
+
+        if ($user && $lockout->isLocked($user)) {
+            throw ValidationException::withMessages([
+                'data.login' => $lockout->lockoutMessage($user),
+            ]);
+        }
+
+        try {
+            $response = parent::authenticate();
+        } catch (ValidationException $exception) {
+            if ($user) {
+                $lockout->recordFailedAttempt($user);
+            }
+
+            throw $exception;
+        }
+
+        // A null response with no exception can mean credentials were valid
+        // but an MFA challenge is pending, or that the request was IP-rate-
+        // limited before credentials were ever checked. Only reset the
+        // account-level counter in the former case.
+        if ($user && (auth()->check() || filled($this->userUndertakingMultiFactorAuthentication))) {
+            $lockout->resetAttempts($user);
+        }
 
         // Check password expiration after successful login
         $user = auth()->user();

@@ -45,6 +45,7 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
         return [
             'password' => 'hashed',
             'password_changed_at' => 'datetime',
+            'locked_until' => 'datetime',
             'role' => Role::class,
             'active' => 'boolean',
         ];

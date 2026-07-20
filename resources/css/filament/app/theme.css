@@ -335,6 +335,15 @@ body.fi-body:has(.fi-simple-layout) {
     z-index: 1;
 }
 
+/* The topbar (user menu, notifications) must stack above the main content
+ * card — simple-layout pages that render an authenticated user menu (e.g.
+ * the forced MFA set-up page) would otherwise have their dropdown panel
+ * trapped beneath .fi-simple-main-ctn, since both are z-index: 1 siblings
+ * and main comes later in DOM order. */
+.fi-simple-layout-header {
+    z-index: 10;
+}
+
 /* Dark mode login — class-based (logged-in user override) */
 .dark body.fi-body:has(.fi-simple-layout),
 body.fi-body.dark:has(.fi-simple-layout) {

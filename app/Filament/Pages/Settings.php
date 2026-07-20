@@ -10,6 +10,7 @@ use App\Models\Client;
 use App\Models\DataSource;
 use App\Models\Location;
 use App\Models\Setting;
+use App\Services\AccountLockoutService;
 use App\Services\AddressReferenceService;
 use App\Services\PasswordPolicyService;
 use App\Services\PhoneParserService;
@@ -96,6 +97,8 @@ class Settings extends Page
             'google_sso_enabled' => $settings->get('google_sso_enabled', false),
             'azure_sso_enabled' => $settings->get('azure_sso_enabled', false),
             'require_mfa' => $settings->get('require_mfa', false),
+            'account_lockout_max_attempts' => $settings->get('account_lockout_max_attempts', AccountLockoutService::DEFAULT_MAX_ATTEMPTS),
+            'account_lockout_minutes' => $settings->get('account_lockout_minutes', AccountLockoutService::DEFAULT_LOCKOUT_MINUTES),
         ];
 
         if (! $multiClientEnabled) {
@@ -455,6 +458,22 @@ class Settings extends Page
                                 ->label('Azure / Microsoft Entra SSO')
                                 ->helperText('Show "Sign in with Microsoft" button on the login page. Requires Azure credentials in .env (or broker configured).')
                                 ->default(false),
+                            TextInput::make('account_lockout_max_attempts')
+                                ->label('Account Lockout Threshold')
+                                ->helperText('Lock an account after this many consecutive failed login attempts.')
+                                ->numeric()
+                                ->minValue(1)
+                                ->maxValue(10)
+                                ->default(AccountLockoutService::DEFAULT_MAX_ATTEMPTS)
+                                ->suffix('attempts'),
+                            TextInput::make('account_lockout_minutes')
+                                ->label('Account Lockout Duration')
+                                ->helperText('How long a locked account stays locked before it automatically unlocks.')
+                                ->numeric()
+                                ->minValue(1)
+                                ->maxValue(1440)
+                                ->default(AccountLockoutService::DEFAULT_LOCKOUT_MINUTES)
+                                ->suffix('minutes'),
                         ])
                         ->columns(1),
 
@@ -563,6 +582,8 @@ class Settings extends Page
             'google_sso_enabled' => (bool) ($data['google_sso_enabled'] ?? false),
             'azure_sso_enabled' => (bool) ($data['azure_sso_enabled'] ?? false),
             'require_mfa' => (bool) ($data['require_mfa'] ?? false),
+            'account_lockout_max_attempts' => (int) ($data['account_lockout_max_attempts'] ?? AccountLockoutService::DEFAULT_MAX_ATTEMPTS),
+            'account_lockout_minutes' => (int) ($data['account_lockout_minutes'] ?? AccountLockoutService::DEFAULT_LOCKOUT_MINUTES),
         ];
 
         if (! $settings['require_mfa'] && DataSource::where('source_type', AmazonSource::class)->where('active', true)->exists()) {
