@@ -20,6 +20,9 @@ use App\Models\ShippingMethod;
 use App\Models\ShippingRule;
 use App\Models\User;
 use App\Services\Carriers\CarrierRegistry;
+use Saloon\Exceptions\Request\RequestException;
+use Saloon\Exceptions\Request\Statuses\RequestTimeOutException;
+use Saloon\Http\Response;
 
 beforeEach(function (): void {
     app(CarrierRegistry::class)->reset();
@@ -143,6 +146,112 @@ it('ships a package with the selected rate and marks it shipped', function (): v
         ->and($package->fresh()->status)->toBe(PackageStatus::Shipped)
         ->and($package->fresh()->tracking_number)->toBe('TRACK123')
         ->and($package->fresh()->shipped_by_user_id)->toBe($user->id);
+});
+
+it('returns a failure result when the carrier rejects the shipment', function (): void {
+    $package = createWorkflowPackage();
+    $rate = new RateResponse('MockCarrier', 'GROUND', 'Ground', 7.25, '3 days');
+
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('createShipment')->once()->andReturn(
+        ShipResponse::failure('Rate unavailable for this destination.')
+    );
+
+    app(CarrierRegistry::class)->registerInstance('MockCarrier', $adapter);
+
+    $result = app(PackageShippingWorkflow::class)->ship(
+        $package,
+        new PackageShippingRequest(selectedRate: $rate),
+    );
+
+    expect($result->success)->toBeFalse()
+        ->and($result->title)->toBe('Shipping Error')
+        ->and($result->message)->toBe('Rate unavailable for this destination.')
+        ->and($package->fresh()->status)->toBe(PackageStatus::Unshipped);
+});
+
+it('reports a carrier timeout when shipping times out', function (): void {
+    $package = createWorkflowPackage();
+    $rate = new RateResponse('MockCarrier', 'GROUND', 'Ground', 7.25, '3 days');
+
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('createShipment')
+        ->once()
+        ->andThrow(new RequestTimeOutException(Mockery::mock(Response::class), 'timed out'));
+
+    app(CarrierRegistry::class)->registerInstance('MockCarrier', $adapter);
+
+    $result = app(PackageShippingWorkflow::class)->ship(
+        $package,
+        new PackageShippingRequest(selectedRate: $rate),
+    );
+
+    expect($result->success)->toBeFalse()
+        ->and($result->title)->toBe('Carrier Timeout')
+        ->and($result->message)->toContain('MockCarrier');
+});
+
+it('reports a carrier error when shipping raises a request exception', function (): void {
+    $package = createWorkflowPackage();
+    $rate = new RateResponse('MockCarrier', 'GROUND', 'Ground', 7.25, '3 days');
+
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('createShipment')
+        ->once()
+        ->andThrow(new RequestException(Mockery::mock(Response::class), 'bad request'));
+
+    app(CarrierRegistry::class)->registerInstance('MockCarrier', $adapter);
+
+    $result = app(PackageShippingWorkflow::class)->ship(
+        $package,
+        new PackageShippingRequest(selectedRate: $rate),
+    );
+
+    expect($result->success)->toBeFalse()
+        ->and($result->title)->toBe('Carrier Error')
+        ->and($result->message)->toContain('MockCarrier');
+});
+
+it('reports a state conflict when shipping raises a runtime exception', function (): void {
+    $package = createWorkflowPackage();
+    $rate = new RateResponse('MockCarrier', 'GROUND', 'Ground', 7.25, '3 days');
+
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('createShipment')
+        ->once()
+        ->andThrow(new RuntimeException('Package was modified by another user.'));
+
+    app(CarrierRegistry::class)->registerInstance('MockCarrier', $adapter);
+
+    $result = app(PackageShippingWorkflow::class)->ship(
+        $package,
+        new PackageShippingRequest(selectedRate: $rate),
+    );
+
+    expect($result->success)->toBeFalse()
+        ->and($result->title)->toBe('Package State Changed')
+        ->and($result->leavePackageIntact)->toBeTrue();
+});
+
+it('reports a generic error when shipping raises an unexpected exception', function (): void {
+    $package = createWorkflowPackage();
+    $rate = new RateResponse('MockCarrier', 'GROUND', 'Ground', 7.25, '3 days');
+
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('createShipment')
+        ->once()
+        ->andThrow(new Exception('boom'));
+
+    app(CarrierRegistry::class)->registerInstance('MockCarrier', $adapter);
+
+    $result = app(PackageShippingWorkflow::class)->ship(
+        $package,
+        new PackageShippingRequest(selectedRate: $rate),
+    );
+
+    expect($result->success)->toBeFalse()
+        ->and($result->title)->toBe('Shipping Error')
+        ->and($result->message)->toBe('An unexpected error occurred. Please try again.');
 });
 
 it('auto ships through a rule preselected rate', function (): void {
