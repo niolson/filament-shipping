@@ -733,7 +733,7 @@ parameters:
 			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
 
 		-
-			message: '#^Cannot access property \$driver on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			message: '#^Cannot access property \$source_type on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: property.nonObject
 			count: 2
 			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
