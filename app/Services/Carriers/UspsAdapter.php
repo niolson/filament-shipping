@@ -392,8 +392,8 @@ class UspsAdapter implements CarrierAdapterInterface
                 ->all();
 
             $estimatedDeliveryAt = $this->parseUspsEstimatedDelivery($trackingDetail);
-            $deliveredAt = $this->resolveDeliveredAt($events, $trackingDetail);
             $status = $this->mapTrackingStatus($trackingDetail, $events);
+            $deliveredAt = $this->resolveDeliveredAt($events, $status);
 
             return TrackShipmentResponse::success(
                 status: $status,
@@ -804,6 +804,14 @@ class UspsAdapter implements CarrierAdapterInterface
      */
     private function mapTrackingStatus(array $trackingDetail, array $events): TrackingStatus
     {
+        // A stop-the-clock delivered event code (01/43/60) is authoritative and
+        // terminal, so it takes precedence over the status text. This also keeps
+        // this method in agreement with resolveDeliveredAt(): e.g. a code 43
+        // "Picked Up" response carries no "DELIVERED" text but is still delivered.
+        if (collect($events)->contains(fn (TrackingEventData $event): bool => $this->isDeliveredEvent($event))) {
+            return TrackingStatus::Delivered;
+        }
+
         $statusText = strtoupper(implode(' ', array_filter([
             $trackingDetail['status'] ?? null,
             $trackingDetail['statusCategory'] ?? null,
@@ -939,30 +947,48 @@ class UspsAdapter implements CarrierAdapterInterface
     }
 
     /**
-     * @param  array<int, TrackingEventData>  $events
-     * @param  array<string, mixed>  $trackingDetail
+     * USPS PTR event codes that stop the delivery clock and count as delivered.
+     * 01 = Delivered, 43 = Picked Up, 60 = Delivered to Agent for Final Delivery.
+     * Deliberately excludes 59 (Out for Delivery) and 02/54-56 (Notice Left /
+     * delivery attempt), whose descriptions also contain the substring "DELIVER".
      */
-    private function resolveDeliveredAt(array $events, array $trackingDetail): ?CarbonImmutable
+    private const DELIVERED_EVENT_CODES = ['01', '43', '60'];
+
+    /**
+     * Resolve the actual delivery timestamp from the delivered scan event.
+     *
+     * Only trusts an event timestamp: USPS predicted/expected delivery dates are
+     * documented as 7-30% inaccurate and are suppressed after end-of-day, so they
+     * are never used as a delivery date. Returns null when the package is not
+     * delivered or no delivered event carries a parseable timestamp; callers must
+     * not overwrite an existing delivery date with that null.
+     *
+     * @param  array<int, TrackingEventData>  $events
+     */
+    private function resolveDeliveredAt(array $events, TrackingStatus $status): ?CarbonImmutable
     {
-        $deliveredEvent = collect($events)->first(function (TrackingEventData $event): bool {
-            $description = strtoupper($event->description);
-            $statusCode = strtoupper((string) $event->statusCode);
-
-            return str_contains($description, 'DELIVER')
-                || in_array($statusCode, ['01', 'DELIVERED'], true);
-        });
-
-        if ($deliveredEvent instanceof TrackingEventData) {
-            return $deliveredEvent->timestamp;
+        if ($status !== TrackingStatus::Delivered) {
+            return null;
         }
 
-        $statusText = strtoupper(implode(' ', array_filter([
-            $trackingDetail['status'] ?? null,
-            $trackingDetail['statusCategory'] ?? null,
-            $trackingDetail['statusSummary'] ?? null,
-        ])));
+        return collect($events)
+            ->first(fn (TrackingEventData $event): bool => $this->isDeliveredEvent($event) && $event->timestamp instanceof CarbonImmutable)
+            ?->timestamp;
+    }
 
-        return null;
+    private function isDeliveredEvent(TrackingEventData $event): bool
+    {
+        $eventCode = strtoupper((string) $event->statusCode);
+
+        if (in_array($eventCode, self::DELIVERED_EVENT_CODES, true)) {
+            return true;
+        }
+
+        // Fallback for responses without a recognized event code: match an
+        // explicit "DELIVERED" description but never "OUT FOR DELIVERY".
+        $description = strtoupper($event->description);
+
+        return str_contains($description, 'DELIVERED') && ! str_contains($description, 'OUT FOR');
     }
 
     /**

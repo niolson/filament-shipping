@@ -328,6 +328,44 @@ it('notifies operational users when a package enters exception or is stuck in pr
     Notification::assertSentTo([$admin, $manager], TrackingExceptionDetected::class);
 });
 
+it('preserves an existing delivery date when a later poll resolves no date', function (): void {
+    $deliveredAt = CarbonImmutable::parse('2026-04-09T18:15:00Z');
+
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_status' => TrackingStatus::Delivered,
+        'delivered_at' => $deliveredAt,
+    ]);
+
+    // A subsequent poll still reports Delivered but without a parseable date.
+    $adapter = new class('USPS') extends FakeCarrierAdapter
+    {
+        public function supportsTracking(): bool
+        {
+            return true;
+        }
+
+        public function trackShipment(Package $package): TrackShipmentResponse
+        {
+            return TrackShipmentResponse::success(
+                status: TrackingStatus::Delivered,
+                statusLabel: 'Delivered',
+                deliveredAt: null,
+                details: ['raw' => ['provider' => 'usps']],
+            );
+        }
+    };
+
+    app(CarrierRegistry::class)->registerInstance('USPS', $adapter);
+
+    app(TrackingService::class)->refreshPackage($package);
+
+    $package->refresh();
+
+    expect($package->tracking_status)->toBe(TrackingStatus::Delivered)
+        ->and($package->delivered_at?->toIso8601String())->toBe($deliveredAt->toIso8601String());
+});
+
 it('records the reason instead of throwing when the carrier is unavailable', function (): void {
     $package = Package::factory()->shipped()->create([
         'carrier' => 'USPS',
