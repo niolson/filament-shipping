@@ -25,7 +25,7 @@ jobs:
         with:
           php-version: '8.4'
           extensions: pdo_sqlite, zip, gd, intl, bcmath, pcntl
-          coverage: none
+          coverage: pcov
 
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist
@@ -57,10 +57,18 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Run tests
-        run: php artisan test
+        run: php artisan test --coverage --coverage-clover=coverage.xml
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: ':memory:'
+
+      - name: Upload coverage report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-clover
+          path: coverage.xml
+          if-no-files-found: warn
 
       - name: Run browser tests
         run: php artisan test tests/Browser/
