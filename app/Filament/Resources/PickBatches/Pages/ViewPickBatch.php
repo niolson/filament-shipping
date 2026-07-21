@@ -13,6 +13,7 @@ use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\On;
 use Picqer\Barcode\BarcodeGeneratorSVG;
 use Throwable;
 
@@ -23,6 +24,16 @@ class ViewPickBatch extends ViewRecord
     protected string $view = 'filament.resources.pick-batch-resource.pages.view-pick-batch';
 
     public bool $printMode = false;
+
+    /**
+     * Pull fresh batch state when a nested component (the shipments relation manager)
+     * completes the batch, so the header actions and infolist stop showing stale status.
+     */
+    #[On('pick-batch-updated')]
+    public function refreshBatch(): void
+    {
+        $this->record->refresh();
+    }
 
     protected function getHeaderActions(): array
     {
@@ -97,6 +108,7 @@ class ViewPickBatch extends ViewRecord
                     Notification::make()->success()->title('Batch marked as picked.')->send();
 
                     $this->record->refresh();
+                    $this->dispatch('pick-batch-updated');
                 }),
 
             Action::make('cancel')
@@ -113,6 +125,7 @@ class ViewPickBatch extends ViewRecord
                     Notification::make()->success()->title('Pick batch cancelled.')->send();
 
                     $this->record->refresh();
+                    $this->dispatch('pick-batch-updated');
                 }),
         ];
     }
