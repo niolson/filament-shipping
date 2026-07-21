@@ -79,7 +79,13 @@ class TrackingService
 
         if ($response->success && $response->status) {
             $package->tracking_status = $response->status;
-            $package->delivered_at = $response->deliveredAt;
+
+            // Only ever set a delivery date; never clear an existing one. A later
+            // poll can resolve a null date (e.g. a delivered event without a
+            // parseable timestamp) and must not wipe a date recorded earlier.
+            if ($response->status === TrackingStatus::Delivered && $response->deliveredAt !== null) {
+                $package->delivered_at = $response->deliveredAt->toMutable();
+            }
         }
 
         $package->save();

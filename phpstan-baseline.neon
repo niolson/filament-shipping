@@ -1702,13 +1702,6 @@ parameters:
 			path: app/Services/ShipmentImport/ShipmentRowPreparer.php
 
 		-
-			message: '#^Property App\\Models\\Package\:\:\$delivered_at \(Carbon\\Carbon\|null\) does not accept Carbon\\CarbonImmutable\|null\.$#'
-			identifier: assign.propertyType
-			count: 1
-			path: app/Services/TrackingService.php
-
-
-		-
 			message: '#^Cannot call method isFuture\(\) on string\.$#'
 			identifier: method.nonObject
 			count: 1

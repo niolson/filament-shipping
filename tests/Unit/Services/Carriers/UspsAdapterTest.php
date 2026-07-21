@@ -360,6 +360,153 @@ it('maps USPS delivered responses into delivered tracking status', function (): 
         ->and($response->deliveredAt?->toIso8601String())->toBe('2026-04-09T20:30:00+00:00');
 });
 
+it('does not record a delivery date for an out-for-delivery scan', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        TrackShipment::class => MockResponse::make([
+            [
+                'trackingNumber' => '9400111899223456789012',
+                'status' => 'Out for Delivery',
+                'statusCategory' => 'Out for Delivery',
+                'statusSummary' => 'Out for Delivery',
+                'trackingEvents' => [
+                    [
+                        'eventType' => 'Out for Delivery',
+                        'eventCode' => '59',
+                        'actionCode' => 'ON_ROUTE',
+                        'eventCity' => 'Los Angeles',
+                        'eventState' => 'CA',
+                        'eventCountry' => 'US',
+                        'GMTTimestamp' => '2026-04-09T14:00:00Z',
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_number' => '9400111899223456789012',
+    ]);
+
+    $response = $this->adapter->trackShipment($package);
+
+    // "OUT FOR DELIVERY" contains the substring "DELIVER"; it must not be
+    // mistaken for a delivery scan.
+    expect($response->success)->toBeTrue()
+        ->and($response->status)->toBe(TrackingStatus::OutForDelivery)
+        ->and($response->deliveredAt)->toBeNull();
+});
+
+it('records a delivery date for a delivered-to-agent scan', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        TrackShipment::class => MockResponse::make([
+            [
+                'trackingNumber' => '9400111899223456789012',
+                'status' => 'Delivered to Agent',
+                'statusCategory' => 'Delivered to Agent',
+                'statusSummary' => 'Delivered to Agent for Final Delivery',
+                'trackingEvents' => [
+                    [
+                        'eventType' => 'Delivered to Agent for Final Delivery',
+                        'eventCode' => '60',
+                        'actionCode' => 'DELIVERED_TO_AGENT',
+                        'eventCity' => 'Los Angeles',
+                        'eventState' => 'CA',
+                        'eventCountry' => 'US',
+                        'GMTTimestamp' => '2026-04-09T18:15:00Z',
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_number' => '9400111899223456789012',
+    ]);
+
+    $response = $this->adapter->trackShipment($package);
+
+    expect($response->success)->toBeTrue()
+        ->and($response->status)->toBe(TrackingStatus::Delivered)
+        ->and($response->deliveredAt?->toIso8601String())->toBe('2026-04-09T18:15:00+00:00');
+});
+
+it('treats a picked-up scan as delivered even without delivered status text', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        TrackShipment::class => MockResponse::make([
+            [
+                'trackingNumber' => '9400111899223456789012',
+                // No "Delivered" text anywhere; only the event code 43 marks delivery.
+                'status' => 'Picked Up',
+                'statusCategory' => 'Picked Up',
+                'statusSummary' => 'Your item was picked up at a postal facility',
+                'trackingEvents' => [
+                    [
+                        'eventType' => 'Picked Up',
+                        'eventCode' => '43',
+                        'actionCode' => 'PICKED_UP',
+                        'eventCity' => 'Los Angeles',
+                        'eventState' => 'CA',
+                        'eventCountry' => 'US',
+                        'GMTTimestamp' => '2026-04-09T16:45:00Z',
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_number' => '9400111899223456789012',
+    ]);
+
+    $response = $this->adapter->trackShipment($package);
+
+    expect($response->success)->toBeTrue()
+        ->and($response->status)->toBe(TrackingStatus::Delivered)
+        ->and($response->deliveredAt?->toIso8601String())->toBe('2026-04-09T16:45:00+00:00');
+});
+
+it('reports delivered status without a date when the delivered scan has no timestamp', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        TrackShipment::class => MockResponse::make([
+            [
+                'trackingNumber' => '9400111899223456789012',
+                'status' => 'Delivered',
+                'statusCategory' => 'Delivered',
+                'statusSummary' => 'Delivered, In/At Mailbox',
+                'trackingEvents' => [
+                    [
+                        'eventType' => 'Delivered, In/At Mailbox',
+                        'eventCode' => '01',
+                        'actionCode' => 'DELIVERED',
+                        'eventCity' => 'Los Angeles',
+                        'eventState' => 'CA',
+                        'eventCountry' => 'US',
+                        // No GMTTimestamp or eventTimestamp.
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_number' => '9400111899223456789012',
+    ]);
+
+    $response = $this->adapter->trackShipment($package);
+
+    expect($response->success)->toBeTrue()
+        ->and($response->status)->toBe(TrackingStatus::Delivered)
+        ->and($response->deliveredAt)->toBeNull();
+});
+
 it('maps USPS hold and pickup responses into exception tracking status', function (): void {
     Saloon::fake([
         '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
