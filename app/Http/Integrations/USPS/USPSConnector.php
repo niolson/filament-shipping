@@ -2,6 +2,7 @@
 
 namespace App\Http\Integrations\USPS;
 
+use App\Exceptions\Carriers\CarrierUnavailableException;
 use App\Http\Integrations\Concerns\HasCachedAuthentication;
 use App\Http\Integrations\Concerns\RetriesTransientErrors;
 use App\Http\Integrations\USPS\Requests\PaymentAuthorization;
@@ -130,7 +131,7 @@ class USPSConnector extends Connector
 
         if ($authMode === 'authorization_code') {
             if ($settings->get('sandbox_mode', false)) {
-                throw new RuntimeException('USPS is not available in sandbox mode when connected via OAuth. Disable sandbox mode to use your USPS account.');
+                throw new CarrierUnavailableException('USPS', 'USPS is not available in sandbox mode when connected via OAuth. Disable sandbox mode to use your USPS account.');
             }
 
             return static::fromOAuthToken($account);

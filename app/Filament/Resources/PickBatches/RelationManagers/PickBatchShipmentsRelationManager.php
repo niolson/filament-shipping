@@ -10,12 +10,20 @@ use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Livewire\Attributes\On;
 
 class PickBatchShipmentsRelationManager extends RelationManager
 {
     protected static string $relationship = 'pickBatchShipments';
 
     protected static ?string $title = 'Shipments';
+
+    /**
+     * Re-render the table when the batch is changed by the parent page (e.g. "Mark All Picked"),
+     * which otherwise leaves this nested Livewire component showing stale rows.
+     */
+    #[On('pick-batch-updated')]
+    public function refreshShipments(): void {}
 
     public function table(Table $table): Table
     {
@@ -80,6 +88,8 @@ class PickBatchShipmentsRelationManager extends RelationManager
                         } else {
                             Notification::make()->success()->title('Marked as picked.')->send();
                         }
+
+                        $this->dispatch('pick-batch-updated');
                     }),
             ])
             ->defaultSort('tote_code', 'asc');

@@ -7,11 +7,13 @@ use App\Enums\PackageStatus;
 use App\Enums\Role;
 use App\Enums\TrackingStatus;
 use App\Events\TrackingStatusUpdated;
+use App\Exceptions\Carriers\CarrierUnavailableException;
 use App\Models\Package;
 use App\Models\User;
 use App\Notifications\TrackingExceptionDetected;
 use App\Services\Carriers\CarrierRegistry;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Log;
 
 class TrackingService
 {
@@ -38,7 +40,20 @@ class TrackingService
             return $response;
         }
 
-        $response = $adapter->trackShipment($package);
+        try {
+            $response = $adapter->trackShipment($package);
+        } catch (CarrierUnavailableException $e) {
+            // A configuration state (e.g. sandbox mode with an OAuth account), not a
+            // failure worth a stack trace — record it on the package and move on.
+            Log::warning('Tracking skipped: carrier unavailable', [
+                'package_id' => $package->id,
+                'carrier' => $e->carrier,
+                'reason' => $e->getMessage(),
+            ]);
+
+            $response = TrackShipmentResponse::failure($e->getMessage());
+        }
+
         $this->persistResult($package, $response);
 
         return $response;
