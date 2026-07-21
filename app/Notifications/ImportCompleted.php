@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use Filament\Notifications\Notification as FilamentNotification;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Str;
 
 class ImportCompleted extends Notification
 {
@@ -34,7 +35,11 @@ class ImportCompleted extends Notification
         $body = "{$created} created, {$updated} updated";
         if ($hasErrors) {
             $errorCount = count($this->errors);
-            $body .= " — {$errorCount} ".($errorCount === 1 ? 'error' : 'errors');
+            $body .= " — {$errorCount} ".($errorCount === 1 ? 'error' : 'errors').': '.Str::limit($this->errors[0], 150);
+
+            if ($errorCount > 1) {
+                $body .= ' (+'.($errorCount - 1).' more, see shipment-import log)';
+            }
         }
 
         return FilamentNotification::make()

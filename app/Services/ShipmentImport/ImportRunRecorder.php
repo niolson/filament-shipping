@@ -69,19 +69,26 @@ class ImportRunRecorder
         $this->stats[$key]++;
     }
 
-    public function addError(string $message): void
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    public function addError(string $message, array $context = [], string $level = 'warning'): void
     {
         $this->errors[] = $message;
+
+        $this->log($level, $message, $context);
     }
 
     public function recordImportError(array $data, \Exception $exception): void
     {
-        $this->addError("Error importing shipment {$data['shipment_reference']}: ".$exception->getMessage());
-
-        $this->log('error', 'Import error', [
-            'shipment_reference' => $data['shipment_reference'] ?? 'unknown',
-            'error' => $exception->getMessage(),
-        ]);
+        $this->addError(
+            "Error importing shipment {$data['shipment_reference']}: ".$exception->getMessage(),
+            [
+                'shipment_reference' => $data['shipment_reference'] ?? 'unknown',
+                'error' => $exception->getMessage(),
+            ],
+            'error',
+        );
     }
 
     public function recordShipmentEvent(Shipment $shipment, bool $wasExisting): void
@@ -97,13 +104,14 @@ class ImportRunRecorder
 
     public function recordSourceExportFailure(string $sourceRecordId, array $data, \Exception $exception): void
     {
-        $this->addError("Error marking shipment {$sourceRecordId} as exported: ".$exception->getMessage());
-
-        $this->log('warning', 'Failed to mark shipment as exported', [
-            'shipment_reference' => $data['shipment_reference'] ?? $sourceRecordId,
-            'source_record_id' => $sourceRecordId,
-            'error' => $exception->getMessage(),
-        ]);
+        $this->addError(
+            "Error marking shipment {$sourceRecordId} as exported: ".$exception->getMessage(),
+            [
+                'shipment_reference' => $data['shipment_reference'] ?? $sourceRecordId,
+                'source_record_id' => $sourceRecordId,
+                'error' => $exception->getMessage(),
+            ],
+        );
     }
 
     public function completed(float $duration): ImportResult

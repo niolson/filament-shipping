@@ -1014,6 +1014,36 @@ it('returns an error result and notifies admins when fetchShipments throws', fun
     });
 });
 
+it('logs row validation errors instead of only recording them silently', function (): void {
+    Log::shouldReceive('channel')
+        ->with(config('shipment-import.logging.channel', 'stack'))
+        ->andReturnSelf();
+    Log::shouldReceive('log')
+        ->withArgs(fn (string $level, string $message): bool => $level === 'warning' && str_contains($message, 'Missing city'))
+        ->once();
+    Log::shouldReceive('log')
+        ->withArgs(fn (string $level): bool => $level === 'info');
+
+    $source = fakeSource(collect([
+        [
+            'shipment_reference' => 'ORD-INVALID-001',
+            'first_name' => 'Missing',
+            'last_name' => 'City',
+            'address1' => '123 Main St',
+            'city' => '',
+            'state_or_province' => 'WA',
+            'postal_code' => '98101',
+            'country' => 'US',
+        ],
+    ]));
+
+    $result = ShipmentImportService::forSource($source, $this->dataSource)->import();
+
+    expect($result->hasErrors())->toBeTrue()
+        ->and($result->errors[0])->toContain('Missing city')
+        ->and(Shipment::where('shipment_reference', 'ORD-INVALID-001')->exists())->toBeFalse();
+});
+
 // ── Existing shipment behavior (on_existing) ──────────────────────────────────
 
 function onExistingRow(array $overrides = []): array

@@ -114,7 +114,13 @@ class ShipmentImportService
                 $prepared = $this->rowPreparer->prepare($data, $this->importSource, $clientOverride);
 
                 if (! $prepared->isValid()) {
-                    $this->runRecorder->addError("Validation errors for shipment {$data['shipment_reference']}: ".implode(', ', $prepared->errors));
+                    $this->runRecorder->addError(
+                        "Validation errors for shipment {$data['shipment_reference']}: ".implode(', ', $prepared->errors),
+                        [
+                            'shipment_reference' => $data['shipment_reference'] ?? 'unknown',
+                            'errors' => $prepared->errors,
+                        ],
+                    );
 
                     continue;
                 }
