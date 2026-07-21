@@ -13,10 +13,12 @@ use App\Enums\Role;
 use App\Enums\ServiceCapability;
 use App\Enums\TrackingStatus;
 use App\Events\TrackingStatusUpdated;
+use App\Exceptions\Carriers\CarrierUnavailableException;
 use App\Models\Package;
 use App\Models\User;
 use App\Notifications\TrackingExceptionDetected;
 use App\Services\Carriers\CarrierRegistry;
+use App\Services\Carriers\FakeCarrierAdapter;
 use App\Services\TrackingService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -324,4 +326,36 @@ it('notifies operational users when a package enters exception or is stuck in pr
     app(TrackingService::class)->refreshPackage($package);
 
     Notification::assertSentTo([$admin, $manager], TrackingExceptionDetected::class);
+});
+
+it('records the reason instead of throwing when the carrier is unavailable', function (): void {
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_status' => TrackingStatus::PreTransit,
+    ]);
+
+    $adapter = new class('USPS') extends FakeCarrierAdapter
+    {
+        public function supportsTracking(): bool
+        {
+            return true;
+        }
+
+        public function trackShipment(Package $package): TrackShipmentResponse
+        {
+            throw new CarrierUnavailableException('USPS', 'USPS is not available in sandbox mode when connected via OAuth.');
+        }
+    };
+
+    app(CarrierRegistry::class)->registerInstance('USPS', $adapter);
+
+    $response = app(TrackingService::class)->refreshPackage($package);
+
+    $package->refresh();
+
+    expect($response->success)->toBeFalse()
+        ->and($response->message)->toContain('sandbox mode')
+        ->and($package->tracking_status)->toBe(TrackingStatus::PreTransit)
+        ->and($package->tracking_checked_at)->not->toBeNull()
+        ->and(data_get($package->tracking_details, 'message'))->toContain('sandbox mode');
 });

@@ -1,10 +1,12 @@
 <?php
 
+use App\Exceptions\Carriers\CarrierUnavailableException;
 use App\Http\Integrations\USPS\Requests\Address;
 use App\Http\Integrations\USPS\Requests\Label;
 use App\Http\Integrations\USPS\Requests\PaymentAuthorization;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Http\Integrations\USPS\USPSConnector;
+use App\Models\CarrierAccount;
 use App\Models\Setting;
 use App\Services\SettingsService;
 use GuzzleHttp\Psr7\Response;
@@ -254,4 +256,16 @@ it('builds label request with address data', function (): void {
             && $body['fromAddress']['city'] === 'Seattle'
             && $body['packageDescription']['mailClass'] === 'USPS_GROUND_ADVANTAGE';
     });
+});
+
+it('throws a carrier unavailable exception for OAuth accounts in sandbox mode', function (): void {
+    Setting::create(['key' => 'sandbox_mode', 'value' => '1', 'type' => 'boolean', 'group' => 'testing']);
+    app(SettingsService::class)->clearCache();
+
+    $account = CarrierAccount::factory()->usps()->create([
+        'secret_credentials' => ['auth_mode' => 'authorization_code'],
+    ]);
+
+    expect(fn () => USPSConnector::getAuthenticatedConnector($account))
+        ->toThrow(CarrierUnavailableException::class);
 });
