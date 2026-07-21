@@ -198,7 +198,7 @@ it('reports a carrier error when shipping raises a request exception', function 
     $adapter = Mockery::mock(CarrierAdapterInterface::class);
     $adapter->shouldReceive('createShipment')
         ->once()
-        ->andThrow(new class(Mockery::mock(Response::class), 'bad request') extends RequestException {});
+        ->andThrow(new RequestException(Mockery::mock(Response::class), 'bad request'));
 
     app(CarrierRegistry::class)->registerInstance('MockCarrier', $adapter);
 

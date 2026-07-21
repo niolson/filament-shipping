@@ -1854,25 +1854,43 @@ parameters:
 		-
 			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
 			identifier: method.notFound
-			count: 2
+			count: 5
+			path: tests/Feature/PackageLabelWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$response of class Saloon\\Exceptions\\Request\\Statuses\\RequestTimeOutException constructor expects Saloon\\Http\\Response, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 1
 			path: tests/Feature/PackageLabelWorkflowTest.php
 
 		-
 			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
 			identifier: argument.type
-			count: 2
+			count: 5
 			path: tests/Feature/PackageLabelWorkflowTest.php
 
 		-
 			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
 			identifier: method.notFound
-			count: 12
+			count: 17
+			path: tests/Feature/PackageShippingWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$response of class Saloon\\Exceptions\\Request\\RequestException constructor expects Saloon\\Http\\Response, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Feature/PackageShippingWorkflowTest.php
+
+		-
+			message: '#^Parameter \#1 \$response of class Saloon\\Exceptions\\Request\\Statuses\\RequestTimeOutException constructor expects Saloon\\Http\\Response, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 1
 			path: tests/Feature/PackageShippingWorkflowTest.php
 
 		-
 			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
 			identifier: argument.type
-			count: 6
+			count: 11
 			path: tests/Feature/PackageShippingWorkflowTest.php
 
 		-
