@@ -1,4 +1,14 @@
 #!/bin/sh
+echo "Running static analysis before push..."
+
+vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "phpstan found errors. Push blocked."
+  echo "Run 'vendor/bin/phpstan analyse' to review."
+  exit 1
+fi
+
 echo "Running security audits before push..."
 
 composer audit --no-interaction 2>&1
