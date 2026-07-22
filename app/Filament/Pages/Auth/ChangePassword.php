@@ -2,9 +2,11 @@
 
 namespace App\Filament\Pages\Auth;
 
+use App\Filament\Components\PasswordPolicyChecklist;
 use App\Services\PasswordPolicyService;
 use BackedEnum;
 use Closure;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -58,6 +60,7 @@ class ChangePassword extends Page implements HasForms
                     ->required()
                     ->rules(['confirmed', $policy->rule(), fn (): Closure => $policy->historyRule($user)])
                     ->different('current_password'),
+                PasswordPolicyChecklist::make(),
                 TextInput::make('password_confirmation')
                     ->label('Confirm New Password')
                     ->password()
@@ -73,6 +76,11 @@ class ChangePassword extends Page implements HasForms
         $user = auth()->user();
         $user->password = Hash::make($data['password']);
         $user->save();
+
+        // Keep the current session authenticated. The panel runs AuthenticateSession,
+        // which logs the user out on the next request when the stored password hash no
+        // longer matches. Re-store the new hash so the change doesn't bounce them to login.
+        session()->put('password_hash_'.Filament::getAuthGuard(), $user->getAuthPassword());
 
         session()->forget('password_expired');
 

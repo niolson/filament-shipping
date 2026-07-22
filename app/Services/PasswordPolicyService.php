@@ -53,6 +53,43 @@ class PasswordPolicyService
     }
 
     /**
+     * The configured minimum password length.
+     */
+    public function minLength(): int
+    {
+        return (int) $this->settings->get('password_min_length', self::DEFAULT_MIN_LENGTH);
+    }
+
+    /**
+     * The enforced policy requirements, as display descriptors for the live
+     * password checklist. Each `key` maps to a client-side check in the
+     * password-policy-checklist Blade view.
+     *
+     * @return list<array{key: string, label: string}>
+     */
+    public function requirements(): array
+    {
+        $requirements = [[
+            'key' => 'min',
+            'label' => "At least {$this->minLength()} characters",
+        ]];
+
+        if ($this->settings->get('password_require_mixed_case', self::DEFAULT_REQUIRE_MIXED_CASE)) {
+            $requirements[] = ['key' => 'mixed', 'label' => 'Upper and lower case letters'];
+        }
+
+        if ($this->settings->get('password_require_numbers', self::DEFAULT_REQUIRE_NUMBERS)) {
+            $requirements[] = ['key' => 'number', 'label' => 'At least one number'];
+        }
+
+        if ($this->settings->get('password_require_symbols', self::DEFAULT_REQUIRE_SYMBOLS)) {
+            $requirements[] = ['key' => 'symbol', 'label' => 'At least one symbol'];
+        }
+
+        return $requirements;
+    }
+
+    /**
      * How many of a user's most recent passwords (including their current one)
      * may not be reused.
      */

@@ -6,6 +6,7 @@ use App\Filament\Auth\EmailAuthenticationForEmailUsers;
 use App\Filament\AvatarProviders\LocalAvatarProvider;
 use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Login;
+use App\Http\Middleware\EnsurePasswordNotExpired;
 use App\Http\Middleware\EnsureSetupComplete;
 use App\Services\SettingsService;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
@@ -119,6 +120,14 @@ class AppPanelProvider extends PanelProvider
             ->authMiddleware([
                 Authenticate::class,
                 EnsureSetupComplete::class,
+                EnsurePasswordNotExpired::class,
+            ])
+            // Replay the expired-password guard on Livewire updates too. Without this,
+            // a user with an expired password could still fire actions from an existing
+            // component snapshot. Livewire reconstructs the original page request, so the
+            // change-password route stays exempt without opening every Livewire endpoint.
+            ->persistentMiddleware([
+                EnsurePasswordNotExpired::class,
             ]);
     }
 }

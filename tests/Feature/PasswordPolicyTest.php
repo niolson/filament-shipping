@@ -19,6 +19,29 @@ it('enforces the tightened default policy: 12 chars incl. a symbol', function ()
     expect(Validator::make(['password' => 'Abcdef123456!'], ['password' => $rule])->fails())->toBeFalse();
 });
 
+it('lists the enforced requirements as display descriptors', function (): void {
+    $requirements = app(PasswordPolicyService::class)->requirements();
+
+    expect(collect($requirements)->pluck('key')->all())
+        ->toBe(['min', 'mixed', 'number', 'symbol']);
+
+    expect(collect($requirements)->firstWhere('key', 'min')['label'])
+        ->toBe('At least 12 characters');
+});
+
+it('omits requirements that are disabled in settings', function (): void {
+    $settings = app(SettingsService::class);
+    $settings->set('password_require_mixed_case', false, 'boolean');
+    $settings->set('password_require_numbers', false, 'boolean');
+    $settings->set('password_require_symbols', false, 'boolean');
+    $settings->set('password_min_length', 8, 'integer');
+
+    $requirements = app(PasswordPolicyService::class)->requirements();
+
+    expect(collect($requirements)->pluck('key')->all())->toBe(['min'])
+        ->and($requirements[0]['label'])->toBe('At least 8 characters');
+});
+
 it('expires a local password older than the default 90-day window', function (): void {
     $service = app(PasswordPolicyService::class);
 

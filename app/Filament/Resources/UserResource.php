@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Enums\Role;
+use App\Filament\Components\PasswordPolicyChecklist;
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\Location;
 use App\Models\User;
@@ -52,6 +53,7 @@ class UserResource extends Resource
                     ])
                     ->maxLength(255)
                     ->helperText('Leave empty for SSO-only users (no local password).'),
+                PasswordPolicyChecklist::make(),
                 Forms\Components\Select::make('role')
                     ->options(Role::class)
                     ->required(),
