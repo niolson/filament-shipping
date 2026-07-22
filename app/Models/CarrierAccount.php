@@ -214,6 +214,8 @@ class CarrierAccount extends Model
         Cache::forget("usps_payment_authorization_token:{$this->id}");
         Cache::forget("usps_oauth_token:{$this->id}");
         Cache::forget("usps_authenticator:{$this->id}");
+        // Detected CONTRACT/RETAIL pricing tier — must be re-probed after a credential change.
+        Cache::forget("usps_pricing_type:{$this->id}");
 
         // FedEx: global caches + per-account child-key cache (keyed by child_key hash)
         Cache::forget('fedex_authenticator');

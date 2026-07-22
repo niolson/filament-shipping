@@ -144,14 +144,78 @@ class UspsAdapter implements CarrierAdapterInterface
     }
 
     /**
-     * Cache key for the USPS pricing type (CONTRACT or RETAIL).
+     * Cache key prefix for the USPS pricing type (CONTRACT or RETAIL).
      * Falls back to RETAIL and caches that if the account lacks EPS contract access.
      */
     private const PRICING_TYPE_CACHE_KEY = 'usps_pricing_type';
 
-    private function getPricingType(): string
+    /**
+     * Per-account cache key for the resolved pricing type. Scoping by account keeps
+     * one account's RETAIL fallback from poisoning the tier shown for another.
+     */
+    private function pricingTypeCacheKey(?CarrierAccount $account): string
     {
-        return Cache::get(self::PRICING_TYPE_CACHE_KEY, 'CONTRACT');
+        return $account ? self::PRICING_TYPE_CACHE_KEY.":{$account->id}" : self::PRICING_TYPE_CACHE_KEY;
+    }
+
+    private function getPricingType(?CarrierAccount $account = null): string
+    {
+        return Cache::get($this->pricingTypeCacheKey($account), 'CONTRACT');
+    }
+
+    /**
+     * Read the last detected pricing type for an account without probing the API.
+     * Returns 'CONTRACT', 'RETAIL', or null when the account has never been tested.
+     */
+    public function cachedPricingType(CarrierAccount $account): ?string
+    {
+        return Cache::get($this->pricingTypeCacheKey($account));
+    }
+
+    /**
+     * Probe whether an account has USPS CONTRACT (negotiated) pricing access.
+     *
+     * Authenticates with the account's saved credentials (OAuth or client credentials),
+     * sends a CONTRACT rate probe, and caches the result per account. Returns 'CONTRACT'
+     * when negotiated rates are available or 'RETAIL' when the account lacks EPS contract
+     * access (403). Authentication failures and other transport errors are thrown so the
+     * caller can distinguish "no contract" from "credentials broken".
+     */
+    public function detectPricingType(CarrierAccount $account): string
+    {
+        $connector = USPSConnector::getAuthenticatedConnector($account);
+
+        $request = new ShippingOptions;
+        $request->body()->set([
+            'pricingOptions' => [[
+                'priceType' => 'CONTRACT',
+                'paymentAccount' => [
+                    'accountType' => 'EPS',
+                    'accountNumber' => $account->credential('eps_account') ?? $account->credential('crid'),
+                ],
+            ]],
+            'originZIPCode' => '90210',
+            'destinationZIPCode' => '10001',
+            'packageDescription' => [
+                'weight' => 1.0,
+                'length' => 10,
+                'width' => 8,
+                'height' => 4,
+                'mailClass' => 'ALL_OUTBOUND',
+                'mailingDate' => date('Y-m-d'),
+            ],
+        ]);
+
+        try {
+            $connector->send($request);
+            $pricingType = 'CONTRACT';
+        } catch (ForbiddenException) {
+            $pricingType = 'RETAIL';
+        }
+
+        Cache::put($this->pricingTypeCacheKey($account), $pricingType, now()->addDays(7));
+
+        return $pricingType;
     }
 
     public function getRates(RateRequest $request, array $serviceCodes): Collection
@@ -167,9 +231,9 @@ class UspsAdapter implements CarrierAdapterInterface
         try {
             $response = $connector->send($apiRequest);
         } catch (ForbiddenException $e) {
-            if ($this->getPricingType() === 'CONTRACT') {
+            if ($this->getPricingType($account) === 'CONTRACT') {
                 logger()->warning('USPS CONTRACT pricing returned 403 — falling back to RETAIL and retrying');
-                Cache::put(self::PRICING_TYPE_CACHE_KEY, 'RETAIL', now()->addDays(7));
+                Cache::put($this->pricingTypeCacheKey($account), 'RETAIL', now()->addDays(7));
                 $apiRequest = $this->buildRateApiRequest($request, $account);
                 $response = $connector->send($apiRequest);
             } else {
@@ -275,7 +339,7 @@ class UspsAdapter implements CarrierAdapterInterface
         $package = $request->packages[0];
         $isInternational = $request->destinationCountry !== 'US';
 
-        $pricingType = $this->getPricingType();
+        $pricingType = $this->getPricingType($account);
         $pricingOption = ['priceType' => $pricingType];
 
         if ($pricingType === 'CONTRACT') {

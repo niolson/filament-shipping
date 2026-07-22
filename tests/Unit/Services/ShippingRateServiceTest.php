@@ -10,6 +10,7 @@ use App\Http\Integrations\Fedex\Requests\Rates as FedexRates;
 use App\Http\Integrations\Ups\Requests\Rate as UpsRate;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Models\Carrier;
+use App\Models\CarrierAccount;
 use App\Models\CarrierService;
 use App\Models\Package;
 use App\Models\PackageItem;
@@ -618,7 +619,8 @@ it('throws exception when all carriers are inactive', function (): void {
 });
 
 it('falls back to RETAIL pricing when CONTRACT returns 403', function (): void {
-    Cache::forget('usps_pricing_type');
+    $account = CarrierAccount::where('carrier_id', $this->uspsCarrier->id)->firstOrFail();
+    Cache::forget("usps_pricing_type:{$account->id}");
 
     $uspsRateResponse = [
         'pricingOptions' => [[
@@ -664,7 +666,7 @@ it('falls back to RETAIL pricing when CONTRACT returns 403', function (): void {
     expect($rates)->toHaveCount(1)
         ->and($rates[0]->price)->toBe(9.00);
 
-    expect(Cache::get('usps_pricing_type'))->toBe('RETAIL');
+    expect(Cache::get("usps_pricing_type:{$account->id}"))->toBe('RETAIL');
 });
 
 it('returns rates from healthy carriers when one carrier rate fetch fails', function (): void {

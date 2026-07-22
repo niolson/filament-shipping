@@ -148,4 +148,28 @@ describe('CarrierAccount cache invalidation', function (): void {
 
         expect(Cache::has("usps_payment_authorization_token:{$account2->id}"))->toBeTrue();
     });
+
+    it('clears the detected pricing tier when USPS credentials change', function (): void {
+        $usps = Carrier::factory()->usps()->create();
+        $account = CarrierAccount::factory()->usps()->create(['carrier_id' => $usps->id]);
+
+        $cacheKey = "usps_pricing_type:{$account->id}";
+        Cache::put($cacheKey, 'RETAIL', 3600);
+
+        $account->update(['secret_credentials' => ['client_id' => 'new-id', 'client_secret' => 'new-secret']]);
+
+        expect(Cache::has($cacheKey))->toBeFalse();
+    });
+
+    it('clears the detected pricing tier when the account is deleted', function (): void {
+        $usps = Carrier::factory()->usps()->create();
+        $account = CarrierAccount::factory()->usps()->create(['carrier_id' => $usps->id]);
+
+        $cacheKey = "usps_pricing_type:{$account->id}";
+        Cache::put($cacheKey, 'CONTRACT', 3600);
+
+        $account->delete();
+
+        expect(Cache::has($cacheKey))->toBeFalse();
+    });
 });
