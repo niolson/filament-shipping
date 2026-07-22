@@ -6,6 +6,7 @@ use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Client;
 use App\Models\Location;
+use App\Services\Carriers\UspsAdapter;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
 use Carbon\Carbon;
@@ -61,6 +62,11 @@ class CarrierAccountForm
                         TextEntry::make('usps_oauth_status')
                             ->label('OAuth Status')
                             ->state(fn (?CarrierAccount $record) => static::renderAccountOauthStatus($record))
+                            ->columnSpanFull(),
+                        TextEntry::make('usps_pricing_tier')
+                            ->label('Pricing Tier')
+                            ->state(fn (?CarrierAccount $record) => static::renderUspsPricingTier($record))
+                            ->helperText('Use the "Test USPS Connection" action above to check whether this account has negotiated (CONTRACT) rates.')
                             ->columnSpanFull(),
                         TextInput::make('credentials.crid')
                             ->label('CRID')
@@ -242,5 +248,18 @@ class CarrierAccountForm
         }
 
         return new HtmlString('<span class="text-gray-400 dark:text-gray-500">Not connected</span>');
+    }
+
+    private static function renderUspsPricingTier(?CarrierAccount $record): HtmlString
+    {
+        if (! $record?->exists) {
+            return new HtmlString('<span class="text-gray-400 dark:text-gray-500">Save and test the account to detect its pricing tier.</span>');
+        }
+
+        return match (app(UspsAdapter::class)->cachedPricingType($record)) {
+            'CONTRACT' => new HtmlString('<span class="text-success-600 dark:text-success-400 font-medium">CONTRACT</span> — negotiated rates'),
+            'RETAIL' => new HtmlString('<span class="text-warning-600 dark:text-warning-400 font-medium">RETAIL</span> — standard rates (no EPS contract access)'),
+            default => new HtmlString('<span class="text-gray-400 dark:text-gray-500">Not tested yet</span>'),
+        };
     }
 }

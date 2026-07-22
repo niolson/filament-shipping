@@ -1193,3 +1193,67 @@ it('includes mapped extra services in the rating request so quotes carry surchar
             && ($description['packageValue'] ?? null) === 100.00;
     });
 });
+
+/**
+ * Build an extra USPS account with auth credentials but without the global scope
+ * that createUspsAccount() adds (a second global scope would violate the unique
+ * constraint). detectPricingType() takes the account directly, so no scope is needed.
+ */
+function makeUspsPricingAccount(): CarrierAccount
+{
+    return CarrierAccount::factory()->usps()->create([
+        'carrier_id' => Carrier::firstOrCreate(['name' => 'USPS'])->id,
+        'secret_credentials' => ['client_id' => 'test_client_id', 'client_secret' => 'test_client_secret'],
+    ]);
+}
+
+it('detects CONTRACT pricing when the account has EPS contract access', function (): void {
+    $account = makeUspsPricingAccount();
+
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => MockResponse::make(['pricingOptions' => [[]]]),
+    ]);
+
+    expect($this->adapter->detectPricingType($account))->toBe('CONTRACT')
+        ->and($this->adapter->cachedPricingType($account))->toBe('CONTRACT');
+
+    Saloon::assertSent(function ($request): bool {
+        if (! $request instanceof ShippingOptions) {
+            return false;
+        }
+
+        return ($request->body()->all()['pricingOptions'][0]['priceType'] ?? null) === 'CONTRACT';
+    });
+});
+
+it('falls back to RETAIL pricing when the account lacks EPS contract access', function (): void {
+    $account = makeUspsPricingAccount();
+
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => MockResponse::make(['error' => 'forbidden'], 403),
+    ]);
+
+    expect($this->adapter->detectPricingType($account))->toBe('RETAIL')
+        ->and($this->adapter->cachedPricingType($account))->toBe('RETAIL');
+});
+
+it('scopes the detected pricing tier per account', function (): void {
+    $contractAccount = makeUspsPricingAccount();
+    $retailAccount = makeUspsPricingAccount();
+
+    expect($this->adapter->cachedPricingType($contractAccount))->toBeNull()
+        ->and($this->adapter->cachedPricingType($retailAccount))->toBeNull();
+
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => MockResponse::make(['error' => 'forbidden'], 403),
+    ]);
+
+    $this->adapter->detectPricingType($retailAccount);
+
+    // The RETAIL fallback on one account must not poison the other account's tier.
+    expect($this->adapter->cachedPricingType($retailAccount))->toBe('RETAIL')
+        ->and($this->adapter->cachedPricingType($contractAccount))->toBeNull();
+});

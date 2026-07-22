@@ -4,6 +4,7 @@ namespace App\Filament\Resources\CarrierAccounts\Pages;
 
 use App\Filament\Resources\CarrierAccounts\CarrierAccountResource;
 use App\Filament\Resources\CarrierAccounts\Concerns\HasFedexRegistration;
+use App\Services\Carriers\UspsAdapter;
 use App\Services\OAuthService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -48,6 +49,13 @@ class EditCarrierAccount extends EditRecord
                     $url = app(OAuthService::class)->initiateAuthorization('usps', $this->record->id);
                     $this->redirect($url, navigate: false);
                 }),
+
+            Action::make('usps_test_connection')
+                ->label('Test USPS Connection')
+                ->icon('heroicon-o-signal')
+                ->color('gray')
+                ->visible(fn () => $this->record->carrier?->name === 'USPS')
+                ->action(fn () => $this->testUspsConnection()),
 
             Action::make('usps_disconnect')
                 ->label('Disconnect USPS')
@@ -147,6 +155,35 @@ class EditCarrierAccount extends EditRecord
         }
 
         return $data;
+    }
+
+    public function testUspsConnection(): void
+    {
+        try {
+            $pricingType = app(UspsAdapter::class)->detectPricingType($this->record);
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->danger()
+                ->title('USPS connection failed')
+                ->body($e->getMessage())
+                ->send();
+
+            return;
+        }
+
+        if ($pricingType === 'CONTRACT') {
+            Notification::make()
+                ->success()
+                ->title('USPS connected — CONTRACT pricing')
+                ->body('Negotiated rates are available for this account.')
+                ->send();
+        } else {
+            Notification::make()
+                ->warning()
+                ->title('USPS connected — RETAIL pricing')
+                ->body('Authentication succeeded, but this account does not have EPS contract access. Standard retail rates will be used. Contact USPS to enable negotiated rates.')
+                ->send();
+        }
     }
 
     private function isBrokerConfigured(): bool
