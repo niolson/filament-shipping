@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Auth;
 
+use App\Filament\Components\PasswordPolicyChecklist;
 use App\Services\PasswordPolicyService;
 use BackedEnum;
 use Closure;
@@ -59,6 +60,7 @@ class ChangePassword extends Page implements HasForms
                     ->required()
                     ->rules(['confirmed', $policy->rule(), fn (): Closure => $policy->historyRule($user)])
                     ->different('current_password'),
+                PasswordPolicyChecklist::make(),
                 TextInput::make('password_confirmation')
                     ->label('Confirm New Password')
                     ->password()

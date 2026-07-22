@@ -9,6 +9,16 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
+it('shows the live password policy checklist on the change-password page', function (): void {
+    $user = User::factory()->create(['password' => Hash::make('CurrentPass123!456')]);
+    $this->actingAs($user)->withSession(['password_expired' => true]);
+
+    Livewire::test(ChangePassword::class)
+        ->assertSee('Password must include:')
+        ->assertSee('At least 12 characters')
+        ->assertSee('At least one number');
+});
+
 it('enforces the password policy on the forced change-password page', function (): void {
     $user = User::factory()->create(['password' => Hash::make('CurrentPass123!456')]);
     $this->actingAs($user)->withSession(['password_expired' => true]);

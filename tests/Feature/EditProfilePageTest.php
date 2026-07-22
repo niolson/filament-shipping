@@ -16,6 +16,15 @@ it('renders the profile page inside a section', function (): void {
         ->assertSeeHtml('fi-section-content-ctn');
 });
 
+it('shows the live password policy checklist on the profile page', function (): void {
+    $this->actingAs(User::factory()->admin()->create());
+
+    Livewire::test(EditProfile::class)
+        ->assertSee('Password must include:')
+        ->assertSee('At least 12 characters')
+        ->assertSee('At least one symbol');
+});
+
 it('enforces the password policy when changing password from the profile page', function (): void {
     $user = User::factory()->admin()->create(['email' => 'admin@example.test', 'password' => Hash::make('CurrentPass123!456')]);
     $this->actingAs($user);

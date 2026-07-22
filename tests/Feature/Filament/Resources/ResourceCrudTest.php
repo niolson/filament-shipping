@@ -386,6 +386,21 @@ it('can render User edit page', function (): void {
     Livewire::test(EditUser::class, ['record' => $record->id])->assertSuccessful();
 });
 
+it('shows the live password policy checklist on the User create page', function (): void {
+    Livewire::test(CreateUser::class)
+        ->assertSee('Password must include:')
+        ->assertSee('At least 12 characters')
+        ->assertSee('At least one symbol');
+});
+
+it('shows the live password policy checklist on the User edit page', function (): void {
+    $record = User::factory()->create();
+
+    Livewire::test(EditUser::class, ['record' => $record->id])
+        ->assertSee('Password must include:')
+        ->assertSee('At least 12 characters');
+});
+
 it('can create a User', function (): void {
     Livewire::test(CreateUser::class)
         ->fillForm([

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Auth;
 
+use App\Filament\Components\PasswordPolicyChecklist;
 use App\Models\User;
 use App\Services\PasswordPolicyService;
 use Closure;
@@ -44,6 +45,7 @@ class EditProfile extends BaseEditProfile
             ->dehydrated(fn (#[SensitiveParameter] ?string $state): bool => filled($state))
             ->dehydrateStateUsing(fn (#[SensitiveParameter] string $state): string => Hash::make($state))
             ->live(debounce: 500)
+            ->belowContent(PasswordPolicyChecklist::make())
             ->same('passwordConfirmation');
     }
 }
