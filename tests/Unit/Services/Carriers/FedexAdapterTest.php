@@ -847,6 +847,53 @@ it('maps a FedEx tracking response into normalized tracking data', function (): 
         ->and($response->events[0]->location)->toBe('Memphis, TN, US');
 });
 
+it('defers to the FedEx summary delivery timestamp when the delivered scan event has no timestamp', function (): void {
+    // Aligns FedEx with the bug #1 fix: a delivered scan event (statusCode DL)
+    // that carries no parseable timestamp must not short-circuit deliveredAt to
+    // null — the shared resolveDeliveredAt template falls through to the summary
+    // fallback (latestStatusDetail + dateAndTimes).
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        TrackShipment::class => MockResponse::make([
+            'output' => [
+                'completeTrackResults' => [
+                    [
+                        'trackResults' => [
+                            [
+                                'latestStatusDetail' => [
+                                    'code' => 'DL',
+                                    'description' => 'Delivered',
+                                ],
+                                'dateAndTimes' => [
+                                    ['dateTime' => '2026-04-14T13:45:00Z'],
+                                ],
+                                // Delivered scan event, but no date -> null timestamp.
+                                'scanEvents' => [
+                                    [
+                                        'eventDescription' => 'Delivered',
+                                        'derivedStatusCode' => 'DL',
+                                        'derivedStatus' => 'DELIVERED',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->fedex()->create([
+        'carrier' => 'FedEx',
+        'tracking_number' => '794644790139',
+    ]);
+
+    $response = $this->adapter->trackShipment($package);
+
+    expect($response->status)->toBe(TrackingStatus::Delivered)
+        ->and($response->deliveredAt?->format('Y-m-d H:i:s'))->toBe('2026-04-14 13:45:00');
+});
+
 it('maps FedEx delivery exceptions and returns into tracking statuses', function (): void {
     Saloon::fake([
         '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),

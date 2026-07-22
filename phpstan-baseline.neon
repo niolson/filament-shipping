@@ -1484,12 +1484,6 @@ parameters:
 			path: app/Services/Carriers/FedexAdapter.php
 
 		-
-			message: '#^Call to function is_array\(\) with array\<mixed\> will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: app/Services/Carriers/UpsAdapter.php
-
-		-
 			message: '#^Expression on left side of \?\? is not nullable\.$#'
 			identifier: nullCoalesce.expr
 			count: 1
@@ -1520,11 +1514,6 @@ parameters:
 			count: 2
 			path: app/Services/Carriers/UspsAdapter.php
 
-		-
-			message: '#^Call to function is_array\(\) with array\<mixed\> will always evaluate to true\.$#'
-			identifier: function.alreadyNarrowedType
-			count: 1
-			path: app/Services/Carriers/UspsAdapter.php
 
 		-
 			message: '#^Expression on left side of \?\? is not nullable\.$#'

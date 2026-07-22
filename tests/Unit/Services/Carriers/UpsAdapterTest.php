@@ -246,6 +246,113 @@ it('maps UPS delivered responses into delivered tracking status', function (): v
         ->and($response->deliveredAt?->format('Y-m-d H:i:s'))->toBe('2026-04-14 13:45:00');
 });
 
+it('falls back to the UPS summary delivery date when no delivered scan event exists', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        TrackShipment::class => MockResponse::make([
+            'trackResponse' => [
+                'shipment' => [
+                    [
+                        'package' => [
+                            [
+                                'currentStatus' => [
+                                    'description' => 'Delivered',
+                                    'simplifiedTextDescription' => 'Delivered',
+                                    'statusCode' => '003',
+                                    'type' => 'D',
+                                ],
+                                'deliveryDate' => [
+                                    ['type' => 'DEL', 'date' => '20260414'],
+                                ],
+                                'deliveryTime' => [
+                                    'type' => 'DEL',
+                                    'endTime' => '134500',
+                                ],
+                                // Only a non-delivered scan event: deliveredAt must
+                                // come from the summary deliveryDate[DEL] fallback.
+                                'activity' => [
+                                    [
+                                        'date' => '20260413',
+                                        'time' => '090000',
+                                        'status' => [
+                                            'description' => 'Origin Scan',
+                                            'statusCode' => 'OR',
+                                            'type' => 'I',
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'UPS',
+        'tracking_number' => '1Z999AA10123456785',
+    ]);
+
+    $response = $this->adapter->trackShipment($package);
+
+    expect($response->status)->toBe(TrackingStatus::Delivered)
+        ->and($response->deliveredAt?->format('Y-m-d H:i:s'))->toBe('2026-04-14 13:45:00');
+});
+
+it('defers to the UPS summary delivery date when the delivered scan event has no timestamp', function (): void {
+    // Aligns UPS with the bug #1 fix: a delivered scan event that carries no
+    // parseable timestamp must not short-circuit deliveredAt to null — the
+    // shared resolveDeliveredAt template falls through to the summary fallback.
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        TrackShipment::class => MockResponse::make([
+            'trackResponse' => [
+                'shipment' => [
+                    [
+                        'package' => [
+                            [
+                                'currentStatus' => [
+                                    'description' => 'Delivered',
+                                    'statusCode' => '003',
+                                    'type' => 'D',
+                                ],
+                                'deliveryDate' => [
+                                    ['type' => 'DEL', 'date' => '20260414'],
+                                ],
+                                'deliveryTime' => [
+                                    'type' => 'DEL',
+                                    'endTime' => '134500',
+                                ],
+                                // Delivered scan event, but no date/time -> null timestamp.
+                                'activity' => [
+                                    [
+                                        'status' => [
+                                            'description' => 'Delivered',
+                                            'statusCode' => 'DEL',
+                                            'type' => 'D',
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'UPS',
+        'tracking_number' => '1Z999AA10123456786',
+    ]);
+
+    $response = $this->adapter->trackShipment($package);
+
+    expect($response->status)->toBe(TrackingStatus::Delivered)
+        ->and($response->deliveredAt?->format('Y-m-d H:i:s'))->toBe('2026-04-14 13:45:00');
+});
+
 it('maps UPS exception responses into exception tracking status', function (): void {
     Saloon::fake([
         '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),

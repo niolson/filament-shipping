@@ -21,12 +21,13 @@ use App\Http\Integrations\Fedex\Requests\CancelShipment as CancelShipmentRequest
 use App\Http\Integrations\Fedex\Requests\CreateShipment;
 use App\Http\Integrations\Fedex\Requests\Rates;
 use App\Http\Integrations\Fedex\Requests\TrackShipment;
-use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\Package;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\Carriers\Concerns\HasSaturdayDelivery;
+use App\Services\Carriers\Concerns\ResolvesCarrierAccount;
+use App\Services\Carriers\Concerns\ResolvesDeliveredAt;
 use App\Services\SettingsService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -38,15 +39,8 @@ class FedexAdapter implements CarrierAdapterInterface
 {
     use HasDefaultServiceCapabilities;
     use HasSaturdayDelivery;
-
-    private function resolveAccount(?int $locationId, ?int $clientId = null): ?CarrierAccount
-    {
-        $carrierId = Carrier::where('name', 'FedEx')->value('id');
-
-        return $carrierId
-            ? CarrierAccount::resolveForShipment($carrierId, $locationId, $clientId)->first()
-            : null;
-    }
+    use ResolvesCarrierAccount;
+    use ResolvesDeliveredAt;
 
     private function resolveConnector(?CarrierAccount $account): FedexConnector
     {
@@ -858,7 +852,7 @@ class FedexAdapter implements CarrierAdapterInterface
                 ?? data_get($trackResult, 'estimatedDeliveryTimestamp')
             );
 
-            $deliveredAt = $this->resolveDeliveredAt($events, $statusCode, $trackResult);
+            $deliveredAt = $this->resolveDeliveredAt($events, $trackResult);
             $status = $this->mapTrackingStatus($statusCode, (string) $statusLabel);
 
             return TrackShipmentResponse::success(
@@ -924,25 +918,25 @@ class FedexAdapter implements CarrierAdapterInterface
         );
     }
 
-    /**
-     * @param  array<int, TrackingEventData>  $events
-     * @param  array<string, mixed>  $trackResult
-     */
-    private function resolveDeliveredAt(array $events, string $statusCode, array $trackResult): ?CarbonImmutable
+    protected function isDeliveredEvent(TrackingEventData $event): bool
     {
-        $deliveredEvent = collect($events)->first(fn (TrackingEventData $event) => $event->statusCode === 'DL');
+        return $event->statusCode === 'DL';
+    }
 
-        if ($deliveredEvent instanceof TrackingEventData) {
-            return $deliveredEvent->timestamp;
+    /**
+     * @param  array<string, mixed>  $summary
+     */
+    protected function deliveredAtFallback(array $summary): ?CarbonImmutable
+    {
+        $statusCode = (string) data_get($summary, 'latestStatusDetail.code', '');
+
+        if ($this->mapTrackingStatus($statusCode, (string) data_get($summary, 'latestStatusDetail.description', '')) !== TrackingStatus::Delivered) {
+            return null;
         }
 
-        if ($this->mapTrackingStatus($statusCode, (string) data_get($trackResult, 'latestStatusDetail.description', '')) === TrackingStatus::Delivered) {
-            return $this->parseFedexDate(
-                data_get($trackResult, 'dateAndTimes.0.dateTime') ?? data_get($trackResult, 'actualDeliveryTimestamp')
-            );
-        }
-
-        return null;
+        return $this->parseFedexDate(
+            data_get($summary, 'dateAndTimes.0.dateTime') ?? data_get($summary, 'actualDeliveryTimestamp')
+        );
     }
 
     private function parseFedexDate(?string $value): ?CarbonImmutable
@@ -956,18 +950,6 @@ class FedexAdapter implements CarrierAdapterInterface
         } catch (\Throwable) {
             return null;
         }
-    }
-
-    public function isConfigured(): bool
-    {
-        $carrierId = Carrier::where('name', 'FedEx')->value('id');
-
-        return $carrierId !== null
-            && CarrierAccount::active()
-                ->where('carrier_id', $carrierId)
-                ->with('carrier')
-                ->get()
-                ->contains(fn (CarrierAccount $account): bool => $account->hasUsableCredentials());
     }
 
     public function supportsMultiPackage(): bool

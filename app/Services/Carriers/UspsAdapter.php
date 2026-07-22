@@ -22,10 +22,12 @@ use App\Http\Integrations\USPS\Requests\Label;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
 use App\Http\Integrations\USPS\Requests\TrackShipment;
 use App\Http\Integrations\USPS\USPSConnector;
-use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Package;
+use App\Services\Carriers\Concerns\DecodesJsonResponses;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
+use App\Services\Carriers\Concerns\ResolvesCarrierAccount;
+use App\Services\Carriers\Concerns\ResolvesDeliveredAt;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -36,7 +38,10 @@ use Saloon\Http\Response;
 
 class UspsAdapter implements CarrierAdapterInterface
 {
+    use DecodesJsonResponses;
     use HasDefaultServiceCapabilities;
+    use ResolvesCarrierAccount;
+    use ResolvesDeliveredAt;
 
     public function serviceCapability(string $serviceCode): ServiceCapability
     {
@@ -393,7 +398,7 @@ class UspsAdapter implements CarrierAdapterInterface
 
             $estimatedDeliveryAt = $this->parseUspsEstimatedDelivery($trackingDetail);
             $status = $this->mapTrackingStatus($trackingDetail, $events);
-            $deliveredAt = $this->resolveDeliveredAt($events, $status);
+            $deliveredAt = $this->resolveDeliveredAt($events);
 
             return TrackShipmentResponse::success(
                 status: $status,
@@ -734,27 +739,6 @@ class UspsAdapter implements CarrierAdapterInterface
         }
     }
 
-    private function resolveAccount(?int $locationId, ?int $clientId): ?CarrierAccount
-    {
-        $carrierId = Carrier::where('name', 'USPS')->value('id');
-
-        return $carrierId
-            ? CarrierAccount::resolveForShipment($carrierId, $locationId, $clientId)->first()
-            : null;
-    }
-
-    public function isConfigured(): bool
-    {
-        $carrierId = Carrier::where('name', 'USPS')->value('id');
-
-        return $carrierId !== null
-            && CarrierAccount::active()
-                ->where('carrier_id', $carrierId)
-                ->with('carrier')
-                ->get()
-                ->contains(fn (CarrierAccount $account): bool => $account->hasUsableCredentials());
-    }
-
     public function supportsMultiPackage(): bool
     {
         return false;
@@ -781,22 +765,6 @@ class UspsAdapter implements CarrierAdapterInterface
      * Rate indicators valid for all package types.
      */
     private const UNIVERSAL_RATE_INDICATORS = ['SP', 'PA'];
-
-    /**
-     * @return array<int|string, mixed>
-     */
-    private function decodeJsonSafely(Response $response): array
-    {
-        try {
-            $decoded = $response->json();
-
-            return is_array($decoded)
-                ? $decoded
-                : ['body' => $response->body()];
-        } catch (\JsonException) {
-            return ['body' => $response->body()];
-        }
-    }
 
     /**
      * @param  array<string, mixed>  $trackingDetail
@@ -955,28 +923,21 @@ class UspsAdapter implements CarrierAdapterInterface
     private const DELIVERED_EVENT_CODES = ['01', '43', '60'];
 
     /**
-     * Resolve the actual delivery timestamp from the delivered scan event.
-     *
-     * Only trusts an event timestamp: USPS predicted/expected delivery dates are
-     * documented as 7-30% inaccurate and are suppressed after end-of-day, so they
-     * are never used as a delivery date. Returns null when the package is not
-     * delivered or no delivered event carries a parseable timestamp; callers must
+     * USPS deliberately has no summary-status fallback: its predicted/expected
+     * delivery dates are documented as 7-30% inaccurate and are suppressed after
+     * end-of-day, so they are never trusted as an actual delivery timestamp. The
+     * only source of truth is a delivered scan event (handled by the shared
+     * resolveDeliveredAt template), so this returns null on purpose. Callers must
      * not overwrite an existing delivery date with that null.
      *
-     * @param  array<int, TrackingEventData>  $events
+     * @param  array<string, mixed>  $summary
      */
-    private function resolveDeliveredAt(array $events, TrackingStatus $status): ?CarbonImmutable
+    protected function deliveredAtFallback(array $summary): ?CarbonImmutable
     {
-        if ($status !== TrackingStatus::Delivered) {
-            return null;
-        }
-
-        return collect($events)
-            ->first(fn (TrackingEventData $event): bool => $this->isDeliveredEvent($event) && $event->timestamp instanceof CarbonImmutable)
-            ?->timestamp;
+        return null;
     }
 
-    private function isDeliveredEvent(TrackingEventData $event): bool
+    protected function isDeliveredEvent(TrackingEventData $event): bool
     {
         $eventCode = strtoupper((string) $event->statusCode);
 
