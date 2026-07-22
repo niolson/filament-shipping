@@ -22,14 +22,37 @@ class MfaRecommendedWidget extends Widget
 
     protected ?string $pollingInterval = null;
 
+    /**
+     * Hides the widget immediately after it is dismissed, without a page reload.
+     * `canView()` keeps it hidden on subsequent loads via the persisted setting.
+     */
+    public bool $dismissed = false;
+
     public static function canView(): bool
     {
-        if ((bool) app(SettingsService::class)->get('require_mfa', false)) {
+        $settings = app(SettingsService::class);
+
+        if ((bool) $settings->get('require_mfa', false)) {
             return false;
         }
 
+        if ((bool) $settings->get('mfa_recommendation_dismissed', false)) {
+            return false;
+        }
+
+        // Only admins can turn MFA enforcement on or off, so only they see the nudge.
         $role = auth()->user()?->getAttribute('role');
 
         return $role instanceof Role && $role->isAtLeast(Role::Admin);
+    }
+
+    /**
+     * Persist the dismissal app-wide so the nudge does not return for any admin.
+     */
+    public function dismiss(): void
+    {
+        app(SettingsService::class)->set('mfa_recommendation_dismissed', true, 'boolean');
+
+        $this->dismissed = true;
     }
 }
