@@ -20,11 +20,13 @@ use App\Http\Integrations\Ups\Requests\Rate;
 use App\Http\Integrations\Ups\Requests\TrackShipment;
 use App\Http\Integrations\Ups\Requests\VoidShipment;
 use App\Http\Integrations\Ups\UpsConnector;
-use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\Package;
+use App\Services\Carriers\Concerns\DecodesJsonResponses;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\Carriers\Concerns\HasSaturdayDelivery;
+use App\Services\Carriers\Concerns\ResolvesCarrierAccount;
+use App\Services\Carriers\Concerns\ResolvesDeliveredAt;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -34,17 +36,11 @@ use Saloon\Http\Response;
 
 class UpsAdapter implements CarrierAdapterInterface
 {
+    use DecodesJsonResponses;
     use HasDefaultServiceCapabilities;
     use HasSaturdayDelivery;
-
-    private function resolveAccount(?int $locationId, ?int $clientId = null): ?CarrierAccount
-    {
-        $carrierId = Carrier::where('name', 'UPS')->value('id');
-
-        return $carrierId
-            ? CarrierAccount::resolveForShipment($carrierId, $locationId, $clientId)->first()
-            : null;
-    }
+    use ResolvesCarrierAccount;
+    use ResolvesDeliveredAt;
 
     private function resolveConnector(?CarrierAccount $account): UpsConnector
     {
@@ -723,18 +719,6 @@ class UpsAdapter implements CarrierAdapterInterface
         }
     }
 
-    public function isConfigured(): bool
-    {
-        $carrierId = Carrier::where('name', 'UPS')->value('id');
-
-        return $carrierId !== null
-            && CarrierAccount::active()
-                ->where('carrier_id', $carrierId)
-                ->with('carrier')
-                ->get()
-                ->contains(fn (CarrierAccount $account): bool => $account->hasUsableCredentials());
-    }
-
     public function supportsMultiPackage(): bool
     {
         return true;
@@ -855,22 +839,6 @@ class UpsAdapter implements CarrierAdapterInterface
             'CurrencyCode' => 'USD',
             'Product' => $products,
         ];
-    }
-
-    /**
-     * @return array<int|string, mixed>
-     */
-    private function decodeJsonSafely(Response $response): array
-    {
-        try {
-            $decoded = $response->json();
-
-            return is_array($decoded)
-                ? $decoded
-                : ['body' => $response->body()];
-        } catch (\JsonException) {
-            return ['body' => $response->body()];
-        }
     }
 
     /**
@@ -1003,23 +971,21 @@ class UpsAdapter implements CarrierAdapterInterface
         }
     }
 
-    /**
-     * @param  array<int, TrackingEventData>  $events
-     * @param  array<string, mixed>  $packageData
-     */
-    private function resolveDeliveredAt(array $events, array $packageData): ?CarbonImmutable
+    protected function isDeliveredEvent(TrackingEventData $event): bool
     {
-        $deliveredEvent = collect($events)->first(fn (TrackingEventData $event): bool => str_contains(strtoupper($event->description), 'DELIVERED'));
+        return str_contains(strtoupper($event->description), 'DELIVERED');
+    }
 
-        if ($deliveredEvent instanceof TrackingEventData) {
-            return $deliveredEvent->timestamp;
-        }
-
-        $deliveredDate = collect($packageData['deliveryDate'] ?? [])
+    /**
+     * @param  array<string, mixed>  $summary
+     */
+    protected function deliveredAtFallback(array $summary): ?CarbonImmutable
+    {
+        $deliveredDate = collect($summary['deliveryDate'] ?? [])
             ->first(fn ($date) => is_array($date) && (($date['type'] ?? null) === 'DEL'));
 
         $deliveredDateValue = is_array($deliveredDate) ? ($deliveredDate['date'] ?? null) : null;
-        $deliveryTime = $packageData['deliveryTime'] ?? [];
+        $deliveryTime = $summary['deliveryTime'] ?? [];
         $deliveredTime = is_array($deliveryTime) && (($deliveryTime['type'] ?? null) === 'DEL')
             ? ($deliveryTime['endTime'] ?? null)
             : null;
