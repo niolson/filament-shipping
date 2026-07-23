@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
+use App\Services\SsoLoginService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
 use SocialiteProviders\Azure\User as AzureUser;
 
@@ -72,9 +72,7 @@ class AzureController extends Controller
             ]);
         }
 
-        Auth::login($user, remember: true);
-
-        return redirect('/');
+        return app(SsoLoginService::class)->completeLogin($user);
     }
 
     private function shouldUseBroker(): bool

@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\SettingsService;
+use App\Services\SsoLoginService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -84,9 +84,22 @@ class SsoCallbackController extends Controller
             ]);
         }
 
-        Auth::login($user, remember: true);
+        // Log-only pilot: capture the IdP's authentication-strength assertion so
+        // we can confirm what each provider returns before trusting it to satisfy
+        // MFA (see the sso-mfa-federation "trust IdP MFA" slice). Not yet gated on.
+        logger()->info("SSO login MFA assertion for {$provider}", [
+            'email' => $email,
+            'amr' => $data['extra']['amr'] ?? null,
+            'auth_time' => $data['extra']['auth_time'] ?? null,
+            // `tid` (Azure) is only forwarded when the ID token verified; its
+            // presence distinguishes "verified but IdP sent no amr" from
+            // "verification failed → fell back to Graph". `extra_keys` shows
+            // exactly what the broker returned. Diagnostic — trim once tuned.
+            'tid' => $data['extra']['tid'] ?? null,
+            'extra_keys' => array_keys($data['extra'] ?? []),
+        ]);
 
-        return redirect('/');
+        return app(SsoLoginService::class)->completeLogin($user);
     }
 
     /**
