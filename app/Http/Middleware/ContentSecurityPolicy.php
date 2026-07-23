@@ -44,8 +44,8 @@ class ContentSecurityPolicy
         // rather than the built /build/ bundle, so allow its origin. Never added
         // in production, where everything is same-origin.
         if (app()->isLocal()) {
-            $vite = 'https://'.$request->getHost().':5173';
-            $viteWs = 'wss://'.$request->getHost().':5173';
+            $vite = $this->viteDevServerOrigin($request);
+            $viteWs = str_replace('https://', 'wss://', $vite);
             $directives['script-src'][] = $vite;
             $directives['style-src'][] = $vite;
             $directives['connect-src'][] = $vite;
@@ -53,6 +53,26 @@ class ContentSecurityPolicy
         }
 
         return $directives;
+    }
+
+    /**
+     * The Vite dev server origin. Read from Vite's `hot` file so the CSP tracks
+     * the actual port Vite bound (it bumps from 5173 when that port is taken),
+     * falling back to the default port when the dev server isn't running.
+     */
+    private function viteDevServerOrigin(Request $request): string
+    {
+        $hotFile = public_path('hot');
+
+        if (is_file($hotFile)) {
+            $url = trim((string) file_get_contents($hotFile));
+
+            if (str_starts_with($url, 'https://')) {
+                return rtrim($url, '/');
+            }
+        }
+
+        return 'https://'.$request->getHost().':5173';
     }
 
     public function handle(Request $request, Closure $next): Response
