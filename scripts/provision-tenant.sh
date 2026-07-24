@@ -193,6 +193,12 @@ if [ "$MODE" = "shared" ]; then
     sed -i "s|^REDIS_HOST=.*|REDIS_HOST=shared-redis|" .env
     # REDIS_PASSWORD is injected at runtime from /opt/shared/shared-secrets.env via Docker env_file
 
+    # Shared hosted account sends mail for all tenants; RESEND_API_KEY is injected
+    # at runtime from /opt/shared/shared-secrets.env via Docker env_file.
+    sed -i "s|^MAIL_MAILER=.*|MAIL_MAILER=resend|" .env
+    sed -i "s|^MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=noreply@updates.${DEFAULT_DOMAIN_SUFFIX}|" .env
+    sed -i "s|^MAIL_FROM_NAME=.*|MAIL_FROM_NAME=\"PolyBag\"|" .env
+
     # Per-tenant network so this tenant is isolated from other tenants at the
     # network layer while still reaching the shared datastores (see issue 16).
     sed -i "s|^SHARED_NETWORK=.*|SHARED_NETWORK=${TENANT_NETWORK}|" .env
@@ -281,11 +287,24 @@ if [ "$MODE" = "standalone" ]; then
     else
         info "No Google SSO credentials found — set GOOGLE_CLIENT_ID/SECRET in .env manually if needed."
     fi
+
+    RESEND_KEY=$(grep '^RESEND_API_KEY=' "${SHARED_DIR}/shared-secrets.env" 2>/dev/null | cut -d= -f2- || true)
+
+    if [ -n "$RESEND_KEY" ]; then
+        info "Adding Resend API key..."
+        sed -i "s|^RESEND_API_KEY=.*|RESEND_API_KEY=${RESEND_KEY}|" .env
+        sed -i "s|^MAIL_MAILER=.*|MAIL_MAILER=resend|" .env
+        sed -i "s|^MAIL_FROM_ADDRESS=.*|MAIL_FROM_ADDRESS=noreply@updates.${DEFAULT_DOMAIN_SUFFIX}|" .env
+        sed -i "s|^MAIL_FROM_NAME=.*|MAIL_FROM_NAME=\"PolyBag\"|" .env
+        ok "Resend API key added."
+    else
+        info "No Resend API key found — MAIL_MAILER stays 'log' (app-based MFA still works). Set RESEND_API_KEY and MAIL_MAILER in .env manually to enable mail."
+    fi
 else
     # Shared mode: OAUTH_BROKER_URL and OAUTH_INSTANCE_ID are tenant-specific and still need to be set.
     sed -i "s|^OAUTH_BROKER_URL=.*|OAUTH_BROKER_URL=https://connect.${DEFAULT_DOMAIN_SUFFIX}|" .env
     sed -i "s|^OAUTH_INSTANCE_ID=.*|OAUTH_INSTANCE_ID=${TENANT}.${DEFAULT_DOMAIN_SUFFIX}|" .env
-    info "OAUTH_BROKER_SECRET, REDIS_PASSWORD, GOOGLE_CLIENT_ID/SECRET will be injected from ${SHARED_DIR}/shared-secrets.env at runtime."
+    info "OAUTH_BROKER_SECRET, REDIS_PASSWORD, GOOGLE_CLIENT_ID/SECRET, RESEND_API_KEY will be injected from ${SHARED_DIR}/shared-secrets.env at runtime."
 fi
 
 # Pre-create SSH key directory so Docker doesn't create it as root.

@@ -131,7 +131,7 @@ nano .env   # set MYSQL_ROOT_PASSWORD and REDIS_PASSWORD
 Edit `/opt/shared/shared-secrets.env` — this file is injected into every tenant app container at runtime, so secrets here are set once and apply to all tenants. `REDIS_PASSWORD` must match the value in `.env`:
 
 ```bash
-nano /opt/shared/shared-secrets.env  # set REDIS_PASSWORD, GOOGLE_CLIENT_ID/SECRET, OAUTH_BROKER_SECRET
+nano /opt/shared/shared-secrets.env  # set REDIS_PASSWORD, GOOGLE_CLIENT_ID/SECRET, OAUTH_BROKER_SECRET, RESEND_API_KEY
 ```
 
 To rotate any shared secret later: update `shared-secrets.env` and restart all tenant containers (`deploy-tenant.sh --all`). No per-tenant `.env` edits needed.
@@ -690,6 +690,28 @@ They add these to their `.env` file. SSO is then enabled via Settings.
 | `OAUTH_INSTANCE_ID` | `.env` | Generated during instance registration |
 
 Google SSO and OAuth broker credentials are independent — a customer can use one, both, or neither.
+
+## Mail (Resend) Setup
+
+Transactional email (MFA login codes, etc.) is sent via [Resend](https://resend.com). One Resend account/domain (`updates.polybag.app`) serves all hosted tenants, following the same shared-secret pattern as Google SSO.
+
+### One-time setup (hosted)
+
+1. Sign up at [resend.com](https://resend.com) and add the `updates.polybag.app` domain
+2. Add the DNS records Resend gives you (SPF, DKIM, DMARC) to the `updates.polybag.app` zone
+3. Create an API key and add it to `/opt/shared/shared-secrets.env`:
+   ```bash
+   nano /opt/shared/shared-secrets.env  # set RESEND_API_KEY
+   ```
+4. Restart tenant containers to pick it up: `deploy-tenant.sh --all`
+
+`scripts/provision-tenant.sh` already sets `MAIL_MAILER=resend` and `MAIL_FROM_ADDRESS=noreply@updates.polybag.app` in each tenant's `.env`; the API key itself is injected at runtime from `shared-secrets.env` and never written to a per-tenant `.env` (shared mode) or copied in at provision time if available (standalone mode).
+
+### For on-prem customers
+
+On-prem installs don't get the shared Resend account. Either:
+- Point them at their own Resend (or other SMTP) account by setting `MAIL_MAILER`, `RESEND_API_KEY` (or `MAIL_HOST`/`MAIL_USERNAME`/`MAIL_PASSWORD` for plain SMTP), and `MAIL_FROM_ADDRESS` in their `.env`, or
+- Leave `MAIL_MAILER=log` (the `.env.example` default) if they don't need MFA email codes — app-based MFA (`AppAuthentication`) still works without mail configured.
 
 ## Database Import via SSH Tunnel
 
