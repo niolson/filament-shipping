@@ -29,9 +29,23 @@ class SsoLoginService
         private readonly SettingsService $settings,
     ) {}
 
-    public function completeLogin(User $user): RedirectResponse
+    /**
+     * Microsoft's well-known consumer (personal-account) tenant. MSA accounts
+     * emit no `amr` and can never satisfy MFA; excluded defensively regardless
+     * of the operator allowlist.
+     */
+    private const AZURE_CONSUMER_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
+
+    /**
+     * @param  string  $provider  the IdP the login came through ('google', 'azure',
+     *                            or 'password' for a non-federated caller)
+     * @param  array<string, mixed>  $idpClaims  the broker's *verified* `extra`
+     *                                           payload (amr / auth_time / tid);
+     *                                           empty for direct (unverified) callbacks
+     */
+    public function completeLogin(User $user, string $provider = 'password', array $idpClaims = []): RedirectResponse
     {
-        if ($this->requiresMfaChallenge($user)) {
+        if ($this->requiresMfaChallenge($user) && ! $this->idpSatisfiesMfa($provider, $idpClaims)) {
             session()->put('sso_mfa.user_id', $user->getAuthIdentifier());
             session()->put('sso_mfa.remember', true);
 
@@ -41,6 +55,79 @@ class SsoLoginService
         Auth::login($user, remember: true);
 
         return redirect('/');
+    }
+
+    /**
+     * Whether the identity provider's own assertion should stand in for the app's
+     * MFA challenge, letting a federated MFA satisfy the second factor instead of
+     * double-prompting. Opt-in per tenant (`trust_idp_mfa`), Azure/Entra only for
+     * now, and — because the shared broker app registration accepts any Microsoft
+     * tenant — gated on an allowlist of trusted `tid`s.
+     *
+     * Fails closed: setting off, wrong provider, no `amr:mfa`, a missing/consumer/
+     * untrusted `tid`, or an empty allowlist all return false, leaving the app's
+     * own challenge in force. Absence is never treated as satisfaction.
+     *
+     * @param  array<string, mixed>  $idpClaims  the broker's verified `extra`
+     */
+    public function idpSatisfiesMfa(string $provider, array $idpClaims): bool
+    {
+        if (! $this->settings->get('trust_idp_mfa', false)) {
+            return false;
+        }
+
+        // Only Entra is trusted in this cut; Google's `amr` is not yet credible
+        // (see the sso-mfa-federation PRD — consumer 2SV is per-event and weak).
+        if ($provider !== 'azure') {
+            return false;
+        }
+
+        $amr = $idpClaims['amr'] ?? null;
+
+        if (! is_array($amr) || ! in_array('mfa', $amr, true)) {
+            return false;
+        }
+
+        $tid = $idpClaims['tid'] ?? null;
+
+        if (! is_string($tid) || trim($tid) === '') {
+            return false;
+        }
+
+        // Entra tenant ids are case-insensitive UUIDs; compare canonically so an
+        // uppercase GUID pasted into Settings still matches Entra's lowercase tid.
+        $tid = strtolower(trim($tid));
+
+        if ($tid === self::AZURE_CONSUMER_TID) {
+            return false;
+        }
+
+        return in_array($tid, $this->trustedAzureTids(), true);
+    }
+
+    /**
+     * The operator-configured allowlist of trusted Entra tenant ids, canonicalized
+     * to lowercase for case-insensitive matching. An empty list trusts nothing
+     * (fail closed).
+     *
+     * @return list<string>
+     */
+    private function trustedAzureTids(): array
+    {
+        $configured = $this->settings->get('trusted_azure_tids', []);
+
+        if (is_string($configured)) {
+            $configured = json_decode($configured, true) ?: [];
+        }
+
+        if (! is_array($configured)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(fn ($tid): string => strtolower(trim((string) $tid)), $configured),
+            fn (string $tid): bool => $tid !== '',
+        ));
     }
 
     /**

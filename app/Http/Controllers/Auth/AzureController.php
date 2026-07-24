@@ -72,7 +72,11 @@ class AzureController extends Controller
             ]);
         }
 
-        return app(SsoLoginService::class)->completeLogin($user);
+        // Direct Socialite path: the app can't verify the IdP's `amr` the way the
+        // broker does, so pass no claims — this always falls through to the app's
+        // own MFA challenge (fail closed). IdP-MFA trust rides only on the broker's
+        // verified ID-token claims (see SsoCallbackController).
+        return app(SsoLoginService::class)->completeLogin($user, 'azure');
     }
 
     private function shouldUseBroker(): bool

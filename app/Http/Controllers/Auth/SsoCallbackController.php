@@ -99,7 +99,7 @@ class SsoCallbackController extends Controller
             'extra_keys' => array_keys($data['extra'] ?? []),
         ]);
 
-        return app(SsoLoginService::class)->completeLogin($user);
+        return app(SsoLoginService::class)->completeLogin($user, $provider, $data['extra'] ?? []);
     }
 
     /**

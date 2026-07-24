@@ -67,7 +67,7 @@ class GoogleController extends Controller
             ]);
         }
 
-        return app(SsoLoginService::class)->completeLogin($user);
+        return app(SsoLoginService::class)->completeLogin($user, 'google');
     }
 
     private function shouldUseBroker(): bool
