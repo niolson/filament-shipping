@@ -367,6 +367,68 @@ it('saves default client fields from settings form in single-client mode', funct
         ->return_city->toBe('Shelbyville');
 });
 
+it('saves the Entra IdP-MFA trust settings from the form', function (): void {
+    Livewire::test(Settings::class)
+        ->fillForm([
+            'trust_idp_mfa' => true,
+            'trusted_azure_tids' => ['fc6cceae-6ffd-432e-97cb-ad02ed2367f7'],
+        ])
+        ->call('save')
+        ->assertNotified()
+        ->assertHasNoFormErrors();
+
+    $settings = app(SettingsService::class);
+
+    expect($settings->get('trust_idp_mfa'))->toBeTrue()
+        ->and($settings->get('trusted_azure_tids'))->toBe(['fc6cceae-6ffd-432e-97cb-ad02ed2367f7']);
+});
+
+it('canonicalizes trusted tenant ids to lowercase and de-duplicates on save', function (): void {
+    Livewire::test(Settings::class)
+        ->fillForm([
+            'trust_idp_mfa' => true,
+            'trusted_azure_tids' => [
+                'FC6CCEAE-6FFD-432E-97CB-AD02ED2367F7',
+                'fc6cceae-6ffd-432e-97cb-ad02ed2367f7',
+            ],
+        ])
+        ->call('save')
+        ->assertNotified()
+        ->assertHasNoFormErrors();
+
+    expect(app(SettingsService::class)->get('trusted_azure_tids'))
+        ->toBe(['fc6cceae-6ffd-432e-97cb-ad02ed2367f7']);
+});
+
+it('rejects a non-UUID trusted tenant id', function (): void {
+    Livewire::test(Settings::class)
+        ->fillForm([
+            'trust_idp_mfa' => true,
+            'trusted_azure_tids' => ['not-a-guid'],
+        ])
+        ->call('save')
+        ->assertNotNotified();
+
+    // Validation blocked the save, so the bad value never reached the store.
+    expect(app(SettingsService::class)->get('trusted_azure_tids', []))->toBe([]);
+});
+
+it('preserves the trusted-tid allowlist when the trust toggle is turned off', function (): void {
+    app(SettingsService::class)->set('trust_idp_mfa', true, type: 'boolean');
+    app(SettingsService::class)->set('trusted_azure_tids', ['fc6cceae-6ffd-432e-97cb-ad02ed2367f7'], type: 'json');
+    app(SettingsService::class)->clearCache();
+
+    Livewire::test(Settings::class)
+        ->fillForm(['trust_idp_mfa' => false])
+        ->call('save')
+        ->assertNotified();
+
+    $settings = app(SettingsService::class);
+
+    expect($settings->get('trust_idp_mfa'))->toBeFalse()
+        ->and($settings->get('trusted_azure_tids'))->toBe(['fc6cceae-6ffd-432e-97cb-ad02ed2367f7']);
+});
+
 it('does not load client fields into settings form in multi-client mode', function (): void {
     Setting::create(['key' => 'multi_client_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
     app(SettingsService::class)->clearCache();

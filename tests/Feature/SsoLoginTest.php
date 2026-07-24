@@ -3,7 +3,9 @@
 use App\Models\User;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
+use Illuminate\Log\Events\MessageLogged;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\AbstractProvider;
 use SocialiteProviders\Azure\User as AzureUser;
@@ -21,6 +23,41 @@ beforeEach(function (): void {
     $settings->set('google_sso_enabled', true, 'boolean', group: 'system');
     $settings->set('azure_sso_enabled', true, 'boolean', group: 'system');
     $settings->clearCache();
+});
+
+it('logs the IdP amr assertion on SSO login', function (): void {
+    $user = User::factory()->create(['email' => 'sso-user@example.com', 'active' => true]);
+    $nonce = 'valid-sso-nonce';
+
+    Http::fake([
+        'connect.polybag.app/oauth/claim' => Http::response([
+            'provider' => 'google',
+            'access_token' => 'google-access-token',
+            'nonce' => $nonce,
+            'extra' => [
+                'user_email' => 'sso-user@example.com',
+                'amr' => ['mfa', 'pwd'],
+                'auth_time' => 1748875426,
+            ],
+        ]),
+    ]);
+
+    $logged = [];
+    Log::listen(function (MessageLogged $message) use (&$logged): void {
+        $logged[] = $message;
+    });
+
+    $this->withSession(['oauth_state.google' => $nonce])
+        ->get('/auth/sso/google/receive?transfer_code=abc123')
+        ->assertRedirect('/');
+
+    $assertion = collect($logged)->first(
+        fn (MessageLogged $message): bool => str_contains($message->message, 'MFA assertion'),
+    );
+
+    expect($assertion)->not->toBeNull()
+        ->and($assertion->context['amr'])->toBe(['mfa', 'pwd'])
+        ->and($assertion->context['auth_time'])->toBe(1748875426);
 });
 
 it('logs in a user via the broker SSO receive flow', function (): void {

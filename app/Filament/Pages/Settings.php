@@ -24,6 +24,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TagsInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -97,6 +98,8 @@ class Settings extends Page
             'google_sso_enabled' => $settings->get('google_sso_enabled', false),
             'azure_sso_enabled' => $settings->get('azure_sso_enabled', false),
             'require_mfa' => $settings->get('require_mfa', false),
+            'trust_idp_mfa' => $settings->get('trust_idp_mfa', false),
+            'trusted_azure_tids' => $settings->get('trusted_azure_tids', []),
             'account_lockout_max_attempts' => $settings->get('account_lockout_max_attempts', AccountLockoutService::DEFAULT_MAX_ATTEMPTS),
             'account_lockout_minutes' => $settings->get('account_lockout_minutes', AccountLockoutService::DEFAULT_LOCKOUT_MINUTES),
         ];
@@ -458,6 +461,18 @@ class Settings extends Page
                                 ->label('Azure / Microsoft Entra SSO')
                                 ->helperText('Show "Sign in with Microsoft" button on the login page. Requires Azure credentials in .env (or broker configured).')
                                 ->default(false),
+                            Toggle::make('trust_idp_mfa')
+                                ->label('Trust Entra MFA (skip app challenge)')
+                                ->helperText('When a user signs in via Microsoft Entra SSO and Entra asserts MFA was performed, skip this app\'s own MFA challenge instead of double-prompting. Only applies to the trusted tenant IDs below, and only makes sense for tenants that enforce MFA (Conditional Access). Leave off otherwise — a login is never admitted on a missing assertion.')
+                                ->live()
+                                ->default(false),
+                            TagsInput::make('trusted_azure_tids')
+                                ->label('Trusted Entra tenant IDs')
+                                ->helperText('Only Microsoft Entra logins whose tenant ID (tid) is listed here can satisfy MFA. Add the GUID of each Entra tenant whose MFA you trust. Empty means no login is trusted.')
+                                ->placeholder('00000000-0000-0000-0000-000000000000')
+                                ->nestedRecursiveRules(['uuid'])
+                                ->visible(fn (Get $get): bool => (bool) $get('trust_idp_mfa'))
+                                ->columnSpanFull(),
                             TextInput::make('account_lockout_max_attempts')
                                 ->label('Account Lockout Threshold')
                                 ->helperText('Lock an account after this many consecutive failed login attempts.')
@@ -582,6 +597,7 @@ class Settings extends Page
             'google_sso_enabled' => (bool) ($data['google_sso_enabled'] ?? false),
             'azure_sso_enabled' => (bool) ($data['azure_sso_enabled'] ?? false),
             'require_mfa' => (bool) ($data['require_mfa'] ?? false),
+            'trust_idp_mfa' => (bool) ($data['trust_idp_mfa'] ?? false),
             'account_lockout_max_attempts' => (int) ($data['account_lockout_max_attempts'] ?? AccountLockoutService::DEFAULT_MAX_ATTEMPTS),
             'account_lockout_minutes' => (int) ($data['account_lockout_minutes'] ?? AccountLockoutService::DEFAULT_LOCKOUT_MINUTES),
         ];
@@ -618,6 +634,21 @@ class Settings extends Page
                     'group' => $group,
                 ]);
             }
+        }
+
+        // Persist the trusted Entra tenant-id allowlist as JSON (a list, not a
+        // scalar), trimming blanks so an empty list reliably means "trust none".
+        // Only rewrite it when the field was actually submitted — it's hidden
+        // (and dehydrated out of state) while trust_idp_mfa is off, and we don't
+        // want toggling the feature off to silently wipe a configured allowlist.
+        if (array_key_exists('trusted_azure_tids', $data)) {
+            // Entra tenant ids are case-insensitive UUIDs; store them canonically
+            // (lowercased, de-duplicated) so matching is casing-independent.
+            $trustedTids = array_values(array_unique(array_filter(array_map(
+                fn ($tid): string => strtolower(trim((string) $tid)),
+                is_array($data['trusted_azure_tids']) ? $data['trusted_azure_tids'] : [],
+            ))));
+            app(SettingsService::class)->set('trusted_azure_tids', $trustedTids, type: 'json');
         }
 
         app(SettingsService::class)->clearCache();

@@ -6,8 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
+use App\Services\SsoLoginService;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Auth;
 use Laravel\Socialite\Facades\Socialite;
 use SocialiteProviders\Azure\User as AzureUser;
 
@@ -72,9 +72,11 @@ class AzureController extends Controller
             ]);
         }
 
-        Auth::login($user, remember: true);
-
-        return redirect('/');
+        // Direct Socialite path: the app can't verify the IdP's `amr` the way the
+        // broker does, so pass no claims — this always falls through to the app's
+        // own MFA challenge (fail closed). IdP-MFA trust rides only on the broker's
+        // verified ID-token claims (see SsoCallbackController).
+        return app(SsoLoginService::class)->completeLogin($user, 'azure');
     }
 
     private function shouldUseBroker(): bool
