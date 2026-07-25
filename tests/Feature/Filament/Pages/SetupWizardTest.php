@@ -2,6 +2,7 @@
 
 use App\Filament\Pages\SetupWizard;
 use App\Models\BoxSize;
+use App\Models\Channel;
 use App\Models\DataSource;
 use App\Models\Setting;
 use App\Models\ShippingMethod;
@@ -116,7 +117,7 @@ it('does not duplicate the DataSource when the import step is saved twice', func
         ->and($record->secret('db_password'))->toBe('supersecret');
 });
 
-it('creates a shopify DataSource record with the shop domain', function (): void {
+it('creates a shopify DataSource record with the shop domain and an auto-created channel', function (): void {
     $component = Livewire::test(SetupWizard::class)
         ->tap(fn ($component) => fillRequiredSetupWizardFields($component))
         ->set('data.import_source', 'shopify')
@@ -125,12 +126,30 @@ it('creates a shopify DataSource record with the shop domain', function (): void
     invokePrivateMethod($component->instance(), 'saveImportSource');
 
     $record = DataSource::where('source_type', ShopifySource::class)->firstOrFail();
+    $channel = Channel::where('name', 'Shopify')->firstOrFail();
 
     expect($record->settings['shop_domain'])->toBe('acme.myshopify.com')
-        ->and($record->settings['channel_name'])->toBe('Shopify');
+        ->and($record->settings['channel_name'])->toBe($channel->id);
 });
 
-it('creates an amazon DataSource record from the import source step', function (): void {
+it('creates a shopify DataSource record using the selected channel', function (): void {
+    $channel = Channel::factory()->create(['name' => 'My Shopify Store']);
+
+    $component = Livewire::test(SetupWizard::class)
+        ->tap(fn ($component) => fillRequiredSetupWizardFields($component))
+        ->set('data.import_source', 'shopify')
+        ->set('data.shopify_shop_domain', 'acme.myshopify.com')
+        ->set('data.shopify_channel_id', $channel->id);
+
+    invokePrivateMethod($component->instance(), 'saveImportSource');
+
+    $record = DataSource::where('source_type', ShopifySource::class)->firstOrFail();
+
+    expect($record->settings['channel_name'])->toBe($channel->id)
+        ->and(Channel::where('name', 'Shopify')->exists())->toBeFalse();
+});
+
+it('creates an amazon DataSource record from the import source step with an auto-created channel', function (): void {
     $component = Livewire::test(SetupWizard::class)
         ->tap(fn ($component) => fillRequiredSetupWizardFields($component))
         ->set('data.import_source', 'amazon')
@@ -139,9 +158,27 @@ it('creates an amazon DataSource record from the import source step', function (
     invokePrivateMethod($component->instance(), 'saveImportSource');
 
     $record = DataSource::where('source_type', AmazonSource::class)->firstOrFail();
+    $channel = Channel::where('name', 'Amazon')->firstOrFail();
 
     expect($record->settings['marketplace_id'])->toBe('ATVPDKIKX0DER')
-        ->and($record->settings['channel_name'])->toBe('Amazon');
+        ->and($record->settings['channel_name'])->toBe($channel->id);
+});
+
+it('creates an amazon DataSource record using the selected channel', function (): void {
+    $channel = Channel::factory()->create(['name' => 'Amazon US']);
+
+    $component = Livewire::test(SetupWizard::class)
+        ->tap(fn ($component) => fillRequiredSetupWizardFields($component))
+        ->set('data.import_source', 'amazon')
+        ->set('data.amazon_marketplace_id', 'ATVPDKIKX0DER')
+        ->set('data.amazon_channel_id', $channel->id);
+
+    invokePrivateMethod($component->instance(), 'saveImportSource');
+
+    $record = DataSource::where('source_type', AmazonSource::class)->firstOrFail();
+
+    expect($record->settings['channel_name'])->toBe($channel->id)
+        ->and(Channel::where('name', 'Amazon')->exists())->toBeFalse();
 });
 
 it('creates no DataSource when import source is none', function (): void {

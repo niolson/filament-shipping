@@ -509,6 +509,11 @@ class SetupWizard extends Page
                             ->label('Shop Domain')
                             ->placeholder('your-store.myshopify.com')
                             ->helperText('Your Shopify store domain.'),
+                        Forms\Components\Select::make('shopify_channel_id')
+                            ->label('Channel')
+                            ->options(fn () => Channel::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->helperText('Sales channel assigned to imported shipments. Leave blank to create a "Shopify" channel automatically. Add more channels in the previous step.'),
                         Forms\Components\Placeholder::make('shopify_oauth_hint')
                             ->label('')
                             ->content('Shopify API credentials and OAuth connection can be configured in App Settings after setup.'),
@@ -522,6 +527,11 @@ class SetupWizard extends Page
                             ->label('Marketplace ID')
                             ->default('ATVPDKIKX0DER')
                             ->helperText('US marketplace: ATVPDKIKX0DER'),
+                        Forms\Components\Select::make('amazon_channel_id')
+                            ->label('Channel')
+                            ->options(fn () => Channel::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
+                            ->searchable()
+                            ->helperText('Sales channel assigned to imported shipments. Leave blank to create an "Amazon" channel automatically. Add more channels in the previous step.'),
                         Forms\Components\Placeholder::make('amazon_hint')
                             ->label('')
                             ->content('Amazon SP-API credentials can be configured in App Settings after setup.'),
@@ -843,7 +853,11 @@ class SetupWizard extends Page
     {
         $record = DataSource::firstOrNew(['source_type' => ShopifySource::class]);
 
-        $newSettings = ['channel_name' => $record->settings['channel_name'] ?? 'Shopify'];
+        $newSettings = [
+            'channel_name' => $data['shopify_channel_id']
+                ?? $record->settings['channel_name']
+                ?? Channel::firstOrCreate(['name' => 'Shopify'], ['active' => true])->id,
+        ];
 
         if (! empty($data['shopify_shop_domain'])) {
             $newSettings['shop_domain'] = $data['shopify_shop_domain'];
@@ -864,7 +878,11 @@ class SetupWizard extends Page
     {
         $record = DataSource::firstOrNew(['source_type' => AmazonSource::class]);
 
-        $newSettings = ['channel_name' => $record->settings['channel_name'] ?? 'Amazon'];
+        $newSettings = [
+            'channel_name' => $data['amazon_channel_id']
+                ?? $record->settings['channel_name']
+                ?? Channel::firstOrCreate(['name' => 'Amazon'], ['active' => true])->id,
+        ];
 
         if (! empty($data['amazon_marketplace_id'])) {
             $newSettings['marketplace_id'] = $data['amazon_marketplace_id'];
