@@ -5,8 +5,10 @@ namespace App\Filament\Resources\DataSources\Schemas;
 use App\Enums\ImportExistingBehavior;
 use App\Enums\ScheduleInterval;
 use App\Filament\Pages\Settings as SettingsPage;
+use App\Models\Channel;
 use App\Models\Client;
 use App\Models\DataSource;
+use App\Models\ShippingMethod;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\RawSqlGuard;
@@ -128,17 +130,18 @@ class DataSourceForm
 
             Section::make('Shopify Import Settings')
                 ->schema([
-                    TextInput::make('settings.channel_name')
-                        ->label('Channel Name')
+                    Select::make('settings.channel_name')
+                        ->label('Channel')
+                        ->options(fn () => Channel::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
                         ->required()
-                        ->default('Shopify')
-                        ->maxLength(255)
-                        ->helperText('Channel label assigned to imported shipments.'),
+                        ->searchable()
+                        ->helperText('Channel assigned to imported shipments.'),
 
-                    TextInput::make('settings.shipping_method')
+                    Select::make('settings.shipping_method')
                         ->label('Default Shipping Method')
+                        ->options(fn () => ShippingMethod::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
                         ->nullable()
-                        ->maxLength(255)
+                        ->searchable()
                         ->helperText('Leave blank to map per-order via channel aliases.'),
 
                     Toggle::make('settings.notify_customer')
@@ -199,16 +202,17 @@ class DataSourceForm
 
             Section::make('Amazon Import Settings')
                 ->schema([
-                    TextInput::make('settings.channel_name')
-                        ->label('Channel Name')
+                    Select::make('settings.channel_name')
+                        ->label('Channel')
+                        ->options(fn () => Channel::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
                         ->required()
-                        ->default('Amazon')
-                        ->maxLength(255),
+                        ->searchable(),
 
-                    TextInput::make('settings.shipping_method')
+                    Select::make('settings.shipping_method')
                         ->label('Default Shipping Method')
+                        ->options(fn () => ShippingMethod::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
                         ->nullable()
-                        ->maxLength(255),
+                        ->searchable(),
 
                     TextInput::make('settings.lookback_days')
                         ->label('Lookback Days')

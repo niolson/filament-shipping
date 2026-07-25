@@ -6,6 +6,7 @@ use App\Filament\Resources\DataSources\Pages\CreateDataSource;
 use App\Filament\Resources\DataSources\Pages\EditDataSource;
 use App\Filament\Resources\DataSources\Pages\ListDataSources;
 use App\Jobs\RunDataSourceImportJob;
+use App\Models\Channel;
 use App\Models\DataSource;
 use App\Models\User;
 use App\Services\SettingsService;
@@ -235,6 +236,7 @@ it('reports a failed connection test before the source is created', function ():
 
 it('routes secret keys to encrypted secret_settings on create', function (): void {
     $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
 
     Livewire::test(CreateDataSource::class)
         ->fillForm([
@@ -244,7 +246,7 @@ it('routes secret keys to encrypted secret_settings on create', function (): voi
             'settings.access_token' => 'shpat_secret_token',
             'settings.client_id' => 'secret_client_id',
             'settings.client_secret' => 'secret_client_secret',
-            'settings.channel_name' => 'Shopify',
+            'settings.channel_name' => $channel->id,
         ])
         ->call('create')
         ->assertHasNoFormErrors();
@@ -284,6 +286,7 @@ it('routes db_password to secret_settings on create', function (): void {
 
 it('preserves existing secrets when a blank password is submitted on edit', function (): void {
     $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
 
     $source = DataSource::factory()->shopify()->create([
         'secret_settings' => ['access_token' => 'original_token'],
@@ -294,7 +297,7 @@ it('preserves existing secrets when a blank password is submitted on edit', func
             'name' => 'Updated Name',
             'settings.shop_domain' => 'test.myshopify.com',
             'settings.access_token' => null,
-            'settings.channel_name' => 'Shopify',
+            'settings.channel_name' => $channel->id,
         ])
         ->call('save')
         ->assertHasNoFormErrors();
@@ -305,6 +308,7 @@ it('preserves existing secrets when a blank password is submitted on edit', func
 
 it('replaces a secret when a new value is submitted on edit', function (): void {
     $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
 
     $source = DataSource::factory()->shopify()->create([
         'secret_settings' => ['access_token' => 'old_token'],
@@ -315,7 +319,7 @@ it('replaces a secret when a new value is submitted on edit', function (): void 
             'name' => 'Updated Name',
             'settings.shop_domain' => 'test.myshopify.com',
             'settings.access_token' => 'new_token',
-            'settings.channel_name' => 'Shopify',
+            'settings.channel_name' => $channel->id,
         ])
         ->call('save')
         ->assertHasNoFormErrors();
@@ -326,12 +330,13 @@ it('replaces a secret when a new value is submitted on edit', function (): void 
 
 it('migrates legacy plaintext secrets from settings to secret_settings on edit', function (): void {
     $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
 
     // Simulate a record saved before the encrypted column was introduced
     $source = DataSource::factory()->shopify()->create([
         'settings' => [
             'shop_domain' => 'test.myshopify.com',
-            'channel_name' => 'Shopify',
+            'channel_name' => $channel->id,
             'access_token' => 'legacy_plaintext_token',
         ],
     ]);
@@ -341,7 +346,7 @@ it('migrates legacy plaintext secrets from settings to secret_settings on edit',
             'name' => 'Legacy Source',
             'settings.shop_domain' => 'test.myshopify.com',
             'settings.access_token' => null,
-            'settings.channel_name' => 'Shopify',
+            'settings.channel_name' => $channel->id,
         ])
         ->call('save')
         ->assertHasNoFormErrors();
@@ -435,6 +440,7 @@ it('accepts a legitimate UPDATE mark exported query in the form', function (): v
 
 it('blocks creating an active Amazon data source when MFA is not required', function (): void {
     $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
 
     Livewire::test(CreateDataSource::class)
         ->fillForm([
@@ -443,6 +449,7 @@ it('blocks creating an active Amazon data source when MFA is not required', func
             'active' => true,
             'settings.marketplace_id' => 'ATVPDKIKX0DER',
             'settings.refresh_token' => 'Atzr|test-refresh-token',
+            'settings.channel_name' => $channel->id,
         ])
         ->call('create')
         ->assertHasFormErrors(['active']);
@@ -453,6 +460,7 @@ it('blocks creating an active Amazon data source when MFA is not required', func
 it('allows creating an active Amazon data source once MFA is required', function (): void {
     app(SettingsService::class)->set('require_mfa', true, 'boolean');
     $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
 
     Livewire::test(CreateDataSource::class)
         ->fillForm([
@@ -461,6 +469,7 @@ it('allows creating an active Amazon data source once MFA is required', function
             'active' => true,
             'settings.marketplace_id' => 'ATVPDKIKX0DER',
             'settings.refresh_token' => 'Atzr|test-refresh-token',
+            'settings.channel_name' => $channel->id,
         ])
         ->call('create')
         ->assertHasNoFormErrors();
@@ -470,6 +479,7 @@ it('allows creating an active Amazon data source once MFA is required', function
 
 it('allows creating an inactive Amazon data source even when MFA is not required', function (): void {
     $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
 
     Livewire::test(CreateDataSource::class)
         ->fillForm([
@@ -478,6 +488,7 @@ it('allows creating an inactive Amazon data source even when MFA is not required
             'active' => false,
             'settings.marketplace_id' => 'ATVPDKIKX0DER',
             'settings.refresh_token' => 'Atzr|test-refresh-token',
+            'settings.channel_name' => $channel->id,
         ])
         ->call('create')
         ->assertHasNoFormErrors();
@@ -487,11 +498,12 @@ it('allows creating an inactive Amazon data source even when MFA is not required
 
 it('blocks saving an Amazon data source as active on edit when MFA is not required', function (): void {
     $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
 
     $source = DataSource::factory()->create([
         'source_type' => AmazonSource::class,
         'active' => false,
-        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER', 'channel_name' => 'Amazon'],
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER', 'channel_name' => $channel->id],
         'secret_settings' => ['refresh_token' => 'Atzr|existing-token'],
     ]);
 
