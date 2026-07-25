@@ -8,6 +8,7 @@ use App\Filament\Resources\UserResource\Pages;
 use App\Models\Location;
 use App\Models\User;
 use App\Services\AccountLockoutService;
+use App\Services\MfaResetService;
 use App\Services\PasswordPolicyService;
 use App\Services\SettingsService;
 use BackedEnum;
@@ -65,6 +66,27 @@ class UserResource extends Resource
                     ->visible(fn (): bool => (bool) app(SettingsService::class)->get('multi_location_enabled', false)),
                 Forms\Components\Toggle::make('active')
                     ->default(true),
+                Forms\Components\Placeholder::make('mfa_status')
+                    ->label('Multi-Factor Authentication')
+                    ->content(function (?User $record): string {
+                        if (! $record) {
+                            return 'Not enabled';
+                        }
+
+                        $service = app(MfaResetService::class);
+                        $methods = [];
+
+                        if ($service->hasAppAuthentication($record)) {
+                            $methods[] = 'Authenticator App';
+                        }
+
+                        if ($service->hasEmailAuthentication($record)) {
+                            $methods[] = 'Email Code';
+                        }
+
+                        return $methods === [] ? 'Not enabled' : implode(', ', $methods);
+                    })
+                    ->visible(fn (?User $record): bool => $record !== null),
             ]);
     }
 
@@ -89,6 +111,24 @@ class UserResource extends Resource
                     ->falseIcon('heroicon-o-lock-open')
                     ->trueColor('danger')
                     ->falseColor('gray'),
+                Tables\Columns\TextColumn::make('mfa')
+                    ->label('MFA')
+                    ->state(function (User $record): string {
+                        $service = app(MfaResetService::class);
+                        $methods = [];
+
+                        if ($service->hasAppAuthentication($record)) {
+                            $methods[] = 'App';
+                        }
+
+                        if ($service->hasEmailAuthentication($record)) {
+                            $methods[] = 'Email';
+                        }
+
+                        return $methods === [] ? 'None' : implode(' + ', $methods);
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => $state === 'None' ? 'gray' : 'success'),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime('M j, Y g:i A', timezone: Location::timezone())
                     ->sortable()
