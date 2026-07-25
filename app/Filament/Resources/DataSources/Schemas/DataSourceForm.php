@@ -39,6 +39,8 @@ class DataSourceForm
         AmazonSource::class => 'Amazon SP-API',
     ];
 
+    private const CONNECTION_TEST_TIMEOUT_SECONDS = 5;
+
     public static function configure(Schema $schema): Schema
     {
         return $schema->components([
@@ -566,6 +568,10 @@ class DataSourceForm
             "database.connections.{$connName}.collation" => 'utf8mb4_unicode_ci',
             "database.connections.{$connName}.prefix" => '',
             "database.connections.{$connName}.strict" => true,
+            // Keep this well under the reverse proxy's read timeout so a bad
+            // host/port fails with a catchable exception instead of hanging
+            // until the proxy itself returns a 504.
+            "database.connections.{$connName}.options" => [\PDO::ATTR_TIMEOUT => 10],
         ]);
         DB::purge($connName);
 
@@ -596,9 +602,47 @@ class DataSourceForm
             DB::purge($connName);
         }
 
+        // PDO/mysqlnd's own connect timeout can't be relied on to bound how long a
+        // bad host takes to fail — it's been observed to hang well past a minute,
+        // long enough for the reverse proxy to give up first with an ugly 504. A
+        // raw TCP probe with an explicit timeout fails fast and predictably instead.
+        self::assertHostReachable(
+            config("database.connections.{$connName}.driver"),
+            config("database.connections.{$connName}.host"),
+            config("database.connections.{$connName}.port"),
+        );
+
         $pdo = DB::connection($connName)->getPdo();
 
         return ['pdo' => $pdo, 'tunnel' => $tunnel, 'conn_name' => $connName];
+    }
+
+    private static function assertHostReachable(?string $driver, ?string $host, mixed $port): void
+    {
+        if ($driver === 'sqlite' || ! $host) {
+            return;
+        }
+
+        $errno = 0;
+        $errstr = '';
+        $socket = @stream_socket_client(
+            "tcp://{$host}:{$port}",
+            $errno,
+            $errstr,
+            self::CONNECTION_TEST_TIMEOUT_SECONDS,
+        );
+
+        if (! $socket) {
+            throw new \RuntimeException(sprintf(
+                'Could not reach %s:%s within %ds.%s',
+                $host,
+                $port,
+                self::CONNECTION_TEST_TIMEOUT_SECONDS,
+                $errstr ? " ({$errstr})" : '',
+            ));
+        }
+
+        fclose($socket);
     }
 
     private static function renderShopifyOAuthStatus(?DataSource $record): HtmlString

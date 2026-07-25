@@ -232,6 +232,31 @@ it('reports a failed connection test before the source is created', function ():
         ->assertNotified('Connection failed');
 });
 
+it('fails a connection test against an unreachable host quickly instead of hanging', function (): void {
+    $this->actingAs($this->admin);
+
+    $start = microtime(true);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'name' => 'Unreachable DB Source',
+            'source_type' => DatabaseSource::class,
+            'settings.db_driver' => 'mysql',
+            'settings.db_host' => '1234',
+            'settings.db_port' => '1234',
+            'settings.db_database' => '1234',
+            'settings.db_username' => '1234',
+            'settings.db_password' => '1234',
+        ])
+        ->callAction(TestAction::make('test_db_connection')->schemaComponent('database_connection'))
+        ->assertNotified('Connection failed');
+
+    // Regression guard: PDO/mysqlnd's own connect timeout doesn't reliably bound
+    // an unreachable host — it's been observed to hang past a minute, long enough
+    // for the reverse proxy to give up first with a 504. This must fail fast.
+    expect(microtime(true) - $start)->toBeLessThan(15.0);
+});
+
 // ── Secret settings encryption ────────────────────────────────────────────────
 
 it('routes secret keys to encrypted secret_settings on create', function (): void {
