@@ -48,7 +48,7 @@ class AppPanelProvider extends PanelProvider
             ->multiFactorAuthentication(
                 [
                     AppAuthentication::make()->recoverable(),
-                    EmailAuthenticationForEmailUsers::make(),
+                    EmailAuthenticationForEmailUsers::make()->codeExpiryMinutes(10),
                 ],
                 isRequired: function (): bool {
                     try {
