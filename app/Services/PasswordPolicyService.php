@@ -26,6 +26,8 @@ class PasswordPolicyService
 
     public const DEFAULT_HISTORY_COUNT = 10;
 
+    public const DEFAULT_MIN_AGE_DAYS = 1;
+
     public function __construct(
         private readonly SettingsService $settings,
     ) {}
@@ -156,6 +158,57 @@ class PasswordPolicyService
         $keepIds = $user->passwordHistories()->take($limit)->pluck('id');
 
         $user->passwordHistories()->whereNotIn('id', $keepIds)->delete();
+    }
+
+    /**
+     * The configured minimum password age, in days, before a self-service
+     * change is permitted again. Prevents rapid credential cycling used to
+     * bypass password history controls.
+     */
+    public function minAgeDays(): int
+    {
+        return (int) $this->settings->get('password_min_age_days', self::DEFAULT_MIN_AGE_DAYS);
+    }
+
+    /**
+     * Whether the user's current password is too fresh to be voluntarily
+     * changed again under the configured minimum age policy.
+     */
+    public function isPasswordChangeTooSoon(User $user): bool
+    {
+        $minAgeDays = $this->minAgeDays();
+
+        if ($minAgeDays <= 0) {
+            return false;
+        }
+
+        if (! $user->hasLocalPassword() || ! $user->password_changed_at) {
+            return false;
+        }
+
+        return $user->password_changed_at->addDays($minAgeDays)->isFuture();
+    }
+
+    /**
+     * A raw Laravel-style ($attribute, $value, $fail) validation rule closure
+     * that rejects a self-service password change made before the configured
+     * minimum age has elapsed. Pass null when there is no existing user
+     * (e.g. creating a brand-new account), in which case the check is
+     * skipped. See {@see historyRule()} for the same eager-evaluation caveat
+     * when placing this in a literal rules array.
+     */
+    public function minimumAgeRule(?User $user): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($user): void {
+            if ($user === null || ! $this->isPasswordChangeTooSoon($user)) {
+                return;
+            }
+
+            $days = $this->minAgeDays();
+            $unit = $days === 1 ? 'day' : 'days';
+
+            $fail("Your password was changed too recently. You must wait at least {$days} {$unit} before changing it again.");
+        };
     }
 
     /**

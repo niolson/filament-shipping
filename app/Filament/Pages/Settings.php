@@ -95,6 +95,7 @@ class Settings extends Page
             'password_require_symbols' => $settings->get('password_require_symbols', PasswordPolicyService::DEFAULT_REQUIRE_SYMBOLS),
             'password_expiration_days' => $settings->get('password_expiration_days', PasswordPolicyService::DEFAULT_EXPIRATION_DAYS),
             'password_history_count' => $settings->get('password_history_count', PasswordPolicyService::DEFAULT_HISTORY_COUNT),
+            'password_min_age_days' => $settings->get('password_min_age_days', PasswordPolicyService::DEFAULT_MIN_AGE_DAYS),
             'google_sso_enabled' => $settings->get('google_sso_enabled', false),
             'azure_sso_enabled' => $settings->get('azure_sso_enabled', false),
             'require_mfa' => $settings->get('require_mfa', false),
@@ -443,6 +444,14 @@ class Settings extends Page
                                 ->maxValue(24)
                                 ->default(PasswordPolicyService::DEFAULT_HISTORY_COUNT)
                                 ->suffix('passwords'),
+                            TextInput::make('password_min_age_days')
+                                ->label('Minimum Password Age')
+                                ->helperText('Block users from voluntarily changing their password again until this many days have passed. Prevents rapid password cycling used to bypass the history control above. Set to 0 to disable.')
+                                ->numeric()
+                                ->minValue(0)
+                                ->maxValue(30)
+                                ->default(PasswordPolicyService::DEFAULT_MIN_AGE_DAYS)
+                                ->suffix('days'),
                         ])
                         ->columns(2),
 
@@ -594,6 +603,7 @@ class Settings extends Page
             'password_require_symbols' => (bool) ($data['password_require_symbols'] ?? PasswordPolicyService::DEFAULT_REQUIRE_SYMBOLS),
             'password_expiration_days' => (int) ($data['password_expiration_days'] ?? PasswordPolicyService::DEFAULT_EXPIRATION_DAYS),
             'password_history_count' => (int) ($data['password_history_count'] ?? PasswordPolicyService::DEFAULT_HISTORY_COUNT),
+            'password_min_age_days' => (int) ($data['password_min_age_days'] ?? PasswordPolicyService::DEFAULT_MIN_AGE_DAYS),
             'google_sso_enabled' => (bool) ($data['google_sso_enabled'] ?? false),
             'azure_sso_enabled' => (bool) ($data['azure_sso_enabled'] ?? false),
             'require_mfa' => (bool) ($data['require_mfa'] ?? false),

@@ -100,6 +100,33 @@ it('prunes password history beyond the configured limit', function (): void {
         ->and($service->isPasswordReused($user->fresh(), 'Password4!23456'))->toBeTrue();
 });
 
+it('blocks a password change before the default 1-day minimum age has elapsed', function (): void {
+    $service = app(PasswordPolicyService::class);
+
+    $fresh = User::factory()->create(['password' => Hash::make('Original123!456')]);
+    $stale = User::factory()->create(['password' => Hash::make('Original123!456')]);
+    $stale->update(['password_changed_at' => now()->subDays(2)]);
+
+    expect($service->isPasswordChangeTooSoon($fresh))->toBeTrue()
+        ->and($service->isPasswordChangeTooSoon($stale))->toBeFalse();
+});
+
+it('disables the minimum age check when the setting is 0', function (): void {
+    app(SettingsService::class)->set('password_min_age_days', 0, 'integer');
+
+    $service = app(PasswordPolicyService::class);
+    $user = User::factory()->create(['password' => Hash::make('Original123!456')]);
+
+    expect($service->isPasswordChangeTooSoon($user))->toBeFalse();
+});
+
+it('never treats an SSO-only user (no local password) as too soon to change', function (): void {
+    $service = app(PasswordPolicyService::class);
+    $user = User::factory()->create(['password' => null]);
+
+    expect($service->isPasswordChangeTooSoon($user))->toBeFalse();
+});
+
 it('disables history checks when the setting is 0', function (): void {
     app(SettingsService::class)->set('password_history_count', 0, 'integer');
     $service = app(PasswordPolicyService::class);

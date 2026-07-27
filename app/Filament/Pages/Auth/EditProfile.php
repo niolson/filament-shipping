@@ -39,7 +39,11 @@ class EditProfile extends BaseEditProfile
             ->validationAttribute(__('filament-panels::auth/pages/edit-profile.form.password.validation_attribute'))
             ->password()
             ->revealable(filament()->arePasswordsRevealable())
-            ->rules([$policy->rule(), fn (): Closure => $policy->historyRule($user instanceof User ? $user : null)])
+            ->rules([
+                $policy->rule(),
+                fn (): Closure => $policy->historyRule($user instanceof User ? $user : null),
+                fn (): Closure => $policy->minimumAgeRule($user instanceof User ? $user : null),
+            ])
             ->showAllValidationMessages()
             ->autocomplete('new-password')
             ->dehydrated(fn (#[SensitiveParameter] ?string $state): bool => filled($state))
