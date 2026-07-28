@@ -745,12 +745,6 @@ parameters:
 			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
 
 		-
-			message: '#^Cannot access property \$source_type on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
-			identifier: property.nonObject
-			count: 2
-			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
-
-		-
 			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: property.nonObject
 			count: 2
@@ -760,6 +754,12 @@ parameters:
 			message: '#^Cannot access property \$name on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: property.nonObject
 			count: 1
+			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
+
+		-
+			message: '#^Cannot access property \$source_type on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: property.nonObject
+			count: 2
 			path: app/Filament/Resources/DataSources/Pages/EditDataSource.php
 
 		-
@@ -1435,13 +1435,13 @@ parameters:
 			path: app/Policies/UserPolicy.php
 
 		-
-			message: '#^Cannot call method isFuture\(\) on string\.$#'
+			message: '#^Cannot call method diffForHumans\(\) on string\.$#'
 			identifier: method.nonObject
 			count: 1
 			path: app/Services/AccountLockoutService.php
 
 		-
-			message: '#^Cannot call method diffForHumans\(\) on string\.$#'
+			message: '#^Cannot call method isFuture\(\) on string\.$#'
 			identifier: method.nonObject
 			count: 1
 			path: app/Services/AccountLockoutService.php
@@ -1469,7 +1469,6 @@ parameters:
 			identifier: method.unused
 			count: 1
 			path: app/Services/Carriers/FedexAdapter.php
-
 
 		-
 			message: '#^Offset ''specialServiceTypes'' on array\{specialServiceTypes\: array\{''SATURDAY_DELIVERY''\}\|array\{0\: ''FEDEX_ONE_RATE'', 1\?\: ''SATURDAY_DELIVERY''\}\} on left side of \?\? always exists and is not nullable\.$#'
@@ -1501,7 +1500,6 @@ parameters:
 			count: 1
 			path: app/Services/Carriers/UpsAdapter.php
 
-
 		-
 			message: '#^PHPDoc tag @var for constant App\\Services\\Carriers\\UpsAdapter\:\:SERVICE_NAMES with type array\<string, string\> is not subtype of value array\{''01''\: ''UPS Next Day Air'', ''02''\: ''UPS 2nd Day Air'', ''03''\: ''UPS Ground'', ''07''\: ''UPS Worldwide…'', ''08''\: ''UPS Worldwide…'', 11\: ''UPS Standard'', 12\: ''UPS 3 Day Select'', 13\: ''UPS Next Day Air…'', \.\.\.\}\.$#'
 			identifier: classConstant.phpDocType
@@ -1526,13 +1524,11 @@ parameters:
 			count: 2
 			path: app/Services/Carriers/UspsAdapter.php
 
-
 		-
 			message: '#^Expression on left side of \?\? is not nullable\.$#'
 			identifier: nullCoalesce.expr
 			count: 1
 			path: app/Services/Carriers/UspsAdapter.php
-
 
 		-
 			message: '#^Strict comparison using \=\=\= between App\\Enums\\BoxSizeType\:\:BOX and App\\Enums\\BoxSizeType\:\:BOX will always evaluate to true\.$#'
@@ -1621,7 +1617,7 @@ parameters:
 		-
 			message: '#^Cannot call method addDays\(\) on string\.$#'
 			identifier: method.nonObject
-			count: 1
+			count: 2
 			path: app/Services/PasswordPolicyService.php
 
 		-
@@ -1929,7 +1925,6 @@ parameters:
 			identifier: method.notFound
 			count: 2
 			path: tests/Feature/SsoLoginTest.php
-
 
 		-
 			message: '#^Cannot call method format\(\) on string\.$#'
