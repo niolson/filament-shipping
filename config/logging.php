@@ -8,6 +8,12 @@ use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
 use Monolog\Processor\PsrLogMessageProcessor;
 
+// During unit tests, several channels below are written to directly by name
+// (e.g. Log::channel('fedex-validation')) regardless of the default channel,
+// so they'd otherwise fill up their production log files on every test run.
+// Route them into the same storage/logs/testing.log instead.
+$isTesting = env('APP_ENV') === 'testing';
+
 return [
 
     /*
@@ -65,6 +71,14 @@ return [
             'driver' => 'single',
             'tap' => [CustomizeFormatter::class],
             'path' => storage_path('logs/laravel.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+
+        'testing' => [
+            'driver' => 'single',
+            'tap' => [CustomizeFormatter::class],
+            'path' => storage_path('logs/testing.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'replace_placeholders' => true,
         ],
@@ -132,8 +146,8 @@ return [
         ],
 
         'shipment-import' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/shipment-import.log'),
+            'driver' => $isTesting ? 'single' : 'daily',
+            'path' => $isTesting ? storage_path('logs/testing.log') : storage_path('logs/shipment-import.log'),
             'level' => env('SHIPMENT_IMPORT_LOG_LEVEL', 'info'),
             'days' => 14,
             'replace_placeholders' => true,
@@ -141,8 +155,8 @@ return [
 
         // Browser CSP violation reports (report-uri), for local policy tuning.
         'csp' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/csp.log'),
+            'driver' => $isTesting ? 'single' : 'daily',
+            'path' => $isTesting ? storage_path('logs/testing.log') : storage_path('logs/csp.log'),
             'level' => 'debug',
             'days' => 14,
             'replace_placeholders' => true,
@@ -157,8 +171,8 @@ return [
         */
 
         'fedex-validation' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/fedex-validation.log'),
+            'driver' => $isTesting ? 'single' : 'daily',
+            'path' => $isTesting ? storage_path('logs/testing.log') : storage_path('logs/fedex-validation.log'),
             'level' => 'debug',
             'days' => 14,
             'replace_placeholders' => true,
@@ -166,8 +180,8 @@ return [
         ],
 
         'usps-validation' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/usps-validation.log'),
+            'driver' => $isTesting ? 'single' : 'daily',
+            'path' => $isTesting ? storage_path('logs/testing.log') : storage_path('logs/usps-validation.log'),
             'level' => 'debug',
             'days' => 14,
             'replace_placeholders' => true,
@@ -175,8 +189,8 @@ return [
         ],
 
         'google-validation' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/google-validation.log'),
+            'driver' => $isTesting ? 'single' : 'daily',
+            'path' => $isTesting ? storage_path('logs/testing.log') : storage_path('logs/google-validation.log'),
             'level' => 'debug',
             'days' => 14,
             'replace_placeholders' => true,
@@ -184,8 +198,8 @@ return [
         ],
 
         'ups-validation' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/ups-validation.log'),
+            'driver' => $isTesting ? 'single' : 'daily',
+            'path' => $isTesting ? storage_path('logs/testing.log') : storage_path('logs/ups-validation.log'),
             'level' => 'debug',
             'days' => 14,
             'replace_placeholders' => true,
