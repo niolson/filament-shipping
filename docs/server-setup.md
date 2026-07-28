@@ -479,12 +479,43 @@ systemctl start cf-origin-firewall.service
 
 This drops non-Cloudflare traffic to `:80`/`:443` (v4 + v6) via `DOCKER-USER` and
 reapplies every 2 min (a Docker daemon restart flushes the chain). SSH (`:22`) is a
-host service in the INPUT chain and is intentionally left open (key-only +
-fail2ban), not IP-pinned. Verify from *outside* the box: a direct hit to the origin
-IP on `:443` should time out while the Cloudflare path still serves.
+host service in the INPUT chain, so plain `ufw` rules apply to it normally (the
+Docker-bypass problem above doesn't apply to SSH) — see the next subsection for
+restricting it to Tailscale instead of leaving it open to the internet.
 
 Full context — including the Cloudflare-side setup (Origin CA cert + Authenticated
 Origin Pulls) — is in `docs/cloudflare-hardening/option-a/README.md`.
+
+### Tailscale-only SSH access (recommended)
+
+Admins with a dynamic IP can't use a static `ufw` allowlist for SSH. Instead, join
+the server to your tailnet and restrict `:22` to the `tailscale0` interface —
+this closes public SSH entirely while still allowing access from any device on
+the tailnet, dynamic IP or not.
+
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+tailscale up --auth-key=<one-time-key-from-the-tailscale-admin-console>
+tailscale ip -4   # confirm it got a 100.x.x.x address
+```
+
+In the Tailscale admin console, **disable key expiry** for this device — headless
+servers can't do the interactive browser re-auth that a normal expiring key
+eventually requires, and this server has no other network path in once public
+SSH is closed.
+
+**Verify SSH-over-Tailscale works before touching the firewall** — from a device
+already on the tailnet: `ssh root@<tailscale-ip>`. Only once that's confirmed:
+
+```bash
+ufw allow in on tailscale0 to any port 22 proto tcp
+ufw delete allow 22/tcp
+```
+
+Verify from *outside* the tailnet that public `:22` now times out, and from a
+tailnet device that it still connects. Keep the Hetzner (or provider) web console
+as break-glass in case Tailscale itself is ever unreachable — see the root
+password note in SSH Hardening below.
 
 ### SSH Hardening
 
@@ -505,6 +536,44 @@ Restart SSH after changes:
 ```bash
 systemctl restart ssh
 ```
+
+#### Console break-glass
+
+If SSH access is ever restricted to Tailscale (see above), a cloud provider's
+web console (e.g. Hetzner Cloud's VNC console) becomes the only recovery path
+if the tailnet itself is ever unreachable. Check this actually works *before*
+you need it — a fresh cloud image typically ships with the root account
+password-**locked** (`passwd -S root` shows `L`), which silently breaks
+console login even though it looks like a normal login prompt. Set a real
+password if so:
+
+```bash
+passwd root   # or: echo "root:$(openssl rand -base64 24 | tr -d '/+=')" | chpasswd
+```
+
+This does **not** reopen SSH password auth — `PasswordAuthentication no` blocks
+password auth for SSH at the protocol level regardless of whether the account
+has a password hash. Store the password in a password manager, not in this
+repo or anywhere on the box.
+
+#### Algorithm hardening
+
+OpenSSH's defaults still offer some weak KEX/host-key/MAC options for legacy client compatibility. Restrict to the strong set with a dedicated file in `/etc/ssh/sshd_config.d/` (e.g. `hardening-algorithms.conf`):
+
+```
+KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
+HostKeyAlgorithms rsa-sha2-512,rsa-sha2-256,ssh-ed25519
+Ciphers chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com
+MACs umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com
+```
+
+This drops the NIST curves in KEX/host-key (suspected NSA-influenced), SHA-1 MACs, the 2048-bit `diffie-hellman-group14-sha256` KEX, and the non-`-etm` (encrypt-and-MAC) MAC variants — requires OpenSSH 8.5+/Dropbear 2018.76+ on the client, which any modern admin machine satisfies. Validate before restarting:
+
+```bash
+sshd -t && systemctl restart ssh
+```
+
+Verify with [ssh-audit](https://github.com/jtesta/ssh-audit) (`apt install ssh-audit`) — should show no `[fail]`/`[warn]` entries. **Test a brand-new connection before closing your existing session** — `sshd -t` catches syntax errors but not a config that's valid yet locks out every client you actually have.
 
 ### fail2ban
 
@@ -645,6 +714,69 @@ apt install -y lynis
 ```
 
 Weekly audit every Sunday at 2am via `/etc/cron.d/lynis`. Report: `/var/log/lynis-weekly.log`.
+
+### Trivy (Host OS Vulnerability Scanning)
+
+CVE scanning for the host's OS packages, kernel, and system services (sshd,
+Caddy, etc.) — the piece Grype's CI scans don't cover, since those only see
+what's baked into the app/nginx container images, not the VPS underneath.
+Lynis above audits general hardening posture; this is the CVE-by-severity
+scan an auditor asking about "host vulnerability scanning" actually wants.
+
+Install a pinned, checksum-verified release rather than piping an install
+script — this runs as root, so we don't trust whatever happens to be
+`latest` on scan day. Get the current pin (version + sha256) from
+`scripts/security-scan-host.sh` in the app repo; the same two constants are
+used here:
+
+```bash
+TRIVY_VERSION="0.72.0"
+TRIVY_DEB_SHA256="9bf8aba92f524b74f8e83d53b298a7dfc6b4d60aca779217e7817e5433c73eeb"
+curl -fsSL -o /tmp/trivy.deb \
+  "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.deb"
+echo "${TRIVY_DEB_SHA256}  /tmp/trivy.deb" | sha256sum -c -
+dpkg -i /tmp/trivy.deb && rm -f /tmp/trivy.deb
+```
+
+Wrapper script `/usr/local/bin/trivy-host-scan.sh`:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+OUT_DIR=/var/log/trivy-host-scan
+DATE=$(date -u +%Y-%m-%d)
+mkdir -p "$OUT_DIR"
+trivy rootfs \
+  --pkg-types os --scanners vuln \
+  --skip-dirs /proc --skip-dirs /sys --skip-dirs /dev --skip-dirs /run \
+  --skip-dirs /mnt --skip-dirs /media --skip-dirs /home \
+  --skip-dirs /root/.cache --skip-dirs /tmp \
+  --skip-dirs /var/lib/docker --skip-dirs /opt/tenants \
+  --format json --output "$OUT_DIR/$DATE.json" /
+COUNT=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$OUT_DIR/$DATE.json")
+logger -t trivy-host-scan "scan complete: $COUNT findings, report at $OUT_DIR/$DATE.json"
+```
+
+```bash
+chmod +x /usr/local/bin/trivy-host-scan.sh
+```
+
+Monthly run, 1st of the month at 4am, via `/etc/cron.d/trivy-host-scan`:
+
+```
+0 4 1 * * root /usr/local/bin/trivy-host-scan.sh
+```
+
+Report: `/var/log/trivy-host-scan/YYYY-MM-DD.json`. Findings by severity are
+in the `.Results[].Vulnerabilities[].Severity` field of each report; fixable
+ones remediate via `apt-get upgrade` per the standard patching SLA
+(Critical: 7 days, High: 30 days).
+
+For an on-demand, audit-ready report (e.g. to hand to a reviewer) rather
+than waiting for the monthly cron, run `scripts/security-scan-host.sh --ssh
+root@<server>` from a checkout of the app repo — it installs/verifies the
+same pinned Trivy remotely and writes a dated Markdown + JSON report into
+`security-reports/`, matching the existing ZAP DAST report convention.
 
 ---
 
