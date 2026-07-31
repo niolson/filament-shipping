@@ -31,6 +31,29 @@ class AddressReferenceService
     /** @var array<string, string> */
     private array $administrativeAreaLabels = [];
 
+    /**
+     * Subdivision names carriers and sales channels use that the addressing
+     * library does not list.
+     *
+     * The library labels the US military subdivisions "Armed Forces (AE)",
+     * while Shopify — and USPS itself — spell them out by region. Without these
+     * the full name survives normalization and a label purchase is rejected at
+     * the carrier, because USPS requires a two-letter state.
+     *
+     * @var array<string, array<string, string>>
+     */
+    private const SUBDIVISION_ALIASES = [
+        'US' => [
+            'Armed Forces Americas' => 'AA',
+            'Armed Forces America' => 'AA',
+            'Armed Forces Europe' => 'AE',
+            'Armed Forces Africa' => 'AE',
+            'Armed Forces Canada' => 'AE',
+            'Armed Forces Middle East' => 'AE',
+            'Armed Forces Pacific' => 'AP',
+        ],
+    ];
+
     public function __construct()
     {
         $this->countryRepository = new CountryRepository('en');
@@ -109,6 +132,10 @@ class AddressReferenceService
         }
 
         asort($options);
+
+        foreach (self::SUBDIVISION_ALIASES[$countryCode] ?? [] as $alias => $code) {
+            $lookup[$this->normalizeLookupKey($alias)] ??= $code;
+        }
 
         $this->subdivisionLookup[$countryCode] = $lookup;
 

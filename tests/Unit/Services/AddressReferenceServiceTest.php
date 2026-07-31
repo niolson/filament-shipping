@@ -25,3 +25,27 @@ it('returns subdivision options for countries with predefined administrative are
     expect($options)->toHaveKey('CA')
         ->and($options['CA'])->toBe('California');
 });
+
+it('normalizes the military subdivision names carriers and channels use', function (): void {
+    // The addressing library lists these as "Armed Forces (AE)", but Shopify and
+    // USPS spell out the region. Without the alias the full name survives and
+    // USPS rejects the label, since it requires a two-letter state.
+    $service = app(AddressReferenceService::class);
+
+    expect($service->normalizeSubdivision('US', 'Armed Forces Europe'))->toBe('AE')
+        ->and($service->normalizeSubdivision('US', 'Armed Forces Africa'))->toBe('AE')
+        ->and($service->normalizeSubdivision('US', 'Armed Forces Canada'))->toBe('AE')
+        ->and($service->normalizeSubdivision('US', 'Armed Forces Middle East'))->toBe('AE')
+        ->and($service->normalizeSubdivision('US', 'Armed Forces Americas'))->toBe('AA')
+        ->and($service->normalizeSubdivision('US', 'Armed Forces Pacific'))->toBe('AP')
+        ->and($service->normalizeSubdivision('US', 'AE'))->toBe('AE');
+});
+
+it('leaves the subdivision option list untouched when aliasing', function (): void {
+    $service = app(AddressReferenceService::class);
+    $options = $service->getSubdivisionOptions('US');
+
+    expect($options)->toHaveKey('AE')
+        ->and($options['AE'])->toBe('Armed Forces (AE)')
+        ->and($options)->not->toHaveKey('Armed Forces Europe');
+});

@@ -55,7 +55,10 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
             pageInfo { hasNextPage endCursor }
             nodes {
               id status
-              order { id name email }
+              order {
+                id name email
+                shippingAddress { provinceCode zip }
+              }
               destination {
                 firstName lastName company address1 address2
                 city province zip countryCode phone
@@ -279,6 +282,32 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
         return $items;
     }
 
+    /**
+     * Resolve the destination's state as a code rather than a full name.
+     *
+     * `FulfillmentOrderDestination` exposes only `province`, which is the full
+     * name ("Armed Forces Europe"), and carriers want the two-letter code. The
+     * order's shipping address carries `provinceCode`, so prefer that whenever
+     * it describes the same destination — a fulfillment order can in principle
+     * be routed elsewhere, and the postal code is the cheapest way to tell.
+     * Otherwise fall back to the name, which normalization handles.
+     */
+    private function destinationProvince(array $fulfillmentOrder): ?string
+    {
+        $destination = $fulfillmentOrder['destination'] ?? [];
+        $shippingAddress = data_get($fulfillmentOrder, 'order.shippingAddress') ?? [];
+
+        $sameDestination = filled($destination['zip'] ?? null)
+            && filled($shippingAddress['zip'] ?? null)
+            && strcasecmp(trim((string) $destination['zip']), trim((string) $shippingAddress['zip'])) === 0;
+
+        if ($sameDestination && filled($shippingAddress['provinceCode'] ?? null)) {
+            return $shippingAddress['provinceCode'];
+        }
+
+        return $destination['province'] ?? null;
+    }
+
     /** @return array<string, mixed> */
     private function mapFulfillmentOrderToShipment(array $fulfillmentOrder): array
     {
@@ -300,7 +329,7 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
             'address1' => $destination['address1'] ?? null,
             'address2' => $destination['address2'] ?? null,
             'city' => $destination['city'] ?? null,
-            'state_or_province' => $destination['province'] ?? null,
+            'state_or_province' => $this->destinationProvince($fulfillmentOrder),
             'postal_code' => $destination['zip'] ?? null,
             'country' => $destination['countryCode'] ?? 'US',
             'phone' => $destination['phone'] ?? null,

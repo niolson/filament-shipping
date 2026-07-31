@@ -495,3 +495,60 @@ it('respects notify_customer config', function (): void {
         return $body['variables']['fulfillment']['notifyCustomer'] === true;
     });
 });
+
+it('prefers the order shipping address province code over the destination province name', function (): void {
+    // FulfillmentOrderDestination exposes only `province`, the full name. USPS
+    // rejects a label whose state is not a two-letter code, so the code is taken
+    // from the order's shipping address when it describes the same destination.
+    Saloon::fake([
+        GraphQL::class => mockShopifyFulfillmentOrders([shopifyFulfillmentOrderNode([
+            'order' => [
+                'id' => 'gid://shopify/Order/1001',
+                'name' => '#1001',
+                'email' => 'customer@example.com',
+                'shippingAddress' => ['provinceCode' => 'AE', 'zip' => '09532'],
+            ],
+            'destination' => [
+                'firstName' => 'John',
+                'lastName' => 'Doe',
+                'address1' => 'PSC 402 BOX 301',
+                'city' => 'FPO',
+                'province' => 'Armed Forces Europe',
+                'zip' => '09532',
+                'countryCode' => 'US',
+            ],
+        ])]),
+    ]);
+
+    $source = new ShopifySource(shopifyConfig(['fulfillment_order_import_enabled' => true]));
+
+    expect($source->fetchShipments()->first()['state_or_province'])->toBe('AE');
+});
+
+it('keeps the destination province when the fulfillment order ships somewhere else', function (): void {
+    // A fulfillment order can be routed to a different address than the order's,
+    // so the order-level province code must not be applied blindly.
+    Saloon::fake([
+        GraphQL::class => mockShopifyFulfillmentOrders([shopifyFulfillmentOrderNode([
+            'order' => [
+                'id' => 'gid://shopify/Order/1001',
+                'name' => '#1001',
+                'email' => 'customer@example.com',
+                'shippingAddress' => ['provinceCode' => 'WA', 'zip' => '98101'],
+            ],
+            'destination' => [
+                'firstName' => 'John',
+                'lastName' => 'Doe',
+                'address1' => '123 Main St',
+                'city' => 'Portland',
+                'province' => 'OR',
+                'zip' => '97201',
+                'countryCode' => 'US',
+            ],
+        ])]),
+    ]);
+
+    $source = new ShopifySource(shopifyConfig(['fulfillment_order_import_enabled' => true]));
+
+    expect($source->fetchShipments()->first()['state_or_province'])->toBe('OR');
+});
