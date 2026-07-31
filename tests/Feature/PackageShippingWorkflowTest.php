@@ -349,3 +349,123 @@ it('cleans up an unshipped package when auto ship fails by default', function ()
     expect($result->success)->toBeFalse()
         ->and(Package::find($package->id))->toBeNull();
 });
+
+it('prompts for a customs weight override when a military destination is overweight', function (): void {
+    // Military addresses are domestic but customs-declared, so they reach the
+    // carrier with customs items. Gating the override on the country alone let
+    // those items through unreconciled, and USPS rejected the label: "total
+    // weight of all of the content items cannot be more than the total weight".
+    $this->actingAs($user = User::factory()->create());
+    $package = createWorkflowPackage();
+    $package->update(['weight' => 0.7]);
+    $package->shipment->update([
+        'city' => 'FPO',
+        'state_or_province' => 'AE',
+        'postal_code' => '09532',
+        'country' => 'US',
+    ]);
+
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    // A concrete return value, even though the call is not expected: Mockery
+    // cannot synthesize one for the readonly ShipResponse, and a regression
+    // should fail this test rather than fatal out of the whole suite.
+    $adapter->shouldReceive('createShipment')->never()->andReturn(
+        ShipResponse::success(
+            trackingNumber: 'UNEXPECTED',
+            cost: 7.25,
+            carrier: 'MockCarrier',
+            service: 'Ground',
+            labelData: base64_encode('label'),
+        )
+    );
+    app(CarrierRegistry::class)->registerInstance('MockCarrier', $adapter);
+
+    $result = app(PackageShippingWorkflow::class)->ship(
+        $package,
+        new PackageShippingRequest(
+            selectedRate: new RateResponse('MockCarrier', 'GROUND', 'Ground', 7.25, '3 days'),
+            userId: $user->id,
+        ),
+    );
+
+    expect($result->requiresCustomsWeightOverride)->toBeTrue()
+        ->and($package->fresh()->status)->toBe(PackageStatus::Unshipped);
+});
+
+it('scales customs weights for a military destination once the override is confirmed', function (): void {
+    $this->actingAs($user = User::factory()->create());
+    $package = createWorkflowPackage();
+    $package->update(['weight' => 0.7]);
+    $package->shipment->update([
+        'city' => 'FPO',
+        'state_or_province' => 'AE',
+        'postal_code' => '09532',
+        'country' => 'US',
+    ]);
+
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('createShipment')->once()->andReturnUsing(
+        function ($shipRequest): ShipResponse {
+            $total = collect($shipRequest->customsItems)
+                ->sum(fn ($item): float => $item->weight * $item->quantity);
+
+            expect($total)->toBeLessThanOrEqual($shipRequest->packageData->weight);
+
+            return ShipResponse::success(
+                trackingNumber: 'TRACK123',
+                cost: 7.25,
+                carrier: 'MockCarrier',
+                service: 'Ground',
+                labelData: base64_encode('label'),
+            );
+        }
+    );
+
+    app(CarrierRegistry::class)->registerInstance('MockCarrier', $adapter);
+
+    $result = app(PackageShippingWorkflow::class)->ship(
+        $package,
+        new PackageShippingRequest(
+            selectedRate: new RateResponse('MockCarrier', 'GROUND', 'Ground', 7.25, '3 days'),
+            userId: $user->id,
+            overrideCustomsWeights: true,
+        ),
+    );
+
+    expect($result->success)->toBeTrue();
+});
+
+it('does not prompt for a customs override on an ordinary domestic destination', function (): void {
+    $this->actingAs($user = User::factory()->create());
+    $package = createWorkflowPackage();
+    $package->update(['weight' => 0.7]);
+    $package->shipment->update([
+        'city' => 'Los Angeles',
+        'state_or_province' => 'CA',
+        'postal_code' => '90210',
+        'country' => 'US',
+    ]);
+
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('createShipment')->once()->andReturn(
+        ShipResponse::success(
+            trackingNumber: 'TRACK123',
+            cost: 7.25,
+            carrier: 'MockCarrier',
+            service: 'Ground',
+            labelData: base64_encode('label'),
+        )
+    );
+
+    app(CarrierRegistry::class)->registerInstance('MockCarrier', $adapter);
+
+    $result = app(PackageShippingWorkflow::class)->ship(
+        $package,
+        new PackageShippingRequest(
+            selectedRate: new RateResponse('MockCarrier', 'GROUND', 'Ground', 7.25, '3 days'),
+            userId: $user->id,
+        ),
+    );
+
+    expect($result->success)->toBeTrue();
+});

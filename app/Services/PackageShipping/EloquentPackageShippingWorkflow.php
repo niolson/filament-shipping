@@ -235,7 +235,9 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
 
     private function requiresCustomsWeightOverride(ShipRequest $shipRequest, bool $overrideCustomsWeights): bool
     {
-        if ($overrideCustomsWeights || $shipRequest->toAddress->country === 'US' || empty($shipRequest->customsItems)) {
+        if ($overrideCustomsWeights
+            || ! $shipRequest->toAddress->requiresCustomsDeclaration()
+            || empty($shipRequest->customsItems)) {
             return false;
         }
 

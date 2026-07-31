@@ -67,4 +67,47 @@ readonly class AddressData
 
         return self::fromLocation($location);
     }
+
+    /**
+     * Overseas military and diplomatic post office subdivisions.
+     *
+     * @var array<int, string>
+     */
+    private const MILITARY_SUBDIVISIONS = ['AA', 'AE', 'AP'];
+
+    /**
+     * City names identifying the same destinations, used when a subdivision
+     * arrives unnormalized.
+     *
+     * @var array<int, string>
+     */
+    private const MILITARY_CITIES = ['APO', 'FPO', 'DPO'];
+
+    /**
+     * Whether this is an overseas military or diplomatic post office address.
+     */
+    public function isMilitary(): bool
+    {
+        if ($this->country !== 'US') {
+            return false;
+        }
+
+        return in_array(strtoupper(trim((string) $this->stateOrProvince)), self::MILITARY_SUBDIVISIONS, true)
+            || in_array(strtoupper(trim($this->city)), self::MILITARY_CITIES, true);
+    }
+
+    /**
+     * Whether a shipment to this address carries a customs declaration.
+     *
+     * Military and diplomatic post offices cross a customs boundary despite
+     * being domestic addresses, so "customs applies" is not the same question
+     * as "the country is not US". Anything reasoning about customs data should
+     * ask this rather than comparing the country itself, or the two answers
+     * drift apart — which is how customs items reached the carrier without
+     * passing through weight reconciliation first.
+     */
+    public function requiresCustomsDeclaration(): bool
+    {
+        return $this->country !== 'US' || $this->isMilitary();
+    }
 }
