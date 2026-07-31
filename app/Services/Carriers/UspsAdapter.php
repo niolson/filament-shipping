@@ -79,6 +79,22 @@ class UspsAdapter implements CarrierAdapterInterface
     private const INTERNATIONAL_EXTRA_SERVICES = [930, 931, 820];
 
     /**
+     * Overseas military and diplomatic post office subdivisions. Mail to these
+     * is domestically priced but customs-declared.
+     *
+     * @var array<int, string>
+     */
+    private const MILITARY_STATES = ['AA', 'AE', 'AP'];
+
+    /**
+     * City names identifying the same destinations, used when a state arrives
+     * unnormalized.
+     *
+     * @var array<int, string>
+     */
+    private const MILITARY_CITIES = ['APO', 'FPO', 'DPO'];
+
+    /**
      * Map resolved special service codes to USPS numeric extra services plus
      * the companion fields the Labels API requires alongside them.
      *
@@ -547,6 +563,9 @@ class UspsAdapter implements CarrierAdapterInterface
                     ...($mapped['packageOptions'] !== [] ? ['packageOptions' => $mapped['packageOptions']] : []),
                     ...($mapped['hazmat'] ? ['contentType' => 'HAZMAT'] : []),
                 ],
+                ...($this->requiresMilitaryCustomsForm($request->toAddress)
+                    ? ['customsForm' => $this->buildCustomsForm($request)]
+                    : []),
                 'imageInfo' => $imageInfo,
             ];
 
@@ -743,7 +762,30 @@ class UspsAdapter implements CarrierAdapterInterface
     }
 
     /**
-     * Build the customs form for international shipments.
+     * Whether USPS requires a customs declaration despite a domestic address.
+     *
+     * Mail to an overseas military or diplomatic post office crosses a customs
+     * boundary even though the country is US, so USPS rejects the label without
+     * customs data ("Customs form data required for toAddress.ZIPCode"). These
+     * still ship at domestic prices on domestic mail classes, so only the
+     * customs form is added — the request is not rerouted to the international
+     * label API.
+     */
+    private function requiresMilitaryCustomsForm(AddressData $address): bool
+    {
+        if ($address->country !== 'US') {
+            return false;
+        }
+
+        $state = strtoupper(trim((string) $address->stateOrProvince));
+        $city = strtoupper(trim((string) $address->city));
+
+        return in_array($state, self::MILITARY_STATES, true)
+            || in_array($city, self::MILITARY_CITIES, true);
+    }
+
+    /**
+     * Build the customs form for international and military shipments.
      *
      * @return array<string, mixed>
      */

@@ -1,6 +1,7 @@
 <?php
 
 use App\DataTransferObjects\Shipping\AddressData;
+use App\DataTransferObjects\Shipping\CustomsItem;
 use App\DataTransferObjects\Shipping\PackageData;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
@@ -20,6 +21,7 @@ use App\Models\Shipment;
 use App\Services\Carriers\UspsAdapter;
 use Saloon\Exceptions\Request\Statuses\InternalServerErrorException;
 use Saloon\Http\Faking\MockResponse;
+use Saloon\Http\Request;
 use Saloon\Laravel\Facades\Saloon;
 
 beforeEach(function (): void {
@@ -1256,4 +1258,126 @@ it('scopes the detected pricing tier per account', function (): void {
     // The RETAIL fallback on one account must not poison the other account's tier.
     expect($this->adapter->cachedPricingType($retailAccount))->toBe('RETAIL')
         ->and($this->adapter->cachedPricingType($contractAccount))->toBeNull();
+});
+
+it('attaches a customs form to domestic military destinations', function (): void {
+    // USPS rejects an APO/FPO/DPO label without customs data ("Customs form data
+    // required for toAddress.ZIPCode"), even though the country is US. These stay
+    // on the domestic label API at domestic prices.
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        PaymentAuthorization::class => MockResponse::make(['paymentAuthorizationToken' => 'test_payment_token']),
+        Label::class => MockResponse::make(
+            body: "--boundary\r\nContent-Type: application/json\r\n\r\n{\"trackingNumber\":\"9400111899223456789012\",\"postage\":8.50}\r\n--boundary\r\nContent-Type: application/pdf\r\n\r\nJVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh\r\n--boundary--",
+            headers: ['Content-Type' => 'multipart/mixed; boundary=boundary']
+        ),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: 'PSC 402 BOX 301',
+            city: 'FPO',
+            stateOrProvince: 'AE',
+            postalCode: '09532',
+        ),
+        packageData: new PackageData(weight: 2.5, length: 10, width: 8, height: 6),
+        selectedRate: new RateResponse(
+            carrier: 'USPS',
+            serviceCode: 'USPS_GROUND_ADVANTAGE',
+            serviceName: 'USPS Ground Advantage',
+            price: 8.50,
+            metadata: [
+                'mailClass' => 'USPS_GROUND_ADVANTAGE',
+                'processingCategory' => 'MACHINABLE',
+                'rateIndicator' => 'SP',
+                'destinationEntryFacilityType' => 'NONE',
+            ],
+        ),
+        customsItems: [new CustomsItem(
+            description: 'Blue Widget',
+            quantity: 2,
+            unitValue: 19.99,
+            weight: 0.5,
+        )],
+    );
+
+    expect($this->adapter->createShipment($request)->success)->toBeTrue();
+
+    Saloon::assertSent(function (Request $request): bool {
+        if (! $request instanceof Label) {
+            return false;
+        }
+
+        $body = $request->body()->all();
+
+        return isset($body['customsForm'])
+            && $body['customsForm']['contents'][0]['itemDescription'] === 'Blue Widget'
+            && $body['customsForm']['contents'][0]['itemTotalValue'] === 39.98;
+    });
+});
+
+it('omits the customs form for ordinary domestic destinations', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        PaymentAuthorization::class => MockResponse::make(['paymentAuthorizationToken' => 'test_payment_token']),
+        Label::class => MockResponse::make(
+            body: "--boundary\r\nContent-Type: application/json\r\n\r\n{\"trackingNumber\":\"9400111899223456789012\",\"postage\":8.50}\r\n--boundary\r\nContent-Type: application/pdf\r\n\r\nJVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh\r\n--boundary--",
+            headers: ['Content-Type' => 'multipart/mixed; boundary=boundary']
+        ),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: '456 Main St',
+            city: 'Los Angeles',
+            stateOrProvince: 'CA',
+            postalCode: '90210',
+        ),
+        packageData: new PackageData(weight: 2.5, length: 10, width: 8, height: 6),
+        selectedRate: new RateResponse(
+            carrier: 'USPS',
+            serviceCode: 'USPS_GROUND_ADVANTAGE',
+            serviceName: 'USPS Ground Advantage',
+            price: 8.50,
+            metadata: [
+                'mailClass' => 'USPS_GROUND_ADVANTAGE',
+                'processingCategory' => 'MACHINABLE',
+                'rateIndicator' => 'SP',
+                'destinationEntryFacilityType' => 'NONE',
+            ],
+        ),
+        customsItems: [new CustomsItem(
+            description: 'Blue Widget',
+            quantity: 2,
+            unitValue: 19.99,
+            weight: 0.5,
+        )],
+    );
+
+    expect($this->adapter->createShipment($request)->success)->toBeTrue();
+
+    Saloon::assertSent(function (Request $request): bool {
+        return $request instanceof Label
+            && ! isset($request->body()->all()['customsForm']);
+    });
 });
