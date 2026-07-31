@@ -109,6 +109,18 @@ class Location extends Model
         return $this->hasMany(Package::class);
     }
 
+    /** @return HasMany<Shipment, $this> */
+    public function shipments(): HasMany
+    {
+        return $this->hasMany(Shipment::class);
+    }
+
+    /** @return HasMany<DataSourceLocation, $this> */
+    public function dataSourceLocations(): HasMany
+    {
+        return $this->hasMany(DataSourceLocation::class);
+    }
+
     /**
      * @return BelongsToMany<Carrier, $this>
      */

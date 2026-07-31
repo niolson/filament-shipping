@@ -114,6 +114,18 @@ class ShipmentResource extends Resource
                             ->prefix('$'),
                         Forms\Components\DatePicker::make('deliver_by')
                             ->label('Deliver By'),
+                        Forms\Components\Select::make('location_id')
+                            ->label('Assigned Location')
+                            ->relationship('location', 'name', modifyQueryUsing: fn (Builder $query): Builder => $query->where('active', true))
+                            ->searchable()
+                            ->preload()
+                            ->visible(fn (?Shipment $record): bool => (bool) app(SettingsService::class)->get('multi_location_enabled', false)
+                                && $record?->data_source_location_id === null),
+                        Forms\Components\Placeholder::make('assigned_location')
+                            ->label('Assigned Location')
+                            ->content(fn (Shipment $record): string => $record->location->name ?? 'Unassigned')
+                            ->visible(fn (?Shipment $record): bool => $record?->data_source_location_id !== null
+                                && (bool) app(SettingsService::class)->get('multi_location_enabled', false)),
 
                         // Unmapped warnings (edit only)
                         Forms\Components\Placeholder::make('unmapped_channel_warning')
@@ -177,7 +189,7 @@ class ShipmentResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['shippingMethod', 'channel', 'client']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['shippingMethod', 'channel', 'client', 'location']))
             ->searchable()
             ->searchUsing(function (Builder $query, string $search): void {
                 static::applyGlobalSearchAttributeConstraints($query, $search);
@@ -194,6 +206,10 @@ class ShipmentResource extends Resource
                     ->label('Client')
                     ->placeholder('—')
                     ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
+                Tables\Columns\TextColumn::make('location.name')
+                    ->label('Location')
+                    ->placeholder('—')
+                    ->visible(fn () => app(SettingsService::class)->get('multi_location_enabled', false)),
                 Tables\Columns\TextColumn::make('channel.name')
                     ->label('Channel')
                     ->icon(fn (Shipment $record): ?string => $record->channel?->icon)
@@ -246,6 +262,10 @@ class ShipmentResource extends Resource
                     ->label('Client')
                     ->preload()
                     ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),
+                Tables\Filters\SelectFilter::make('location')
+                    ->relationship('location', 'name')
+                    ->preload()
+                    ->visible(fn () => app(SettingsService::class)->get('multi_location_enabled', false)),
                 Tables\Filters\SelectFilter::make('channel')
                     ->relationship('channel', 'name')
                     ->label('Channel')

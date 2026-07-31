@@ -8,6 +8,10 @@ use App\Filament\Resources\DataSources\Pages\ListDataSources;
 use App\Jobs\RunDataSourceImportJob;
 use App\Models\Channel;
 use App\Models\DataSource;
+use App\Models\DataSourceLocation;
+use App\Models\Location;
+use App\Models\Package;
+use App\Models\Shipment;
 use App\Models\User;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
@@ -18,6 +22,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
+use Saloon\Http\Faking\MockResponse;
+use Saloon\Laravel\Facades\Saloon;
 
 uses(RefreshDatabase::class);
 
@@ -286,6 +292,99 @@ it('routes secret keys to encrypted secret_settings on create', function (): voi
     expect($record->secret('access_token'))->toBe('shpat_secret_token');
     expect($record->secret('client_id'))->toBe('secret_client_id');
     expect($record->secret('client_secret'))->toBe('secret_client_secret');
+    // Fulfillment-order import is a guarded, one-way activation; creating a
+    // source must not switch it on before its scopes and locations are checked.
+    expect($record->settings)->not->toHaveKey('fulfillment_order_import_enabled')
+        ->and($record->settings)->not->toHaveKey('authoritative_shipment_items');
+});
+
+it('leaves fulfillment-order activation available on a newly created Shopify source', function (): void {
+    $this->actingAs($this->admin);
+
+    // Enabling the flag at creation used to hide this action permanently, so the
+    // scope and location checks in ShopifyFulfillmentOrderActivationService could
+    // never run and a source with insufficient Shopify scopes imported nothing
+    // while reporting no error.
+    $source = DataSource::factory()->shopify()->create();
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->assertActionVisible('activate_fulfillment_order_import');
+});
+
+it('shows synchronized Shopify locations in a fixed mapping repeater', function (): void {
+    $this->actingAs($this->admin);
+    $source = DataSource::factory()->shopify()->create();
+    DataSourceLocation::factory()->create([
+        'data_source_id' => $source,
+        'name' => 'Main Warehouse',
+        'location_id' => Location::factory()->create(),
+    ]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->assertFormFieldVisible('locations');
+});
+
+it('synchronizes Shopify locations from the edit action', function (): void {
+    $this->actingAs($this->admin);
+    $source = createShopifyDataSource(secrets: ['access_token' => 'shpat_test']);
+    Saloon::fake([
+        shopifyAccessScopesResponse(),
+        MockResponse::make([
+            'data' => ['locations' => [
+                'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+                'nodes' => [[
+                    'id' => 'gid://shopify/Location/1',
+                    'name' => 'Main Warehouse',
+                    'isActive' => true,
+                    'address' => ['city' => 'Seattle', 'countryCode' => 'US'],
+                ]],
+            ]],
+        ]),
+    ]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->callAction('sync_shopify_locations')
+        ->assertNotified('Shopify locations synchronized');
+
+    expect($source->locations()->first()->name)->toBe('Main Warehouse');
+});
+
+it('reports packed shipments with null locations when a Shopify mapping exists', function (): void {
+    $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
+    $source = createShopifyDataSource([
+        'channel_name' => $channel->id,
+    ], ['access_token' => 'shpat_test']);
+    $sourceLocation = DataSourceLocation::factory()->create([
+        'data_source_id' => $source,
+        'location_id' => Location::getDefault(),
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $source,
+        'data_source_location_id' => $sourceLocation,
+        'location_id' => null,
+    ]);
+    Package::factory()->create(['shipment_id' => $shipment]);
+
+    $preservedCount = Shipment::query()
+        ->join('data_source_locations', 'data_source_locations.id', '=', 'shipments.data_source_location_id')
+        ->where('shipments.data_source_id', $source->id)
+        ->whereNotNull('data_source_locations.location_id')
+        ->where(fn ($query) => $query->whereNull('shipments.location_id')
+            ->orWhereColumn('shipments.location_id', '!=', 'data_source_locations.location_id'))
+        ->whereHas('packages')
+        ->count();
+
+    expect($preservedCount)->toBe(1);
+
+    $component = Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($sourceLocation->refresh()->location_id)->toBe(Location::getDefault()->id)
+        ->and($shipment->refresh()->location_id)->toBeNull();
+
+    $component->assertNotified('Packed shipments preserved');
 });
 
 it('routes db_password to secret_settings on create', function (): void {

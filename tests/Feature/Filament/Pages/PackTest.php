@@ -8,6 +8,7 @@ use App\Enums\Role;
 use App\Filament\Pages\Pack;
 use App\Models\BoxSize;
 use App\Models\Client;
+use App\Models\Location;
 use App\Models\Package;
 use App\Models\PackageItem;
 use App\Models\Product;
@@ -69,6 +70,27 @@ it('shows empty state when no shipment loaded', function (): void {
     Livewire::test(Pack::class)
         ->assertSet('shipment', null)
         ->assertSet('packingItems', []);
+});
+
+it('blocks packing at a different explicitly configured operator location', function (): void {
+    $shipmentLocation = Location::factory()->create(['name' => 'East Warehouse']);
+    $operatorLocation = Location::factory()->create(['name' => 'West Warehouse']);
+    $this->actingAs(User::factory()->admin()->create(['location_id' => $operatorLocation]));
+    $shipment = Shipment::factory()->create(['location_id' => $shipmentLocation]);
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertNotified('Location unavailable')
+        ->assertSet('shipment', null)
+        ->assertRedirect('/pack');
+});
+
+it('blocks packing at an inactive shipment location', function (): void {
+    $location = Location::factory()->create(['active' => false]);
+    $shipment = Shipment::factory()->create(['location_id' => $location]);
+
+    Livewire::test(Pack::class, ['shipment_id' => $shipment->id])
+        ->assertNotified('Location unavailable')
+        ->assertRedirect('/pack');
 });
 
 it('navigates to shipment by reference', function (): void {

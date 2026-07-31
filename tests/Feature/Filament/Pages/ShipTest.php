@@ -12,6 +12,7 @@ use App\Filament\Pages\Ship;
 use App\Models\BoxSize;
 use App\Models\Carrier;
 use App\Models\CarrierService;
+use App\Models\Location;
 use App\Models\Package;
 use App\Models\Product;
 use App\Models\Setting;
@@ -68,6 +69,23 @@ function registerMockAdapter(ShipResponse $response): void
 
     app(CarrierRegistry::class)->registerInstance('USPS', $adapter);
 }
+
+it('blocks shipping from a different explicitly configured operator location', function (): void {
+    $shipmentLocation = Location::factory()->create();
+    $operatorLocation = Location::factory()->create();
+    $this->actingAs(User::factory()->admin()->create(['location_id' => $operatorLocation]));
+    $shipment = Shipment::factory()->create(['location_id' => $shipmentLocation]);
+    $package = Package::factory()->create([
+        'shipment_id' => $shipment,
+        'location_id' => $shipmentLocation,
+        'status' => PackageStatus::Unshipped,
+    ]);
+
+    Livewire::test(Ship::class, ['package_id' => $package->id])
+        ->assertNotified('Location unavailable')
+        ->assertSet('package', null)
+        ->assertRedirect('/pack');
+});
 
 it('applies the selected rate index from the workflow to the form on mount', function (): void {
     $package = createShippablePackage();

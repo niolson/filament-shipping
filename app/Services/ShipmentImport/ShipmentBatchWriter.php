@@ -22,7 +22,7 @@ class ShipmentBatchWriter
      *
      * @param  array<int, array<string, mixed>>  $preparedRows
      */
-    public function write(array $preparedRows, DataSource $importSource): ShipmentBatchWriteResult
+    public function write(array $preparedRows, DataSource $importSource, ?Collection $existingShipments = null): ShipmentBatchWriteResult
     {
         if ($preparedRows === []) {
             return new ShipmentBatchWriteResult(collect(), [], [], [], 0, 0, 0);
@@ -42,11 +42,7 @@ class ShipmentBatchWriter
 
         $sourceRecordIds = array_column($preparedRows, 'source_record_id');
 
-        /** @var Collection<string, Shipment> $existingShipments */
-        $existingShipments = Shipment::where('data_source_id', $importSource->id)
-            ->whereIn('source_record_id', $sourceRecordIds)
-            ->get(['id', 'source_record_id', 'status', 'source_checksum'])
-            ->keyBy('source_record_id');
+        $existingShipments ??= $this->existingFor($importSource, $sourceRecordIds);
 
         $rowsToWrite = [];
         $updatedSourceRecordIds = [];
@@ -71,6 +67,7 @@ class ShipmentBatchWriter
 
         $updateColumns = [
             'client_id',
+            'location_id', 'data_source_location_id',
             'shipment_reference', 'source_checksum',
             'first_name', 'last_name', 'company',
             'address1', 'address2', 'city', 'state_or_province', 'postal_code', 'country',
@@ -98,6 +95,19 @@ class ShipmentBatchWriter
             shipmentsUpdated: count($updatedSourceRecordIds),
             shipmentsSkipped: count($skippedSourceRecordIds),
         );
+    }
+
+    /**
+     * @param  array<int, string>  $sourceRecordIds
+     * @return Collection<string, Shipment>
+     */
+    public function existingFor(DataSource $importSource, array $sourceRecordIds): Collection
+    {
+        return Shipment::where('data_source_id', $importSource->id)
+            ->whereIn('source_record_id', $sourceRecordIds)
+            ->withExists('packages')
+            ->get(['id', 'source_record_id', 'status', 'source_checksum', 'location_id'])
+            ->keyBy('source_record_id');
     }
 
     /**

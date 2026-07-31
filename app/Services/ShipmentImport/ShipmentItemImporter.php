@@ -17,7 +17,7 @@ class ShipmentItemImporter
      * Import pre-fetched item rows for a shipment. Items are fetched upstream
      * (before the batch write) so they can feed the source checksum.
      *
-     * @param  Collection<int, array<string, mixed>>  $items
+     * @param  Collection<int, covariant array<string, mixed>>  $items
      * @return array{items_created: int, items_updated: int, products_created: int, products_updated: int}
      */
     public function import(Shipment $shipment, Collection $items, DataSource $record): array
@@ -27,14 +27,20 @@ class ShipmentItemImporter
         }
 
         $stats = $this->emptyStats();
+        $importedProductIds = [];
+        $hasUnresolvedItems = false;
 
         foreach ($items as $itemData) {
             $product = $this->references->productIdFor($itemData, $shipment->client);
             $productId = $product['id'];
 
             if (! $productId) {
+                $hasUnresolvedItems = true;
+
                 continue;
             }
+
+            $importedProductIds[] = $productId;
 
             $shipmentItem = ShipmentItem::updateOrCreate(
                 [
@@ -61,6 +67,16 @@ class ShipmentItemImporter
             } elseif ($product['updated']) {
                 $stats['products_updated']++;
             }
+        }
+
+        if (($record->settings['authoritative_shipment_items'] ?? false)
+            && $items->isNotEmpty()
+            && $importedProductIds !== []
+            && ! $hasUnresolvedItems
+            && ! $shipment->packages()->exists()) {
+            $shipment->shipmentItems()
+                ->whereNotIn('product_id', $importedProductIds)
+                ->delete();
         }
 
         return $stats;

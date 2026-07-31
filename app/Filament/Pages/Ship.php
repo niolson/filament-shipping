@@ -11,6 +11,7 @@ use App\Enums\Role;
 use App\Filament\Concerns\NotifiesUser;
 use App\Filament\Concerns\PrintsLabels;
 use App\Models\Package;
+use App\Services\ShipmentLocationGuard;
 use BackedEnum;
 use Filament\Actions\Action;
 use Filament\Pages\Page;
@@ -78,9 +79,19 @@ class Ship extends Page
             return;
         }
 
-        $this->package = Package::with(['packageItems.product', 'packageItems.shipmentItem', 'shipment.shippingMethod', 'boxSize'])->findOrFail($package_id);
+        $this->package = Package::with(['packageItems.product', 'packageItems.shipmentItem', 'shipment.shippingMethod', 'shipment.location', 'boxSize'])->findOrFail($package_id);
 
         $this->authorize('ship', $this->package);
+
+        $locationError = app(ShipmentLocationGuard::class)->errorFor($this->package->shipment, auth()->user());
+
+        if ($locationError !== null) {
+            $this->notifyError('Location unavailable', $locationError);
+            $this->package = null;
+            $this->redirect($this->returnUrl);
+
+            return;
+        }
 
         if ($this->package->status === PackageStatus::Shipped) {
             $this->notifyWarning('Already Shipped', 'This package has already been shipped.');
@@ -227,6 +238,18 @@ class Ship extends Page
 
     public function ship(): void
     {
+        if (! $this->package) {
+            return;
+        }
+
+        $this->package->shipment->refresh()->load('location');
+        $locationError = app(ShipmentLocationGuard::class)->errorFor($this->package->shipment, auth()->user());
+        if ($locationError !== null) {
+            $this->notifyError('Location unavailable', $locationError);
+
+            return;
+        }
+
         if ($this->selectedRateIndex === null || ! isset($this->rateOptions[$this->selectedRateIndex])) {
             $this->notifyError('No Rate Selected', 'Please select a shipping rate.');
 

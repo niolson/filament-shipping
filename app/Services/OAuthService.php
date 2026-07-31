@@ -222,7 +222,10 @@ class OAuthService
         if ($providerKey === 'shopify') {
             $shopDomain = $importSource->settings['shop_domain'] ?? null;
 
-            return array_filter(['shop' => $shopDomain]);
+            return array_filter([
+                'shop' => $shopDomain,
+                'scope' => implode(',', ShopifyFulfillmentOrderActivationService::REQUIRED_SCOPES),
+            ]);
         }
 
         return [];

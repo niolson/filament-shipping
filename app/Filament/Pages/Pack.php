@@ -22,6 +22,7 @@ use App\Models\Product;
 use App\Models\Shipment;
 use App\Services\CacheService;
 use App\Services\SettingsService;
+use App\Services\ShipmentLocationGuard;
 use BackedEnum;
 use Filament\Pages\Page;
 use Illuminate\Support\Facades\Session;
@@ -100,7 +101,17 @@ class Pack extends Page
         $this->boxSizes = app(CacheService::class)->getBoxSizesForPacking();
 
         if ($shipment_id) {
-            $this->shipment = Shipment::with('client')->findOrFail($shipment_id);
+            $this->shipment = Shipment::with(['client', 'location'])->findOrFail($shipment_id);
+
+            $locationError = app(ShipmentLocationGuard::class)->errorFor($this->shipment, auth()->user());
+
+            if ($locationError !== null) {
+                $this->notifyError('Location unavailable', $locationError);
+                $this->shipment = null;
+                $this->redirect('/pack');
+
+                return;
+            }
 
             if ($this->shipment->isBlockedByPicking()) {
                 $this->notifyWarning(
@@ -227,6 +238,15 @@ class Pack extends Page
 
         if (! $this->shipment) {
             $this->notifyError('Invalid State', 'No shipment loaded.');
+            $this->dispatch('shipping-error');
+
+            return;
+        }
+
+        $this->shipment->refresh()->load('location');
+        $locationError = app(ShipmentLocationGuard::class)->errorFor($this->shipment, auth()->user());
+        if ($locationError !== null) {
+            $this->notifyError('Location unavailable', $locationError);
             $this->dispatch('shipping-error');
 
             return;

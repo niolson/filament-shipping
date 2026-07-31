@@ -68,6 +68,12 @@
                             <dt class="font-medium text-gray-500 dark:text-gray-400">Box</dt>
                             <dd class="mt-1">{{ $package->boxSize?->name ?? 'Custom' }}</dd>
                         </div>
+                        @if($package->shipment->location && app(\App\Services\SettingsService::class)->get('multi_location_enabled', false))
+                            <div>
+                                <dt class="font-medium text-gray-500 dark:text-gray-400">Ship from</dt>
+                                <dd class="mt-1">{{ $package->shipment->location->name }}</dd>
+                            </div>
+                        @endif
                         @if($deliverByDate)
                             <div>
                                 <dt class="font-medium text-gray-500 dark:text-gray-400">Deliver by</dt>

@@ -6,12 +6,35 @@ use App\Contracts\DataSourceInterface;
 use App\Contracts\ExportDestinationInterface;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Http\Integrations\Shopify\ShopifyConnector;
+use DomainException;
 use Illuminate\Support\Collection;
 use InvalidArgumentException;
 use RuntimeException;
 
 class ShopifySource implements DataSourceInterface, ExportDestinationInterface
 {
+    private const ACCESS_SCOPES_QUERY = <<<'GRAPHQL'
+        query AccessScopes {
+          currentAppInstallation {
+            accessScopes { handle }
+          }
+        }
+        GRAPHQL;
+
+    private const LOCATIONS_QUERY = <<<'GRAPHQL'
+        query ActiveLocations($cursor: String) {
+          locations(first: 250, after: $cursor) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              id name isActive
+              address {
+                address1 address2 city provinceCode zip countryCode
+              }
+            }
+          }
+        }
+        GRAPHQL;
+
     private array $config;
 
     private ShopifyConnector $connector;
@@ -26,30 +49,48 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
         'DHL' => 'DHL Express',
     ];
 
-    private const ORDERS_QUERY = <<<'GRAPHQL'
-        query UnfulfilledOrders($cursor: String) {
-          orders(first: 250, after: $cursor, query: "fulfillment_status:unfulfilled") {
+    private const FULFILLMENT_ORDERS_QUERY = <<<'GRAPHQL'
+        query FulfillmentOrders($cursor: String) {
+          fulfillmentOrders(first: 20, after: $cursor, includeClosed: false) {
             pageInfo { hasNextPage endCursor }
             nodes {
-              id name email
-              shippingAddress {
+              id status
+              order { id name email }
+              destination {
                 firstName lastName company address1 address2
-                city provinceCode zip countryCodeV2 phone
+                city province zip countryCode phone
               }
-              lineItems(first: 250) {
-                nodes {
-                  sku name quantity unfulfilledQuantity
-                  originalUnitPriceSet { shopMoney { amount } }
-                  variant {
-                    id barcode
-                    inventoryItem {
-                      measurement { weight { unit value } }
-                    }
-                  }
+              assignedLocation {
+                name address1 address2 city province zip countryCode
+                location {
+                  id name isActive
+                  address { address1 address2 city provinceCode zip countryCode }
                 }
               }
-              fulfillmentOrders(first: 10) {
-                nodes { id status }
+              lineItems(first: 40) {
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                  id sku productTitle remainingQuantity requiresShipping
+                  weight { unit value }
+                  variant { id barcode }
+                  lineItem { originalUnitPriceSet { shopMoney { amount } } }
+                }
+              }
+            }
+          }
+        }
+        GRAPHQL;
+
+    private const FULFILLMENT_ORDER_ITEMS_QUERY = <<<'GRAPHQL'
+        query FulfillmentOrderItems($id: ID!, $cursor: String) {
+          fulfillmentOrder(id: $id) {
+            lineItems(first: 250, after: $cursor) {
+              pageInfo { hasNextPage endCursor }
+              nodes {
+                id sku productTitle remainingQuantity requiresShipping
+                weight { unit value }
+                variant { id barcode }
+                lineItem { originalUnitPriceSet { shopMoney { amount } } }
               }
             }
           }
@@ -93,39 +134,72 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
 
     public function fetchShipments(): Collection
     {
-        $this->orderCache = [];
-        $allOrders = [];
+        if (! ($this->config['fulfillment_order_import_enabled'] ?? false)) {
+            throw new DomainException(
+                'Shopify shipment import is not ready. Synchronize and map Shopify locations, then activate fulfillment-order imports.'
+            );
+        }
+
+        return $this->fetchFulfillmentOrderShipments();
+    }
+
+    /**
+     * Fetch the active location catalog for this Shopify store.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function fetchLocations(): Collection
+    {
+        /** @var array<int, array<string, mixed>> $locations */
+        $locations = [];
         $cursor = null;
 
         do {
             $response = $this->connector->send(
-                new GraphQL(self::ORDERS_QUERY, array_filter(['cursor' => $cursor]))
+                new GraphQL(self::LOCATIONS_QUERY, array_filter(['cursor' => $cursor]))
             );
-
             $json = $response->json();
 
             if (! empty($json['errors'])) {
-                throw new RuntimeException(
-                    'Shopify GraphQL error: '.json_encode($json['errors'])
-                );
+                throw new RuntimeException('Shopify GraphQL error: '.json_encode($json['errors']));
             }
 
-            $ordersData = $json['data']['orders'] ?? [];
-            $nodes = $ordersData['nodes'] ?? [];
-            $pageInfo = $ordersData['pageInfo'] ?? [];
+            $data = $json['data']['locations'] ?? [];
 
-            foreach ($nodes as $order) {
-                $mapped = $this->mapOrderToShipment($order);
-                $allOrders[] = $mapped;
-
-                // Cache full order for fetchShipmentItems
-                $this->orderCache[$mapped['source_record_id']] = $order;
+            foreach ($data['nodes'] ?? [] as $location) {
+                if ($location['isActive'] ?? true) {
+                    $locations[] = [
+                        'external_id' => $location['id'],
+                        'external_code' => null,
+                        'name' => $location['name'],
+                        'address' => $location['address'] ?? null,
+                        'is_active' => true,
+                    ];
+                }
             }
 
+            $pageInfo = $data['pageInfo'] ?? [];
             $cursor = ($pageInfo['hasNextPage'] ?? false) ? ($pageInfo['endCursor'] ?? null) : null;
         } while ($cursor !== null);
 
-        return collect($allOrders);
+        return collect($locations);
+    }
+
+    /** @return list<string> */
+    public function fetchAccessScopes(): array
+    {
+        $response = $this->connector->send(new GraphQL(self::ACCESS_SCOPES_QUERY));
+        $json = $response->json();
+
+        if (! empty($json['errors'])) {
+            throw new RuntimeException('Shopify GraphQL error: '.json_encode($json['errors']));
+        }
+
+        return collect($json['data']['currentAppInstallation']['accessScopes'] ?? [])
+            ->pluck('handle')
+            ->filter()
+            ->values()
+            ->all();
     }
 
     public function fetchShipmentItems(string $sourceRecordId): Collection
@@ -136,12 +210,156 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
             return collect();
         }
 
-        $lineItems = $order['lineItems']['nodes'] ?? [];
-
-        return collect($lineItems)
-            ->filter(fn (array $item) => ($item['unfulfilledQuantity'] ?? 0) > 0)
-            ->map(fn (array $item) => $this->mapLineItemToShipmentItem($item))
+        return collect($order['lineItems'] ?? [])
+            ->filter(fn (array $item) => ($item['requiresShipping'] ?? false) && ($item['remainingQuantity'] ?? 0) > 0)
+            ->map(fn (array $item) => $this->mapFulfillmentOrderLineItem($item))
             ->values();
+    }
+
+    private function fetchFulfillmentOrderShipments(): Collection
+    {
+        $this->orderCache = [];
+        $shipments = [];
+        $cursor = null;
+
+        do {
+            $response = $this->connector->send(
+                new GraphQL(self::FULFILLMENT_ORDERS_QUERY, array_filter(['cursor' => $cursor]))
+            );
+            $json = $response->json();
+
+            if (! empty($json['errors'])) {
+                throw new RuntimeException('Shopify GraphQL error: '.json_encode($json['errors']));
+            }
+
+            $data = $json['data']['fulfillmentOrders'] ?? [];
+            foreach ($data['nodes'] ?? [] as $fulfillmentOrder) {
+                if (! in_array($fulfillmentOrder['status'] ?? '', ['OPEN', 'IN_PROGRESS'], true)) {
+                    continue;
+                }
+
+                $fulfillmentOrder['lineItems'] = $this->allFulfillmentOrderItems($fulfillmentOrder);
+                $mapped = $this->mapFulfillmentOrderToShipment($fulfillmentOrder);
+                $shipments[] = $mapped;
+                $this->orderCache[$mapped['source_record_id']] = $fulfillmentOrder;
+            }
+
+            $pageInfo = $data['pageInfo'] ?? [];
+            $cursor = ($pageInfo['hasNextPage'] ?? false) ? ($pageInfo['endCursor'] ?? null) : null;
+        } while ($cursor !== null);
+
+        return collect($shipments);
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function allFulfillmentOrderItems(array $fulfillmentOrder): array
+    {
+        $connection = $fulfillmentOrder['lineItems'] ?? [];
+        $items = $connection['nodes'] ?? [];
+        $pageInfo = $connection['pageInfo'] ?? [];
+        $cursor = ($pageInfo['hasNextPage'] ?? false) ? ($pageInfo['endCursor'] ?? null) : null;
+
+        while ($cursor !== null) {
+            $response = $this->connector->send(new GraphQL(self::FULFILLMENT_ORDER_ITEMS_QUERY, [
+                'id' => $fulfillmentOrder['id'],
+                'cursor' => $cursor,
+            ]));
+            $json = $response->json();
+
+            if (! empty($json['errors'])) {
+                throw new RuntimeException('Shopify GraphQL error: '.json_encode($json['errors']));
+            }
+
+            $connection = $json['data']['fulfillmentOrder']['lineItems'] ?? [];
+            array_push($items, ...($connection['nodes'] ?? []));
+            $pageInfo = $connection['pageInfo'] ?? [];
+            $cursor = ($pageInfo['hasNextPage'] ?? false) ? ($pageInfo['endCursor'] ?? null) : null;
+        }
+
+        return $items;
+    }
+
+    /** @return array<string, mixed> */
+    private function mapFulfillmentOrderToShipment(array $fulfillmentOrder): array
+    {
+        $order = $fulfillmentOrder['order'] ?? [];
+        $destination = $fulfillmentOrder['destination'] ?? [];
+        $assigned = $fulfillmentOrder['assignedLocation'] ?? [];
+        $shopifyLocation = $assigned['location'] ?? [];
+        $lineItems = collect($fulfillmentOrder['lineItems'] ?? [])
+            ->filter(fn (array $item) => ($item['requiresShipping'] ?? false) && ($item['remainingQuantity'] ?? 0) > 0);
+        $value = $lineItems->sum(fn (array $item): float => (float) data_get($item, 'lineItem.originalUnitPriceSet.shopMoney.amount', 0)
+            * (int) ($item['remainingQuantity'] ?? 0));
+
+        return [
+            'source_record_id' => $fulfillmentOrder['id'],
+            'shipment_reference' => $order['name'] ?? $fulfillmentOrder['id'],
+            'first_name' => $destination['firstName'] ?? null,
+            'last_name' => $destination['lastName'] ?? null,
+            'company' => $destination['company'] ?? null,
+            'address1' => $destination['address1'] ?? null,
+            'address2' => $destination['address2'] ?? null,
+            'city' => $destination['city'] ?? null,
+            'state_or_province' => $destination['province'] ?? null,
+            'postal_code' => $destination['zip'] ?? null,
+            'country' => $destination['countryCode'] ?? 'US',
+            'phone' => $destination['phone'] ?? null,
+            'email' => $order['email'] ?? null,
+            'value' => round($value, 2),
+            'channel_id' => $this->config['channel_name'] ?? 'Shopify',
+            'shipping_method_id' => $this->config['shipping_method'] ?? null,
+            'deliver_by' => null,
+            'source_location' => [
+                'external_id' => $shopifyLocation['id'] ?? '',
+                'external_code' => null,
+                'name' => $shopifyLocation['name'] ?? $assigned['name'] ?? 'Unknown Shopify location',
+                'address' => $shopifyLocation['address'] ?? array_filter([
+                    'address1' => $assigned['address1'] ?? null,
+                    'address2' => $assigned['address2'] ?? null,
+                    'city' => $assigned['city'] ?? null,
+                    'provinceCode' => $assigned['province'] ?? null,
+                    'zip' => $assigned['zip'] ?? null,
+                    'countryCode' => $assigned['countryCode'] ?? null,
+                ]),
+                'is_active' => $shopifyLocation['isActive'] ?? true,
+            ],
+            'metadata' => [
+                'shopify_order_id' => $order['id'] ?? null,
+                'shopify_fulfillment_order_id' => $fulfillmentOrder['id'],
+                'shopify_location_id' => $shopifyLocation['id'] ?? null,
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function mapFulfillmentOrderLineItem(array $item): array
+    {
+        $weight = $item['weight'] ?? null;
+        $weightLbs = null;
+        if ($weight && ($weight['value'] ?? 0) > 0) {
+            $weightLbs = match ($weight['unit'] ?? '') {
+                'POUNDS' => $weight['value'],
+                'OUNCES' => $weight['value'] / 16,
+                'GRAMS' => $weight['value'] / 453.59237,
+                'KILOGRAMS' => $weight['value'] * 2.20462,
+                default => $weight['value'],
+            };
+        }
+
+        $variant = $item['variant'] ?? [];
+        $sku = $item['sku'] ?? null;
+        if (empty($sku) && ! empty($variant['id'])) {
+            $sku = 'SHOPIFY-V-'.preg_replace('/.*\//', '', $variant['id']);
+        }
+
+        return [
+            'sku' => $sku,
+            'name' => $item['productTitle'] ?? null,
+            'quantity' => (int) ($item['remainingQuantity'] ?? 0),
+            'value' => (float) data_get($item, 'lineItem.originalUnitPriceSet.shopMoney.amount', 0),
+            'barcode' => $variant['barcode'] ?? null,
+            'weight' => $weightLbs,
+        ];
     }
 
     public function getFieldMapping(): array
@@ -221,87 +439,5 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
         if (empty($this->config['shop_domain'] ?? null) || (! $hasToken && ! $hasCredentials)) {
             throw new InvalidArgumentException('Shopify credentials are not configured for this source.');
         }
-    }
-
-    private function mapOrderToShipment(array $order): array
-    {
-        $address = $order['shippingAddress'] ?? [];
-        $lineItems = $order['lineItems']['nodes'] ?? [];
-
-        // Sum line item values
-        $totalValue = 0;
-        foreach ($lineItems as $item) {
-            $unitPrice = (float) ($item['originalUnitPriceSet']['shopMoney']['amount'] ?? 0);
-            $qty = (int) ($item['unfulfilledQuantity'] ?? $item['quantity'] ?? 0);
-            $totalValue += $unitPrice * $qty;
-        }
-
-        // Collect fulfillment order IDs (only OPEN or IN_PROGRESS)
-        $fulfillmentOrderIds = [];
-        foreach ($order['fulfillmentOrders']['nodes'] ?? [] as $fo) {
-            if (in_array($fo['status'] ?? '', ['OPEN', 'IN_PROGRESS'], true)) {
-                $fulfillmentOrderIds[] = $fo['id'];
-            }
-        }
-
-        return [
-            'source_record_id' => $order['id'] ?? ($order['name'] ?? ''),
-            'shipment_reference' => $order['name'] ?? '',
-            'first_name' => $address['firstName'] ?? null,
-            'last_name' => $address['lastName'] ?? null,
-            'company' => $address['company'] ?? null,
-            'address1' => $address['address1'] ?? null,
-            'address2' => $address['address2'] ?? null,
-            'city' => $address['city'] ?? null,
-            'state_or_province' => $address['provinceCode'] ?? null,
-            'postal_code' => $address['zip'] ?? null,
-            'country' => $address['countryCodeV2'] ?? 'US',
-            'phone' => $address['phone'] ?? null,
-            'email' => $order['email'] ?? null,
-            'value' => round($totalValue, 2),
-            'channel_id' => $this->config['channel_name'] ?? 'Shopify',
-            'shipping_method_id' => $this->config['shipping_method'] ?? null,
-            'deliver_by' => null, // Shopify doesn't expose a deliver-by date; commitment_days fallback handles this
-            'metadata' => [
-                'shopify_order_id' => $order['id'] ?? null,
-                'shopify_fulfillment_order_ids' => $fulfillmentOrderIds,
-            ],
-        ];
-    }
-
-    private function mapLineItemToShipmentItem(array $item): array
-    {
-        $unitPrice = (float) ($item['originalUnitPriceSet']['shopMoney']['amount'] ?? 0);
-        $variant = $item['variant'] ?? [];
-        $weight = $variant['inventoryItem']['measurement']['weight'] ?? null;
-
-        // Convert weight to pounds (our internal unit)
-        $weightLbs = null;
-        if ($weight && $weight['value'] > 0) {
-            $weightLbs = match ($weight['unit'] ?? '') {
-                'POUNDS' => $weight['value'],
-                'OUNCES' => $weight['value'] / 16,
-                'GRAMS' => $weight['value'] / 453.59237,
-                'KILOGRAMS' => $weight['value'] * 2.20462,
-                default => $weight['value'],
-            };
-        }
-
-        // Use SKU if available, otherwise fall back to Shopify variant ID
-        $sku = $item['sku'] ?? null;
-        if (empty($sku) && ! empty($variant['id'])) {
-            // Extract numeric ID from GID (e.g. "gid://shopify/ProductVariant/12345" → "12345")
-            $numericId = preg_replace('/.*\//', '', $variant['id']);
-            $sku = "SHOPIFY-V-{$numericId}";
-        }
-
-        return [
-            'sku' => $sku,
-            'name' => $item['name'] ?? null,
-            'quantity' => (int) ($item['unfulfilledQuantity'] ?? 0),
-            'value' => $unitPrice,
-            'barcode' => $variant['barcode'] ?? null,
-            'weight' => $weightLbs,
-        ];
     }
 }

@@ -8,6 +8,7 @@ use App\Filament\Pages\Settings as SettingsPage;
 use App\Models\Channel;
 use App\Models\Client;
 use App\Models\DataSource;
+use App\Models\Location;
 use App\Models\ShippingMethod;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
@@ -18,7 +19,9 @@ use App\Services\ShipmentImport\Sources\ShopifySource;
 use App\Services\SshTunnel;
 use Carbon\Carbon;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -156,6 +159,51 @@ class DataSourceForm
                 ])
                 ->visible(fn (Get $get): bool => $get('source_type') === ShopifySource::class)
                 ->columns(2),
+
+            Section::make('Shopify Location Mapping')
+                ->description('Synchronize Shopify locations, then choose where each location is handled in PolyBag. Unmapped fulfillment orders are skipped with an import error.')
+                ->schema([
+                    Placeholder::make('shopify_location_sync_help')
+                        ->label('Location Catalog')
+                        ->content('Use “Sync Shopify Locations” above after connecting Shopify. Shopify controls this list; rows cannot be added, removed, or reordered.')
+                        ->columnSpanFull(),
+                    Repeater::make('locations')
+                        ->relationship()
+                        ->defaultItems(0)
+                        ->schema([
+                            TextInput::make('name')
+                                ->label('Shopify Location')
+                                ->disabled()
+                                ->dehydrated(false),
+                            Hidden::make('address')->dehydrated(false),
+                            Hidden::make('is_active')->dehydrated(false),
+                            Hidden::make('location_id')->dehydrated(false),
+                            Hidden::make('ignored_at')->dehydrated(false),
+                            Placeholder::make('address_display')
+                                ->label('Shopify Address')
+                                ->content(fn (Get $get): string => self::formatShopifyAddress($get('address'))),
+                            Placeholder::make('catalog_status')
+                                ->label('Catalog Status')
+                                ->content(fn (Get $get): string => $get('is_active') ? 'Active' : 'Inactive — no new work will import'),
+                            Select::make('mapping_target')
+                                ->label(fn (): string => self::multiLocationEnabled() ? 'PolyBag Location' : 'Handling')
+                                ->options(fn () => self::shopifyLocationOptions())
+                                ->placeholder('Unmapped')
+                                ->formatStateUsing(fn (mixed $state, Get $get): ?string => match (true) {
+                                    filled($get('ignored_at')) => 'ignore',
+                                    filled($get('location_id')) => 'location:'.$get('location_id'),
+                                    default => null,
+                                })
+                                ->searchable(fn (): bool => self::multiLocationEnabled()),
+                        ])
+                        ->columns(4)
+                        ->addable(false)
+                        ->deletable(false)
+                        ->reorderable(false)
+                        ->mutateRelationshipDataBeforeSaveUsing(fn (array $data): array => self::normalizeShopifyLocationMapping($data))
+                        ->columnSpanFull(),
+                ])
+                ->visible(fn (Get $get, ?DataSource $record): bool => $get('source_type') === ShopifySource::class && (bool) $record?->exists),
 
             // ── Amazon ─────────────────────────────────────────────────────────────
 
@@ -538,6 +586,70 @@ class DataSourceForm
     private static function multiClientEnabled(): bool
     {
         return (bool) app(SettingsService::class)->get('multi_client_enabled', false);
+    }
+
+    private static function multiLocationEnabled(): bool
+    {
+        return (bool) app(SettingsService::class)->get('multi_location_enabled', false);
+    }
+
+    /** @return array<string, string> */
+    private static function shopifyLocationOptions(): array
+    {
+        if (self::multiLocationEnabled()) {
+            return ['ignore' => 'Ignore this location'] + Location::active()
+                ->orderBy('name')
+                ->get()
+                ->mapWithKeys(fn (Location $location): array => ["location:{$location->id}" => $location->name])
+                ->all();
+        }
+
+        $default = Location::getDefault();
+
+        return ['ignore' => 'Ignore this location'] + ($default?->active
+            ? ["location:{$default->id}" => "Handled here — {$default->name}"]
+            : []);
+    }
+
+    /** @param array<string, mixed>|null $address */
+    private static function formatShopifyAddress(?array $address): string
+    {
+        if ($address === null) {
+            return '—';
+        }
+
+        return collect([
+            $address['address1'] ?? null,
+            $address['address2'] ?? null,
+            trim(implode(' ', array_filter([
+                $address['city'] ?? null,
+                $address['provinceCode'] ?? $address['province'] ?? null,
+                $address['zip'] ?? null,
+            ]))),
+            $address['countryCode'] ?? null,
+        ])->filter()->implode(', ') ?: '—';
+    }
+
+    /** @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private static function normalizeShopifyLocationMapping(array $data): array
+    {
+        $target = $data['mapping_target'] ?? null;
+        unset($data['mapping_target']);
+
+        if ($target === 'ignore') {
+            $data['location_id'] = null;
+            $data['ignored_at'] = now();
+        } elseif (is_string($target) && str_starts_with($target, 'location:')) {
+            $data['location_id'] = (int) str($target)->after('location:')->toString();
+            $data['ignored_at'] = null;
+        } else {
+            $data['location_id'] = null;
+            $data['ignored_at'] = null;
+        }
+
+        return $data;
     }
 
     /**

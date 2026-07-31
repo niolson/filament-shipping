@@ -4,8 +4,11 @@ use App\Enums\Deliverability;
 use App\Enums\Role;
 use App\Enums\ShipmentStatus;
 use App\Filament\Resources\ShipmentResource\Pages\ListShipments;
+use App\Models\Location;
+use App\Models\Setting;
 use App\Models\Shipment;
 use App\Models\User;
+use App\Services\SettingsService;
 use Livewire\Livewire;
 
 beforeEach(function (): void {
@@ -54,4 +57,19 @@ it('filters shipments by status and deliverability tab groups together', functio
         ->set('activeDeliverabilityTab', Deliverability::Yes->value)
         ->assertCanSeeTableRecords([$matchingShipment])
         ->assertCanNotSeeTableRecords([$wrongStatusShipment, $wrongDeliverabilityShipment]);
+});
+
+it('shows and filters shipment locations in multi-location mode', function (): void {
+    Setting::create(['key' => 'multi_location_enabled', 'value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+    $east = Location::factory()->create(['name' => 'East']);
+    $west = Location::factory()->create(['name' => 'West']);
+    $eastShipment = Shipment::factory()->create(['location_id' => $east]);
+    $westShipment = Shipment::factory()->create(['location_id' => $west]);
+
+    Livewire::test(ListShipments::class)
+        ->assertTableColumnVisible('location.name')
+        ->filterTable('location', $east->id)
+        ->assertCanSeeTableRecords([$eastShipment])
+        ->assertCanNotSeeTableRecords([$westShipment]);
 });

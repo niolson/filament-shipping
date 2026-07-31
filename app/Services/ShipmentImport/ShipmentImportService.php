@@ -20,6 +20,7 @@ class ShipmentImportService
         private readonly ShipmentItemImporter $itemImporter,
         private readonly ImportRunRecorder $runRecorder,
         private readonly DataSource $importSource,
+        private readonly DataSourceLocationResolver $locationResolver,
     ) {}
 
     /**
@@ -38,6 +39,7 @@ class ShipmentImportService
             itemImporter: new ShipmentItemImporter($references),
             runRecorder: ImportRunRecorder::forRecord($record),
             importSource: $record,
+            locationResolver: app(DataSourceLocationResolver::class),
         );
     }
 
@@ -57,6 +59,7 @@ class ShipmentImportService
             itemImporter: new ShipmentItemImporter($references),
             runRecorder: ImportRunRecorder::forRecord($record),
             importSource: $record,
+            locationResolver: app(DataSourceLocationResolver::class),
         );
     }
 
@@ -103,9 +106,64 @@ class ShipmentImportService
         $itemsBySourceRecord = [];
         $clientColumn = $this->importSource->settings['client_column'] ?? null;
         $itemsEnabled = $this->itemImporter->isEnabledFor($this->importSource);
+        $locationResolutions = $this->locationResolver->resolveBatch(
+            $this->importSource,
+            $batch->pluck('source_location')->filter(fn (mixed $reference): bool => is_array($reference))->values(),
+        );
+        $existingShipments = $this->batchWriter->existingFor(
+            $this->importSource,
+            $batch->map(fn (array $data): mixed => $data['source_record_id'] ?? $data['shipment_reference'] ?? null)
+                ->filter()
+                ->map(fn (mixed $id): string => (string) $id)
+                ->values()
+                ->all(),
+        );
 
         foreach ($batch as $data) {
             try {
+                if (isset($data['source_location'])) {
+                    $externalLocationId = $data['source_location']['external_id'] ?? null;
+                    if (blank($externalLocationId)) {
+                        throw new \InvalidArgumentException('Source location is missing its external identifier.');
+                    }
+
+                    $resolution = $locationResolutions->get((string) $externalLocationId)
+                        ?? throw new \InvalidArgumentException("Source location {$externalLocationId} could not be resolved.");
+
+                    if ($resolution->ignored) {
+                        $this->runRecorder->increment('shipments_skipped');
+
+                        continue;
+                    }
+
+                    if ($resolution->error !== null) {
+                        $this->runRecorder->increment('shipments_skipped');
+                        $this->runRecorder->addError($resolution->error, [
+                            'shipment_reference' => $data['shipment_reference'] ?? 'unknown',
+                            'source_location_id' => $resolution->sourceLocation->external_id,
+                        ]);
+
+                        continue;
+                    }
+
+                    $data['location_id'] = $resolution->location?->id;
+                    $data['data_source_location_id'] = $resolution->sourceLocation->id;
+
+                    $existing = $existingShipments->get((string) ($data['source_record_id'] ?? ''));
+
+                    if ($existing
+                        && $existing->location_id !== $data['location_id']
+                        && (bool) $existing->getAttribute('packages_exists')) {
+                        $this->runRecorder->increment('shipments_skipped');
+                        $this->runRecorder->addError(
+                            "Shipment {$existing->shipment_reference} was reassigned after packing began; its existing Package location was preserved.",
+                            ['shipment_id' => $existing->id],
+                        );
+
+                        continue;
+                    }
+                }
+
                 $clientOverride = null;
                 if ($clientColumn && isset($data['_client_column_value'])) {
                     $clientOverride = $this->resolveClientByName((string) $data['_client_column_value']);
@@ -148,7 +206,7 @@ class ShipmentImportService
             return;
         }
 
-        $writeResult = $this->batchWriter->write($preparedRows, $this->importSource);
+        $writeResult = $this->batchWriter->write($preparedRows, $this->importSource, $existingShipments);
 
         $this->runRecorder->addStats([
             'shipments_created' => $writeResult->shipmentsCreated,

@@ -3,10 +3,12 @@
 use App\Enums\ShipmentStatus;
 use App\Events\PackageCreated;
 use App\Models\Channel;
+use App\Models\Location;
 use App\Models\Package;
 use App\Models\Product;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
+use App\Models\User;
 use App\Services\PackagingService;
 use Illuminate\Support\Facades\Event;
 
@@ -126,4 +128,22 @@ it('createPackage creates a package without items when none provided', function 
     );
 
     expect($package->packageItems)->toHaveCount(0);
+});
+
+it('createPackage prefers the shipment location over the operator and default locations', function (): void {
+    $shipmentLocation = Location::factory()->create();
+    $operatorLocation = Location::factory()->create();
+    $operator = User::factory()->create(['location_id' => $operatorLocation]);
+    $this->actingAs($operator);
+    $shipment = Shipment::factory()->create(['location_id' => $shipmentLocation]);
+
+    $package = app(PackagingService::class)->createPackage(
+        shipment: $shipment,
+        weight: 1,
+        height: 1,
+        width: 1,
+        length: 1,
+    );
+
+    expect($package->location_id)->toBe($shipmentLocation->id);
 });

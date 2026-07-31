@@ -26,6 +26,7 @@ class Shipment extends Model
 
     protected $fillable = [
         'client_id',
+        'location_id',
         'shipment_reference',
         'source_record_id',
         'source_checksum',
@@ -60,6 +61,7 @@ class Shipment extends Model
         'channel_reference',
         'channel_id',
         'data_source_id',
+        'data_source_location_id',
         'status',
         'picking_status',
         'deliver_by',
@@ -272,6 +274,18 @@ class Shipment extends Model
     public function dataSource(): BelongsTo
     {
         return $this->belongsTo(DataSource::class);
+    }
+
+    /** @return BelongsTo<Location, $this> */
+    public function location(): BelongsTo
+    {
+        return $this->belongsTo(Location::class);
+    }
+
+    /** @return BelongsTo<DataSourceLocation, $this> */
+    public function dataSourceLocation(): BelongsTo
+    {
+        return $this->belongsTo(DataSourceLocation::class);
     }
 
     /**

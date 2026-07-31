@@ -3,7 +3,10 @@
 namespace App\Filament\Resources\LocationResource\Pages;
 
 use App\Filament\Resources\LocationResource;
+use App\Models\DataSourceLocation;
+use App\Models\Location;
 use App\Models\Package;
+use App\Models\Shipment;
 use App\Services\PhoneParserService;
 use Filament\Actions;
 use Filament\Notifications\Notification;
@@ -19,10 +22,14 @@ class EditLocation extends EditRecord
         return [
             Actions\DeleteAction::make()
                 ->before(function (Actions\DeleteAction $action): void {
-                    if (Package::where('location_id', $this->record->id)->exists()) {
+                    $locationId = $this->location()->id;
+
+                    if (Package::where('location_id', $this->record->id)->exists()
+                        || Shipment::where('location_id', $locationId)->exists()
+                        || DataSourceLocation::where('location_id', $locationId)->exists()) {
                         Notification::make()
                             ->title('Cannot delete location')
-                            ->body('This location is referenced by existing packages.')
+                            ->body('This location is referenced by existing shipments, packages, or Data Source mappings. Deactivate it instead.')
                             ->danger()
                             ->send();
 
@@ -30,6 +37,17 @@ class EditLocation extends EditRecord
                     }
                 }),
         ];
+    }
+
+    private function location(): Location
+    {
+        $record = $this->getRecord();
+
+        if (! $record instanceof Location) {
+            throw new \LogicException('The Location record is unavailable.');
+        }
+
+        return $record;
     }
 
     /**

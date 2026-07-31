@@ -4,6 +4,8 @@ use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
 use App\Models\DataSource;
+use App\Models\DataSourceLocation;
+use App\Models\Location;
 use App\Models\Package;
 use App\Models\Shipment;
 use App\Services\ShipmentImport\PackageExportService;
@@ -13,11 +15,11 @@ use Illuminate\Support\Facades\Cache;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
-function shopifyOrdersResponse(array $nodes = [], bool $hasNextPage = false, ?string $endCursor = null): MockResponse
+function shopifyFulfillmentOrdersResponse(array $nodes = [], bool $hasNextPage = false, ?string $endCursor = null): MockResponse
 {
     return MockResponse::make([
         'data' => [
-            'orders' => [
+            'fulfillmentOrders' => [
                 'pageInfo' => [
                     'hasNextPage' => $hasNextPage,
                     'endCursor' => $endCursor,
@@ -26,66 +28,6 @@ function shopifyOrdersResponse(array $nodes = [], bool $hasNextPage = false, ?st
             ],
         ],
     ]);
-}
-
-function sampleOrder(string $name = '#1001', string $orderId = 'gid://shopify/Order/1001'): array
-{
-    return [
-        'id' => $orderId,
-        'name' => $name,
-        'email' => 'test@example.com',
-        'shippingAddress' => [
-            'firstName' => 'Jane',
-            'lastName' => 'Smith',
-            'company' => null,
-            'address1' => '456 Oak Ave',
-            'address2' => null,
-            'city' => 'Seattle',
-            'provinceCode' => 'WA',
-            'zip' => '98101',
-            'countryCodeV2' => 'US',
-            'phone' => '2065551234',
-        ],
-        'lineItems' => [
-            'nodes' => [
-                [
-                    'sku' => 'SKU-100',
-                    'name' => 'Test Product',
-                    'quantity' => 3,
-                    'unfulfilledQuantity' => 3,
-                    'originalUnitPriceSet' => ['shopMoney' => ['amount' => '25.00']],
-                    'variant' => [
-                        'barcode' => '100100100100',
-                        'inventoryItem' => [
-                            'measurement' => [
-                                'weight' => ['unit' => 'OUNCES', 'value' => 12.0],
-                            ],
-                        ],
-                    ],
-                ],
-                [
-                    'sku' => 'SKU-200',
-                    'name' => 'Another Product',
-                    'quantity' => 1,
-                    'unfulfilledQuantity' => 1,
-                    'originalUnitPriceSet' => ['shopMoney' => ['amount' => '10.00']],
-                    'variant' => [
-                        'barcode' => '200200200200',
-                        'inventoryItem' => [
-                            'measurement' => [
-                                'weight' => ['unit' => 'GRAMS', 'value' => 150.0],
-                            ],
-                        ],
-                    ],
-                ],
-            ],
-        ],
-        'fulfillmentOrders' => [
-            'nodes' => [
-                ['id' => 'gid://shopify/FulfillmentOrder/9001', 'status' => 'OPEN'],
-            ],
-        ],
-    ];
 }
 
 function fulfillmentSuccessResponse(): MockResponse
@@ -102,6 +44,38 @@ function fulfillmentSuccessResponse(): MockResponse
             ],
         ],
     ]);
+}
+
+function sampleFulfillmentOrder(string $id, string $locationId, int $quantity = 1): array
+{
+    return [
+        'id' => "gid://shopify/FulfillmentOrder/{$id}",
+        'status' => 'OPEN',
+        'order' => ['id' => "gid://shopify/Order/{$id}", 'name' => "#{$id}", 'email' => 'test@example.com'],
+        'destination' => [
+            'firstName' => 'Jane', 'lastName' => 'Smith', 'address1' => '456 Oak Ave',
+            'city' => 'Seattle', 'province' => 'WA', 'zip' => '98101', 'countryCode' => 'US',
+        ],
+        'assignedLocation' => [
+            'name' => "Warehouse {$locationId}",
+            'location' => [
+                'id' => "gid://shopify/Location/{$locationId}",
+                'name' => "Warehouse {$locationId}",
+                'isActive' => true,
+                'address' => ['city' => 'Seattle', 'countryCode' => 'US'],
+            ],
+        ],
+        'lineItems' => [
+            'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+            'nodes' => [[
+                'id' => "gid://shopify/FulfillmentOrderLineItem/{$id}",
+                'sku' => "SKU-{$id}", 'productTitle' => 'Widget', 'remainingQuantity' => $quantity,
+                'requiresShipping' => true, 'weight' => null,
+                'variant' => ['id' => "gid://shopify/ProductVariant/{$id}", 'barcode' => null],
+                'lineItem' => ['originalUnitPriceSet' => ['shopMoney' => ['amount' => '10.00']]],
+            ]],
+        ],
+    ];
 }
 
 beforeEach(function (): void {
@@ -122,13 +96,7 @@ beforeEach(function (): void {
     ]);
 });
 
-it('imports shopify orders into shipments table with metadata', function (): void {
-    $channel = tap(Channel::factory()->create(['name' => 'Shopify']), fn ($c) => ChannelAlias::create(['reference' => 'Shopify', 'channel_id' => $c->id]));
-
-    Saloon::fake([
-        GraphQL::class => shopifyOrdersResponse([sampleOrder()]),
-    ]);
-
+it('reports an actionable error without contacting Shopify before fulfillment-order activation', function (): void {
     $source = new ShopifySource([
         'source_type' => ShopifySource::class,
         'enabled' => true,
@@ -143,34 +111,122 @@ it('imports shopify orders into shipments table with metadata', function (): voi
 
     $result = ShipmentImportService::forSource($source, $this->dataSource)->import();
 
-    expect($result->shipmentsCreated)->toBe(1);
-    expect($result->itemsCreated)->toBe(2);
-    expect($result->errors)->toBeEmpty();
-
-    $shipment = Shipment::where('shipment_reference', '#1001')->first();
-    expect($shipment)->not->toBeNull();
-    expect($shipment->first_name)->toBe('Jane');
-    expect($shipment->last_name)->toBe('Smith');
-    expect($shipment->city)->toBe('Seattle');
-    expect($shipment->state_or_province)->toBe('WA');
-    expect($shipment->postal_code)->toBe('98101');
-    expect($shipment->country)->toBe('US');
-    expect($shipment->email)->toBe('test@example.com');
-    expect($shipment->channel_id)->toBe($channel->id);
-    expect($shipment->source_record_id)->toBe('gid://shopify/Order/1001');
-    expect($shipment->dataSource)->not->toBeNull();
-    expect($shipment->dataSource->id)->toBe($this->dataSource->id);
-
-    // Metadata stored correctly
-    expect($shipment->metadata)->toBeArray();
-    expect($shipment->metadata['shopify_order_id'])->toBe('gid://shopify/Order/1001');
-    expect($shipment->metadata['shopify_fulfillment_order_ids'])->toBe(['gid://shopify/FulfillmentOrder/9001']);
-
-    // Items created
-    expect($shipment->shipmentItems)->toHaveCount(2);
+    expect($result->shipmentsCreated)->toBe(0)
+        ->and($result->errors)->toHaveCount(1)
+        ->and($result->errors[0])->toContain('activate fulfillment-order imports')
+        ->and(Shipment::count())->toBe(0);
+    Saloon::assertNothingSent();
 });
 
-it('exports package to shopify as fulfillment', function (): void {
+it('imports mapped fulfillment orders and skips only unmapped locations', function (): void {
+    $channel = tap(Channel::factory()->create(['name' => 'Shopify']), fn ($channel) => ChannelAlias::create([
+        'reference' => 'Shopify',
+        'channel_id' => $channel->id,
+    ]));
+    $location = Location::factory()->create();
+    DataSourceLocation::factory()->create([
+        'data_source_id' => $this->dataSource,
+        'external_id' => 'gid://shopify/Location/1',
+        'location_id' => $location,
+    ]);
+
+    $splitFulfillmentOrder = sampleFulfillmentOrder('1003', '1');
+    $splitFulfillmentOrder['order'] = [
+        'id' => 'gid://shopify/Order/1001',
+        'name' => '#1001',
+        'email' => 'test@example.com',
+    ];
+
+    Saloon::fake([
+        GraphQL::class => MockResponse::make([
+            'data' => ['fulfillmentOrders' => [
+                'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+                'nodes' => [sampleFulfillmentOrder('1001', '1'), $splitFulfillmentOrder, sampleFulfillmentOrder('1002', '2')],
+            ]],
+        ]),
+    ]);
+
+    $source = new ShopifySource([
+        'channel_name' => 'Shopify',
+        'shop_domain' => 'test-shop.myshopify.com',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
+        'fulfillment_order_import_enabled' => true,
+        'shipping_method' => null,
+    ]);
+
+    $result = ShipmentImportService::forSource($source, $this->dataSource)->import();
+
+    expect($result->shipmentsCreated)->toBe(2)
+        ->and($result->shipmentsSkipped)->toBe(1)
+        ->and($result->errors)->toHaveCount(1);
+    $shipment = Shipment::where('source_record_id', 'gid://shopify/FulfillmentOrder/1001')->firstOrFail();
+    expect($shipment->location_id)->toBe($location->id)
+        ->and($shipment->data_source_location_id)->not->toBeNull()
+        ->and($shipment->channel_id)->toBe($channel->id)
+        ->and($shipment->metadata['shopify_fulfillment_order_id'])->toBe('gid://shopify/FulfillmentOrder/1001');
+    expect(Shipment::where('shipment_reference', '#1001')->count())->toBe(2)
+        ->and(Shipment::where('source_record_id', 'gid://shopify/FulfillmentOrder/1003')->value('location_id'))->toBe($location->id);
+    expect(Shipment::where('source_record_id', 'gid://shopify/FulfillmentOrder/1002')->exists())->toBeFalse();
+});
+
+it('updates a fulfillment order reassignment before packing and reports a conflict after packing begins', function (): void {
+    tap(Channel::factory()->create(['name' => 'Shopify']), fn ($channel) => ChannelAlias::create([
+        'reference' => 'Shopify',
+        'channel_id' => $channel->id,
+    ]));
+    $firstLocation = Location::factory()->create();
+    $secondLocation = Location::factory()->create();
+    DataSourceLocation::factory()->create([
+        'data_source_id' => $this->dataSource,
+        'external_id' => 'gid://shopify/Location/1',
+        'location_id' => $firstLocation,
+    ]);
+    DataSourceLocation::factory()->create([
+        'data_source_id' => $this->dataSource,
+        'external_id' => 'gid://shopify/Location/2',
+        'location_id' => $secondLocation,
+    ]);
+    $settings = $this->dataSource->settings;
+    $settings['authoritative_shipment_items'] = true;
+    $this->dataSource->update(['settings' => $settings]);
+    $sourceConfig = [
+        'channel_name' => 'Shopify',
+        'shop_domain' => 'test-shop.myshopify.com',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
+        'fulfillment_order_import_enabled' => true,
+    ];
+
+    Saloon::fake([GraphQL::class => MockResponse::make(['data' => ['fulfillmentOrders' => [
+        'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+        'nodes' => [sampleFulfillmentOrder('2001', '1', 2)],
+    ]]])]);
+    ShipmentImportService::forSource(new ShopifySource($sourceConfig), $this->dataSource)->import();
+
+    Saloon::fake([GraphQL::class => MockResponse::make(['data' => ['fulfillmentOrders' => [
+        'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+        'nodes' => [sampleFulfillmentOrder('2001', '2', 1)],
+    ]]])]);
+    ShipmentImportService::forSource(new ShopifySource($sourceConfig), $this->dataSource)->import();
+
+    $shipment = Shipment::where('source_record_id', 'gid://shopify/FulfillmentOrder/2001')->firstOrFail();
+    expect($shipment->location_id)->toBe($secondLocation->id)
+        ->and($shipment->shipmentItems->first()->quantity)->toBe(1);
+
+    Package::factory()->create(['shipment_id' => $shipment, 'location_id' => $secondLocation]);
+    Saloon::fake([GraphQL::class => MockResponse::make(['data' => ['fulfillmentOrders' => [
+        'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+        'nodes' => [sampleFulfillmentOrder('2001', '1', 3)],
+    ]]])]);
+    $result = ShipmentImportService::forSource(new ShopifySource($sourceConfig), $this->dataSource)->import();
+
+    expect($result->errors)->toHaveCount(1)
+        ->and($shipment->refresh()->location_id)->toBe($secondLocation->id)
+        ->and($shipment->shipmentItems->first()->quantity)->toBe(1);
+});
+
+it('exports package to the singular fulfillment order with legacy metadata fallback', function (array $metadata, string $expectedFulfillmentOrderId): void {
     $channel = Channel::factory()->create(['name' => 'Shopify']);
 
     $exportSource = DataSource::factory()->create([
@@ -198,10 +254,7 @@ it('exports package to shopify as fulfillment', function (): void {
         'channel_id' => $channel->id,
         'data_source_id' => $exportSource->id,
         'shipment_reference' => '#1001',
-        'metadata' => [
-            'shopify_order_id' => 'gid://shopify/Order/1001',
-            'shopify_fulfillment_order_ids' => ['gid://shopify/FulfillmentOrder/9001'],
-        ],
+        'metadata' => $metadata,
     ]);
 
     $package = Package::factory()->shipped()->create([
@@ -224,15 +277,25 @@ it('exports package to shopify as fulfillment', function (): void {
     expect($result->destinationsSucceeded)->toBe(1);
     expect($package->fresh()->exported)->toBeTrue();
 
-    Saloon::assertSent(function (GraphQL $request) {
+    Saloon::assertSent(function (GraphQL $request) use ($expectedFulfillmentOrderId) {
         $body = $request->body()->all();
         $fulfillment = $body['variables']['fulfillment'] ?? [];
 
         return ($fulfillment['trackingInfo']['number'] ?? '') === 'TRACK123'
             && ($fulfillment['trackingInfo']['company'] ?? '') === 'USPS'
-            && ($fulfillment['lineItemsByFulfillmentOrder'][0]['fulfillmentOrderId'] ?? '') === 'gid://shopify/FulfillmentOrder/9001';
+            && ($fulfillment['lineItemsByFulfillmentOrder'][0]['fulfillmentOrderId'] ?? '') === $expectedFulfillmentOrderId;
     });
-});
+})->with([
+    'singular fulfillment order metadata' => [[
+        'shopify_order_id' => 'gid://shopify/Order/1001',
+        'shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/9002',
+        'shopify_fulfillment_order_ids' => ['gid://shopify/FulfillmentOrder/legacy'],
+    ], 'gid://shopify/FulfillmentOrder/9002'],
+    'legacy plural fulfillment order metadata' => [[
+        'shopify_order_id' => 'gid://shopify/Order/1001',
+        'shopify_fulfillment_order_ids' => ['gid://shopify/FulfillmentOrder/9001'],
+    ], 'gid://shopify/FulfillmentOrder/9001'],
+]);
 
 it('handles package without metadata gracefully in export', function (): void {
     $channel = Channel::factory()->create(['name' => 'Shopify']);
@@ -281,17 +344,24 @@ it('handles package without metadata gracefully in export', function (): void {
     expect($result->errors[0])->toContain('fulfillment order ID');
 });
 
-it('imports multiple pages of orders', function (): void {
+it('imports multiple pages of fulfillment orders', function (): void {
     $channel = tap(Channel::factory()->create(['name' => 'Shopify']), fn ($c) => ChannelAlias::create(['reference' => 'Shopify', 'channel_id' => $c->id]));
+    foreach (['1', '2'] as $locationId) {
+        DataSourceLocation::factory()->create([
+            'data_source_id' => $this->dataSource,
+            'external_id' => "gid://shopify/Location/{$locationId}",
+            'location_id' => Location::factory()->create(),
+        ]);
+    }
 
     Saloon::fake([
-        shopifyOrdersResponse(
-            [sampleOrder('#1001', 'gid://shopify/Order/1001')],
+        shopifyFulfillmentOrdersResponse(
+            [sampleFulfillmentOrder('1001', '1')],
             hasNextPage: true,
             endCursor: 'cursor_page1'
         ),
-        shopifyOrdersResponse(
-            [sampleOrder('#1002', 'gid://shopify/Order/1002')],
+        shopifyFulfillmentOrdersResponse(
+            [sampleFulfillmentOrder('1002', '2')],
         ),
     ]);
 
@@ -304,6 +374,7 @@ it('imports multiple pages of orders', function (): void {
         'client_secret' => 'test-client-secret',
         'shipping_method' => null,
         'notify_customer' => false,
+        'fulfillment_order_import_enabled' => true,
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
@@ -314,14 +385,20 @@ it('imports multiple pages of orders', function (): void {
     expect(Shipment::where('shipment_reference', '#1002')->exists())->toBeTrue();
 });
 
-it('deduplicates shopify imports by order id instead of displayed name', function (): void {
+it('deduplicates shopify imports by fulfillment-order id instead of displayed order name', function (): void {
     $channel = tap(Channel::factory()->create(['name' => 'Shopify']), fn ($c) => ChannelAlias::create(['reference' => 'Shopify', 'channel_id' => $c->id]));
+    DataSourceLocation::factory()->create([
+        'data_source_id' => $this->dataSource,
+        'external_id' => 'gid://shopify/Location/1',
+        'location_id' => Location::factory()->create(),
+    ]);
 
-    $firstOrder = sampleOrder('#1001', 'gid://shopify/Order/1001');
-    $secondOrder = sampleOrder('#1001-RENAMED', 'gid://shopify/Order/1001');
+    $firstFulfillmentOrder = sampleFulfillmentOrder('1001', '1');
+    $secondFulfillmentOrder = sampleFulfillmentOrder('1001', '1');
+    $secondFulfillmentOrder['order']['name'] = '#1001-RENAMED';
 
     Saloon::fake([
-        GraphQL::class => shopifyOrdersResponse([$firstOrder]),
+        GraphQL::class => shopifyFulfillmentOrdersResponse([$firstFulfillmentOrder]),
     ]);
 
     $source = new ShopifySource([
@@ -333,13 +410,14 @@ it('deduplicates shopify imports by order id instead of displayed name', functio
         'client_secret' => 'test-client-secret',
         'shipping_method' => null,
         'notify_customer' => false,
+        'fulfillment_order_import_enabled' => true,
         'export' => ['enabled' => false, 'field_mapping' => []],
     ]);
 
     $result1 = ShipmentImportService::forSource($source, $this->dataSource)->import();
 
     Saloon::fake([
-        GraphQL::class => shopifyOrdersResponse([$secondOrder]),
+        GraphQL::class => shopifyFulfillmentOrdersResponse([$secondFulfillmentOrder]),
     ]);
 
     $result2 = ShipmentImportService::forSource($source, $this->dataSource)->import();
@@ -350,7 +428,7 @@ it('deduplicates shopify imports by order id instead of displayed name', functio
         ->and(Shipment::count())->toBe(1);
 
     $shipment = Shipment::first();
-    expect($shipment->source_record_id)->toBe('gid://shopify/Order/1001')
+    expect($shipment->source_record_id)->toBe('gid://shopify/FulfillmentOrder/1001')
         ->and($shipment->shipment_reference)->toBe('#1001-RENAMED')
         ->and($shipment->channel_id)->toBe($channel->id)
         ->and($shipment->data_source_id)->toBe($this->dataSource->id);

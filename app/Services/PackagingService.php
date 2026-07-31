@@ -51,7 +51,9 @@ class PackagingService
     ): Package {
         $package = Package::create([
             'shipment_id' => $shipment->id,
-            'location_id' => auth()->user()?->resolveLocation()?->id ?? Location::getDefault()?->id,
+            'location_id' => $shipment->location_id
+                ?? auth()->user()?->resolveLocation()?->id
+                ?? Location::getDefault()?->id,
             'box_size_id' => $boxSizeId,
             'weight' => $weight,
             'height' => $height,

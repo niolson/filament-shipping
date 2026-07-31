@@ -12,6 +12,7 @@ use App\Exceptions\PackageDraftIncompleteException;
 use App\Exceptions\PackageDraftInvalidException;
 use App\Models\BoxSize;
 use App\Models\Client;
+use App\Models\Location;
 use App\Models\Package;
 use App\Models\PackageItem;
 use App\Models\Product;
@@ -37,6 +38,15 @@ it('creates a package draft when resuming a shipment without one', function (): 
         ->and($package->packageItems)->toHaveCount(0);
 
     Event::assertDispatched(PackageCreated::class, fn (PackageCreated $event): bool => $event->package->id === $package->id);
+});
+
+it('creates a package draft at the shipment assigned location', function (): void {
+    $location = Location::factory()->create();
+    $shipment = Shipment::factory()->create(['location_id' => $location]);
+
+    $snapshot = app(PackageDraftWorkflow::class)->resumeForShipment($shipment);
+
+    expect(Package::findOrFail($snapshot->packageDraftId)->location_id)->toBe($location->id);
 });
 
 it('resumes an existing package draft as source of truth', function (): void {

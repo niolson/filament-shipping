@@ -29,56 +29,63 @@ function shopifyConfig(array $overrides = []): array
     ], $overrides);
 }
 
-function shopifyOrderNode(array $overrides = []): array
+function shopifyFulfillmentOrderNode(array $overrides = []): array
 {
     return array_merge([
-        'id' => 'gid://shopify/Order/1001',
-        'name' => '#1001',
-        'email' => 'customer@example.com',
-        'shippingAddress' => [
+        'id' => 'gid://shopify/FulfillmentOrder/7001',
+        'status' => 'OPEN',
+        'order' => [
+            'id' => 'gid://shopify/Order/1001',
+            'name' => '#1001',
+            'email' => 'customer@example.com',
+        ],
+        'destination' => [
             'firstName' => 'John',
             'lastName' => 'Doe',
             'company' => 'Acme Inc',
             'address1' => '123 Main St',
             'address2' => 'Apt 4',
             'city' => 'Portland',
-            'provinceCode' => 'OR',
+            'province' => 'OR',
             'zip' => '97201',
-            'countryCodeV2' => 'US',
+            'countryCode' => 'US',
             'phone' => '5035551234',
         ],
-        'lineItems' => [
-            'nodes' => [
-                [
-                    'sku' => 'WIDGET-001',
-                    'name' => 'Blue Widget',
-                    'quantity' => 2,
-                    'unfulfilledQuantity' => 2,
-                    'originalUnitPriceSet' => ['shopMoney' => ['amount' => '19.99']],
-                    'variant' => [
-                        'barcode' => '012345678901',
-                        'inventoryItem' => [
-                            'measurement' => [
-                                'weight' => ['unit' => 'OUNCES', 'value' => 8.5],
-                            ],
-                        ],
-                    ],
-                ],
+        'assignedLocation' => [
+            'name' => 'Main Warehouse',
+            'location' => [
+                'id' => 'gid://shopify/Location/1',
+                'name' => 'Main Warehouse',
+                'isActive' => true,
+                'address' => ['city' => 'Portland', 'countryCode' => 'US'],
             ],
         ],
-        'fulfillmentOrders' => [
+        'lineItems' => [
+            'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
             'nodes' => [
-                ['id' => 'gid://shopify/FulfillmentOrder/5001', 'status' => 'OPEN'],
+                [
+                    'id' => 'gid://shopify/FulfillmentOrderLineItem/1',
+                    'sku' => 'WIDGET-001',
+                    'productTitle' => 'Blue Widget',
+                    'remainingQuantity' => 2,
+                    'requiresShipping' => true,
+                    'weight' => ['unit' => 'OUNCES', 'value' => 8.5],
+                    'variant' => [
+                        'id' => 'gid://shopify/ProductVariant/1',
+                        'barcode' => '012345678901',
+                    ],
+                    'lineItem' => ['originalUnitPriceSet' => ['shopMoney' => ['amount' => '19.99']]],
+                ],
             ],
         ],
     ], $overrides);
 }
 
-function mockShopifyOrders(array $nodes, bool $hasNextPage = false, ?string $endCursor = null): MockResponse
+function mockShopifyFulfillmentOrders(array $nodes, bool $hasNextPage = false, ?string $endCursor = null): MockResponse
 {
     return MockResponse::make([
         'data' => [
-            'orders' => [
+            'fulfillmentOrders' => [
                 'pageInfo' => [
                     'hasNextPage' => $hasNextPage,
                     'endCursor' => $endCursor,
@@ -115,12 +122,21 @@ it('throws when channel name is not configured', function (): void {
     $source->validateConfiguration();
 })->throws(InvalidArgumentException::class, 'channel name');
 
-it('maps shopify order to shipment data', function (): void {
+it('blocks shipment imports until fulfillment-order import is activated', function (): void {
+    $source = new ShopifySource(shopifyConfig());
+
+    expect(fn () => $source->fetchShipments())
+        ->toThrow(DomainException::class, 'activate fulfillment-order imports');
+
+    Saloon::assertNothingSent();
+});
+
+it('maps shopify fulfillment order to shipment data', function (): void {
     Saloon::fake([
-        GraphQL::class => mockShopifyOrders([shopifyOrderNode()]),
+        GraphQL::class => mockShopifyFulfillmentOrders([shopifyFulfillmentOrderNode()]),
     ]);
 
-    $source = new ShopifySource(shopifyConfig());
+    $source = new ShopifySource(shopifyConfig(['fulfillment_order_import_enabled' => true]));
     $shipments = $source->fetchShipments();
 
     expect($shipments)->toHaveCount(1);
@@ -141,16 +157,107 @@ it('maps shopify order to shipment data', function (): void {
         ->and($shipment['value'])->toBe(39.98)
         ->and($shipment['channel_id'])->toBe('Shopify')
         ->and($shipment['metadata']['shopify_order_id'])->toBe('gid://shopify/Order/1001')
-        ->and($shipment['metadata']['shopify_fulfillment_order_ids'])->toBe(['gid://shopify/FulfillmentOrder/5001']);
+        ->and($shipment['metadata']['shopify_fulfillment_order_id'])->toBe('gid://shopify/FulfillmentOrder/7001');
 });
 
-it('handles cursor pagination', function (): void {
+it('maps fulfillment orders as location-aware shipments', function (): void {
     Saloon::fake([
-        mockShopifyOrders([shopifyOrderNode()], hasNextPage: true, endCursor: 'cursor_abc'),
-        mockShopifyOrders([shopifyOrderNode(['id' => 'gid://shopify/Order/1002', 'name' => '#1002'])]),
+        GraphQL::class => MockResponse::make([
+            'data' => ['fulfillmentOrders' => [
+                'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+                'nodes' => [[
+                    'id' => 'gid://shopify/FulfillmentOrder/7001',
+                    'status' => 'OPEN',
+                    'order' => ['id' => 'gid://shopify/Order/1001', 'name' => '#1001', 'email' => 'customer@example.com'],
+                    'destination' => [
+                        'firstName' => 'Jane', 'lastName' => 'Smith', 'address1' => '123 Main St',
+                        'city' => 'Seattle', 'provinceCode' => 'WA', 'zip' => '98101', 'countryCode' => 'US',
+                    ],
+                    'assignedLocation' => [
+                        'name' => 'West Warehouse',
+                        'location' => [
+                            'id' => 'gid://shopify/Location/11', 'name' => 'West Warehouse', 'isActive' => true,
+                            'address' => ['city' => 'Seattle', 'countryCode' => 'US'],
+                        ],
+                    ],
+                    'lineItems' => [
+                        'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+                        'nodes' => [[
+                            'id' => 'gid://shopify/FulfillmentOrderLineItem/1',
+                            'sku' => 'SKU-1', 'productTitle' => 'Widget', 'remainingQuantity' => 2,
+                            'requiresShipping' => true, 'weight' => ['unit' => 'OUNCES', 'value' => 8],
+                            'variant' => ['id' => 'gid://shopify/ProductVariant/9', 'barcode' => '123'],
+                            'lineItem' => ['originalUnitPriceSet' => ['shopMoney' => ['amount' => '12.50']]],
+                        ]],
+                    ],
+                ]],
+            ]],
+        ]),
     ]);
 
-    $source = new ShopifySource(shopifyConfig());
+    $source = new ShopifySource(shopifyConfig(['fulfillment_order_import_enabled' => true]));
+    $shipments = $source->fetchShipments();
+    $shipment = $shipments->sole();
+
+    expect($shipment['source_record_id'])->toBe('gid://shopify/FulfillmentOrder/7001')
+        ->and($shipment['shipment_reference'])->toBe('#1001')
+        ->and($shipment['source_location']['external_id'])->toBe('gid://shopify/Location/11')
+        ->and($shipment['metadata']['shopify_fulfillment_order_id'])->toBe('gid://shopify/FulfillmentOrder/7001')
+        ->and($shipment['value'])->toBe(25.0);
+
+    expect($source->fetchShipmentItems('gid://shopify/FulfillmentOrder/7001')->sole())
+        ->toMatchArray(['sku' => 'SKU-1', 'quantity' => 2, 'value' => 12.5, 'barcode' => '123', 'weight' => 0.5]);
+});
+
+it('paginates fulfillment order line items and excludes non-shipping work', function (): void {
+    $baseItem = [
+        'id' => 'gid://shopify/FulfillmentOrderLineItem/1',
+        'sku' => 'SKU-1', 'productTitle' => 'Widget', 'remainingQuantity' => 1,
+        'requiresShipping' => true, 'weight' => null, 'variant' => null,
+        'lineItem' => ['originalUnitPriceSet' => ['shopMoney' => ['amount' => '5.00']]],
+    ];
+    Saloon::fake([
+        MockResponse::make(['data' => ['fulfillmentOrders' => [
+            'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+            'nodes' => [[
+                'id' => 'gid://shopify/FulfillmentOrder/8001', 'status' => 'IN_PROGRESS',
+                'order' => ['id' => 'gid://shopify/Order/1001', 'name' => '#1001'],
+                'destination' => ['address1' => '1 Main', 'city' => 'Seattle', 'province' => 'WA', 'countryCode' => 'US'],
+                'assignedLocation' => ['location' => ['id' => 'gid://shopify/Location/1', 'name' => 'Main', 'isActive' => true]],
+                'lineItems' => [
+                    'pageInfo' => ['hasNextPage' => true, 'endCursor' => 'items-1'],
+                    'nodes' => [$baseItem],
+                ],
+            ]],
+        ]]]),
+        MockResponse::make(['data' => ['fulfillmentOrder' => ['lineItems' => [
+            'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
+            'nodes' => [
+                array_merge($baseItem, ['id' => 'gid://shopify/FulfillmentOrderLineItem/2', 'sku' => 'SKU-2']),
+                array_merge($baseItem, ['id' => 'gid://shopify/FulfillmentOrderLineItem/3', 'sku' => 'DIGITAL', 'requiresShipping' => false]),
+                array_merge($baseItem, ['id' => 'gid://shopify/FulfillmentOrderLineItem/4', 'sku' => 'DONE', 'remainingQuantity' => 0]),
+            ],
+        ]]]]),
+    ]);
+
+    $source = new ShopifySource(shopifyConfig(['fulfillment_order_import_enabled' => true]));
+    $source->fetchShipments();
+
+    expect($source->fetchShipmentItems('gid://shopify/FulfillmentOrder/8001')->pluck('sku')->all())
+        ->toBe(['SKU-1', 'SKU-2']);
+    Saloon::assertSentCount(2);
+});
+
+it('handles fulfillment-order cursor pagination', function (): void {
+    Saloon::fake([
+        mockShopifyFulfillmentOrders([shopifyFulfillmentOrderNode()], hasNextPage: true, endCursor: 'cursor_abc'),
+        mockShopifyFulfillmentOrders([shopifyFulfillmentOrderNode([
+            'id' => 'gid://shopify/FulfillmentOrder/7002',
+            'order' => ['id' => 'gid://shopify/Order/1002', 'name' => '#1002'],
+        ])]),
+    ]);
+
+    $source = new ShopifySource(shopifyConfig(['fulfillment_order_import_enabled' => true]));
     $shipments = $source->fetchShipments();
 
     expect($shipments)->toHaveCount(2);
@@ -160,54 +267,44 @@ it('handles cursor pagination', function (): void {
     Saloon::assertSentCount(2);
 });
 
-it('maps line items using unfulfilled quantity', function (): void {
-    $order = shopifyOrderNode([
+it('maps line items using remaining quantity', function (): void {
+    $fulfillmentOrder = shopifyFulfillmentOrderNode([
         'lineItems' => [
+            'pageInfo' => ['hasNextPage' => false, 'endCursor' => null],
             'nodes' => [
                 [
+                    'id' => 'gid://shopify/FulfillmentOrderLineItem/1',
                     'sku' => 'WIDGET-001',
-                    'name' => 'Blue Widget',
-                    'quantity' => 5,
-                    'unfulfilledQuantity' => 3,
-                    'originalUnitPriceSet' => ['shopMoney' => ['amount' => '10.00']],
-                    'variant' => [
-                        'barcode' => '111111111111',
-                        'inventoryItem' => [
-                            'measurement' => [
-                                'weight' => ['unit' => 'POUNDS', 'value' => 1.5],
-                            ],
-                        ],
-                    ],
+                    'productTitle' => 'Blue Widget',
+                    'remainingQuantity' => 3,
+                    'requiresShipping' => true,
+                    'weight' => ['unit' => 'POUNDS', 'value' => 1.5],
+                    'variant' => ['id' => 'gid://shopify/ProductVariant/1', 'barcode' => '111111111111'],
+                    'lineItem' => ['originalUnitPriceSet' => ['shopMoney' => ['amount' => '10.00']]],
                 ],
                 [
+                    'id' => 'gid://shopify/FulfillmentOrderLineItem/2',
                     'sku' => 'WIDGET-002',
-                    'name' => 'Red Widget',
-                    'quantity' => 2,
-                    'unfulfilledQuantity' => 0,
-                    'originalUnitPriceSet' => ['shopMoney' => ['amount' => '15.00']],
-                    'variant' => [
-                        'barcode' => '222222222222',
-                        'inventoryItem' => [
-                            'measurement' => [
-                                'weight' => ['unit' => 'OUNCES', 'value' => 4.0],
-                            ],
-                        ],
-                    ],
+                    'productTitle' => 'Red Widget',
+                    'remainingQuantity' => 0,
+                    'requiresShipping' => true,
+                    'weight' => ['unit' => 'OUNCES', 'value' => 4.0],
+                    'variant' => ['id' => 'gid://shopify/ProductVariant/2', 'barcode' => '222222222222'],
+                    'lineItem' => ['originalUnitPriceSet' => ['shopMoney' => ['amount' => '15.00']]],
                 ],
             ],
         ],
     ]);
 
     Saloon::fake([
-        GraphQL::class => mockShopifyOrders([$order]),
+        GraphQL::class => mockShopifyFulfillmentOrders([$fulfillmentOrder]),
     ]);
 
-    $source = new ShopifySource(shopifyConfig());
+    $source = new ShopifySource(shopifyConfig(['fulfillment_order_import_enabled' => true]));
     $source->fetchShipments();
 
-    $items = $source->fetchShipmentItems('gid://shopify/Order/1001');
+    $items = $source->fetchShipmentItems('gid://shopify/FulfillmentOrder/7001');
 
-    // Only unfulfilled items (Red Widget has 0 unfulfilled, should be excluded)
     expect($items)->toHaveCount(1);
     expect($items[0]['sku'])->toBe('WIDGET-001');
     expect($items[0]['quantity'])->toBe(3);
@@ -217,12 +314,7 @@ it('maps line items using unfulfilled quantity', function (): void {
 });
 
 it('returns empty collection for unknown shipment reference', function (): void {
-    Saloon::fake([
-        GraphQL::class => mockShopifyOrders([shopifyOrderNode()]),
-    ]);
-
-    $source = new ShopifySource(shopifyConfig());
-    $source->fetchShipments();
+    $source = new ShopifySource(shopifyConfig(['fulfillment_order_import_enabled' => true]));
 
     $items = $source->fetchShipmentItems('#9999');
 
@@ -230,25 +322,18 @@ it('returns empty collection for unknown shipment reference', function (): void 
 });
 
 it('filters fulfillment orders to OPEN and IN_PROGRESS only', function (): void {
-    $order = shopifyOrderNode([
-        'fulfillmentOrders' => [
-            'nodes' => [
-                ['id' => 'gid://shopify/FulfillmentOrder/5001', 'status' => 'OPEN'],
-                ['id' => 'gid://shopify/FulfillmentOrder/5002', 'status' => 'CLOSED'],
-                ['id' => 'gid://shopify/FulfillmentOrder/5003', 'status' => 'IN_PROGRESS'],
-            ],
-        ],
-    ]);
-
     Saloon::fake([
-        GraphQL::class => mockShopifyOrders([$order]),
+        GraphQL::class => mockShopifyFulfillmentOrders([
+            shopifyFulfillmentOrderNode(['id' => 'gid://shopify/FulfillmentOrder/5001']),
+            shopifyFulfillmentOrderNode(['id' => 'gid://shopify/FulfillmentOrder/5002', 'status' => 'CLOSED']),
+            shopifyFulfillmentOrderNode(['id' => 'gid://shopify/FulfillmentOrder/5003', 'status' => 'IN_PROGRESS']),
+        ]),
     ]);
 
-    $source = new ShopifySource(shopifyConfig());
+    $source = new ShopifySource(shopifyConfig(['fulfillment_order_import_enabled' => true]));
     $shipments = $source->fetchShipments();
 
-    $metadata = $shipments->first()['metadata'];
-    expect($metadata['shopify_fulfillment_order_ids'])->toBe([
+    expect($shipments->pluck('source_record_id')->all())->toBe([
         'gid://shopify/FulfillmentOrder/5001',
         'gid://shopify/FulfillmentOrder/5003',
     ]);
@@ -335,7 +420,7 @@ it('throws on shopify graphql errors during fetch', function (): void {
         ]),
     ]);
 
-    $source = new ShopifySource(shopifyConfig());
+    $source = new ShopifySource(shopifyConfig(['fulfillment_order_import_enabled' => true]));
     $source->fetchShipments();
 })->throws(RuntimeException::class, 'Throttled');
 

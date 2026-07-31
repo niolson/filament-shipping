@@ -184,7 +184,9 @@ class EloquentPackageDraftWorkflow implements PackageDraftWorkflow
     {
         $package = Package::create([
             'shipment_id' => $shipment->id,
-            'location_id' => auth()->user()?->resolveLocation()?->id ?? Location::getDefault()?->id,
+            'location_id' => $shipment->location_id
+                ?? auth()->user()?->resolveLocation()?->id
+                ?? Location::getDefault()?->id,
             'status' => PackageStatus::Unshipped,
         ]);
 

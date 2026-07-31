@@ -5,15 +5,20 @@ namespace App\Filament\Resources\DataSources\Pages;
 use App\Filament\Resources\DataSources\DataSourceResource;
 use App\Jobs\RunDataSourceImportJob;
 use App\Models\DataSource;
+use App\Models\Shipment;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
+use App\Services\ShopifyFulfillmentOrderActivationService;
+use App\Services\ShopifyLocationSynchronizer;
+use DomainException;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Exceptions\Halt;
+use Throwable;
 
 class EditDataSource extends EditRecord
 {
@@ -84,6 +89,67 @@ class EditDataSource extends EditRecord
                     $this->redirect(static::getUrl(['record' => $this->record->id]));
                 }),
 
+            Action::make('sync_shopify_locations')
+                ->label('Sync Shopify Locations')
+                ->icon('heroicon-o-arrow-path')
+                ->color('gray')
+                ->visible(fn (): bool => $this->dataSource()->source_type === ShopifySource::class)
+                ->action(function (): void {
+                    try {
+                        $dataSource = $this->dataSource();
+                        $result = app(ShopifyLocationSynchronizer::class)->synchronize($dataSource);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Shopify locations synchronized')
+                            ->body("Found {$result['synced']} active locations; {$result['deactivated']} previously known locations marked inactive; {$result['auto_mapped']} auto-mapped.")
+                            ->send();
+
+                        $this->redirect(static::getUrl(['record' => $dataSource->id]));
+                    } catch (Throwable $exception) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Shopify location sync failed')
+                            ->body($exception->getMessage())
+                            ->send();
+                    }
+                }),
+
+            Action::make('activate_fulfillment_order_import')
+                ->label('Activate Fulfillment-Order Import')
+                ->icon('heroicon-o-check-circle')
+                ->color('warning')
+                ->visible(fn (): bool => $this->dataSource()->source_type === ShopifySource::class
+                    && ! ($this->dataSource()->settings['fulfillment_order_import_enabled'] ?? false))
+                ->requiresConfirmation()
+                ->modalHeading('Activate fulfillment-order imports?')
+                ->modalDescription('This one-way change imports one Shipment per Shopify fulfillment order. It cannot be switched back because doing so could create duplicate work.')
+                ->action(function (): void {
+                    try {
+                        $dataSource = $this->dataSource();
+                        app(ShopifyFulfillmentOrderActivationService::class)->activate($dataSource);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Fulfillment-order imports activated')
+                            ->send();
+
+                        $this->redirect(static::getUrl(['record' => $dataSource->id]));
+                    } catch (DomainException $exception) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Activation requirements not met')
+                            ->body($exception->getMessage())
+                            ->send();
+                    } catch (Throwable $exception) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Shopify scope validation failed')
+                            ->body($exception->getMessage())
+                            ->send();
+                    }
+                }),
+
             DeleteAction::make(),
         ];
     }
@@ -131,6 +197,45 @@ class EditDataSource extends EditRecord
         $data['secret_settings'] = $existingSecrets ?: null;
 
         return $data;
+    }
+
+    protected function afterSave(): void
+    {
+        $dataSource = $this->dataSource();
+
+        if ($dataSource->source_type !== ShopifySource::class) {
+            return;
+        }
+
+        $preservedConflicts = Shipment::query()
+            ->join('data_source_locations', 'data_source_locations.id', '=', 'shipments.data_source_location_id')
+            ->where('shipments.data_source_id', $dataSource->id)
+            ->whereNotNull('data_source_locations.location_id')
+            ->where(function ($query): void {
+                $query->whereNull('shipments.location_id')
+                    ->orWhereColumn('shipments.location_id', '!=', 'data_source_locations.location_id');
+            })
+            ->whereHas('packages')
+            ->count('shipments.id');
+
+        if ($preservedConflicts > 0) {
+            Notification::make()
+                ->warning()
+                ->title('Packed shipments preserved')
+                ->body("{$preservedConflicts} Shipments already have a Package and were not moved to the new mapping. Resolve open location conflicts manually; shipped history remains unchanged.")
+                ->send();
+        }
+    }
+
+    private function dataSource(): DataSource
+    {
+        $record = $this->getRecord();
+
+        if (! $record instanceof DataSource) {
+            throw new \LogicException('The Data Source record is unavailable.');
+        }
+
+        return $record;
     }
 
     /**

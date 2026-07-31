@@ -6,6 +6,12 @@
     <x-qz-tray />
     <x-scale-script />
 
+    @if($shipment?->location && app(\App\Services\SettingsService::class)->get('multi_location_enabled', false))
+        <div class="rounded-lg border border-primary-300 bg-primary-50 px-4 py-3 text-sm font-medium text-primary-800 dark:border-primary-700 dark:bg-primary-950 dark:text-primary-200">
+            Packing from {{ $shipment->location->name }}
+        </div>
+    @endif
+
     <div
         x-data="{
             scaleConnected: false,

@@ -10,7 +10,9 @@ use App\Models\DataSource;
 use App\Models\Location;
 use App\Models\Setting;
 use App\Services\ShipmentImport\Sources\ShopifySource;
+use App\Services\ShopifyFulfillmentOrderActivationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Saloon\Http\Faking\MockResponse;
 use Tests\TestCase;
 
 /*
@@ -186,5 +188,25 @@ function createShopifyDataSource(array $settings = [], array $secrets = []): Dat
             'client_id' => 'test-client-id',
             'client_secret' => 'test-client-secret',
         ], $secrets),
+    ]);
+}
+
+/**
+ * Shopify's reply to the access-scopes query.
+ *
+ * Anything that verifies scopes against the live token — location
+ * synchronization, fulfillment-order activation — issues this request before
+ * its real work, so a faked sequence has to answer it first.
+ *
+ * @param  array<int, string>|null  $scopes  Defaults to every required scope.
+ */
+function shopifyAccessScopesResponse(?array $scopes = null): MockResponse
+{
+    $scopes ??= ShopifyFulfillmentOrderActivationService::REQUIRED_SCOPES;
+
+    return MockResponse::make([
+        'data' => ['currentAppInstallation' => [
+            'accessScopes' => array_map(fn (string $handle): array => ['handle' => $handle], $scopes),
+        ]],
     ]);
 }

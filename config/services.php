@@ -56,7 +56,7 @@ return [
     ],
 
     'shopify' => [
-        'api_version' => '2025-01',
+        'api_version' => '2026-07',
     ],
 
     'oauth' => [

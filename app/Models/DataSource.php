@@ -68,4 +68,10 @@ class DataSource extends Model
     {
         return $this->hasMany(Shipment::class);
     }
+
+    /** @return HasMany<DataSourceLocation, $this> */
+    public function locations(): HasMany
+    {
+        return $this->hasMany(DataSourceLocation::class);
+    }
 }
