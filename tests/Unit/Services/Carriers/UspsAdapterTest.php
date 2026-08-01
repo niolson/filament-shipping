@@ -1381,3 +1381,148 @@ it('omits the customs form for ordinary domestic destinations', function (): voi
             && ! isset($request->body()->all()['customsForm']);
     });
 });
+
+it('translates USPS label error codes into actionable messages', function (array $body, string $expected): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        PaymentAuthorization::class => MockResponse::make(['paymentAuthorizationToken' => 'test_payment_token']),
+        Label::class => MockResponse::make($body, 400),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: 'UNIT 100254 BOX 800',
+            city: 'FPO',
+            stateOrProvince: 'AE',
+            postalCode: '09592',
+        ),
+        packageData: new PackageData(weight: 0.7, length: 10, width: 8, height: 6),
+        selectedRate: new RateResponse(
+            carrier: 'USPS',
+            serviceCode: 'USPS_GROUND_ADVANTAGE',
+            serviceName: 'USPS Ground Advantage',
+            price: 8.50,
+            metadata: [
+                'mailClass' => 'USPS_GROUND_ADVANTAGE',
+                'processingCategory' => 'MACHINABLE',
+                'rateIndicator' => 'SP',
+                'destinationEntryFacilityType' => 'NONE',
+            ],
+        ),
+        customsItems: [new CustomsItem(description: 'Blue Widget', quantity: 2, unitValue: 19.99, weight: 0.5)],
+    );
+
+    $response = $this->adapter->createShipment($request);
+
+    expect($response->success)->toBeFalse()
+        ->and($response->errorMessage)->toBe($expected);
+})->with([
+    'inactive ZIP code' => [
+        [
+            'apiVersion' => '/labels/v3/',
+            'error' => [
+                'code' => '400',
+                'message' => 'Bad Request',
+                'errors' => [[
+                    'title' => 'Bad Request',
+                    'detail' => 'cannot be generated for inactive toAddress.ZIPCode 095875400',
+                    'code' => '160138',
+                ]],
+            ],
+        ],
+        'USPS reports this destination ZIP Code is no longer in service. Check the address with the customer.',
+    ],
+    'customs weight mismatch' => [
+        [
+            'apiVersion' => '/labels/v3/',
+            'error' => [
+                'code' => '400',
+                'message' => 'Bad Request',
+                'errors' => [[
+                    'detail' => 'total weight of all of the content items: 1.90 cannot be more than the total weight: 0.7 of the package',
+                    'code' => '160021',
+                ]],
+            ],
+        ],
+        'The customs item weights add up to more than the package weight. Re-weigh the package, or confirm the customs weight override.',
+    ],
+    'unmapped code falls back to the USPS detail' => [
+        [
+            'apiVersion' => '/labels/v3/',
+            'error' => [
+                'code' => '400',
+                'message' => 'Bad Request',
+                'errors' => [[
+                    'detail' => 'mailClass is not eligible for this destination',
+                    'code' => '999999',
+                ]],
+            ],
+        ],
+        'mailClass is not eligible for this destination',
+    ],
+    'bare Bad Request is not echoed back' => [
+        ['apiVersion' => '/labels/v3/', 'error' => ['code' => '400', 'message' => 'Bad Request', 'errors' => []]],
+        'USPS rejected the label request.',
+    ],
+]);
+
+it('does not surface a schema validation dump to the packer', function (): void {
+    // USPS answers a malformed field with a multi-line OpenAPI validation trace
+    // that is longer than the panel can show and means nothing at the bench.
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        PaymentAuthorization::class => MockResponse::make(['paymentAuthorizationToken' => 'test_payment_token']),
+        Label::class => MockResponse::make([
+            'error' => [
+                'code' => '400',
+                'message' => "OASValidation OpenAPI-Spec-Validation-Labels with resource oas://labels-v3.yaml: failed with reason: [ERROR - [Path '/toAddress'] Instance failed to match all required schemas",
+                'errors' => [],
+            ],
+        ], 400),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: '456 Main St',
+            city: 'Los Angeles',
+            stateOrProvince: 'CA',
+            postalCode: '90210',
+        ),
+        packageData: new PackageData(weight: 2.0, length: 10, width: 8, height: 6),
+        selectedRate: new RateResponse(
+            carrier: 'USPS',
+            serviceCode: 'USPS_GROUND_ADVANTAGE',
+            serviceName: 'USPS Ground Advantage',
+            price: 8.50,
+            metadata: [
+                'mailClass' => 'USPS_GROUND_ADVANTAGE',
+                'processingCategory' => 'MACHINABLE',
+                'rateIndicator' => 'SP',
+                'destinationEntryFacilityType' => 'NONE',
+            ],
+        ),
+    );
+
+    expect($this->adapter->createShipment($request)->errorMessage)
+        ->toBe('USPS rejected the label request.');
+});

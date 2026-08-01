@@ -79,6 +79,22 @@ class UspsAdapter implements CarrierAdapterInterface
     private const INTERNATIONAL_EXTRA_SERVICES = [930, 931, 820];
 
     /**
+     * Plain-language equivalents for USPS label API error codes.
+     *
+     * The raw response is a wall of JSON, and its `message` is usually just
+     * "Bad Request" with the real reason buried in `error.errors[].detail`.
+     * A packer needs to know whether to fix the address, re-weigh the box, or
+     * call someone — the full payload still goes to the usps-validation log.
+     *
+     * @var array<string, string>
+     */
+    private const LABEL_ERROR_MESSAGES = [
+        '160021' => 'The customs item weights add up to more than the package weight. Re-weigh the package, or confirm the customs weight override.',
+        '160138' => 'USPS reports this destination ZIP Code is no longer in service. Check the address with the customer.',
+        '160140' => 'USPS requires customs details for this destination. The package needs scanned items before a label can be bought.',
+    ];
+
+    /**
      * Map resolved special service codes to USPS numeric extra services plus
      * the companion fields the Labels API requires alongside them.
      *
@@ -569,7 +585,7 @@ class UspsAdapter implements CarrierAdapterInterface
             $response = $connector->send($apiRequest);
 
             if (! $response->successful()) {
-                $errorMessage = $response->json('error.message') ?? $response->json('message') ?? 'Unknown USPS error';
+                $errorMessage = $this->describeLabelError($response->json());
                 Log::channel('usps-validation')->error('USPS createDomesticShipment API error', [
                     'status' => $response->status(),
                     'error' => $errorMessage,
@@ -624,7 +640,7 @@ class UspsAdapter implements CarrierAdapterInterface
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return ShipResponse::failure($e->getMessage());
+            return ShipResponse::failure($this->describeLabelException($e));
         }
     }
 
@@ -687,7 +703,7 @@ class UspsAdapter implements CarrierAdapterInterface
             $response = $connector->send($apiRequest);
 
             if (! $response->successful()) {
-                $errorMessage = $response->json('error.message') ?? $response->json('message') ?? 'Unknown USPS error';
+                $errorMessage = $this->describeLabelError($response->json());
                 Log::channel('usps-validation')->error('USPS createInternationalShipment API error', [
                     'status' => $response->status(),
                     'error' => $errorMessage,
@@ -748,8 +764,58 @@ class UspsAdapter implements CarrierAdapterInterface
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            return ShipResponse::failure($e->getMessage());
+            return ShipResponse::failure($this->describeLabelException($e));
         }
+    }
+
+    /**
+     * Turn a USPS label API error payload into something a packer can act on.
+     *
+     * @param  array<string, mixed>|null  $payload
+     */
+    private function describeLabelError(?array $payload, string $fallback = 'USPS rejected the label request.'): string
+    {
+        $described = [];
+
+        foreach ($payload['error']['errors'] ?? [] as $error) {
+            $code = (string) ($error['code'] ?? '');
+            $detail = is_string($error['detail'] ?? null) ? trim($error['detail']) : null;
+
+            $described[] = self::LABEL_ERROR_MESSAGES[$code] ?? $detail;
+        }
+
+        $described = array_unique(array_filter($described));
+
+        if ($described !== []) {
+            return implode(' ', $described);
+        }
+
+        $message = $payload['error']['message'] ?? $payload['message'] ?? null;
+
+        // "Bad Request" restates the status code, and a schema validation dump
+        // is longer than the panel can show. Neither helps at the pack bench.
+        if (is_string($message)
+            && trim($message) !== ''
+            && ! in_array(strtolower(trim($message)), ['bad request', 'unauthorized', 'forbidden'], true)
+            && ! str_contains($message, 'OASValidation')) {
+            return mb_strimwidth(trim($message), 0, 300, '…');
+        }
+
+        return $fallback;
+    }
+
+    /**
+     * Recover the USPS error payload from a thrown Saloon request exception.
+     */
+    private function describeLabelException(\Exception $exception): string
+    {
+        if ($exception instanceof RequestException) {
+            $payload = $exception->getResponse()->json();
+
+            return $this->describeLabelError(is_array($payload) ? $payload : null);
+        }
+
+        return $exception->getMessage();
     }
 
     /**
