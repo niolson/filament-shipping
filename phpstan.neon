@@ -22,3 +22,16 @@ parameters:
             identifier: variable.undefined
             message: '#Undefined variable: \$this#'
             reportUnmatched: false
+        # Mockery mocks are typed as MockInterface, so expectation chains and
+        # mocks passed where an interface is expected never narrow. Ignored by
+        # pattern rather than baselined: the counts drift every time a test is added.
+        -
+            identifier: method.notFound
+            message: '#Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage::#'
+            path: tests/*
+            reportUnmatched: false
+        -
+            identifier: argument.type
+            message: '#Mockery\\MockInterface given\.$#'
+            path: tests/*
+            reportUnmatched: false

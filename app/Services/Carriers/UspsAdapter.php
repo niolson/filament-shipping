@@ -86,7 +86,7 @@ class UspsAdapter implements CarrierAdapterInterface
      * A packer needs to know whether to fix the address, re-weigh the box, or
      * call someone — the full payload still goes to the usps-validation log.
      *
-     * @var array<string, string>
+     * @var array<array-key, string>
      */
     private const LABEL_ERROR_MESSAGES = [
         '160021' => 'The customs item weights add up to more than the package weight. Re-weigh the package, or confirm the customs weight override.',
@@ -585,11 +585,12 @@ class UspsAdapter implements CarrierAdapterInterface
             $response = $connector->send($apiRequest);
 
             if (! $response->successful()) {
-                $errorMessage = $this->describeLabelError($response->json());
+                $payload = $this->decodeJsonSafely($response);
+                $errorMessage = $this->describeLabelError($payload);
                 Log::channel('usps-validation')->error('USPS createDomesticShipment API error', [
                     'status' => $response->status(),
                     'error' => $errorMessage,
-                    'body' => $response->json(),
+                    'body' => $payload,
                 ]);
 
                 return ShipResponse::failure($errorMessage);
@@ -703,11 +704,12 @@ class UspsAdapter implements CarrierAdapterInterface
             $response = $connector->send($apiRequest);
 
             if (! $response->successful()) {
-                $errorMessage = $this->describeLabelError($response->json());
+                $payload = $this->decodeJsonSafely($response);
+                $errorMessage = $this->describeLabelError($payload);
                 Log::channel('usps-validation')->error('USPS createInternationalShipment API error', [
                     'status' => $response->status(),
                     'error' => $errorMessage,
-                    'body' => $response->json(),
+                    'body' => $payload,
                 ]);
 
                 return ShipResponse::failure($errorMessage);
@@ -771,7 +773,7 @@ class UspsAdapter implements CarrierAdapterInterface
     /**
      * Turn a USPS label API error payload into something a packer can act on.
      *
-     * @param  array<string, mixed>|null  $payload
+     * @param  array<array-key, mixed>|null  $payload
      */
     private function describeLabelError(?array $payload, string $fallback = 'USPS rejected the label request.'): string
     {
@@ -809,13 +811,13 @@ class UspsAdapter implements CarrierAdapterInterface
      */
     private function describeLabelException(\Exception $exception): string
     {
-        if ($exception instanceof RequestException) {
-            $payload = $exception->getResponse()->json();
-
-            return $this->describeLabelError(is_array($payload) ? $payload : null);
+        if (! $exception instanceof RequestException) {
+            return $exception->getMessage();
         }
 
-        return $exception->getMessage();
+        // A gateway or WAF can answer with an HTML error page. This runs inside
+        // a catch block, so decoding must not be able to throw again.
+        return $this->describeLabelError($this->decodeJsonSafely($exception->getResponse()));
     }
 
     /**

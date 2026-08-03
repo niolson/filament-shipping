@@ -1693,12 +1693,6 @@ parameters:
 			path: tests/Feature/CarrierValidationLoggingTest.php
 
 		-
-			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Events/ExportShippedPackageTest.php
-
-		-
 			message: '#^Access to an undefined property Livewire\\Component\:\:\$fedexInvoiceAvailable\.$#'
 			identifier: property.notFound
 			count: 2
@@ -1765,42 +1759,6 @@ parameters:
 			path: tests/Feature/Filament/Pages/SetupWizardTest.php
 
 		-
-			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:andReturnNull\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
-
-		-
-			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:andThrow\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
-
-		-
-			message: '#^Parameter \#1 \$response of class Saloon\\Exceptions\\Request\\Statuses\\RequestTimeOutException constructor expects Saloon\\Http\\Response, Mockery\\MockInterface given\.$#'
-			identifier: argument.type
-			count: 1
-			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
-
-		-
-			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
-			identifier: argument.type
-			count: 3
-			path: tests/Feature/Filament/Pages/ShipErrorHandlingTest.php
-
-		-
-			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:andReturnNull\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: tests/Feature/Filament/Pages/ShipTest.php
-
-		-
-			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
-			identifier: argument.type
-			count: 1
-			path: tests/Feature/Filament/Pages/ShipTest.php
-
-		-
 			message: '#^Access to an undefined property Pest\\Mixins\\Expectation\<array\<int, string\>\|string\>\|Pest\\Mixins\\Expectation\<Pest\\Expectation\<array\<int, string\>\|string\>\>\:\:\$commitment_days\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1837,60 +1795,6 @@ parameters:
 			path: tests/Feature/Filament/Widgets/ShippedShipmentsChartTest.php
 
 		-
-			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
-			identifier: method.notFound
-			count: 6
-			path: tests/Feature/Jobs/GenerateLabelJobTest.php
-
-		-
-			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
-			identifier: argument.type
-			count: 3
-			path: tests/Feature/Jobs/GenerateLabelJobTest.php
-
-		-
-			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
-			identifier: method.notFound
-			count: 5
-			path: tests/Feature/PackageLabelWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$response of class Saloon\\Exceptions\\Request\\Statuses\\RequestTimeOutException constructor expects Saloon\\Http\\Response, Mockery\\MockInterface given\.$#'
-			identifier: argument.type
-			count: 1
-			path: tests/Feature/PackageLabelWorkflowTest.php
-
-		-
-			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
-			identifier: argument.type
-			count: 5
-			path: tests/Feature/PackageLabelWorkflowTest.php
-
-		-
-			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
-			identifier: method.notFound
-			count: 17
-			path: tests/Feature/PackageShippingWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$response of class Saloon\\Exceptions\\Request\\RequestException constructor expects Saloon\\Http\\Response, Mockery\\MockInterface given\.$#'
-			identifier: argument.type
-			count: 1
-			path: tests/Feature/PackageShippingWorkflowTest.php
-
-		-
-			message: '#^Parameter \#1 \$response of class Saloon\\Exceptions\\Request\\Statuses\\RequestTimeOutException constructor expects Saloon\\Http\\Response, Mockery\\MockInterface given\.$#'
-			identifier: argument.type
-			count: 1
-			path: tests/Feature/PackageShippingWorkflowTest.php
-
-		-
-			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
-			identifier: argument.type
-			count: 11
-			path: tests/Feature/PackageShippingWorkflowTest.php
-
-		-
 			message: '#^Call to an undefined method Livewire\\Component\:\:exportCsv\(\)\.$#'
 			identifier: method.notFound
 			count: 2
@@ -1921,12 +1825,6 @@ parameters:
 			path: tests/Feature/ShipmentImportServiceTest.php
 
 		-
-			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
-			identifier: method.notFound
-			count: 2
-			path: tests/Feature/SsoLoginTest.php
-
-		-
 			message: '#^Cannot call method format\(\) on string\.$#'
 			identifier: method.nonObject
 			count: 1
@@ -1943,15 +1841,3 @@ parameters:
 			identifier: property.notFound
 			count: 2
 			path: tests/Unit/Services/ShipDateServiceTest.php
-
-		-
-			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
-			identifier: method.notFound
-			count: 3
-			path: tests/Unit/Services/ShippingRateServiceTest.php
-
-		-
-			message: '#^Parameter \#2 \$adapter of method App\\Services\\Carriers\\CarrierRegistry\:\:registerInstance\(\) expects App\\Contracts\\CarrierAdapterInterface, Mockery\\MockInterface given\.$#'
-			identifier: argument.type
-			count: 1
-			path: tests/Unit/Services/ShippingRateServiceTest.php

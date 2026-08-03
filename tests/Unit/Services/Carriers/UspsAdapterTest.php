@@ -1476,6 +1476,25 @@ it('translates USPS label error codes into actionable messages', function (array
     ],
 ]);
 
+it('fails gracefully when the label endpoint answers with a non-JSON error page', function (): void {
+    // A gateway between us and USPS can answer with an HTML error page. The 5xx
+    // is retried, then thrown, and decoding it must not throw out of the catch.
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        PaymentAuthorization::class => MockResponse::make(['paymentAuthorizationToken' => 'test_payment_token']),
+        Label::class => MockResponse::make(
+            body: '<html><head><title>502 Bad Gateway</title></head><body>502 Bad Gateway</body></html>',
+            status: 502,
+            headers: ['Content-Type' => 'text/html'],
+        ),
+    ]);
+
+    $response = $this->adapter->createShipment(uspsSpecialServiceShipRequest([]));
+
+    expect($response->success)->toBeFalse()
+        ->and($response->errorMessage)->toBe('USPS rejected the label request.');
+});
+
 it('does not surface a schema validation dump to the packer', function (): void {
     // USPS answers a malformed field with a multi-line OpenAPI validation trace
     // that is longer than the panel can show and means nothing at the bench.
