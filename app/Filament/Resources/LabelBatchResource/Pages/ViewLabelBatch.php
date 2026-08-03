@@ -2,12 +2,12 @@
 
 namespace App\Filament\Resources\LabelBatchResource\Pages;
 
-use App\Enums\LabelBatchItemStatus;
 use App\Filament\Concerns\NotifiesUser;
 use App\Filament\Resources\LabelBatchResource;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Support\Facades\Bus;
+use Livewire\Attributes\On;
 
 class ViewLabelBatch extends ViewRecord
 {
@@ -16,6 +16,16 @@ class ViewLabelBatch extends ViewRecord
     protected static string $resource = LabelBatchResource::class;
 
     protected string $view = 'filament.resources.label-batch-resource.pages.view-label-batch';
+
+    /**
+     * Re-render once the browser finishes a batch print run, so the printed counts
+     * and the "Print Labels (N)" action reflect what was just acknowledged.
+     */
+    #[On('batch-print-finished')]
+    public function refreshPrintedCounts(): void
+    {
+        $this->record->refresh();
+    }
 
     public function getProgressPercent(): int
     {
@@ -35,39 +45,59 @@ class ViewLabelBatch extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('printAllLabels')
-                ->label(fn () => 'Print All Labels ('.$this->record->successful_shipments.')')
+            Action::make('printUnprintedLabels')
+                ->label(fn () => 'Print Labels ('.$this->record->unprintedCount().')')
                 ->icon('heroicon-o-printer')
                 ->color('primary')
-                ->visible(fn () => $this->record->isComplete() && $this->record->successful_shipments > 0)
-                ->action(function (): void {
-                    $labels = $this->record->items()
-                        ->where('status', LabelBatchItemStatus::Success)
-                        ->with('package')
-                        ->get()
-                        ->filter(fn ($item) => $item->package && $item->package->label_data)
-                        ->map(fn ($item) => [
-                            'label' => $item->package->label_data,
-                            'orientation' => $item->package->label_orientation ?? 'portrait',
-                            'format' => $item->package->label_format ?? $this->record->label_format,
-                            'dpi' => $item->package->label_dpi ?? $this->record->label_dpi,
-                        ])
-                        ->values()
-                        ->toArray();
-
-                    if (empty($labels)) {
-                        $this->notifyWarning('No Labels', 'No printable labels found.');
-
-                        return;
-                    }
-
-                    $this->dispatch('print-batch-labels', labels: $labels);
-                }),
+                ->visible(fn () => $this->record->isComplete() && $this->record->unprintedCount() > 0)
+                ->action(fn () => $this->dispatchBatchPrint(unprintedOnly: true)),
+            Action::make('reprintAllLabels')
+                ->label(fn () => 'Reprint All ('.$this->record->printableItems()->count().')')
+                ->icon('heroicon-o-printer')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->modalHeading('Reprint every label in this batch')
+                ->modalDescription(fn () => 'This reprints all '.$this->record->printableItems()->count()
+                    .' labels, including ones already printed.')
+                ->visible(fn () => $this->record->isComplete() && $this->record->printableItems()->count() > 0)
+                ->action(fn () => $this->dispatchBatchPrint(unprintedOnly: false)),
             Action::make('backToShipments')
                 ->label('Back to Shipments')
                 ->icon('heroicon-o-arrow-left')
                 ->color('gray')
                 ->url('/shipments'),
         ];
+    }
+
+    /**
+     * Send this batch's labels to QZ Tray. Each label carries its package id so the
+     * browser can report the print back as it goes — if the operator closes the tab
+     * partway through, the labels that did print stay marked and "Print Labels"
+     * picks up from where it stopped.
+     */
+    private function dispatchBatchPrint(bool $unprintedOnly): void
+    {
+        $items = $unprintedOnly
+            ? $this->record->unprintedItems()->with('package')->get()
+            : $this->record->printableItems()->with('package')->get();
+
+        $labels = $items
+            ->map(fn ($item) => [
+                'label' => $item->package->label_data,
+                'orientation' => $item->package->label_orientation ?? 'portrait',
+                'format' => $item->package->label_format ?? $this->record->label_format,
+                'dpi' => $item->package->label_dpi ?? $this->record->label_dpi,
+                'packageId' => $item->package->id,
+            ])
+            ->values()
+            ->toArray();
+
+        if (empty($labels)) {
+            $this->notifyWarning('No Labels', 'No printable labels found.');
+
+            return;
+        }
+
+        $this->dispatch('print-batch-labels', labels: $labels);
     }
 }

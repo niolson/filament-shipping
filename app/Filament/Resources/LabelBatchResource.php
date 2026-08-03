@@ -44,7 +44,12 @@ class LabelBatchResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn ($query) => $query->with(['user', 'boxSize']))
+            ->modifyQueryUsing(fn ($query) => $query
+                ->with(['user', 'boxSize'])
+                ->withCount([
+                    'printableItems as printable_count',
+                    'unprintedItems as unprinted_count',
+                ]))
             ->columns([
                 Tables\Columns\TextColumn::make('id')
                     ->label('ID')
@@ -66,6 +71,14 @@ class LabelBatchResource extends Resource
                     ->label('Failed')
                     ->numeric()
                     ->color('danger'),
+                Tables\Columns\TextColumn::make('printed')
+                    ->label('Printed')
+                    ->badge()
+                    // Counted against printable labels, not successful shipments: a
+                    // label voided after the batch ran drops out of both figures.
+                    ->state(fn (LabelBatch $record): string => ($record->printable_count - $record->unprinted_count)
+                        .' / '.$record->printable_count)
+                    ->color(fn (LabelBatch $record): string => $record->unprinted_count > 0 ? 'warning' : 'success'),
                 Tables\Columns\TextColumn::make('total_cost')
                     ->label('Total Cost')
                     ->money('USD')
@@ -85,6 +98,14 @@ class LabelBatchResource extends Resource
                 Tables\Filters\SelectFilter::make('user')
                     ->relationship('user', 'name')
                     ->preload(),
+                Tables\Filters\TernaryFilter::make('fully_printed')
+                    ->label('Labels Printed')
+                    ->trueLabel('All printed')
+                    ->falseLabel('Has unprinted')
+                    ->queries(
+                        true: fn ($query) => $query->whereDoesntHave('unprintedItems'),
+                        false: fn ($query) => $query->whereHas('unprintedItems'),
+                    ),
                 Tables\Filters\Filter::make('created_at')
                     ->form([
                         Forms\Components\DatePicker::make('created_from')

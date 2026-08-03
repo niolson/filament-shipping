@@ -819,7 +819,7 @@ parameters:
 		-
 			message: '#^Cannot access property \$successful_shipments on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: property.nonObject
-			count: 3
+			count: 1
 			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
 
 		-
@@ -831,11 +831,23 @@ parameters:
 		-
 			message: '#^Cannot call method isComplete\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: method.nonObject
-			count: 1
+			count: 2
 			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
 
 		-
-			message: '#^Cannot call method items\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			message: '#^Cannot call method printableItems\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 4
+			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
+
+		-
+			message: '#^Cannot call method unprintedCount\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			identifier: method.nonObject
+			count: 2
+			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
+
+		-
+			message: '#^Cannot call method unprintedItems\(\) on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: method.nonObject
 			count: 1
 			path: app/Filament/Resources/LabelBatchResource/Pages/ViewLabelBatch.php
@@ -885,17 +897,17 @@ parameters:
 		-
 			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: property.nonObject
-			count: 1
+			count: 2
 			path: app/Filament/Resources/PackageResource/Pages/ViewPackage.php
 
 		-
 			message: '#^Cannot access property \$label_data on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: property.nonObject
-			count: 2
+			count: 1
 			path: app/Filament/Resources/PackageResource/Pages/ViewPackage.php
 
 		-
-			message: '#^Cannot access property \$label_dpi on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
+			message: '#^Cannot access property \$label_printed_at on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: property.nonObject
 			count: 1
 			path: app/Filament/Resources/PackageResource/Pages/ViewPackage.php
@@ -1339,6 +1351,12 @@ parameters:
 			path: app/Models/CarrierService.php
 
 		-
+			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Builder\<Illuminate\\Database\\Eloquent\\Model\>\:\:printable\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: app/Models/LabelBatch.php
+
+		-
 			message: '#^Call to function in_array\(\) with string and array\{App\\Enums\\LabelBatchStatus\:\:Completed, App\\Enums\\LabelBatchStatus\:\:CompletedWithErrors, App\\Enums\\LabelBatchStatus\:\:Failed\} will always evaluate to false\.$#'
 			identifier: function.impossibleType
 			count: 1
@@ -1407,7 +1425,7 @@ parameters:
 		-
 			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
 			identifier: method.nonObject
-			count: 4
+			count: 5
 			path: app/Policies/PackagePolicy.php
 
 		-
@@ -1601,12 +1619,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Services/PackageDrafts/EloquentPackageDraftWorkflow.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Services/PackageLabels/EloquentPackageLabelWorkflow.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>id" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'

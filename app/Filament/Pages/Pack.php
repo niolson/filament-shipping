@@ -302,7 +302,7 @@ class Pack extends Page
         Session::put('last_shipped_package_id', $package->id);
 
         if ($result->response->labelData) {
-            $this->dispatchPrint(PrintRequest::fromShipResponse($result->response));
+            $this->dispatchPrint(PrintRequest::fromShipResponse($result->response, $package));
         }
 
         $this->notifySuccess('Auto Shipped', $result->summaryMessage());

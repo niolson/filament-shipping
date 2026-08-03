@@ -1,9 +1,11 @@
 <?php
 
 use App\Enums\LabelBatchStatus;
+use App\Enums\PackageStatus;
 use App\Models\BoxSize;
 use App\Models\LabelBatch;
 use App\Models\LabelBatchItem;
+use App\Models\Package;
 use App\Models\User;
 use Carbon\Carbon;
 
@@ -59,4 +61,51 @@ it('casts timestamps correctly', function (): void {
     $batch = LabelBatch::factory()->processing()->create();
 
     expect($batch->started_at)->toBeInstanceOf(Carbon::class);
+});
+
+it('counts only successful items whose label has not been printed', function (): void {
+    $batch = LabelBatch::factory()->create();
+
+    $printed = Package::factory()->shipped()->create(['label_printed_at' => now()]);
+    $unprinted = Package::factory()->shipped()->create(['label_printed_at' => null]);
+    $failedItemPackage = Package::factory()->create(['label_printed_at' => null]);
+
+    LabelBatchItem::factory()->success()->create([
+        'label_batch_id' => $batch->id,
+        'package_id' => $printed->id,
+    ]);
+    LabelBatchItem::factory()->success()->create([
+        'label_batch_id' => $batch->id,
+        'package_id' => $unprinted->id,
+    ]);
+    LabelBatchItem::factory()->failed()->create([
+        'label_batch_id' => $batch->id,
+        'package_id' => $failedItemPackage->id,
+    ]);
+
+    expect($batch->unprintedCount())->toBe(1)
+        ->and($batch->printedCount())->toBe(1)
+        ->and($batch->unprintedItems()->first()->package_id)->toBe($unprinted->id);
+});
+
+it('drops items whose label was voided after the batch ran', function (): void {
+    $batch = LabelBatch::factory()->create();
+
+    $voided = Package::factory()->create([
+        'status' => PackageStatus::Unshipped,
+        'label_data' => null,
+        'label_printed_at' => null,
+    ]);
+    $stillPrintable = Package::factory()->shipped()->create(['label_printed_at' => null]);
+
+    foreach ([$voided, $stillPrintable] as $package) {
+        LabelBatchItem::factory()->success()->create([
+            'label_batch_id' => $batch->id,
+            'package_id' => $package->id,
+        ]);
+    }
+
+    expect($batch->printableItems()->count())->toBe(1)
+        ->and($batch->unprintedCount())->toBe(1)
+        ->and($batch->unprintedItems()->first()->package_id)->toBe($stillPrintable->id);
 });

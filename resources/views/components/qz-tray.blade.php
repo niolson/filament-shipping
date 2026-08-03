@@ -31,6 +31,40 @@
             }
         }
 
+        // Queue a message to appear on the *next* page. The ship flow redirects as
+        // soon as a label prints, which would wipe a banner shown here before the
+        // operator could read it.
+        function showStatusAfterNavigation(message, type = 'info') {
+            sessionStorage.setItem('qzPendingStatus', JSON.stringify({ message, type, at: Date.now() }));
+        }
+
+        const PENDING_STATUS_TTL_MS = 60000;
+
+        function flushPendingStatus() {
+            const stored = sessionStorage.getItem('qzPendingStatus');
+
+            if (!stored) {
+                return;
+            }
+
+            sessionStorage.removeItem('qzPendingStatus');
+
+            try {
+                const pending = JSON.parse(stored);
+
+                // Only the very next page should show it. If the redirect landed
+                // somewhere without this component, the message must not resurface
+                // later attached to unrelated work.
+                if (Date.now() - (pending.at ?? 0) > PENDING_STATUS_TTL_MS) {
+                    return;
+                }
+
+                showStatus(pending.message, pending.type || 'warning');
+            } catch (error) {
+                console.error('Could not restore carried-over status:', error);
+            }
+        }
+
         // Get printer names from localStorage
         function getLabelPrinter() {
             return localStorage.getItem('labelPrinter');
@@ -113,13 +147,15 @@
             });
         }
 
-        // Print label via QZ Tray
+        // Print label via QZ Tray.
+        // Throws on any failure so callers can tell a real print from a no-op —
+        // the label printed flag on the package depends on this.
         async function printLabel(base64Data, orientation = 'portrait', format = 'pdf', dpi = null) {
             const printer = getLabelPrinter();
 
             if (!printer) {
                 showStatus('No label printer configured. Go to Device Settings.', 'error');
-                return;
+                throw new Error('No label printer configured');
             }
 
             // Block reprinting ZPL labels when printer isn't configured for raw ZPL
@@ -130,11 +166,11 @@
 
                 if (configFormat !== 'zpl') {
                     showStatus('This label is ZPL but your printer is configured for PDF. Go to Device Settings to change.', 'error');
-                    return;
+                    throw new Error('Label is ZPL but printer is configured for PDF');
                 }
                 if (dpi && dpi !== configDpi) {
                     showStatus(`This label was generated for ${dpi} DPI but your printer is configured for ${configDpi} DPI. Go to Device Settings to change.`, 'error');
-                    return;
+                    throw new Error(`Label DPI ${dpi} does not match printer DPI ${configDpi}`);
                 }
             }
 
@@ -190,6 +226,7 @@
             } catch (error) {
                 console.error('Print error:', error);
                 showStatus(`Print failed: ${error.message || 'Unknown error'}`, 'error');
+                throw error;
             }
         }
 
@@ -233,14 +270,63 @@
             }
         }
 
+        // Tell the server a label actually reached the printer. Best-effort: a failed
+        // ack must never surface as a print failure, since the label did print — but
+        // it must not pass silently either, or the package looks unprinted forever.
+        // Returns whether the print was recorded.
+        async function acknowledgePrint(packageId) {
+            if (!packageId) {
+                return true;
+            }
+
+            try {
+                const response = await fetch(`/labels/${packageId}/printed`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                        'Accept': 'application/json',
+                    },
+                    keepalive: true,
+                });
+
+                // fetch only rejects on network failure — 419/429/500 all resolve.
+                if (!response.ok) {
+                    console.error(`Failed to record label print: HTTP ${response.status}`);
+                    return false;
+                }
+
+                return true;
+            } catch (error) {
+                console.error('Failed to record label print:', error);
+                return false;
+            }
+        }
+
         // Listen for print events from Livewire
         document.addEventListener('livewire:init', () => {
             Livewire.on('print-label', async (event) => {
-                if (event.orientation === 'report') {
-                    await printReport(event.label, event.format || 'pdf');
-                } else {
-                    await printLabel(event.label, event.orientation || 'portrait', event.format || 'pdf', event.dpi || null);
+                try {
+                    if (event.orientation === 'report') {
+                        await printReport(event.label, event.format || 'pdf');
+                    } else {
+                        await printLabel(event.label, event.orientation || 'portrait', event.format || 'pdf', event.dpi || null);
+
+                        if (!await acknowledgePrint(event.packageId)) {
+                            const warning = 'Label printed, but recording it failed. It may still show as unprinted.';
+
+                            // Survive the redirect below, which the ship flow always sets.
+                            event.redirectTo
+                                ? showStatusAfterNavigation(warning, 'warning')
+                                : showStatus(warning, 'warning');
+                        }
+                    }
+                } catch (error) {
+                    // printLabel/printReport already showed the error banner. Stay on the
+                    // page so the operator sees it instead of following redirectTo.
+                    return;
                 }
+
                 if (event.redirectTo) {
                     window.location.href = event.redirectTo;
                 }
@@ -258,11 +344,16 @@
 
                 let printed = 0;
                 let failed = 0;
+                let unrecorded = 0;
 
                 for (const item of labels) {
                     try {
                         await printLabel(item.label, item.orientation || 'portrait', item.format || 'pdf', item.dpi || null);
                         printed++;
+
+                        if (!await acknowledgePrint(item.packageId)) {
+                            unrecorded++;
+                        }
                     } catch (error) {
                         console.error('Batch print error:', error);
                         failed++;
@@ -270,14 +361,24 @@
                     showStatus(`Printed ${printed}/${labels.length} labels...${failed > 0 ? ` (${failed} failed)` : ''}`, 'info');
                 }
 
-                const msg = failed > 0
+                let msg = failed > 0
                     ? `Printed ${printed}/${labels.length} labels (${failed} failed)`
                     : `Printed all ${printed} labels`;
-                showStatus(msg, failed > 0 ? 'warning' : 'success');
+
+                // These labels did print — they just may still show as unprinted.
+                if (unrecorded > 0) {
+                    msg += `. ${unrecorded} could not be recorded as printed`;
+                }
+
+                showStatus(msg, (failed > 0 || unrecorded > 0) ? 'warning' : 'success');
+
+                // Let the page pick up the printed counts recorded during the loop.
+                Livewire.dispatch('batch-print-finished');
             });
         });
 
-        // Initialize on page load
-        initQZTray();
+        // Initialize on page load. The carried-over status is shown last so the
+        // connection banner cannot bury it.
+        initQZTray().finally(flushPendingStatus);
     });
 </script>

@@ -4,6 +4,8 @@ namespace App\Filament\Resources\PackageResource\Pages;
 
 use App\Contracts\PackageLabelWorkflow;
 use App\Enums\PackageStatus;
+use App\Filament\Concerns\NotifiesUser;
+use App\Filament\Concerns\PrintsLabels;
 use App\Filament\Resources\PackageResource;
 use App\Filament\Resources\ShipmentResource;
 use App\Models\Location;
@@ -20,6 +22,8 @@ use Illuminate\Contracts\View\View;
 
 class ViewPackage extends ViewRecord
 {
+    use NotifiesUser, PrintsLabels;
+
     protected static string $resource = PackageResource::class;
 
     protected string $view = 'filament.resources.package-resource.pages.view-package';
@@ -34,18 +38,11 @@ class ViewPackage extends ViewRecord
                 ->url(fn () => '/ship/'.$this->record->id)
                 ->disabled(fn () => $this->record->status === PackageStatus::Shipped),
             Action::make('reprint')
-                ->label('Reprint Label')
+                ->label(fn () => $this->record->label_printed_at ? 'Reprint Label' : 'Print Label')
                 ->icon('heroicon-o-printer')
                 ->color('primary')
                 ->visible(fn () => $this->record->status === PackageStatus::Shipped && $this->record->label_data)
-                ->action(function (): void {
-                    $this->dispatch('print-label', label: $this->record->label_data, orientation: $this->record->label_orientation ?? 'portrait', format: $this->record->label_format ?? 'pdf', dpi: $this->record->label_dpi);
-
-                    Notification::make()
-                        ->title('Label sent to printer')
-                        ->success()
-                        ->send();
-                }),
+                ->action(fn () => $this->printStoredPackageLabel($this->record->id)),
             PackageResource::makeTrackAction(),
             Action::make('void')
                 ->label('Void Label')
@@ -131,6 +128,10 @@ class ViewPackage extends ViewRecord
                         TextEntry::make('shipped_at')
                             ->label('Shipped At')
                             ->dateTime('M j, Y g:i A', timezone: Location::timezone()),
+                        TextEntry::make('label_printed_at')
+                            ->label('Label Printed')
+                            ->dateTime('M j, Y g:i A', timezone: Location::timezone())
+                            ->placeholder('Not printed'),
                         TextEntry::make('ship_date')
                             ->label('Ship Date')
                             ->date(timezone: Location::timezone()),

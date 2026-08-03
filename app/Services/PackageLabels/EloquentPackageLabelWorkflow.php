@@ -6,8 +6,9 @@ use App\Contracts\PackageLabelWorkflow;
 use App\DataTransferObjects\PackageLabels\LabelReprintResult;
 use App\DataTransferObjects\PackageLabels\LabelVoidResult;
 use App\DataTransferObjects\PrintRequest;
+use App\Enums\AuditAction;
 use App\Enums\PackageStatus;
-use App\Enums\Role;
+use App\Models\AuditLog;
 use App\Models\Package;
 use App\Models\User;
 use App\Services\Carriers\CarrierRegistry;
@@ -55,13 +56,48 @@ class EloquentPackageLabelWorkflow implements PackageLabelWorkflow
             return LabelReprintResult::failure('Label Not Available', 'The label for the package is not available.');
         }
 
-        if (! $user->role->isAtLeast(Role::Manager) && $package->shipped_by_user_id !== $user->id) {
+        if ($user->cannot('printLabel', $package)) {
             return LabelReprintResult::failure('Access Denied', 'You can only reprint labels for packages you shipped.');
         }
 
+        $isReprint = $package->label_printed_at !== null;
+
         return LabelReprintResult::success(
             printRequest: PrintRequest::fromPackage($package),
-            message: "Reprinted label for tracking: {$package->tracking_number}",
+            message: $isReprint
+                ? "Reprinted label for tracking: {$package->tracking_number}"
+                : "Printed label for tracking: {$package->tracking_number}",
+            title: $isReprint ? 'Label Reprinted' : 'Label Printed',
         );
+    }
+
+    /**
+     * Record that a label physically reached a printer.
+     *
+     * The timestamp tracks the most recent print; the audit trail is what preserves
+     * every individual print.
+     *
+     * @return bool Whether this was a reprint (the label had been printed before)
+     */
+    public function markLabelPrinted(Package $package, ?User $user = null): bool
+    {
+        $isReprint = $package->label_printed_at !== null;
+
+        $package->forceFill(['label_printed_at' => now()])->save();
+
+        AuditLog::record(
+            AuditAction::LabelPrinted,
+            $package,
+            metadata: [
+                'reprint' => $isReprint,
+                'tracking_number' => $package->tracking_number,
+                'carrier' => $package->carrier,
+                'label_format' => $package->label_format,
+                'label_dpi' => $package->label_dpi,
+            ],
+            userId: $user?->id,
+        );
+
+        return $isReprint;
     }
 }

@@ -5,6 +5,7 @@ namespace App\DataTransferObjects\PackageShipping;
 use App\DataTransferObjects\PrintRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipResponse;
+use App\Models\Package;
 
 readonly class PackageShippingResult
 {
@@ -19,7 +20,7 @@ readonly class PackageShippingResult
         public bool $leavePackageIntact = false,
     ) {}
 
-    public static function shipped(ShipResponse $response, RateResponse $rate): self
+    public static function shipped(ShipResponse $response, RateResponse $rate, ?Package $package = null): self
     {
         return new self(
             success: true,
@@ -27,7 +28,7 @@ readonly class PackageShippingResult
             message: "Tracking: {$response->trackingNumber}",
             response: $response,
             selectedRate: $rate,
-            printRequest: $response->labelData ? PrintRequest::fromShipResponse($response) : null,
+            printRequest: $response->labelData ? PrintRequest::fromShipResponse($response, $package) : null,
         );
     }
 

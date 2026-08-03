@@ -128,7 +128,7 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
 
             $package->markShipped($response, $request->userId);
 
-            return PackageShippingResult::shipped($response, $request->selectedRate);
+            return PackageShippingResult::shipped($response, $request->selectedRate, $package);
         } catch (MissingDeclaredValueException $e) {
             return PackageShippingResult::failed('Declared Value Required', $e->getMessage());
         } catch (RequestTimeOutException) {

@@ -3,8 +3,10 @@
 use App\Contracts\CarrierAdapterInterface;
 use App\Contracts\PackageLabelWorkflow;
 use App\DataTransferObjects\Shipping\CancelResponse;
+use App\Enums\AuditAction;
 use App\Enums\PackageStatus;
 use App\Enums\Role;
+use App\Models\AuditLog;
 use App\Models\Package;
 use App\Models\User;
 use App\Services\Carriers\CarrierRegistry;
@@ -171,7 +173,7 @@ it('allows a manager to reprint a label for a package shipped by someone else', 
     $result = app(PackageLabelWorkflow::class)->labelForReprint($package, $manager);
 
     expect($result->success)->toBeTrue()
-        ->and($result->message)->toBe('Reprinted label for tracking: TRACK999');
+        ->and($result->message)->toBe('Printed label for tracking: TRACK999');
 });
 
 it('returns a print request for label reprint when the user can access the package', function (): void {
@@ -192,7 +194,82 @@ it('returns a print request for label reprint when the user can access the packa
         ->and($result->printRequest->orientation)->toBe('landscape')
         ->and($result->printRequest->format)->toBe('zpl')
         ->and($result->printRequest->dpi)->toBe(203)
+        ->and($result->printRequest->packageId)->toBe($package->id)
+        ->and($result->message)->toBe('Printed label for tracking: TRACK123');
+});
+
+it('describes the action as a reprint once the label has already been printed', function (): void {
+    $user = User::factory()->create(['role' => Role::User]);
+    $package = Package::factory()->shipped()->create([
+        'shipped_by_user_id' => $user->id,
+        'tracking_number' => 'TRACK123',
+        'label_data' => 'base64-label',
+        'label_printed_at' => now()->subMinutes(5),
+    ]);
+
+    $result = app(PackageLabelWorkflow::class)->labelForReprint($package, $user);
+
+    expect($result->success)->toBeTrue()
+        ->and($result->title)->toBe('Label Reprinted')
         ->and($result->message)->toBe('Reprinted label for tracking: TRACK123');
+});
+
+it('records the first label print and audits it as a new print', function (): void {
+    $user = User::factory()->create();
+    $package = Package::factory()->shipped()->create(['label_printed_at' => null]);
+
+    $wasReprint = app(PackageLabelWorkflow::class)->markLabelPrinted($package, $user);
+
+    expect($wasReprint)->toBeFalse()
+        ->and($package->fresh()->label_printed_at)->not->toBeNull();
+
+    $audit = AuditLog::where('action', AuditAction::LabelPrinted)
+        ->where('auditable_id', $package->id)
+        ->sole();
+
+    expect($audit->user_id)->toBe($user->id)
+        ->and($audit->metadata['reprint'])->toBeFalse();
+});
+
+it('advances label_printed_at on each print and audits every one', function (): void {
+    $user = User::factory()->create();
+    $package = Package::factory()->shipped()->create([
+        'label_printed_at' => now()->subHour(),
+    ]);
+    $firstPrintedAt = $package->label_printed_at;
+
+    $wasReprint = app(PackageLabelWorkflow::class)->markLabelPrinted($package, $user);
+
+    expect($wasReprint)->toBeTrue()
+        ->and($package->fresh()->label_printed_at->greaterThan($firstPrintedAt))->toBeTrue();
+
+    app(PackageLabelWorkflow::class)->markLabelPrinted($package->fresh(), $user);
+
+    $audits = AuditLog::where('action', AuditAction::LabelPrinted)
+        ->where('auditable_id', $package->id)
+        ->get();
+
+    expect($audits)->toHaveCount(2)
+        ->and($audits->every(fn ($audit): bool => $audit->metadata['reprint'] === true))->toBeTrue();
+});
+
+it('clears the printed timestamp when a label is voided', function (): void {
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_number' => '9400111899223456789012',
+        'label_printed_at' => now(),
+    ]);
+
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('cancelShipment')
+        ->once()
+        ->andReturn(CancelResponse::success('Label voided successfully.'));
+
+    app(CarrierRegistry::class)->registerInstance('USPS', $adapter);
+
+    app(PackageLabelWorkflow::class)->voidLabel($package);
+
+    expect($package->fresh()->label_printed_at)->toBeNull();
 });
 
 it('rejects label reprint for a different non-manager user', function (): void {
