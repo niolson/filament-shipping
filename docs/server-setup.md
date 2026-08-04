@@ -202,6 +202,19 @@ server — it accepts no connections, migrates the keys, and exits:
 KEYRING=$(docker volume inspect shared_mysql-keyring --format '{{ .Mountpoint }}')
 DATA=$(docker volume inspect shared_mysql-data --format '{{ .Mountpoint }}')
 
+# Capture the EXACT image this data directory has been running under, and use
+# it for both the migration and the verification below. Do NOT write a bare
+# `mysql:8.0` anywhere in this procedure: that resolves to the latest 8.0
+# point release, and starting a newer server against an existing data
+# directory can perform a data dictionary upgrade that cannot be undone —
+# while you are mid-migration, with your keys in an unverified state.
+#
+# Taken from the existing container, this is a local image ID: exact, and no
+# pull happens. If that container no longer exists, use the digest pinned in
+# the compose file that was in use (mysql:8.0@sha256:...), never the tag.
+MYSQL80=$(docker inspect shared-mysql --format '{{ .Image }}')
+echo "migrating with $MYSQL80"
+
 # migrate.cnf: keyring_file_data ONLY — see the warning below
 printf '[mysqld]\nkeyring_file_data=/var/lib/mysql-keyring/keyring\n' > /opt/shared/migrate.cnf
 chmod 644 /opt/shared/migrate.cnf
@@ -219,7 +232,7 @@ docker run --rm --user 999:999 --entrypoint mysqld \
   -v "$KEYRING":/var/lib/mysql-keyring \
   -v /opt/shared/migrate.cnf:/etc/mysql/conf.d/migrate.cnf:ro \
   -v /opt/shared/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
-  mysql:8.0 \
+  "$MYSQL80" \
   --keyring-migration-to-component \
   --keyring-migration-source=keyring_file.so \
   --keyring-migration-destination=component_keyring_file.so
@@ -247,34 +260,61 @@ with the *component* configuration — manifest and component config, no plugin
 config — and read an encrypted table:
 
 ```bash
-docker run --rm -d --name keyring-verify -e MYSQL_ROOT_PASSWORD=<password> \
+Run this as a script rather than pasting line by line — it exits non-zero on
+failure, and that is the point:
+
+```bash
+#!/bin/bash
+set -u
+
+# Deliberately NOT --rm: if the server fails to start, the container has to
+# survive so its log can be read. A vanished container is the one case where
+# you most need the evidence.
+docker run -d --name keyring-verify -e MYSQL_ROOT_PASSWORD=<password> \
   -v "$DATA":/var/lib/mysql \
   -v "$KEYRING":/var/lib/mysql-keyring \
   -v /opt/shared/mysql.cnf:/etc/mysql/conf.d/encryption.cnf:ro \
   -v /opt/shared/mysqld.my:/usr/sbin/mysqld.my:ro \
   -v /opt/shared/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
-  mysql:8.0
+  "$MYSQL80"
 
-# Wait for it — the container is detached and MySQL takes tens of seconds to
-# accept connections. Querying immediately just fails to connect, which is
-# easy to misread as a failed migration.
+# The container is detached and MySQL takes tens of seconds to accept
+# connections, longer on a first start. Querying immediately just fails to
+# connect, which is easy to misread as a failed migration.
+ready=0
 for i in $(seq 1 60); do
-  docker exec keyring-verify mysqladmin ping -uroot -p<password> --silent >/dev/null 2>&1 && break
-  [ "$i" = 60 ] && { echo "server never became ready — check: docker logs keyring-verify"; }
+  if docker exec keyring-verify mysqladmin ping -uroot -p<password> --silent >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
   sleep 2
 done
+
+if [ "$ready" -ne 1 ]; then
+  echo "keyring-verify never became ready — leaving it in place for inspection." >&2
+  docker logs keyring-verify 2>&1 | tail -40
+  echo "Do NOT rename the legacy keyring. Investigate, then re-run." >&2
+  exit 1
+fi
 
 docker exec keyring-verify mysql -uroot -p<password> \
   -e "SELECT STATUS_VALUE FROM performance_schema.keyring_component_status
        WHERE STATUS_KEY='Component_status';
       SELECT * FROM <some_encrypted_table> LIMIT 1;"
+```
 
+Expect `Active` and real rows. **Read that output yourself** — the query
+succeeding is not the check; the component being `Active` and the rows being
+real is. Only once you have seen both, clean up:
+
+```bash
 docker rm -f keyring-verify
 ```
 
-Expect `Active` and real rows. If the server never becomes ready, read
-`docker logs keyring-verify` before concluding anything about the migration —
-a startup problem and a failed migration look nothing alike in the log. This step deliberately runs 8.0 by hand rather
+If the server never became ready, the container is still there on purpose:
+read its log before concluding anything about the migration, because a startup
+problem and a failed migration look nothing alike, and only one of them means
+your keys are in trouble. This step deliberately runs 8.0 by hand rather
 than through Compose: the legacy keyring is still in place at this point, so
 `mysql-keyring-init` would refuse to start the Compose-managed server. Verify
 first, rename second — not the other way round.
