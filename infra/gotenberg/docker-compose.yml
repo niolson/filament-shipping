@@ -1,0 +1,27 @@
+# Gotenberg — PDF rendering for pack slips and labels
+# Deploy to /opt/gotenberg/ on the server (see infra/README.md)
+#
+# Usage:
+#   cd /opt/gotenberg && docker compose up -d
+#   /opt/tenants/<any>/scripts/reconnect-shared-networks.sh
+#
+# That second command is not optional. Like the shared datastores, Gotenberg
+# must be reachable from every per-tenant `shared-<tenant>` network, but compose
+# only ever attaches it to the networks named below. Recreating the container
+# therefore drops those per-tenant attachments and cuts every tenant off from
+# PDF rendering until they are restored.
+#
+# Images are pinned by digest, not tag. See infra/README.md for why, and for
+# how to move a pin forward.
+
+services:
+  gotenberg:
+    image: gotenberg/gotenberg:8@sha256:67097317623a503ba2a6a7e9ae8db6929a1f7e1bbd88077bacf2d325fbdab923
+    container_name: gotenberg
+    restart: unless-stopped
+    networks:
+      - shared
+
+networks:
+  shared:
+    external: true

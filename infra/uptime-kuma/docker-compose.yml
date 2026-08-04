@@ -1,0 +1,38 @@
+# Uptime Kuma — external monitoring dashboard
+# Deploy to /opt/uptime-kuma/ on the server (see infra/README.md)
+#
+# Usage:
+#   cd /opt/uptime-kuma && docker compose up -d
+#
+# Images are pinned by digest, not tag. See infra/README.md for why, and for
+# how to move a pin forward.
+#
+# NOTE: this pin cannot be moved forward, and Dependabot will never open a PR
+# for it. The `1` tag was last published 2025-10-20 and the project's work has
+# moved to the `2` tag — a major version, so Dependabot won't propose it and it
+# would need a migration review anyway. That leaves this image on an EOL Debian
+# 10 base with findings no update can clear. Tracked as a decision to make
+# (upgrade to 2, replace, or accept), not as something a pin bump fixes.
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:1@sha256:3d632903e6af34139a37f18055c4f1bfd9b7205ae1138f1e5e8940ddc1d176f9
+    container_name: uptime-kuma
+    restart: unless-stopped
+    volumes:
+      - data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - proxy
+    healthcheck:
+      test: ["CMD", "extra/healthcheck"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  data:
+
+networks:
+  proxy:
+    external: true

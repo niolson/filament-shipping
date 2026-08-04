@@ -77,31 +77,11 @@ Create `/opt/caddy/Caddyfile`:
 # }
 ```
 
-Create `/opt/caddy/docker-compose.yml`:
+Copy in the compose file — it is tracked in the repo so its image pin is kept
+current by Dependabot (see `infra/README.md`):
 
-```yaml
-services:
-  caddy:
-    image: caddy:alpine@sha256:a1b7e624f860619cea121bdbc5dec2e112401666298c6507c6793b0a3ee6fc8e
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - proxy
-
-volumes:
-  caddy_data:
-  caddy_config:
-
-networks:
-  proxy:
-    external: true
+```bash
+cp <repo>/infra/caddy/docker-compose.yml /opt/caddy/docker-compose.yml
 ```
 
 Start Caddy:
@@ -116,10 +96,15 @@ Shared MySQL + Redis serve all tenants from a single instance, reducing memory u
 
 ```bash
 mkdir -p /opt/shared
-cp <repo>/infra/docker-compose.yml /opt/shared/docker-compose.yml
+cp <repo>/infra/shared/* /opt/shared/
+cp <repo>/docker/mysql.cnf /opt/shared/mysql.cnf
 cp <repo>/infra/.env.example /opt/shared/.env
 cp <repo>/infra/shared-secrets.env.example /opt/shared/shared-secrets.env
 ```
+
+`infra/shared/` carries the compose file plus the two MySQL keyring-component
+configs (`mysqld.my`, `component_keyring_file.cnf`) that TDE needs mounted —
+see the encryption-at-rest section below.
 
 Edit `/opt/shared/.env` and set strong passwords:
 
@@ -185,6 +170,40 @@ cd /opt/shared && docker compose up -d
 ```
 
 Then each tenant's next deploy will run `db:encrypt-tables` to encrypt existing tables.
+
+### Gotenberg (PDF Rendering)
+
+Renders pack slips and labels for every tenant.
+
+```bash
+mkdir -p /opt/gotenberg
+cp <repo>/infra/gotenberg/docker-compose.yml /opt/gotenberg/docker-compose.yml
+cd /opt/gotenberg && docker compose up -d
+/opt/tenants/<any-tenant>/scripts/reconnect-shared-networks.sh
+```
+
+That last step is required. Compose attaches Gotenberg only to the `shared`
+network, but tenants reach it over their own `shared-<tenant>` networks — so
+every recreation drops those attachments until they are restored. The script is
+idempotent. The same applies to shared MySQL and Redis.
+
+Verify from a tenant app container:
+
+```bash
+docker exec <tenant>-app-1 curl -s -o /dev/null -w '%{http_code}\n' http://gotenberg:3000/health
+```
+
+### Uptime Kuma (Monitoring)
+
+```bash
+mkdir -p /opt/uptime-kuma
+cp <repo>/infra/uptime-kuma/docker-compose.yml /opt/uptime-kuma/docker-compose.yml
+cd /opt/uptime-kuma && docker compose up -d
+```
+
+Note this image is stuck on an end-of-life base — see the comment in
+`infra/uptime-kuma/docker-compose.yml`. No update policy can clear its
+findings; it needs a decision rather than a pin bump.
 
 ## 7. Create Tenants Directory
 

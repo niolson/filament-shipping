@@ -1,0 +1,4 @@
+{
+  "read_local_manifest": false,
+  "components": "file://component_keyring_file"
+}
