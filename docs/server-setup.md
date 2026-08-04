@@ -259,13 +259,22 @@ never treat that file's existence as success.
 with the *component* configuration — manifest and component config, no plugin
 config — and read an encrypted table:
 
-```bash
 Run this as a script rather than pasting line by line — it exits non-zero on
 failure, and that is the point:
 
 ```bash
 #!/bin/bash
 set -u
+
+# Recomputed here, not inherited: the values from step 2 were set in an
+# interactive shell and are not exported into this script. MYSQL80 must
+# resolve to the same image step 2 migrated with — if `shared-mysql` no
+# longer exists, replace this line with the digest pinned in the compose
+# file (mysql:8.0@sha256:...), never the bare tag.
+KEYRING=$(docker volume inspect shared_mysql-keyring --format '{{ .Mountpoint }}')
+DATA=$(docker volume inspect shared_mysql-data --format '{{ .Mountpoint }}')
+MYSQL80=$(docker inspect shared-mysql --format '{{ .Image }}')
+echo "verifying with $MYSQL80"
 
 # Deliberately NOT --rm: if the server fails to start, the container has to
 # survive so its log can be read. A vanished container is the one case where
