@@ -35,6 +35,11 @@ set -euo pipefail
 #                  recipients. Needs RESEND_API_KEY in the environment or in
 #                  /opt/shared/shared-secrets.env (where the app already keeps
 #                  it). Override the sender with SECURITY_SCAN_EMAIL_FROM.
+#   --images       Also scan the image behind every running container. Grype in
+#                  CI only scans the app image it builds itself, so third-party
+#                  images (database, cache, TLS terminator, PDF renderer) and
+#                  the app image as actually rebuilt on the server are otherwise
+#                  never checked by anything.
 #   --keep N       After a successful scan, keep only the N most recent report
 #                  directories for this host and delete older ones. Default 0
 #                  (keep everything); the scheduled scan passes a real value so
@@ -67,11 +72,13 @@ OUT_DIR=""
 OUT_PARENT=""
 EMAIL_TO=""
 KEEP=0
+SCAN_IMAGES=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --ssh) MODE="remote"; SSH_HOST="$2"; shift 2 ;;
         --local) MODE="local"; shift ;;
+        --images) SCAN_IMAGES=1; shift ;;
         --out) OUT_DIR="$2"; shift 2 ;;
         --out-parent) OUT_PARENT="$2"; shift 2 ;;
         --email) EMAIL_TO="$2"; shift 2 ;;
@@ -115,8 +122,12 @@ fi
 
 EMAIL_SENT=0
 
+# Takes the body as a FILE, not a string. A report carrying a few thousand
+# findings runs to hundreds of kilobytes, which overflows the argument list if
+# passed via jq --arg — and the failure is quiet enough to send an empty mail.
+# --rawfile and `curl -d @file` keep the body off the command line entirely.
 send_email() {
-    local subject="$1" body="$2" payload
+    local subject="$1" body_file="$2" payload_file status
     [[ -n "$EMAIL_TO" ]] || return 0
 
     if [[ -z "$RESEND_KEY" ]]; then
@@ -124,34 +135,45 @@ send_email() {
         return 1
     fi
 
-    payload="$(jq -n \
+    payload_file="$(mktemp)"
+    if ! jq -n \
         --arg from "$EMAIL_FROM" \
         --arg to "$EMAIL_TO" \
         --arg subject "$subject" \
-        --arg text "$body" \
-        '{from: $from, to: ($to | split(",") | map(gsub("^\\s+|\\s+$"; ""))), subject: $subject, text: $text}')"
-
-    if curl -fsS -m 30 -X POST "https://api.resend.com/emails" \
-        -H "Authorization: Bearer ${RESEND_KEY}" \
-        -H "Content-Type: application/json" \
-        -d "$payload" >/dev/null; then
-        EMAIL_SENT=1
-        ok "Result email sent to ${EMAIL_TO}"
-    else
-        error "Failed to send result email to ${EMAIL_TO}"
+        --rawfile text "$body_file" \
+        '{from: $from, to: ($to | split(",") | map(gsub("^\\s+|\\s+$"; ""))), subject: $subject, text: $text}' \
+        > "$payload_file"; then
+        error "Could not build the email payload for: ${subject}"
+        rm -f "$payload_file"
         return 1
     fi
+
+    status=0
+    curl -fsS -m 60 -X POST "https://api.resend.com/emails" \
+        -H "Authorization: Bearer ${RESEND_KEY}" \
+        -H "Content-Type: application/json" \
+        -d @"$payload_file" >/dev/null || status=$?
+    rm -f "$payload_file"
+
+    if [[ "$status" -eq 0 ]]; then
+        EMAIL_SENT=1
+        ok "Result email sent to ${EMAIL_TO}"
+        return 0
+    fi
+
+    error "Failed to send result email to ${EMAIL_TO} (curl exit ${status})"
+    return 1
 }
 
 # A scan that dies partway (trivy crash, no disk, DB download failure) must
 # still produce mail — otherwise a broken scheduled scan is indistinguishable
 # from a clean one, which is exactly how the nightly backup broke silently once.
 on_exit() {
-    local code=$?
+    local code=$? failure_body
     if [[ "$code" -ne 0 && -n "$EMAIL_TO" && "$EMAIL_SENT" -eq 0 ]]; then
-        send_email \
-            "[PolyBag] Host vulnerability scan FAILED on ${HOST_LABEL:-unknown host}" \
-            "The scheduled Trivy host scan exited with status ${code} before it could produce a report.
+        failure_body="$(mktemp)"
+        cat > "$failure_body" <<FAILURE
+The scheduled Trivy host scan exited with status ${code} before it could produce a report.
 
 Host:  ${HOST_LABEL:-unknown}
 Mode:  ${MODE}
@@ -164,8 +186,12 @@ until this is re-run. Check the scan log on the server:
 
 then re-run by hand with:
 
-    /opt/tenants/test/scripts/security-scan-host.sh --local --out /var/log/trivy-host-scan/manual
-" || true
+    /opt/tenants/test/scripts/security-scan-host.sh --local --images --out-parent /var/log/trivy-host-scan
+FAILURE
+        send_email \
+            "[PolyBag] Host vulnerability scan FAILED on ${HOST_LABEL:-unknown host}" \
+            "$failure_body" || true
+        rm -f "$failure_body"
     fi
     return "$code"
 }
@@ -297,6 +323,86 @@ HIGH_CRIT=$(( CRITICAL + HIGH ))
     echo "Fixable findings above are remediated via \`apt-get upgrade\` on the host per the standard patching SLA (Critical: 7 days, High: 30 days). Re-run this scan after patching to confirm closure."
 } > "$OUT_DIR/host-scan-report.md"
 
+# --- Container images ---
+#
+# Discovered from what is actually running rather than from a hand-kept list,
+# so a service added later is covered without anyone remembering to edit this.
+# Deduplicated by image ID: the four app containers of a tenant share one image
+# and there is no point scanning it four times.
+IMAGES_JSON="$OUT_DIR/trivy-images-report.json"
+IMAGE_FIXABLE=0
+if [[ "$SCAN_IMAGES" -eq 1 ]]; then
+    info "Scanning images of running containers..."
+    run_on_host <<'REMOTE' > "$IMAGES_JSON"
+set -euo pipefail
+for container in $(docker ps --format '{{.Names}}'); do
+    printf '%s|%s\n' \
+        "$(docker inspect -f '{{.Image}}' "$container")" \
+        "$(docker inspect -f '{{.Config.Image}}' "$container")"
+done | sort -u -t'|' -k1,1 | while IFS='|' read -r image_id image_ref; do
+    trivy image --scanners vuln --skip-version-check --quiet --format json "$image_id" 2>/dev/null \
+        | jq -c --arg image "$image_ref" --arg id "$image_id" \
+            '{image: $image, id: $id, results: (.Results // [])}'
+done | jq -s '.'
+REMOTE
+
+    IMAGE_FIXABLE=$(jq '[.[].results[]?.Vulnerabilities[]? | select((.Severity == "CRITICAL" or .Severity == "HIGH") and .FixedVersion != null and .FixedVersion != "")] | length' "$IMAGES_JSON")
+
+    {
+        echo
+        echo "## Container Images"
+        echo
+        echo "Images behind every running container, deduplicated. Grype in CI scans"
+        echo "only the app image it builds itself, so everything else here — and the app"
+        echo "image as rebuilt on this host — is covered by nothing else."
+        echo
+        echo "Sorted by fixable critical/high, because that is the column worth acting on:"
+        echo "a fixable finding clears by pulling a newer image, an unfixable one does not."
+        echo
+        echo "| Image | Fixable Crit/High | Critical | High |"
+        echo "| --- | --- | --- | --- |"
+        jq -r '
+            def short: sub("@sha256:(?<h>[0-9a-f]{12})[0-9a-f]*$"; "@\(.h)");
+            map({
+                image: (.image | short),
+                critical: ([.results[]?.Vulnerabilities[]? | select(.Severity == "CRITICAL")] | length),
+                high: ([.results[]?.Vulnerabilities[]? | select(.Severity == "HIGH")] | length),
+                fixable: ([.results[]?.Vulnerabilities[]? | select((.Severity == "CRITICAL" or .Severity == "HIGH") and .FixedVersion != null and .FixedVersion != "")] | length),
+            })
+            | sort_by(-.fixable, -.critical)
+            | .[]
+            | "| \(.image) | \(.fixable) | \(.critical) | \(.high) |"
+        ' "$IMAGES_JSON"
+        echo
+        if [[ "$IMAGE_FIXABLE" -eq 0 ]]; then
+            echo "No fixable critical/high findings in any running image."
+        else
+            echo "### Fixable Critical / High"
+            echo
+            echo "Each of these clears by pulling a current version of the image and"
+            echo "recreating the container. Unfixable findings are omitted — see"
+            echo "\`trivy-images-report.json.gz\` for the complete set at every severity."
+            echo
+            echo "| Image | Severity | Package | Installed | Fixed In | CVE |"
+            echo "| --- | --- | --- | --- | --- | --- |"
+            jq -r '
+                def short: sub("@sha256:(?<h>[0-9a-f]{12})[0-9a-f]*$"; "@\(.h)");
+                [ .[] | (.image | short) as $img | .results[]?.Vulnerabilities[]?
+                  | select((.Severity == "CRITICAL" or .Severity == "HIGH") and .FixedVersion != null and .FixedVersion != "")
+                  | {image: $img, severity: .Severity, pkg: .PkgName, installed: .InstalledVersion, fixed: .FixedVersion, cve: .VulnerabilityID} ]
+                | sort_by(.image, (.severity | if . == "CRITICAL" then 0 else 1 end), .pkg)
+                | .[]
+                | "| \(.image) | \(.severity) | \(.pkg) | \(.installed) | \(.fixed) | \(.cve) |"
+            ' "$IMAGES_JSON"
+        fi
+    } >> "$OUT_DIR/host-scan-report.md"
+
+    # 14MB raw for a single large image, ~1MB gzipped. With a year of monthly
+    # reports retained that difference decides whether this fits on the VPS.
+    gzip -f "$IMAGES_JSON"
+    ok "Image report at ${IMAGES_JSON}.gz"
+fi
+
 ok "Report written to ${OUT_DIR}/host-scan-report.md"
 ok "Raw JSON at ${OUT_DIR}/trivy-host-report.json"
 
@@ -327,8 +433,34 @@ if [[ -n "$EMAIL_TO" ]]; then
         SUBJECT="[PolyBag] Host scan clean (no findings) on ${HOST_LABEL}"
     fi
 
-    send_email "$SUBJECT" "$(cat "$OUT_DIR/host-scan-report.md")
+    # Host findings are routinely unfixable kernel CVEs, so the subject would
+    # look identical month to month. Surfacing the fixable image count is what
+    # tells you an actual action is waiting without opening the mail.
+    if [[ "$SCAN_IMAGES" -eq 1 && "$IMAGE_FIXABLE" -gt 0 ]]; then
+        SUBJECT="${SUBJECT} · images: ${IMAGE_FIXABLE} fixable"
+    fi
+
+    # A report listing every fixable finding across a dozen images runs to
+    # thousands of lines — unreadable as mail, and Resend rejects very large
+    # bodies outright. Send the summary tables and enough detail to act on,
+    # and point at the full report rather than inlining it.
+    EMAIL_BODY="$(mktemp)"
+    MAX_EMAIL_LINES=250
+    head -n "$MAX_EMAIL_LINES" "$OUT_DIR/host-scan-report.md" > "$EMAIL_BODY"
+    if [[ "$(wc -l < "$OUT_DIR/host-scan-report.md")" -gt "$MAX_EMAIL_LINES" ]]; then
+        printf '\n[Truncated at %s lines for email.]\n' "$MAX_EMAIL_LINES" >> "$EMAIL_BODY"
+    fi
+    cat >> "$EMAIL_BODY" <<FOOTER
 
 ---
-Full JSON report on the server: ${REPORT_JSON}"
+Full report on the server:
+    ${OUT_DIR}/host-scan-report.md
+    ${REPORT_JSON}
+FOOTER
+    if [[ "$SCAN_IMAGES" -eq 1 ]]; then
+        echo "    ${IMAGES_JSON}.gz" >> "$EMAIL_BODY"
+    fi
+
+    send_email "$SUBJECT" "$EMAIL_BODY"
+    rm -f "$EMAIL_BODY"
 fi
