@@ -164,6 +164,7 @@ plugin was **removed in MySQL 8.4**, and with it the server refuses to start
 perfectly healthy-looking server, so check rather than assume:
 
 ```bash
+# Standalone: substitute the `mysql` service container for `shared-mysql`.
 docker exec shared-mysql mysql -uroot -p<password> -e "
   SHOW VARIABLES LIKE 'default_table_encryption';
   SHOW VARIABLES LIKE 'binlog_encryption';
@@ -190,6 +191,18 @@ Note `mysql_migrate_keyring` is **not** the tool for this — it migrates betwee
 keyring *components* and explicitly does not support migrations involving
 plugins. Plugin-to-component uses a one-off `mysqld` in migration mode.
 
+**This applies to both deployment modes.** The keyring guard in the standalone
+`docker-compose.yml` and the one in `infra/shared/docker-compose.yml` both send
+you here. The two differ only in which container holds the data and where the
+keyring config files live, so the procedure is written against those two
+values — set them once, per the mode you are running, and the rest is
+identical:
+
+| | Shared server | Standalone / on-prem |
+|---|---|---|
+| `MYSQL_CONTAINER` | `shared-mysql` | the `mysql` service container (resolved below) |
+| `CONF_DIR` | `/opt/shared` | `infra/shared` in the repo checkout |
+
 **1. Back up the `mysql-keyring` volume and the database before anything
 else.** Everything below operates on the only copy of your keys.
 
@@ -199,8 +212,26 @@ migration becomes impossible. Stop the server, then run a one-off migration
 server — it accepts no connections, migrates the keys, and exits:
 
 ```bash
-KEYRING=$(docker volume inspect shared_mysql-keyring --format '{{ .Mountpoint }}')
-DATA=$(docker volume inspect shared_mysql-data --format '{{ .Mountpoint }}')
+# Pick ONE of these two pairs, matching your deployment.
+
+# Shared server:
+MYSQL_CONTAINER=shared-mysql
+CONF_DIR=/opt/shared
+
+# Standalone / on-prem — run from the repo checkout. Resolving the container
+# by service name avoids having to guess the Compose project prefix, and -a
+# finds it even though you have just stopped it:
+# MYSQL_CONTAINER=$(docker compose --profile standalone \
+#   -f docker-compose.yml -f docker-compose.onprem.yml ps -aq mysql)
+# CONF_DIR=$(pwd)/infra/shared
+
+# Both volume paths come from the container itself rather than from hardcoded
+# volume names, which differ per deployment (the Compose project prefix is the
+# checkout directory name for standalone, `shared_` on the shared server).
+KEYRING=$(docker inspect "$MYSQL_CONTAINER" \
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql-keyring" }}{{ .Source }}{{ end }}{{ end }}')
+DATA=$(docker inspect "$MYSQL_CONTAINER" \
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql" }}{{ .Source }}{{ end }}{{ end }}')
 
 # Capture the EXACT image this data directory has been running under, and use
 # it for both the migration and the verification below. Do NOT write a bare
@@ -210,14 +241,22 @@ DATA=$(docker volume inspect shared_mysql-data --format '{{ .Mountpoint }}')
 # while you are mid-migration, with your keys in an unverified state.
 #
 # Taken from the existing container, this is a local image ID: exact, and no
-# pull happens. If that container no longer exists, use the digest pinned in
-# the compose file that was in use (mysql:8.0@sha256:...), never the tag.
-MYSQL80=$(docker inspect shared-mysql --format '{{ .Image }}')
+# pull happens.
+MYSQL80=$(docker inspect "$MYSQL_CONTAINER" --format '{{ .Image }}')
 echo "migrating with $MYSQL80"
 
-# migrate.cnf: keyring_file_data ONLY — see the warning below
-printf '[mysqld]\nkeyring_file_data=/var/lib/mysql-keyring/keyring\n' > /opt/shared/migrate.cnf
-chmod 644 /opt/shared/migrate.cnf
+# All three must be non-empty. If the container was already removed, none of
+# them resolve: recover the volume mountpoints with `docker volume inspect`
+# and take the image from the digest pinned in the compose file that was in
+# use (mysql:8.0@sha256:...), never the tag.
+[ -n "$KEYRING" ] && [ -n "$DATA" ] && [ -n "$MYSQL80" ] || echo "UNRESOLVED — do not continue" >&2
+
+# migrate.cnf: keyring_file_data ONLY — see the warning below. Written to a
+# temp file, not CONF_DIR: it is throwaway, and must not be left where the
+# running server might pick it up.
+MIGRATE_CNF=$(mktemp /tmp/keyring-migrate.XXXXXX.cnf)
+printf '[mysqld]\nkeyring_file_data=/var/lib/mysql-keyring/keyring\n' > "$MIGRATE_CNF"
+chmod 644 "$MIGRATE_CNF"
 
 # Repair destination ownership first. This command bypasses the image
 # entrypoint and runs as UID 999, so it cannot write a component_keyring_file
@@ -230,8 +269,8 @@ chown 999:999 "$KEYRING"
 docker run --rm --user 999:999 --entrypoint mysqld \
   -v "$DATA":/var/lib/mysql \
   -v "$KEYRING":/var/lib/mysql-keyring \
-  -v /opt/shared/migrate.cnf:/etc/mysql/conf.d/migrate.cnf:ro \
-  -v /opt/shared/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
+  -v "$MIGRATE_CNF":/etc/mysql/conf.d/migrate.cnf:ro \
+  -v "$CONF_DIR"/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
   "$MYSQL80" \
   --keyring-migration-to-component \
   --keyring-migration-source=keyring_file.so \
@@ -266,15 +305,31 @@ failure, and that is the point:
 #!/bin/bash
 set -u
 
-# Recomputed here, not inherited: the values from step 2 were set in an
-# interactive shell and are not exported into this script. MYSQL80 must
-# resolve to the same image step 2 migrated with — if `shared-mysql` no
-# longer exists, replace this line with the digest pinned in the compose
-# file (mysql:8.0@sha256:...), never the bare tag.
-KEYRING=$(docker volume inspect shared_mysql-keyring --format '{{ .Mountpoint }}')
-DATA=$(docker volume inspect shared_mysql-data --format '{{ .Mountpoint }}')
-MYSQL80=$(docker inspect shared-mysql --format '{{ .Image }}')
+# Passed in, not inherited: step 2's values were set in an interactive shell
+# and are not exported into this script.
+#
+#   Shared server:  ./verify-keyring.sh shared-mysql /opt/shared
+#   Standalone:     ./verify-keyring.sh \
+#                     "$(docker compose --profile standalone \
+#                        -f docker-compose.yml -f docker-compose.onprem.yml \
+#                        ps -aq mysql)" \
+#                     "$(pwd)/infra/shared"
+MYSQL_CONTAINER=${1:?usage: $0 <mysql-container> <conf-dir>}
+CONF_DIR=${2:?usage: $0 <mysql-container> <conf-dir>}
+
+KEYRING=$(docker inspect "$MYSQL_CONTAINER" \
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql-keyring" }}{{ .Source }}{{ end }}{{ end }}')
+DATA=$(docker inspect "$MYSQL_CONTAINER" \
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql" }}{{ .Source }}{{ end }}{{ end }}')
+
+# Must be the same image step 2 migrated with — same container, so it is.
+MYSQL80=$(docker inspect "$MYSQL_CONTAINER" --format '{{ .Image }}')
 echo "verifying with $MYSQL80"
+
+if [ -z "$KEYRING" ] || [ -z "$DATA" ] || [ -z "$MYSQL80" ]; then
+  echo "could not resolve volumes or image from $MYSQL_CONTAINER" >&2
+  exit 1
+fi
 
 # Deliberately NOT --rm: if the server fails to start, the container has to
 # survive so its log can be read. A vanished container is the one case where
@@ -282,9 +337,9 @@ echo "verifying with $MYSQL80"
 docker run -d --name keyring-verify -e MYSQL_ROOT_PASSWORD=<password> \
   -v "$DATA":/var/lib/mysql \
   -v "$KEYRING":/var/lib/mysql-keyring \
-  -v /opt/shared/mysql.cnf:/etc/mysql/conf.d/encryption.cnf:ro \
-  -v /opt/shared/mysqld.my:/usr/sbin/mysqld.my:ro \
-  -v /opt/shared/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
+  -v "$CONF_DIR"/mysql.cnf:/etc/mysql/conf.d/encryption.cnf:ro \
+  -v "$CONF_DIR"/mysqld.my:/usr/sbin/mysqld.my:ro \
+  -v "$CONF_DIR"/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
   "$MYSQL80"
 
 # The container is detached and MySQL takes tens of seconds to accept
@@ -325,10 +380,12 @@ read its log before concluding anything about the migration, because a startup
 problem and a failed migration look nothing alike, and only one of them means
 your keys are in trouble. This step deliberately runs 8.0 by hand rather
 than through Compose: the legacy keyring is still in place at this point, so
-`mysql-keyring-init` would refuse to start the Compose-managed server. Verify
-first, rename second — not the other way round.
+the keyring-init service (`shared-mysql-keyring-init`, or `mysql-keyring-init`
+standalone) would refuse to start the Compose-managed server. Verify first,
+rename second — not the other way round.
 
-**4. Archive the legacy keyring.** Only once step 3 returns rows:
+**4. Archive the legacy keyring.** Only once step 3 returns rows — run this in
+the same shell as step 2, which still has `$KEYRING`:
 
 ```bash
 mv "$KEYRING/keyring" "$KEYRING/keyring.migrated"
@@ -351,8 +408,9 @@ reversible: rename it back if step 3 ever needs repeating. Until it is renamed,
 hold the only copy of your keys and nothing about the component file can prove
 otherwise.
 
-**5. Upgrade to 8.4** and bring the stack up normally. Re-run the encrypted
-table read once more to confirm.
+**5. Upgrade to 8.4** and bring the stack up normally — `docker compose up -d`
+from `/opt/shared`, or the standalone command from the deployment-modes table
+in `CLAUDE.md`. Re-run the encrypted table read once more to confirm.
 
 **Keyring backup:**
 
