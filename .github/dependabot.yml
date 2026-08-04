@@ -25,6 +25,7 @@ updates:
       - dependency-name: "laravel-vite-plugin"
         update-types: ["version-update:semver-major"]
 
+  # Dockerfile base images.
   - package-ecosystem: "docker"
     directory: "/"
     schedule:
@@ -37,3 +38,20 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "php"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+
+  # Compose files. A SEPARATE ecosystem from "docker" above — that one only
+  # reads Dockerfiles, so without this every image referenced in a compose file
+  # goes unmanaged. Covers the tenant stack at the root and the shared server
+  # infrastructure under infra/ (see infra/README.md).
+  - package-ecosystem: "docker-compose"
+    directories:
+      - "/"
+      - "/infra/shared"
+      - "/infra/caddy"
+      - "/infra/gotenberg"
+      - "/infra/uptime-kuma"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7

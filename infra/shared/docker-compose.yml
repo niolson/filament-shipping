@@ -1,8 +1,11 @@
 # Shared Infrastructure — MySQL + Redis
-# Deploy to /opt/shared/ on the server
+# Deploy to /opt/shared/ on the server (see infra/README.md)
 #
 # Usage:
 #   cd /opt/shared && docker compose up -d
+#
+# Images are pinned by digest, not tag. See infra/README.md for why, and for
+# how to move a pin forward.
 
 services:
   shared-mysql:
@@ -15,6 +18,8 @@ services:
       - mysql-data:/var/lib/mysql
       - mysql-keyring:/var/lib/mysql-keyring
       - ./mysql.cnf:/etc/mysql/conf.d/encryption.cnf:ro
+      - ./mysqld.my:/usr/sbin/mysqld.my:ro
+      - ./component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro
     networks:
       - shared
     healthcheck:
