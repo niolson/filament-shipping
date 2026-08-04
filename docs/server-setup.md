@@ -567,17 +567,24 @@ This will dump all `polybag_*` databases, compress them, and upload to the S3 bu
 ```bash
 crontab -e
 # Add:
-0 3 * * * /opt/tenants/<any-tenant>/scripts/backup-db.sh >> /var/log/polybag-backup.log 2>&1
+0 3 * * * /opt/tenants/<any-tenant>/scripts/backup-nightly.sh >> /var/log/polybag-backup.log 2>&1
 ```
 
 Runs daily at 03:00 UTC. Old backups are automatically pruned after `BACKUP_RETENTION_DAYS` (default 30).
 
+Schedule **`backup-nightly.sh`**, not `backup-db.sh`. The wrapper runs the
+database backup *and* the MySQL keyring backup as one unit, brackets both with
+Sentry Cron check-ins so a missed or failed run pages, and checks credential
+age. `backup-db.sh` on its own dumps the databases and never touches the
+keyring — leaving you with restorable-looking backups and no key to decrypt
+them with.
+
 ### Keyring backup
 
 The MySQL keyring must also be backed up — without it, encrypted data is
-unrecoverable. `scripts/backup-nightly.sh` already does this as part of the
-nightly run, so no separate crontab entry is needed; prefer that single entry
-over scheduling the database and keyring backups separately.
+unrecoverable. The `backup-nightly.sh` entry above already does this, so no
+separate crontab entry is needed. If you scheduled `backup-db.sh` instead, the
+keyring is **not** being backed up — fix the crontab entry.
 
 If you do copy the keyring by hand, take **`component_keyring_file`**:
 
