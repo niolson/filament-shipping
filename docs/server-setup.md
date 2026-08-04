@@ -195,16 +195,21 @@ else.** Everything below operates on the only copy of your keys.
 
 **2. Migrate while still on MySQL 8.0.** `keyring_file.so` does not ship in
 8.4, so after upgrading the old keystore cannot be read at all and the
-migration becomes impossible. With the server stopped:
+migration becomes impossible. Stop the server, then run a one-off migration
+server — it accepts no connections, migrates the keys, and exits:
 
 ```bash
 KEYRING=$(docker volume inspect shared_mysql-keyring --format '{{ .Mountpoint }}')
 DATA=$(docker volume inspect shared_mysql-data --format '{{ .Mountpoint }}')
 
+# migrate.cnf: keyring_file_data ONLY — see the warning below
+printf '[mysqld]\nkeyring_file_data=/var/lib/mysql-keyring/keyring\n' > /opt/shared/migrate.cnf
+chmod 644 /opt/shared/migrate.cnf
+
 docker run --rm --user 999:999 --entrypoint mysqld \
   -v "$DATA":/var/lib/mysql \
   -v "$KEYRING":/var/lib/mysql-keyring \
-  -v /opt/shared/plugin.cnf:/etc/mysql/conf.d/plugin.cnf:ro \
+  -v /opt/shared/migrate.cnf:/etc/mysql/conf.d/migrate.cnf:ro \
   -v /opt/shared/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
   mysql:8.0 \
   --keyring-migration-to-component \
@@ -212,32 +217,50 @@ docker run --rm --user 999:999 --entrypoint mysqld \
   --keyring-migration-destination=component_keyring_file.so
 ```
 
-where `plugin.cnf` is the *old* configuration, so the source keystore can be
-read:
+Two things must be **absent** from that command, both of which cause failures
+that are easy to misread:
 
-```ini
-[mysqld]
-early-plugin-load=keyring_file.so
-keyring_file_data=/var/lib/mysql-keyring/keyring
-```
+- **No `early-plugin-load=keyring_file.so`.** The migration server must not
+  start with a keyring of its own — it loads the source and destination itself
+  from the `--keyring-migration-*` options. `keyring_file_data` is still
+  required, so the source keystore can be found, which is why `migrate.cnf`
+  above carries that and nothing else. Do not reuse the running server's
+  config file here.
+- **No `mysqld.my`.** With the component manifest mounted, migration fails
+  with `Cannot load component from specified URN`.
 
-**Do not mount `mysqld.my` for this step.** With the component manifest
-present, migration fails with `Cannot load component from specified URN` — the
-migration server loads the destination component itself. A successful run
-prints no errors; a failed one says `Failed to initialize destination keyring`.
+A successful run prints no errors and leaves a non-empty
+`component_keyring_file`. A failed one reports `Failed to initialize
+destination keyring` — and still leaves a `component_keyring_file` behind, so
+never treat that file's existence as success.
 
-**3. Verify before trusting it.** A failed migration still leaves a
-`component_keyring_file` behind, so its existence proves nothing. Start 8.4
-with the component configuration and actually read an encrypted table:
+**3. Verify while still on 8.0, before renaming anything.** Start 8.0 again
+with the *component* configuration — manifest and component config, no plugin
+config — and read an encrypted table:
 
 ```bash
-docker exec shared-mysql mysql -uroot -p<password> \
-  -e "SELECT * FROM <some_encrypted_table> LIMIT 1;"
+docker run --rm -d --name keyring-verify -e MYSQL_ROOT_PASSWORD=<password> \
+  -v "$DATA":/var/lib/mysql \
+  -v "$KEYRING":/var/lib/mysql-keyring \
+  -v /opt/shared/mysql.cnf:/etc/mysql/conf.d/encryption.cnf:ro \
+  -v /opt/shared/mysqld.my:/usr/sbin/mysqld.my:ro \
+  -v /opt/shared/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
+  mysql:8.0
+
+docker exec keyring-verify mysql -uroot -p<password> \
+  -e "SELECT STATUS_VALUE FROM performance_schema.keyring_component_status
+       WHERE STATUS_KEY='Component_status';
+      SELECT * FROM <some_encrypted_table> LIMIT 1;"
+
+docker rm -f keyring-verify
 ```
 
-If that returns rows, the keys migrated.
+Expect `Active` and real rows. This step deliberately runs 8.0 by hand rather
+than through Compose: the legacy keyring is still in place at this point, so
+`mysql-keyring-init` would refuse to start the Compose-managed server. Verify
+first, rename second — not the other way round.
 
-**4. Archive the legacy keyring.** Only after step 3 succeeds:
+**4. Archive the legacy keyring.** Only once step 3 returns rows:
 
 ```bash
 mv "$KEYRING/keyring" "$KEYRING/keyring.migrated"
@@ -246,7 +269,11 @@ mv "$KEYRING/keyring" "$KEYRING/keyring.migrated"
 Keep the file — do not delete it. Until it is renamed, `mysql-keyring-init`
 refuses to start, because a non-empty legacy keyring may hold the only copy of
 your keys and nothing about the component file can prove otherwise. Renaming is
-how you record that a human verified the migration.
+how you record that a human verified the migration; it is also reversible if
+step 3 ever needs repeating.
+
+**5. Upgrade to 8.4** and bring the stack up normally. Re-run the encrypted
+table read once more to confirm.
 
 **Keyring backup:**
 
