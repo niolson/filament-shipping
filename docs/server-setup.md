@@ -97,14 +97,20 @@ Shared MySQL + Redis serve all tenants from a single instance, reducing memory u
 ```bash
 mkdir -p /opt/shared
 cp <repo>/infra/shared/* /opt/shared/
-cp <repo>/docker/mysql.cnf /opt/shared/mysql.cnf
+chmod 644 /opt/shared/mysql.cnf /opt/shared/mysqld.my /opt/shared/component_keyring_file.cnf
 cp <repo>/infra/.env.example /opt/shared/.env
 cp <repo>/infra/shared-secrets.env.example /opt/shared/shared-secrets.env
 ```
 
-`infra/shared/` carries the compose file plus the two MySQL keyring-component
-configs (`mysqld.my`, `component_keyring_file.cnf`) that TDE needs mounted —
-see the encryption-at-rest section below.
+`infra/shared/` carries the compose file plus the three MySQL config files
+that encryption at rest depends on — see the section below.
+
+**The `chmod 644` is not optional.** `mysqld` runs as the `mysql` user, and if
+it cannot read a file in `conf.d` it does not fail — it silently stops
+processing the entire include directory and starts with **no encryption at
+all**. `cp` preserves the source permissions, so a checkout with a restrictive
+umask produces exactly that. Verify with the query at the end of the
+encryption section rather than assuming.
 
 Edit `/opt/shared/.env` and set strong passwords:
 
@@ -136,18 +142,37 @@ docker exec shared-redis redis-cli -a <password> ping
 
 ### Encryption at Rest (TDE)
 
-Shared MySQL is configured with InnoDB tablespace encryption by default. The `mysql.cnf` file enables the `keyring_file` plugin and sets `default_table_encryption=ON`, so all new tables are encrypted automatically.
+Shared MySQL uses InnoDB tablespace encryption plus binary log encryption. Three files work together, all installed by the copy step above:
+
+| File | Mounted to | Role |
+|---|---|---|
+| `mysql.cnf` | `/etc/mysql/conf.d/encryption.cnf` | `default_table_encryption=ON`, `binlog_encryption=ON` |
+| `mysqld.my` | `/usr/sbin/mysqld.my` | manifest that activates the keyring component |
+| `component_keyring_file.cnf` | `/usr/lib64/mysql/plugin/…` | sets the key file path |
+
+The keys come from the keyring **component**. Do not reintroduce the older
+`early-plugin-load=keyring_file.so` plugin form found in pre-8.4 setups: that
+plugin was **removed in MySQL 8.4**, and with it the server refuses to start
+("Can't open shared library 'keyring_file.so' … Aborting").
 
 **How it works:**
 - Data files on disk are encrypted with AES — queries, indexes, and search work normally (decrypted transparently at the query layer)
 - The keyring file is stored in a separate Docker volume (`mysql-keyring`) from the data volume (`mysql-data`)
 - Each tenant's `db:encrypt-tables` command runs on startup to encrypt any pre-existing unencrypted tables
 
-**Copy the MySQL config to the shared directory:**
+**Verify it is actually on.** Both silent-failure modes above produce a
+perfectly healthy-looking server, so check rather than assume:
 
 ```bash
-cp <repo>/docker/mysql.cnf /opt/shared/mysql.cnf
+docker exec shared-mysql mysql -uroot -p<password> -e "
+  SHOW VARIABLES LIKE 'default_table_encryption';
+  SHOW VARIABLES LIKE 'binlog_encryption';
+  SELECT STATUS_VALUE FROM performance_schema.keyring_component_status
+   WHERE STATUS_KEY='Component_status';"
 ```
+
+Expect `ON`, `ON`, and `Active`. Anything else means encryption is not in
+effect regardless of what the config files say.
 
 **Keyring backup:**
 
@@ -158,8 +183,13 @@ The keyring file is critical — if lost, encrypted data is unrecoverable. Back 
 docker volume inspect shared_mysql-keyring --format '{{ .Mountpoint }}'
 
 # Copy the keyring file to a secure backup location (NOT the same location as DB backups)
-cp /var/lib/docker/volumes/shared_mysql-keyring/_data/keyring /path/to/secure/backup/
+cp /var/lib/docker/volumes/shared_mysql-keyring/_data/component_keyring_file /path/to/secure/backup/
 ```
+
+Note the filename: the component writes `component_keyring_file`. Older
+plugin-era installs also have an empty `keyring` file next to it, which is a
+leftover and is not the key material. `backup-nightly.sh` already copies the
+correct one.
 
 Back up the keyring after initial setup and after any key rotation. Store it in a different location from your database backups (different cloud account, different physical location, or a password manager vault).
 

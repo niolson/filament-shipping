@@ -1,0 +1,22 @@
+[mysqld]
+# Encryption at rest (TDE)
+#
+# The keyring is provided by the keyring_file COMPONENT, configured by the two
+# files next to this one: mysqld.my (the manifest that activates it) and
+# component_keyring_file.cnf (which sets the key file path). All three must be
+# mounted together — see infra/shared/docker-compose.yml.
+#
+# Do NOT reintroduce the old plugin form:
+#
+#   early-plugin-load=keyring_file.so
+#   keyring_file_data=/var/lib/mysql-keyring/keyring
+#
+# The keyring_file PLUGIN was removed in MySQL 8.4. With it, 8.4 refuses to
+# start at all ("Can't open shared library 'keyring_file.so' ... Aborting").
+# Worse, if the file is mounted with permissions mysqld cannot read, the whole
+# conf.d include is skipped silently and you get a server that starts fine with
+# no encryption at all. Components replaced the plugin.
+default_table_encryption=ON
+
+# Binary log encryption (Amazon SP-API DLP requirement, Q18)
+binlog_encryption=ON

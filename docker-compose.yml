@@ -56,10 +56,41 @@ services:
       retries: 3
       start_period: 10s
 
+  # Prepares the keyring volume before MySQL starts. Without this a fresh
+  # install cannot bring up encryption at rest at all: the mysql image's
+  # entrypoint runs `mysqld --verbose --help` as root before dropping to the
+  # mysql user, which loads the keyring component and creates the key file
+  # owned by root. The real mysqld then cannot read it, reports "Failed to
+  # read keyring file", and aborts in a restart loop.
+  #
+  # Pre-creating the file as the mysql user avoids that. It never deletes or
+  # truncates an existing keyring — losing it makes encrypted data
+  # unrecoverable — it only creates the file when absent and fixes ownership.
+  mysql-keyring-init:
+    image: mysql:8.4@sha256:77e7fd3d377ad2d9e7983d457b71ff8a04c0f19e41948d722f15c508a48dcce3
+    profiles: [standalone]
+    restart: "no"
+    user: root
+    volumes:
+      - mysql-keyring:/var/lib/mysql-keyring
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        KEYFILE=/var/lib/mysql-keyring/component_keyring_file
+        if [ ! -e "$$KEYFILE" ]; then
+          install -o 999 -g 999 -m 640 /dev/null "$$KEYFILE"
+        fi
+        chown 999:999 /var/lib/mysql-keyring "$$KEYFILE"
+
   mysql:
     image: mysql:8.4@sha256:77e7fd3d377ad2d9e7983d457b71ff8a04c0f19e41948d722f15c508a48dcce3
     restart: unless-stopped
     profiles: [standalone]
+    depends_on:
+      mysql-keyring-init:
+        condition: service_completed_successfully
     environment:
       MYSQL_DATABASE: ${DB_DATABASE:-laravel}
       MYSQL_USER: ${DB_USERNAME:-laravel}
@@ -68,7 +99,14 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
       - mysql-keyring:/var/lib/mysql-keyring
-      - ./docker/mysql.cnf:/etc/mysql/conf.d/encryption.cnf:ro
+      # All three are required together: mysql.cnf turns encryption on, while
+      # mysqld.my and component_keyring_file.cnf activate and configure the
+      # keyring component that supplies the keys. Mounting mysql.cnf alone
+      # leaves 8.4 with encryption enabled and no keyring to encrypt with.
+      # Shared by the shared-server deployment — see infra/README.md.
+      - ./infra/shared/mysql.cnf:/etc/mysql/conf.d/encryption.cnf:ro
+      - ./infra/shared/mysqld.my:/usr/sbin/mysqld.my:ro
+      - ./infra/shared/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
