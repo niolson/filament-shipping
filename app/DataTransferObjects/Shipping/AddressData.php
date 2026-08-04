@@ -36,7 +36,7 @@ readonly class AddressData
             postalCode: $shipment->validated_postal_code ?? $shipment->postal_code,
             country: $shipment->validated_country ?? $shipment->country ?? 'US',
             company: $shipment->validated_company ?? $shipment->company,
-            phone: PhoneParserService::nationalDigits($shipment->phone_e164, $shipment->validated_country ?? $shipment->country ?? 'US'),
+            phone: PhoneParserService::carrierDigits($shipment->phone_e164, $shipment->phone, $shipment->validated_country ?? $shipment->country ?? 'US'),
             email: $shipment->email,
             phoneExtension: $shipment->phone_extension,
             uspsCarrierRoute: $shipment->validated_carrier_route,
@@ -55,7 +55,7 @@ readonly class AddressData
             postalCode: $location->postal_code,
             country: $location->country,
             company: $location->company,
-            phone: PhoneParserService::nationalDigits($location->phone_e164, $location->country),
+            phone: PhoneParserService::carrierDigits($location->phone_e164, $location->phone, $location->country),
         );
     }
 

@@ -1171,3 +1171,61 @@ it('maps battery details into express ship requests', function (): void {
             && ($special['batteryDetails'][0]['batteryMaterialType'] ?? null) === 'LITHIUM_ION';
     });
 });
+
+it('sends a recipient phone number stored before its area code was recognized', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        CreateShipment::class => MockResponse::make([
+            'output' => [
+                'transactionShipments' => [
+                    [
+                        'masterTrackingNumber' => '794644790138',
+                        'completedShipmentDetail' => [
+                            'shipmentRating' => ['shipmentRateDetails' => [['totalNetCharge' => 12.75]]],
+                        ],
+                        'pieceResponses' => [
+                            [
+                                'trackingNumber' => '794644790138',
+                                'packageDocuments' => [['encodedLabel' => 'JVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $shipment = Shipment::factory()->create([
+        'country' => 'US',
+        'phone' => '370-579-7375',
+    ]);
+
+    // Imported while libphonenumber rejected the 370 area code, so the row kept
+    // the phone number the customer gave and nothing normalized. Written past the
+    // model's saving hook, which would re-parse it now.
+    Shipment::whereKey($shipment->id)->update(['phone_e164' => null]);
+
+    $package = Package::factory()->for($shipment->refresh())->create();
+
+    $rate = new RateResponse(
+        carrier: 'FedEx',
+        serviceCode: 'FEDEX_2_DAY',
+        serviceName: 'FedEx 2Day',
+        price: 12.75,
+        metadata: ['serviceType' => 'FEDEX_2_DAY'],
+    );
+
+    $response = $this->adapter->createShipment(ShipRequest::fromPackageAndRate($package, $rate));
+
+    expect($response->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $contact = $request->body()->all()['requestedShipment']['recipients'][0]['contact'] ?? [];
+
+        return ($contact['phoneNumber'] ?? null) === '3705797375';
+    });
+});

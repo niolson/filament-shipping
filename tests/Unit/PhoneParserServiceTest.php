@@ -68,6 +68,28 @@ it('parses a formatted US number with dashes', function (): void {
         ->and($result->extension)->toBeNull();
 });
 
+it('keeps a number whose area code is newer than the bundled metadata', function (): void {
+    $result = PhoneParserService::parse('370-579-7375');
+
+    expect($result->isValid())->toBeTrue()
+        ->and($result->phone)->toBe('3705797375')
+        ->and($result->e164)->toBe('+13705797375')
+        ->and($result->error)->toBeNull();
+});
+
+it('falls back to the raw digits when no E164 value was stored', function (): void {
+    expect(PhoneParserService::carrierDigits(null, '(370) 579-7375'))->toBe('3705797375');
+});
+
+it('prefers the stored E164 value over the raw phone', function (): void {
+    expect(PhoneParserService::carrierDigits('+15125551234', '000'))->toBe('5125551234');
+});
+
+it('returns no carrier digits when both phone values are empty', function (): void {
+    expect(PhoneParserService::carrierDigits(null, null))->toBeNull()
+        ->and(PhoneParserService::carrierDigits(null, 'unknown'))->toBeNull();
+});
+
 it('returns error for too-short number', function (): void {
     $result = PhoneParserService::parse('123');
 
