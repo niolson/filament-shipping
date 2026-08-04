@@ -715,13 +715,30 @@ apt install -y lynis
 
 Weekly audit every Sunday at 2am via `/etc/cron.d/lynis`. Report: `/var/log/lynis-weekly.log`.
 
-### Trivy (Host OS Vulnerability Scanning)
+### Trivy (Host OS + Container Image Vulnerability Scanning)
 
-CVE scanning for the host's OS packages, kernel, and system services (sshd,
-Caddy, etc.) — the piece Grype's CI scans don't cover, since those only see
-what's baked into the app/nginx container images, not the VPS underneath.
+CVE scanning for two things CI does not cover:
+
+1. **The host's OS packages, kernel, and system services** (sshd, Caddy, etc.)
+   — Grype's CI scan only sees what is baked into an image, not the VPS
+   underneath it.
+2. **The image behind every running container.** CI runs Grype against
+   `polybag-app:ci` and nothing else — not nginx, and none of the
+   third-party images (MySQL, Redis, Caddy, Gotenberg, Uptime Kuma,
+   polybag-connect). Those are pulled from upstream and never rebuilt, so
+   without this they accumulate CVEs indefinitely with nothing watching. It
+   also catches the app image *as rebuilt on this host*, which is not the
+   artifact CI scanned.
+
 Lynis above audits general hardening posture; this is the CVE-by-severity
-scan an auditor asking about "host vulnerability scanning" actually wants.
+scan an auditor asking about "vulnerability scanning" actually wants.
+
+Note the asymmetry in what the two halves produce. Host findings are
+dominated by unfixable kernel CVEs — `linux-*` packages where Ubuntu has not
+shipped a fix — so the actionable number there is usually zero. Container
+image findings are the opposite: overwhelmingly fixable, because they clear
+by pulling a current image. That is why reports sort by fixable rather than
+by severity.
 
 Install a pinned, checksum-verified release rather than piping an install
 script — this runs as root, so we don't trust whatever happens to be
@@ -753,18 +770,31 @@ Monthly run, 1st of the month at 4am, via `/etc/cron.d/trivy-host-scan`:
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
 
-0 4 1 * * root /opt/tenants/test/scripts/security-scan-host.sh --local --out-parent /var/log/trivy-host-scan --email you@example.com --keep 12 >> /var/log/polybag-security-scan.log 2>&1
+0 4 1 * * root /opt/tenants/test/scripts/security-scan-host.sh --local --images --out-parent /var/log/trivy-host-scan --email you@example.com --keep 12 >> /var/log/polybag-security-scan.log 2>&1
 ```
 
 `--out-parent` has the script build the dated directory name itself. Don't
 be tempted to inline a `date +%Y%m%d` in the crontab instead — cron treats a
 bare `%` as a newline and would truncate the command at the first one.
 
-Reports land in `/var/log/trivy-host-scan/host-<host>-<timestamp>/` as a
-Markdown summary plus the raw JSON, matching the layout of the on-demand
-reports in `security-reports/`. `--keep 12` prunes all but the twelve most
-recent, so a year of monthly scans is retained without growing without
-bound — the VPS disk is the constraint here, not report volume.
+`--images` adds the container image half. Images are discovered from
+`docker ps` rather than a hand-kept list, so a service added later is
+scanned without anyone remembering to update this, and deduplicated by image
+ID so a tenant's four app containers are scanned once rather than four
+times.
+
+Reports land in `/var/log/trivy-host-scan/host-<host>-<timestamp>/`, matching
+the layout of the on-demand reports in `security-reports/`:
+
+| File | Contents |
+| --- | --- |
+| `host-scan-report.md` | Markdown summary of both halves — the artifact to read or hand to a reviewer |
+| `trivy-host-report.json` | Full host findings, every severity |
+| `trivy-images-report.json.gz` | Full image findings, every severity, one array entry per image |
+
+The image report is gzipped because it is roughly 14MB raw against 1MB
+compressed, and a year of retained reports is where that difference starts
+to matter on a 38GB VPS. `--keep 12` prunes all but the twelve most recent.
 
 #### Alerting
 
