@@ -212,6 +212,12 @@ class PackageResource extends Resource
                 Tables\Columns\TextColumn::make('tracking_status')
                     ->badge()
                     ->placeholder('—'),
+                Tables\Columns\IconColumn::make('label_printed_at')
+                    ->label('Printed')
+                    ->boolean()
+                    ->tooltip(fn (Package $record): string => $record->label_printed_at
+                        ? 'Last printed '.$record->label_printed_at->tz(Location::timezone())->format('M j, Y g:i A')
+                        : 'Not printed'),
                 Tables\Columns\IconColumn::make('exported')
                     ->boolean(),
                 Tables\Columns\TextColumn::make('tracking_updated_at')
@@ -266,6 +272,17 @@ class PackageResource extends Resource
                     ->queries(
                         true: fn ($query) => $query->whereNotNull('manifest_id'),
                         false: fn ($query) => $query->whereNull('manifest_id'),
+                    ),
+                Tables\Filters\TernaryFilter::make('label_printed')
+                    ->label('Label Printed')
+                    ->trueLabel('Printed')
+                    ->falseLabel('Not Printed')
+                    ->queries(
+                        // "Not printed" is scoped to shipped packages — an unshipped
+                        // package has no label to print, so listing it is just noise.
+                        true: fn ($query) => $query->whereNotNull('label_printed_at'),
+                        false: fn ($query) => $query->whereNull('label_printed_at')
+                            ->where('status', PackageStatus::Shipped),
                     ),
                 Tables\Filters\SelectFilter::make('label_format')
                     ->label('Label Format')
@@ -326,27 +343,11 @@ class PackageResource extends Resource
                 Actions\ViewAction::make(),
                 static::makeTrackAction(),
                 Actions\Action::make('reprint')
-                    ->label('Reprint')
+                    ->label(fn (Package $record) => $record->label_printed_at ? 'Reprint' : 'Print')
                     ->icon('heroicon-o-printer')
                     ->color('gray')
                     ->visible(fn (Package $record) => $record->status === PackageStatus::Shipped && $record->label_data)
-                    ->action(function (Package $record, $livewire): void {
-                        $result = app(PackageLabelWorkflow::class)->labelForReprint($record, auth()->user());
-
-                        if (! $result->success) {
-                            Notification::make()->danger()->title($result->title)->body($result->message)->send();
-
-                            return;
-                        }
-
-                        $livewire->dispatch(
-                            'print-label',
-                            label: $result->printRequest->label,
-                            orientation: $result->printRequest->orientation,
-                            format: $result->printRequest->format,
-                            dpi: $result->printRequest->dpi,
-                        );
-                    }),
+                    ->action(fn (Package $record, $livewire) => $livewire->printStoredPackageLabel($record->id)),
                 Actions\Action::make('void')
                     ->label('Void Label')
                     ->icon('heroicon-o-x-circle')

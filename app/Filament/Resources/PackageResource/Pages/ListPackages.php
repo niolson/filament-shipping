@@ -4,6 +4,8 @@ namespace App\Filament\Resources\PackageResource\Pages;
 
 use App\Enums\PackageStatus;
 use App\Enums\TrackingStatus;
+use App\Filament\Concerns\NotifiesUser;
+use App\Filament\Concerns\PrintsLabels;
 use App\Filament\Resources\PackageResource;
 use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
@@ -13,6 +15,8 @@ use Livewire\Attributes\Url;
 
 class ListPackages extends ListRecords
 {
+    use NotifiesUser, PrintsLabels;
+
     protected static string $resource = PackageResource::class;
 
     protected string $view = 'filament.resources.package-resource.pages.list-packages';

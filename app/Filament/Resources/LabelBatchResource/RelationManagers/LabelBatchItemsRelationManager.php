@@ -4,6 +4,7 @@ namespace App\Filament\Resources\LabelBatchResource\RelationManagers;
 
 use App\Filament\Resources\ShipmentResource;
 use App\Filament\Support\CarrierLogoColumn;
+use App\Models\Location;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -38,6 +39,12 @@ class LabelBatchItemsRelationManager extends RelationManager
                 Tables\Columns\TextColumn::make('cost')
                     ->money('USD')
                     ->placeholder('—'),
+                Tables\Columns\IconColumn::make('package.label_printed_at')
+                    ->label('Printed')
+                    ->boolean()
+                    ->tooltip(fn ($record): string => $record->package?->label_printed_at
+                        ? 'Last printed '.$record->package->label_printed_at->tz(Location::timezone())->format('M j, Y g:i A')
+                        : 'Not printed'),
                 Tables\Columns\TextColumn::make('error_message')
                     ->label('Error')
                     ->placeholder('—')

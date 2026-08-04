@@ -37,4 +37,15 @@ class PackagePolicy
     {
         return $user->role->isAtLeast(Role::User);
     }
+
+    /**
+     * Printing a bought label — and recording that it was printed — is limited to
+     * managers and the operator who shipped the package. Batch shipping is admin
+     * only, so batch operators always clear the manager bar.
+     */
+    public function printLabel(User $user, Package $package): bool
+    {
+        return $user->role->isAtLeast(Role::Manager)
+            || $package->shipped_by_user_id === $user->id;
+    }
 }

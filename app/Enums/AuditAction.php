@@ -11,6 +11,7 @@ enum AuditAction: string implements HasLabel
     case PackageCreated = 'package_created';
     case PackageShipped = 'package_shipped';
     case PackageCancelled = 'package_cancelled';
+    case LabelPrinted = 'label_printed';
     case ShipmentImported = 'shipment_imported';
     case ShipmentUpdated = 'shipment_updated';
     case ImportCompleted = 'import_completed';
@@ -40,6 +41,7 @@ enum AuditAction: string implements HasLabel
             self::PackageCreated => 'Package Created',
             self::PackageShipped => 'Package Shipped',
             self::PackageCancelled => 'Package Cancelled',
+            self::LabelPrinted => 'Label Printed',
             self::ShipmentImported => 'Shipment Imported',
             self::ShipmentUpdated => 'Shipment Updated',
             self::ImportCompleted => 'Import Completed',

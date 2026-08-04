@@ -9,6 +9,7 @@ use App\Enums\TrackingStatus;
 use App\Events\PackageCancelled;
 use App\Events\PackageShipped;
 use App\Services\SpecialServiceResolver;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -35,6 +36,7 @@ class Package extends Model
         'label_orientation',
         'label_format',
         'label_dpi',
+        'label_printed_at',
         'weight',
         'height',
         'width',
@@ -63,6 +65,7 @@ class Package extends Model
         'length' => 'decimal:2',
         'cost' => 'decimal:2',
         'weight_mismatch' => 'boolean',
+        'label_printed_at' => 'datetime',
         'status' => PackageStatus::class,
         'shipped_at' => 'datetime',
         'ship_date' => 'date',
@@ -158,6 +161,23 @@ class Package extends Model
     }
 
     /**
+     * Packages whose label can still be sent to a printer.
+     *
+     * Voiding a label after the fact clears both the label data and the printed
+     * timestamp, so without this a voided package reads as "shipped but never
+     * printed" forever.
+     *
+     * @param  Builder<Package>  $query
+     * @return Builder<Package>
+     */
+    public function scopePrintable(Builder $query): Builder
+    {
+        return $query
+            ->where('status', PackageStatus::Shipped)
+            ->whereNotNull('label_data');
+    }
+
+    /**
      * Compute whether there's a weight mismatch (>10% discrepancy)
      * between the actual package weight and the expected weight
      * based on the packed products.
@@ -201,6 +221,7 @@ class Package extends Model
                     'label_orientation' => $response->labelOrientation ?? 'portrait',
                     'label_format' => $response->labelFormat ?? 'pdf',
                     'label_dpi' => $response->labelDpi,
+                    'label_printed_at' => null,
                     'status' => PackageStatus::Shipped->value,
                     'shipped_at' => now(),
                     'ship_date' => $response->shipDate?->format('Y-m-d'),
@@ -305,6 +326,7 @@ class Package extends Model
                     'label_orientation' => null,
                     'label_format' => 'pdf',
                     'label_dpi' => null,
+                    'label_printed_at' => null,
                     'status' => PackageStatus::Unshipped->value,
                     'shipped_at' => null,
                     'shipped_by_user_id' => null,

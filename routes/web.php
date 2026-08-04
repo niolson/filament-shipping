@@ -6,6 +6,7 @@ use App\Http\Controllers\Auth\AzureController;
 use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\Auth\SsoCallbackController;
 use App\Http\Controllers\CspReportController;
+use App\Http\Controllers\LabelPrintController;
 use App\Http\Controllers\OAuthCallbackController;
 use App\Http\Controllers\PickBatchController;
 use App\Http\Controllers\QzProvisionScriptController;
@@ -24,6 +25,12 @@ Route::post('/qz/sign', [QzSignController::class, 'sign'])->name('qz.sign')->mid
 Route::get('/qz/provision-script/{platform}', [QzProvisionScriptController::class, 'download'])
     ->name('qz.provision-script')
     ->middleware('auth');
+
+// Acknowledgement from the QZ Tray integration that a label reached a printer.
+// Batch printing fires one of these per label, so the rate cap is generous.
+Route::post('/labels/{package}/printed', [LabelPrintController::class, 'store'])
+    ->name('labels.printed')
+    ->middleware(['auth', 'throttle:300,1']);
 
 Route::middleware(['auth', 'manager'])->group(function (): void {
     Route::get('/pick-batches/{pickBatch}/summary', [PickBatchController::class, 'summary'])

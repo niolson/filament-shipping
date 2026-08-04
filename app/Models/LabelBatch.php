@@ -2,12 +2,18 @@
 
 namespace App\Models;
 
+use App\Enums\LabelBatchItemStatus;
 use App\Enums\LabelBatchStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property-read int|null $printable_count Items still holding a printable label; only set when the query withCounts it.
+ * @property-read int|null $unprinted_count Printable items whose label has not been printed; only set when the query withCounts it.
+ */
 class LabelBatch extends Model
 {
     use HasFactory;
@@ -68,5 +74,42 @@ class LabelBatch extends Model
             LabelBatchStatus::CompletedWithErrors,
             LabelBatchStatus::Failed,
         ]);
+    }
+
+    /**
+     * Items in this batch that still hold a printable label.
+     *
+     * Excludes items whose label was voided after the batch ran — those are neither
+     * printed nor printable, so counting them as unprinted would leave a print
+     * action that can never clear.
+     *
+     * @return HasMany<LabelBatchItem, $this>
+     */
+    public function printableItems(): HasMany
+    {
+        return $this->items()
+            ->where('status', LabelBatchItemStatus::Success)
+            ->whereHas('package', fn (Builder $query) => $query->printable());
+    }
+
+    /**
+     * @return HasMany<LabelBatchItem, $this>
+     */
+    public function unprintedItems(): HasMany
+    {
+        return $this->printableItems()
+            ->whereHas('package', fn (Builder $query) => $query->whereNull('label_printed_at'));
+    }
+
+    public function unprintedCount(): int
+    {
+        return $this->unprintedItems()->count();
+    }
+
+    public function printedCount(): int
+    {
+        return $this->printableItems()
+            ->whereHas('package', fn (Builder $query) => $query->whereNotNull('label_printed_at'))
+            ->count();
     }
 }

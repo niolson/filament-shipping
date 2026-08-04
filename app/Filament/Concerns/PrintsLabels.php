@@ -2,7 +2,9 @@
 
 namespace App\Filament\Concerns;
 
+use App\Contracts\PackageLabelWorkflow;
 use App\DataTransferObjects\PrintRequest;
+use App\Models\Package;
 use App\Services\SettingsService;
 use Filament\Notifications\Notification;
 
@@ -12,6 +14,35 @@ use Filament\Notifications\Notification;
  */
 trait PrintsLabels
 {
+    /**
+     * Reprint a package's stored label.
+     *
+     * Public because Filament table actions dispatch through the host page, which
+     * means it is reachable from the browser — so it takes only an id and runs the
+     * same access check as any other reprint rather than trusting caller-supplied
+     * label data.
+     */
+    public function printStoredPackageLabel(int $packageId): void
+    {
+        $package = Package::find($packageId);
+
+        if (! $package) {
+            Notification::make()->danger()->title('Package Not Found')->send();
+
+            return;
+        }
+
+        $result = app(PackageLabelWorkflow::class)->labelForReprint($package, auth()->user());
+
+        if (! $result->success) {
+            Notification::make()->danger()->title($result->title)->body($result->message)->send();
+
+            return;
+        }
+
+        $this->dispatchPrint($result->printRequest);
+    }
+
     /**
      * Dispatch a print-label browser event, respecting the suppress_printing setting.
      *
@@ -39,6 +70,7 @@ trait PrintsLabels
             'orientation' => $request->orientation,
             'format' => $request->format,
             'dpi' => $request->dpi,
+            'packageId' => $request->packageId,
         ];
 
         if ($redirectTo !== null) {
