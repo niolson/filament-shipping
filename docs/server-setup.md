@@ -201,9 +201,27 @@ cp <repo>/infra/uptime-kuma/docker-compose.yml /opt/uptime-kuma/docker-compose.y
 cd /opt/uptime-kuma && docker compose up -d
 ```
 
-Note this image is stuck on an end-of-life base — see the comment in
-`infra/uptime-kuma/docker-compose.yml`. No update policy can clear its
-findings; it needs a decision rather than a pin bump.
+Runs v2. Upgrading from the v1 tag is a one-way migration that rewrites
+heartbeat history in place — back up the data volume first, and do not
+interrupt it:
+
+```bash
+docker stop uptime-kuma
+tar -czf /var/backups/uptime-kuma-$(date -u +%Y%m%d).tar.gz \
+  -C "$(docker volume inspect uptime-kuma_data --format '{{.Mountpoint}}')" .
+# then bump the pin and `docker compose up -d`, watching `docker logs -f`
+```
+
+The migration logs `[DON'T STOP]` while aggregating heartbeats and takes
+minutes to hours depending on history size. An interrupted run must be
+restored from backup and retried. Note the server starts listening *during*
+migration, so a reachable web UI is not the completion signal — wait for the
+progress lines to finish.
+
+Expect this image to dominate the monthly scan report: v2 bundles Chromium
+for browser-based monitors. See the comment in
+`infra/uptime-kuma/docker-compose.yml` for why that is still an improvement
+over v1.
 
 ## 7. Create Tenants Directory
 
