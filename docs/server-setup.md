@@ -243,38 +243,49 @@ DATA=$(docker inspect "$MYSQL_CONTAINER" \
 # Taken from the existing container, this is a local image ID: exact, and no
 # pull happens.
 MYSQL80=$(docker inspect "$MYSQL_CONTAINER" --format '{{ .Image }}')
-echo "migrating with $MYSQL80"
 
-# All three must be non-empty. If the container was already removed, none of
-# them resolve: recover the volume mountpoints with `docker volume inspect`
-# and take the image from the digest pinned in the compose file that was in
-# use (mysql:8.0@sha256:...), never the tag.
-[ -n "$KEYRING" ] && [ -n "$DATA" ] && [ -n "$MYSQL80" ] || echo "UNRESOLVED — do not continue" >&2
+# All three must be non-empty, and nothing below may run if they are not —
+# an empty $KEYRING or $DATA would hand docker run a garbage bind mount.
+# If the container was already removed, none of them resolve: recover the
+# volume mountpoints with `docker volume inspect` and take the image from the
+# digest pinned in the compose file that was in use (mysql:8.0@sha256:...),
+# never the tag, then re-run from the top.
+#
+# This gates rather than calling `exit`, deliberately: the block is pasted
+# into an interactive shell, and `exit` would close it — over SSH, mid-
+# migration. The effect is the same, nothing after this point runs.
+if [ -z "$KEYRING" ] || [ -z "$DATA" ] || [ -z "$MYSQL80" ]; then
+  echo "UNRESOLVED — do not continue:" >&2
+  echo "  KEYRING=${KEYRING:-<empty>} DATA=${DATA:-<empty>} MYSQL80=${MYSQL80:-<empty>}" >&2
+  false  # leave a nonzero $? behind, without killing an interactive shell
+else
+  echo "migrating with $MYSQL80"
 
-# migrate.cnf: keyring_file_data ONLY — see the warning below. Written to a
-# temp file, not CONF_DIR: it is throwaway, and must not be left where the
-# running server might pick it up.
-MIGRATE_CNF=$(mktemp /tmp/keyring-migrate.XXXXXX.cnf)
-printf '[mysqld]\nkeyring_file_data=/var/lib/mysql-keyring/keyring\n' > "$MIGRATE_CNF"
-chmod 644 "$MIGRATE_CNF"
+  # migrate.cnf: keyring_file_data ONLY — see the warning below. Written to a
+  # temp file, not CONF_DIR: it is throwaway, and must not be left where the
+  # running server might pick it up.
+  MIGRATE_CNF=$(mktemp /tmp/keyring-migrate.XXXXXX.cnf)
+  printf '[mysqld]\nkeyring_file_data=/var/lib/mysql-keyring/keyring\n' > "$MIGRATE_CNF"
+  chmod 644 "$MIGRATE_CNF"
 
-# Repair destination ownership first. This command bypasses the image
-# entrypoint and runs as UID 999, so it cannot write a component_keyring_file
-# left behind root-owned by an earlier failed startup — the very failure this
-# setup fixes. Ownership only: never delete or truncate either file, as one of
-# them may hold the sole copy of your keys.
-chown 999:999 "$KEYRING"
-[ -e "$KEYRING/component_keyring_file" ] && chown 999:999 "$KEYRING/component_keyring_file"
+  # Repair destination ownership first. This command bypasses the image
+  # entrypoint and runs as UID 999, so it cannot write a component_keyring_file
+  # left behind root-owned by an earlier failed startup — the very failure this
+  # setup fixes. Ownership only: never delete or truncate either file, as one of
+  # them may hold the sole copy of your keys.
+  chown 999:999 "$KEYRING"
+  [ -e "$KEYRING/component_keyring_file" ] && chown 999:999 "$KEYRING/component_keyring_file"
 
-docker run --rm --user 999:999 --entrypoint mysqld \
-  -v "$DATA":/var/lib/mysql \
-  -v "$KEYRING":/var/lib/mysql-keyring \
-  -v "$MIGRATE_CNF":/etc/mysql/conf.d/migrate.cnf:ro \
-  -v "$CONF_DIR"/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
-  "$MYSQL80" \
-  --keyring-migration-to-component \
-  --keyring-migration-source=keyring_file.so \
-  --keyring-migration-destination=component_keyring_file.so
+  docker run --rm --user 999:999 --entrypoint mysqld \
+    -v "$DATA":/var/lib/mysql \
+    -v "$KEYRING":/var/lib/mysql-keyring \
+    -v "$MIGRATE_CNF":/etc/mysql/conf.d/migrate.cnf:ro \
+    -v "$CONF_DIR"/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
+    "$MYSQL80" \
+    --keyring-migration-to-component \
+    --keyring-migration-source=keyring_file.so \
+    --keyring-migration-destination=component_keyring_file.so
+fi
 ```
 
 Two things must be **absent** from that command, both of which cause failures
@@ -303,7 +314,7 @@ failure, and that is the point:
 
 ```bash
 #!/bin/bash
-set -u
+set -euo pipefail
 
 # Passed in, not inherited: step 2's values were set in an interactive shell
 # and are not exported into this script.
@@ -317,17 +328,37 @@ set -u
 MYSQL_CONTAINER=${1:?usage: $0 <mysql-container> <conf-dir>}
 CONF_DIR=${2:?usage: $0 <mysql-container> <conf-dir>}
 
+# `|| true` so a missing container falls through to the check below with a
+# useful message, rather than dying on the bare `docker inspect` failure.
 KEYRING=$(docker inspect "$MYSQL_CONTAINER" \
-  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql-keyring" }}{{ .Source }}{{ end }}{{ end }}')
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql-keyring" }}{{ .Source }}{{ end }}{{ end }}') || true
 DATA=$(docker inspect "$MYSQL_CONTAINER" \
-  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql" }}{{ .Source }}{{ end }}{{ end }}')
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql" }}{{ .Source }}{{ end }}{{ end }}') || true
 
 # Must be the same image step 2 migrated with — same container, so it is.
-MYSQL80=$(docker inspect "$MYSQL_CONTAINER" --format '{{ .Image }}')
-echo "verifying with $MYSQL80"
+MYSQL80=$(docker inspect "$MYSQL_CONTAINER" --format '{{ .Image }}') || true
 
 if [ -z "$KEYRING" ] || [ -z "$DATA" ] || [ -z "$MYSQL80" ]; then
   echo "could not resolve volumes or image from $MYSQL_CONTAINER" >&2
+  exit 1
+fi
+echo "verifying with $MYSQL80"
+
+# Refuse to run alongside a leftover verifier. A previous failed attempt
+# leaves one behind on purpose (see below), so this is a state you will
+# actually hit — and the consequence is severe: `docker run` would fail on the
+# name clash while every query afterwards silently hit the STALE container.
+# That container may hold another deployment's data, or this one's from before
+# the migration, and either way it can report a healthy keyring and real rows.
+# Believing that output is precisely how an unmigrated keyring gets archived.
+#
+# Not auto-removed: its log is the evidence the previous run preserved for
+# you. Read it, then remove it by hand.
+if docker inspect keyring-verify >/dev/null 2>&1; then
+  echo "keyring-verify already exists — a previous run left it for inspection." >&2
+  echo "Read its log, then remove it and re-run:" >&2
+  echo "  docker logs keyring-verify" >&2
+  echo "  docker rm -f keyring-verify" >&2
   exit 1
 fi
 
@@ -356,7 +387,9 @@ done
 
 if [ "$ready" -ne 1 ]; then
   echo "keyring-verify never became ready — leaving it in place for inspection." >&2
-  docker logs keyring-verify 2>&1 | tail -40
+  # `|| true`: under pipefail a failing docker logs would abort here and skip
+  # the warning below, which is the line that actually matters.
+  docker logs keyring-verify 2>&1 | tail -40 || true
   echo "Do NOT rename the legacy keyring. Investigate, then re-run." >&2
   exit 1
 fi
@@ -378,7 +411,10 @@ docker rm -f keyring-verify
 If the server never became ready, the container is still there on purpose:
 read its log before concluding anything about the migration, because a startup
 problem and a failed migration look nothing alike, and only one of them means
-your keys are in trouble. This step deliberately runs 8.0 by hand rather
+your keys are in trouble. Remove it before re-running — the script refuses to
+start while one exists, rather than risk querying a stale container and
+reporting a healthy keyring that belongs to some earlier attempt. This step
+deliberately runs 8.0 by hand rather
 than through Compose: the legacy keyring is still in place at this point, so
 the keyring-init service (`shared-mysql-keyring-init`, or `mysql-keyring-init`
 standalone) would refuse to start the Compose-managed server. Verify first,
