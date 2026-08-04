@@ -738,45 +738,76 @@ echo "${TRIVY_DEB_SHA256}  /tmp/trivy.deb" | sha256sum -c -
 dpkg -i /tmp/trivy.deb && rm -f /tmp/trivy.deb
 ```
 
-Wrapper script `/usr/local/bin/trivy-host-scan.sh`:
+#### Scheduled scan
 
-```bash
-#!/bin/bash
-set -euo pipefail
-OUT_DIR=/var/log/trivy-host-scan
-DATE=$(date -u +%Y-%m-%d)
-mkdir -p "$OUT_DIR"
-trivy rootfs \
-  --pkg-types os --scanners vuln \
-  --skip-dirs /proc --skip-dirs /sys --skip-dirs /dev --skip-dirs /run \
-  --skip-dirs /mnt --skip-dirs /media --skip-dirs /home \
-  --skip-dirs /root/.cache --skip-dirs /tmp \
-  --skip-dirs /var/lib/docker --skip-dirs /opt/tenants \
-  --format json --output "$OUT_DIR/$DATE.json" /
-COUNT=$(jq '[.Results[]?.Vulnerabilities[]?] | length' "$OUT_DIR/$DATE.json")
-logger -t trivy-host-scan "scan complete: $COUNT findings, report at $OUT_DIR/$DATE.json"
-```
-
-```bash
-chmod +x /usr/local/bin/trivy-host-scan.sh
-```
+The scan runs monthly from cron, driven by the same
+`scripts/security-scan-host.sh` used for on-demand reports — in `--local`
+mode, so what gets scanned is defined in exactly one place rather than
+duplicated into a separate wrapper that drifts. It comes from the tenant
+checkout, so `deploy-tenant.sh` keeps it current; this is the same
+arrangement as the nightly backup cron.
 
 Monthly run, 1st of the month at 4am, via `/etc/cron.d/trivy-host-scan`:
 
 ```
-0 4 1 * * root /usr/local/bin/trivy-host-scan.sh
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+
+0 4 1 * * root /opt/tenants/test/scripts/security-scan-host.sh --local --out-parent /var/log/trivy-host-scan --email you@example.com --keep 12 >> /var/log/polybag-security-scan.log 2>&1
 ```
 
-Report: `/var/log/trivy-host-scan/YYYY-MM-DD.json`. Findings by severity are
-in the `.Results[].Vulnerabilities[].Severity` field of each report; fixable
-ones remediate via `apt-get upgrade` per the standard patching SLA
-(Critical: 7 days, High: 30 days).
+`--out-parent` has the script build the dated directory name itself. Don't
+be tempted to inline a `date +%Y%m%d` in the crontab instead — cron treats a
+bare `%` as a newline and would truncate the command at the first one.
 
-For an on-demand, audit-ready report (e.g. to hand to a reviewer) rather
-than waiting for the monthly cron, run `scripts/security-scan-host.sh --ssh
-root@<server>` from a checkout of the app repo — it installs/verifies the
-same pinned Trivy remotely and writes a dated Markdown + JSON report into
-`security-reports/`, matching the existing ZAP DAST report convention.
+Reports land in `/var/log/trivy-host-scan/host-<host>-<timestamp>/` as a
+Markdown summary plus the raw JSON, matching the layout of the on-demand
+reports in `security-reports/`. `--keep 12` prunes all but the twelve most
+recent, so a year of monthly scans is retained without growing without
+bound — the VPS disk is the constraint here, not report volume.
+
+#### Alerting
+
+`--email` mails the report through Resend when the scan finishes, reusing
+the `RESEND_API_KEY` already in `/opt/shared/shared-secrets.env` for the
+app's own mail — no second credential to manage. Sender defaults to
+`noreply@updates.polybag.app`; override with `SECURITY_SCAN_EMAIL_FROM`.
+Comma-separate the value for multiple recipients.
+
+Mail goes out on **every** run, not just when findings appear, and the
+verdict is in the subject line:
+
+```
+[PolyBag] Host scan clean (no critical/high) on ubuntu-2gb-hil-1
+[PolyBag] Host scan: 2 critical / 14 high on ubuntu-2gb-hil-1
+[PolyBag] Host vulnerability scan FAILED on ubuntu-2gb-hil-1
+```
+
+This is deliberate. If mail only went out on findings, a cron that silently
+stopped firing would look identical to a clean scan — the same silent-rot
+failure the nightly backup hit once after a password rotation. A scan that
+dies partway (trivy crash, full disk, vulnerability DB download failure)
+mails the FAILED notice from an exit trap, so a missing monthly message is
+itself the signal that something needs looking at.
+
+Fixable findings remediate via `apt-get upgrade` per the standard patching
+SLA (Critical: 7 days, High: 30 days). Note that kernel CVEs need a reboot
+and a purge of the old kernel packages to actually clear — an `apt upgrade`
+alone leaves the vulnerable versions installed and still reported.
+
+#### On-demand
+
+For an audit-ready report (e.g. to hand to a reviewer) rather than waiting
+for the monthly cron, run this from a checkout of the app repo:
+
+```bash
+./scripts/security-scan-host.sh --ssh root@<server>
+```
+
+It installs/verifies the same pinned Trivy remotely, leaves no scanning
+tooling behind beyond the trivy binary, and writes a dated Markdown + JSON
+report into `security-reports/`, matching the existing ZAP DAST report
+convention.
 
 ---
 
