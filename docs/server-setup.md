@@ -174,6 +174,42 @@ docker exec shared-mysql mysql -uroot -p<password> -e "
 Expect `ON`, `ON`, and `Active`. Anything else means encryption is not in
 effect regardless of what the config files say.
 
+#### Migrating an existing encrypted install from the keyring plugin
+
+Only relevant for a server whose data was encrypted under the **old
+`keyring_file` plugin** — an install predating the MySQL 8.4 pin. If
+`/var/lib/mysql-keyring/keyring` is empty or absent, there is nothing to
+migrate and you can ignore this.
+
+The keys live in the plugin's keystore. Switching to the component without
+moving them leaves MySQL running against an empty component keyring, unable to
+decrypt existing tables. **Order matters, and getting it wrong is
+unrecoverable:**
+
+1. **Back up the whole `mysql-keyring` volume and the database, before
+   anything else.**
+2. **Migrate while still on MySQL 8.0.** `keyring_file.so` does not ship in
+   8.4, so the plugin cannot be loaded there and the migration becomes
+   impossible after upgrading:
+
+   ```bash
+   mysql_migrate_keyring \
+     --component-dir=/usr/lib64/mysql/plugin \
+     --source-keyring=keyring_file \
+     --destination-keyring=component_keyring_file \
+     --user=root --password
+   ```
+
+3. Confirm `component_keyring_file` is now non-empty and that encrypted tables
+   still read correctly.
+4. Only then move to the 8.4 pin and this configuration.
+
+The `mysql-keyring-init` service refuses to start when it finds a non-empty
+legacy keyring beside an empty component keyring, so a skipped migration fails
+loudly at startup instead of silently presenting unreadable tables. Do not work
+around that error by deleting the legacy file — it holds the only copy of your
+keys.
+
 **Keyring backup:**
 
 The keyring file is critical — if lost, encrypted data is unrecoverable. Back it up separately from the database:
@@ -300,14 +336,25 @@ Runs daily at 03:00 UTC. Old backups are automatically pruned after `BACKUP_RETE
 
 ### Keyring backup
 
-The MySQL keyring file should also be backed up to S3. Add this to the same crontab:
+The MySQL keyring must also be backed up — without it, encrypted data is
+unrecoverable. `scripts/backup-nightly.sh` already does this as part of the
+nightly run, so no separate crontab entry is needed; prefer that single entry
+over scheduling the database and keyring backups separately.
+
+If you do copy the keyring by hand, take **`component_keyring_file`**:
 
 ```bash
-5 3 * * * docker cp shared-mysql:/var/lib/mysql-keyring/keyring /tmp/keyring && \
-  AWS_ACCESS_KEY_ID=$(grep S3_ACCESS_KEY /opt/shared/backup.env | cut -d= -f2-) \
-  AWS_SECRET_ACCESS_KEY=$(grep S3_SECRET_KEY /opt/shared/backup.env | cut -d= -f2-) \
-  aws s3 cp /tmp/keyring s3://polybag/backups/keyring/keyring-$(date +\%Y-\%m-\%d) \
-  --endpoint-url https://hel1.your-objectstorage.com && rm /tmp/keyring
+docker cp shared-mysql:/var/lib/mysql-keyring/component_keyring_file /tmp/keyring
+```
+
+Not `/var/lib/mysql-keyring/keyring`. That path is a leftover from the old
+keyring plugin and on a migrated server it is an **empty file** — backing it up
+produces an archive that looks fine and restores nothing. Confirm before
+trusting a keyring backup:
+
+```bash
+docker exec shared-mysql ls -l /var/lib/mysql-keyring/
+# component_keyring_file should be non-empty; a stray `keyring` of 0 bytes is inert
 ```
 
 ### Backup encryption

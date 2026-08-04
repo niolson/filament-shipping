@@ -8,10 +8,55 @@
 # how to move a pin forward.
 
 services:
+  # Prepares the keyring volume before MySQL starts. Kept in step with the
+  # identical service in the root docker-compose.yml (standalone profile) —
+  # both deployments hit the same two problems.
+  #
+  # First, on a fresh volume the mysql image's entrypoint runs
+  # `mysqld --verbose --help` as root before dropping to the mysql user, which
+  # loads the keyring component and creates the key file owned by root. The
+  # real mysqld then cannot read it and aborts in a restart loop.
+  #
+  # Second, it refuses to start an upgrade that would silently make encrypted
+  # tables unreadable. It never deletes or truncates an existing keyring.
+  shared-mysql-keyring-init:
+    image: mysql:8.4@sha256:77e7fd3d377ad2d9e7983d457b71ff8a04c0f19e41948d722f15c508a48dcce3
+    container_name: shared-mysql-keyring-init
+    restart: "no"
+    user: root
+    volumes:
+      - mysql-keyring:/var/lib/mysql-keyring
+    networks:
+      - shared
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        DIR=/var/lib/mysql-keyring
+        KEYFILE=$$DIR/component_keyring_file
+        LEGACY=$$DIR/keyring
+
+        if [ -s "$$LEGACY" ] && [ ! -s "$$KEYFILE" ]; then
+          echo "ERROR: legacy plugin keyring $$LEGACY holds keys but the component" >&2
+          echo "keyring $$KEYFILE is empty. Encrypted tables would be unreadable." >&2
+          echo "Run mysql_migrate_keyring on MySQL 8.0 BEFORE upgrading to 8.4 —" >&2
+          echo "see the keyring migration section of docs/server-setup.md." >&2
+          exit 1
+        fi
+
+        if [ ! -e "$$KEYFILE" ]; then
+          install -o 999 -g 999 -m 640 /dev/null "$$KEYFILE"
+        fi
+        chown 999:999 "$$DIR" "$$KEYFILE"
+
   shared-mysql:
     image: mysql:8.4@sha256:77e7fd3d377ad2d9e7983d457b71ff8a04c0f19e41948d722f15c508a48dcce3
     container_name: shared-mysql
     restart: unless-stopped
+    depends_on:
+      shared-mysql-keyring-init:
+        condition: service_completed_successfully
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     volumes:

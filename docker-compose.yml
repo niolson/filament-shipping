@@ -78,11 +78,29 @@ services:
       - -c
       - |
         set -e
-        KEYFILE=/var/lib/mysql-keyring/component_keyring_file
+        DIR=/var/lib/mysql-keyring
+        KEYFILE=$$DIR/component_keyring_file
+        LEGACY=$$DIR/keyring
+
+        # Refuse to start an upgrade that would make encrypted tables
+        # unreadable. A non-empty plugin-era keyring with no component keyring
+        # beside it means the keys still live in the old keystore; starting
+        # would bring MySQL up against an empty component keyring, unable to
+        # decrypt anything. The migration cannot be done from here either —
+        # keyring_file.so does not exist in 8.4 — so it must happen on the
+        # older MySQL first. See docs/server-setup.md.
+        if [ -s "$$LEGACY" ] && [ ! -s "$$KEYFILE" ]; then
+          echo "ERROR: legacy plugin keyring $$LEGACY holds keys but the component" >&2
+          echo "keyring $$KEYFILE is empty. Encrypted tables would be unreadable." >&2
+          echo "Run mysql_migrate_keyring on MySQL 8.0 BEFORE upgrading to 8.4 —" >&2
+          echo "see the keyring migration section of docs/server-setup.md." >&2
+          exit 1
+        fi
+
         if [ ! -e "$$KEYFILE" ]; then
           install -o 999 -g 999 -m 640 /dev/null "$$KEYFILE"
         fi
-        chown 999:999 /var/lib/mysql-keyring "$$KEYFILE"
+        chown 999:999 "$$DIR" "$$KEYFILE"
 
   mysql:
     image: mysql:8.4@sha256:77e7fd3d377ad2d9e7983d457b71ff8a04c0f19e41948d722f15c508a48dcce3
