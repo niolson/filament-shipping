@@ -1229,3 +1229,116 @@ it('sends a recipient phone number stored before its area code was recognized', 
         return ($contact['phoneNumber'] ?? null) === '3705797375';
     });
 });
+
+it('declares customs for a Puerto Rico destination that shares the US country code', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        CreateShipment::class => MockResponse::make([
+            'output' => [
+                'transactionShipments' => [
+                    [
+                        'masterTrackingNumber' => '794644790138',
+                        'completedShipmentDetail' => [
+                            'shipmentRating' => ['shipmentRateDetails' => [['totalNetCharge' => 12.75]]],
+                        ],
+                        'pieceResponses' => [
+                            [
+                                'trackingNumber' => '794644790138',
+                                'packageDocuments' => [['encodedLabel' => 'JVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+            phone: '5551234567',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: 'PO BOX 1686',
+            city: 'San Lorenzo',
+            stateOrProvince: 'PR',
+            postalCode: '00754',
+            country: 'US',
+            phone: '7999078831',
+        ),
+        packageData: new PackageData(weight: 0.95, length: 4, width: 6, height: 6),
+        selectedRate: new RateResponse(
+            carrier: 'FedEx',
+            serviceCode: 'FEDEX_2_DAY',
+            serviceName: 'FedEx 2Day',
+            price: 12.75,
+            metadata: ['serviceType' => 'FEDEX_2_DAY'],
+        ),
+        customsItems: [
+            new CustomsItem(description: 'Dictionaries', quantity: 2, unitValue: 25.235, weight: 0.4),
+        ],
+    );
+
+    expect($this->adapter->createShipment($request)->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $commodity = $request->body()->all()['requestedShipment']['customsClearanceDetail']['commodities'][0] ?? [];
+
+        return ($commodity['customsValue']['amount'] ?? null) === '50.47'
+            && ($commodity['customsValue']['currency'] ?? null) === 'USD';
+    });
+});
+
+it('fails before calling FedEx when customs applies but nothing can be declared', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+            phone: '5551234567',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: 'PO BOX 1686',
+            city: 'San Lorenzo',
+            stateOrProvince: 'PR',
+            postalCode: '00754',
+            country: 'US',
+            phone: '7999078831',
+        ),
+        packageData: new PackageData(weight: 0.95, length: 4, width: 6, height: 6),
+        selectedRate: new RateResponse(
+            carrier: 'FedEx',
+            serviceCode: 'FEDEX_2_DAY',
+            serviceName: 'FedEx 2Day',
+            price: 12.75,
+            metadata: ['serviceType' => 'FEDEX_2_DAY'],
+        ),
+    );
+
+    $response = $this->adapter->createShipment($request);
+
+    expect($response->success)->toBeFalse()
+        ->and($response->errorMessage)->toContain('customs declaration');
+
+    Saloon::assertNotSent(CreateShipment::class);
+});

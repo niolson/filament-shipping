@@ -617,8 +617,18 @@ class FedexAdapter implements CarrierAdapterInterface
                 }
             }
 
-            // Add customs clearance detail for international shipments
-            if ($request->toAddress->country !== $request->fromAddress->country && ! empty($request->customsItems)) {
+            // Comparing the two country codes misses destinations that cross a
+            // customs boundary while still reading as US — Puerto Rico and the
+            // other territories come through as country US, and FedEx rejects
+            // those labels with TOTALCUSTOMSVALUE.REQUIRED. Ask the addresses
+            // whether they share a customs area rather than deciding it here.
+            if (! $request->toAddress->sharesCustomsZoneWith($request->fromAddress)) {
+                if (empty($request->customsItems)) {
+                    return ShipResponse::failure(
+                        'FedEx requires a customs declaration for this destination, but the package has no items to declare.'
+                    );
+                }
+
                 $requestedShipment['customsClearanceDetail'] = $this->buildCustomsClearanceDetail($request, $account);
             }
 
