@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Contracts\CarrierAdapterInterface;
+use App\DataTransferObjects\Shipping\AddressData;
 use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
@@ -16,6 +17,7 @@ use App\Models\ShippingMethod;
 use App\Models\SpecialService;
 use App\Services\Carriers\CarrierRegistry;
 use GuzzleHttp\Promise\Utils as PromiseUtils;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Saloon\Http\Senders\GuzzleSender;
 
@@ -81,7 +83,8 @@ class ShippingRateService
         $carrierTasks = [];
 
         if ($shippingMethod) {
-            $activeCarrierServices = $this->getActiveCarrierServices($shippingMethod);
+            $destination = AddressData::fromShipment($shipment);
+            $activeCarrierServices = $this->getActiveCarrierServices($shippingMethod, $destination);
 
             if ($activeCarrierServices->isEmpty()) {
                 throw new NoActiveCarrierServicesException($shippingMethod->name);
@@ -116,10 +119,26 @@ class ShippingRateService
                 'package_id' => $packageId,
             ]);
 
+            $destination = AddressData::fromShipment($shipment);
+            $restrictedDestination = $destination->isPoBox() || $destination->isMilitary();
+
             foreach (array_keys(app(CarrierRegistry::class)->getConfiguredAdapters()) as $name) {
+                $services = $this->getActiveCarrierServicesForCarrierName($name, $destination);
+
+                if ($restrictedDestination && $services->isEmpty()) {
+                    // No cataloged service for this carrier is known to reach a PO
+                    // Box / military destination -- querying it blind risks a
+                    // carrier-side reject (e.g. UPS 400s on a military "AE" state).
+                    logger()->debug("ShippingRateService: {$name} has no cataloged service for this destination, skipping", [
+                        'package_id' => $packageId,
+                    ]);
+
+                    continue;
+                }
+
                 $task = $this->buildCarrierTask(
                     $name,
-                    collect(),
+                    $services,
                     $requiredCodes,
                     $defaultCodes,
                     $scopeMap,
@@ -505,12 +524,47 @@ class ShippingRateService
      *
      * @return Collection<int, CarrierService>
      */
-    private function getActiveCarrierServices(ShippingMethod $shippingMethod): Collection
+    private function getActiveCarrierServices(ShippingMethod $shippingMethod, AddressData $destination): Collection
     {
-        return $shippingMethod->carrierServices()
+        $query = $shippingMethod->carrierServices()
             ->active()
             ->withActiveCarrier()
-            ->with('carrier')
+            ->with('carrier');
+
+        if ($destination->isPoBox()) {
+            $query->where('can_ship_to_po_boxes', true);
+        }
+
+        if ($destination->isMilitary()) {
+            $query->where('can_ship_to_military_addresses', true);
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Active CarrierService rows for a carrier name, used by the no-shipping-method
+     * fallback. For an ordinary destination this returns an empty collection,
+     * preserving that fallback's existing "ask the adapter for everything, no
+     * service-code restriction" behavior. For a PO Box / military destination
+     * it returns only the carrier's cataloged services flagged capable of
+     * reaching it -- which may be empty if the carrier has no such service (or
+     * no catalog rows at all), in which case the caller must not query it.
+     *
+     * @return Collection<int, CarrierService>
+     */
+    private function getActiveCarrierServicesForCarrierName(string $carrierName, AddressData $destination): Collection
+    {
+        if (! $destination->isPoBox() && ! $destination->isMilitary()) {
+            return collect();
+        }
+
+        return CarrierService::query()
+            ->active()
+            ->withActiveCarrier()
+            ->whereHas('carrier', fn (Builder $query) => $query->where('name', $carrierName))
+            ->when($destination->isPoBox(), fn (Builder $query) => $query->where('can_ship_to_po_boxes', true))
+            ->when($destination->isMilitary(), fn (Builder $query) => $query->where('can_ship_to_military_addresses', true))
             ->get();
     }
 }

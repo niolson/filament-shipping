@@ -21,6 +21,7 @@ readonly class AddressData
         public ?string $phone = null,
         public ?string $email = null,
         public ?string $phoneExtension = null,
+        public ?string $uspsCarrierRoute = null,
     ) {}
 
     public static function fromShipment(Shipment $shipment): self
@@ -38,6 +39,7 @@ readonly class AddressData
             phone: PhoneParserService::nationalDigits($shipment->phone_e164, $shipment->validated_country ?? $shipment->country ?? 'US'),
             email: $shipment->email,
             phoneExtension: $shipment->phone_extension,
+            uspsCarrierRoute: $shipment->validated_carrier_route,
         );
     }
 
@@ -94,6 +96,58 @@ readonly class AddressData
 
         return in_array(strtoupper(trim((string) $this->stateOrProvince)), self::MILITARY_SUBDIVISIONS, true)
             || in_array(strtoupper(trim($this->city)), self::MILITARY_CITIES, true);
+    }
+
+    /**
+     * PO Box / rural-route-box / highway-contract-box / general-delivery
+     * detector. Requires the box keyword to be immediately followed by a box
+     * number (digits, optionally letter-suffixed, or a leading letter), which
+     * is what distinguishes a real box number from a compound word like
+     * "Boxwood" or "Box Canyon" -- a plain \b can't do this alone since digits
+     * are word characters too ("Box186" has no \b between "x" and "1").
+     *
+     * Validated against 3M+ real addresses (see polybag-demo-data-tools
+     * bin/test-po-box-regex.php) with no confirmed false positives. "BOX"
+     * immediately preceded by "LOCK" is deliberately excluded via negative
+     * lookbehind (not just by omitting a "LOCK BOX" keyword -- plain "BOX"
+     * would still match "LOCK BOX 1144" on its own, since \b only checks the
+     * boundary right before "BOX", not what word came before that) -- every
+     * "LOCK BOX"/"LOCKBOX" match in that sample was a real deliverable street
+     * address paired with a property-access lockbox delivery note, not a USPS
+     * Lock Box rental.
+     */
+    private const PO_BOX_PATTERN = '/\b(?:'
+        .'(?:P\.?\s*O\.?\s*(?:BOX|DRAWER)|POST\s*OFFICE\s*(?:BOX|DRAWER)|POB|(?<!LOCK)(?<!LOCK )BOX|CMR'
+        .'|(?:RURAL\s*ROUTE|RR|R\.?R\.?)\s*\d*\s*,?\s*BOX'
+        .'|(?:HIGHWAY\s*CONTRACT(?:\s*ROUTE)?|HC|H\.?C\.?)\s*\d*\s*,?\s*BOX'
+        .'|STAR\s*ROUTE\s*,?\s*BOX'
+        .')[\s\.\-#]*(?:(?:NO|NUMBER)\.?[\s\.\-#]*)?(?:\d+[A-Z]?|[A-Z]\d*)\b'
+        .'|GENERAL\s*DELIVERY\b'
+        .')/i';
+
+    /**
+     * Whether this is a PO Box (or box-only rural/highway-contract/general
+     * delivery point) that only USPS -- or a carrier whose last mile runs
+     * through USPS, e.g. FedEx Ground Economy, UPS Ground Saver -- can reach.
+     *
+     * Prefers the USPS-licensed carrier route from address validation
+     * (carrier route "B..." is a dedicated PO Box route) when available,
+     * since it's authoritative. Falls back to the regex otherwise -- address
+     * validation costs money now, so a meaningful share of addresses won't
+     * have a carrier route to check.
+     */
+    public function isPoBox(): bool
+    {
+        if ($this->country !== 'US') {
+            return false;
+        }
+
+        if ($this->uspsCarrierRoute !== null) {
+            return str_starts_with(strtoupper($this->uspsCarrierRoute), 'B');
+        }
+
+        return preg_match(self::PO_BOX_PATTERN, $this->streetAddress) === 1
+            || ($this->streetAddress2 !== null && preg_match(self::PO_BOX_PATTERN, $this->streetAddress2) === 1);
     }
 
     /**

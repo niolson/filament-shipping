@@ -159,7 +159,8 @@ it('prefers USPS DPV data over the geocoding verdict when Google returns it', fu
     $shipment->refresh();
     expect($shipment->checked)->toBeTrue()
         ->and($shipment->deliverability)->toBe(Deliverability::Yes)
-        ->and($shipment->validation_message)->toBe('Address confirmed deliverable');
+        ->and($shipment->validation_message)->toBe('Address confirmed deliverable')
+        ->and($shipment->validated_carrier_route)->toBe('C018');
 });
 
 it('marks the address Maybe when USPS DPV data shows a missing secondary number', function (): void {

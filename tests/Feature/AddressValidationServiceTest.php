@@ -230,6 +230,7 @@ it('sets deliverability to Yes for exact match with DPV Y', function (): void {
             'additionalInfo' => [
                 'DPVConfirmation' => 'Y',
                 'business' => 'Y',
+                'carrierRoute' => 'C018',
             ],
         ]),
     ]);
@@ -246,6 +247,7 @@ it('sets deliverability to Yes for exact match with DPV Y', function (): void {
         ->and($shipment->validated_state_or_province)->toBe('DC')
         ->and($shipment->validated_postal_code)->toBe('20500')
         ->and($shipment->validated_residential)->toBeFalse()
+        ->and($shipment->validated_carrier_route)->toBe('C018')
         ->and($shipment->checked)->toBeTrue();
 });
 

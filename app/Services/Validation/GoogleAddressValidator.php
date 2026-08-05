@@ -119,6 +119,10 @@ class GoogleAddressValidator implements AddressValidationInterface
         $shipment->deliverability = $deliverability;
         $shipment->validation_message = $message;
 
+        $uspsData = $result['uspsData'] ?? null;
+        $carrierRoute = is_array($uspsData) ? ($uspsData['carrierRoute'] ?? null) : null;
+        $shipment->validated_carrier_route = $carrierRoute !== '' ? $carrierRoute : null;
+
         $postalAddress = $result['address']['postalAddress'] ?? [];
         $addressLines = $postalAddress['addressLines'] ?? [];
         $shipment->validated_address1 = $addressLines[0] ?? null;

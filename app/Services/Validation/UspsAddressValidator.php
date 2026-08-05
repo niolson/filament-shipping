@@ -273,6 +273,7 @@ class UspsAddressValidator implements AddressValidationInterface
 
         $shipment->deliverability = $deliverability;
         $shipment->validation_message = $message;
+        $shipment->validated_carrier_route = $carrierRoute !== '' ? $carrierRoute : null;
 
         $address = $response['address'] ?? [];
         $shipment->validated_address1 = $address['streetAddress'] ?? null;

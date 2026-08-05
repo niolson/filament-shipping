@@ -43,6 +43,14 @@ class CarrierServiceResource extends Resource
                 Forms\Components\Toggle::make('active')
                     ->default(true)
                     ->helperText('Disabled services will not be used for rate shopping.'),
+                Forms\Components\Toggle::make('can_ship_to_po_boxes')
+                    ->label('Can ship to PO Boxes')
+                    ->default(false)
+                    ->helperText('Only USPS services and USPS-last-mile hybrids (e.g. FedEx Ground Economy, UPS Ground Saver) can deliver to PO Boxes.'),
+                Forms\Components\Toggle::make('can_ship_to_military_addresses')
+                    ->label('Can ship to military addresses')
+                    ->default(false)
+                    ->helperText('APO/FPO/DPO addresses require USPS for the final leg, same as PO Boxes.'),
             ]);
     }
 
@@ -60,6 +68,16 @@ class CarrierServiceResource extends Resource
                 Tables\Columns\IconColumn::make('active')
                     ->boolean()
                     ->sortable(),
+                Tables\Columns\IconColumn::make('can_ship_to_po_boxes')
+                    ->label('PO Boxes')
+                    ->boolean()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('can_ship_to_military_addresses')
+                    ->label('Military')
+                    ->boolean()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\IconColumn::make('carrier.active')
                     ->label('Carrier Active')
                     ->boolean()

@@ -19,9 +19,16 @@ class CarrierSeeder extends Seeder
             ['name' => 'Priority Mail Express', 'service_code' => 'PRIORITY_MAIL_EXPRESS'],
             ['name' => 'Priority Mail International', 'service_code' => 'PRIORITY_MAIL_INTERNATIONAL'],
         ] as $service) {
+            // Every USPS service is USPS -- there's no scenario in this app
+            // where a USPS service should be blocked from a PO Box or a
+            // military address.
             $usps->carrierServices()->firstOrCreate(
                 ['service_code' => $service['service_code']],
-                ['name' => $service['name']],
+                [
+                    'name' => $service['name'],
+                    'can_ship_to_po_boxes' => true,
+                    'can_ship_to_military_addresses' => true,
+                ],
             );
         }
 
@@ -38,9 +45,19 @@ class CarrierSeeder extends Seeder
             ['name' => 'FedEx 2Day® A.M.', 'service_code' => 'FEDEX_2_DAY_AM'],
             ['name' => 'FedEx Express Saver®', 'service_code' => 'FEDEX_EXPRESS_SAVER'],
         ] as $service) {
+            // FedEx Ground Economy (service code SMART_POST, the FedEx API's
+            // longstanding name for it) is FedEx's only USPS-last-mile
+            // service -- plain FedEx Ground/Home Delivery/Express etc. cannot
+            // reach a PO Box or military address and correctly stay false.
+            $isGroundEconomy = $service['service_code'] === 'SMART_POST';
+
             $fedex->carrierServices()->firstOrCreate(
                 ['service_code' => $service['service_code']],
-                ['name' => $service['name']],
+                [
+                    'name' => $service['name'],
+                    'can_ship_to_po_boxes' => $isGroundEconomy,
+                    'can_ship_to_military_addresses' => $isGroundEconomy,
+                ],
             );
         }
 

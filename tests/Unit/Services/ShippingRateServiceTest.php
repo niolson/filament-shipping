@@ -1070,6 +1070,260 @@ it('drops signature_required when adult signature is also required instead of ex
         ->and($service->getExclusions())->toBeEmpty();
 });
 
+/*
+|--------------------------------------------------------------------------
+| PO Box / military address carrier-service filtering
+|--------------------------------------------------------------------------
+*/
+
+it('excludes carrier services that cannot ship to PO Boxes', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => fakeUspsGroundAdvantageRate(),
+    ]);
+
+    $shippingMethod = ShippingMethod::factory()->create();
+
+    $uspsService = CarrierService::factory()
+        ->uspsGroundAdvantage()
+        ->for($this->uspsCarrier)
+        ->create(['can_ship_to_po_boxes' => true]);
+
+    $fedexService = CarrierService::factory()
+        ->fedexGround()
+        ->for($this->fedexCarrier)
+        ->create(['can_ship_to_po_boxes' => false]);
+
+    $shippingMethod->carrierServices()->attach([$uspsService->id, $fedexService->id]);
+
+    $shipment = Shipment::factory()
+        ->for($shippingMethod)
+        ->create(['address1' => 'PO Box 456', 'postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+
+    $rates = app(ShippingRateService::class)->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('USPS');
+
+    Saloon::assertNotSent(FedexRates::class);
+});
+
+it('excludes carrier services that cannot ship to military addresses', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => fakeUspsGroundAdvantageRate(),
+    ]);
+
+    $shippingMethod = ShippingMethod::factory()->create();
+
+    $uspsService = CarrierService::factory()
+        ->uspsGroundAdvantage()
+        ->for($this->uspsCarrier)
+        ->create(['can_ship_to_military_addresses' => true]);
+
+    $fedexService = CarrierService::factory()
+        ->fedexGround()
+        ->for($this->fedexCarrier)
+        ->create(['can_ship_to_military_addresses' => false]);
+
+    $shippingMethod->carrierServices()->attach([$uspsService->id, $fedexService->id]);
+
+    $shipment = Shipment::factory()
+        ->for($shippingMethod)
+        ->create(['city' => 'APO', 'state_or_province' => 'AE', 'postal_code' => '09143']);
+    $package = Package::factory()->for($shipment)->create();
+
+    $rates = app(ShippingRateService::class)->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('USPS');
+
+    Saloon::assertNotSent(FedexRates::class);
+});
+
+it('throws when no carrier services can ship to a PO Box destination', function (): void {
+    $shippingMethod = ShippingMethod::factory()->create(['name' => 'Ground Only']);
+
+    $fedexService = CarrierService::factory()
+        ->fedexGround()
+        ->for($this->fedexCarrier)
+        ->create(['can_ship_to_po_boxes' => false]);
+
+    $shippingMethod->carrierServices()->attach($fedexService->id);
+
+    $shipment = Shipment::factory()
+        ->for($shippingMethod)
+        ->create(['address1' => 'PO Box 789']);
+    $package = Package::factory()->for($shipment)->create();
+
+    expect(fn () => app(ShippingRateService::class)->getShippingRates($package->id))
+        ->toThrow(NoActiveCarrierServicesException::class, "No active carrier services available for shipping method 'Ground Only'");
+});
+
+it('excludes carrier services that cannot ship to PO Boxes when no shipping method is assigned', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => fakeUspsGroundAdvantageRate(),
+        FedexRates::class => MockResponse::make([
+            'output' => [
+                'rateReplyDetails' => [
+                    [
+                        'serviceType' => 'FEDEX_GROUND',
+                        'serviceName' => 'FedEx Ground',
+                        'ratedShipmentDetails' => [['totalNetCharge' => 11.50]],
+                        'commit' => ['transitDays' => 'THREE_DAYS'],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    Setting::updateOrCreate(['key' => 'usps.client_id'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'usps.client_secret'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'usps.crid'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'fedex.api_key'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'fedex.api_secret'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'fedex.account_number'], ['value' => 'test', 'type' => 'string']);
+    app(SettingsService::class)->clearCache();
+
+    // Cataloged, but not attached to any shipping method -- the fallback path
+    // looks these up by carrier name, not via a ShippingMethod relation.
+    CarrierService::factory()->uspsGroundAdvantage()->for($this->uspsCarrier)->create(['can_ship_to_po_boxes' => true]);
+    CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create(['can_ship_to_po_boxes' => false]);
+
+    $shipment = Shipment::factory()->create([
+        'shipping_method_id' => null,
+        'address1' => 'PO Box 456',
+        'postal_code' => '90210',
+    ]);
+    $package = Package::factory()->for($shipment)->create();
+
+    $rates = app(ShippingRateService::class)->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('USPS');
+
+    Saloon::assertNotSent(FedexRates::class);
+});
+
+it('excludes carrier services that cannot ship to military addresses when no shipping method is assigned', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => fakeUspsGroundAdvantageRate(),
+        FedexRates::class => MockResponse::make([
+            'output' => [
+                'rateReplyDetails' => [
+                    [
+                        'serviceType' => 'FEDEX_GROUND',
+                        'serviceName' => 'FedEx Ground',
+                        'ratedShipmentDetails' => [['totalNetCharge' => 11.50]],
+                        'commit' => ['transitDays' => 'THREE_DAYS'],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    Setting::updateOrCreate(['key' => 'usps.client_id'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'usps.client_secret'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'usps.crid'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'fedex.api_key'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'fedex.api_secret'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'fedex.account_number'], ['value' => 'test', 'type' => 'string']);
+    app(SettingsService::class)->clearCache();
+
+    CarrierService::factory()->uspsGroundAdvantage()->for($this->uspsCarrier)->create(['can_ship_to_military_addresses' => true]);
+    CarrierService::factory()->fedexGround()->for($this->fedexCarrier)->create(['can_ship_to_military_addresses' => false]);
+
+    // This is the exact real-world failure that motivated this fix: UPS (and
+    // FedEx Ground) reject a military "AE" state outright rather than simply
+    // returning no rate.
+    $shipment = Shipment::factory()->create([
+        'shipping_method_id' => null,
+        'city' => 'APO',
+        'state_or_province' => 'AE',
+        'postal_code' => '09143',
+    ]);
+    $package = Package::factory()->for($shipment)->create();
+
+    $rates = app(ShippingRateService::class)->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('USPS');
+
+    Saloon::assertNotSent(FedexRates::class);
+});
+
+it('skips a carrier with no cataloged service at all for a PO Box destination in the fallback path', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => fakeUspsGroundAdvantageRate(),
+    ]);
+
+    Setting::updateOrCreate(['key' => 'usps.client_id'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'usps.client_secret'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'usps.crid'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'fedex.api_key'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'fedex.api_secret'], ['value' => 'test', 'type' => 'string']);
+    Setting::updateOrCreate(['key' => 'fedex.account_number'], ['value' => 'test', 'type' => 'string']);
+    app(SettingsService::class)->clearCache();
+
+    // USPS is cataloged and capable; FedEx has no catalog rows at all, so
+    // there's nothing to confirm it can reach this destination.
+    CarrierService::factory()->uspsGroundAdvantage()->for($this->uspsCarrier)->create(['can_ship_to_po_boxes' => true]);
+
+    $shipment = Shipment::factory()->create([
+        'shipping_method_id' => null,
+        'address1' => 'PO Box 789',
+        'postal_code' => '90210',
+    ]);
+    $package = Package::factory()->for($shipment)->create();
+
+    $rates = app(ShippingRateService::class)->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('USPS');
+
+    Saloon::assertNotSent(FedexRates::class);
+});
+
+it('does not restrict carrier services for an ordinary street address', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        ShippingOptions::class => fakeUspsGroundAdvantageRate(),
+        FedexRates::class => MockResponse::make([
+            'output' => [
+                'rateReplyDetails' => [
+                    [
+                        'serviceType' => 'FEDEX_GROUND',
+                        'serviceName' => 'FedEx Ground',
+                        'ratedShipmentDetails' => [['totalNetCharge' => 11.50]],
+                        'commit' => ['transitDays' => 'THREE_DAYS'],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $shippingMethod = ShippingMethod::factory()->create();
+
+    $uspsService = CarrierService::factory()->uspsGroundAdvantage()->for($this->uspsCarrier)->create();
+    $fedexService = CarrierService::factory()->fedexGround()->for($this->fedexCarrier)
+        ->create(['can_ship_to_po_boxes' => false, 'can_ship_to_military_addresses' => false]);
+
+    $shippingMethod->carrierServices()->attach([$uspsService->id, $fedexService->id]);
+
+    $shipment = Shipment::factory()
+        ->for($shippingMethod)
+        ->create(['address1' => '742 Evergreen Terrace', 'postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+
+    $rates = app(ShippingRateService::class)->getShippingRates($package->id);
+
+    expect($rates)->toHaveCount(2);
+});
+
 it('ignores product compliance flags while their special service is inactive', function (): void {
     Saloon::fake([
         '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),

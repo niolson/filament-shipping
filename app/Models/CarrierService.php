@@ -24,12 +24,16 @@ class CarrierService extends Model
         'service_code',
         'name',
         'active',
+        'can_ship_to_po_boxes',
+        'can_ship_to_military_addresses',
     ];
 
     protected function casts(): array
     {
         return [
             'active' => 'boolean',
+            'can_ship_to_po_boxes' => 'boolean',
+            'can_ship_to_military_addresses' => 'boolean',
         ];
     }
 
