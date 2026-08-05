@@ -97,14 +97,20 @@ Shared MySQL + Redis serve all tenants from a single instance, reducing memory u
 ```bash
 mkdir -p /opt/shared
 cp <repo>/infra/shared/* /opt/shared/
-cp <repo>/docker/mysql.cnf /opt/shared/mysql.cnf
+chmod 644 /opt/shared/mysql.cnf /opt/shared/mysqld.my /opt/shared/component_keyring_file.cnf
 cp <repo>/infra/.env.example /opt/shared/.env
 cp <repo>/infra/shared-secrets.env.example /opt/shared/shared-secrets.env
 ```
 
-`infra/shared/` carries the compose file plus the two MySQL keyring-component
-configs (`mysqld.my`, `component_keyring_file.cnf`) that TDE needs mounted —
-see the encryption-at-rest section below.
+`infra/shared/` carries the compose file plus the three MySQL config files
+that encryption at rest depends on — see the section below.
+
+**The `chmod 644` is not optional.** `mysqld` runs as the `mysql` user, and if
+it cannot read a file in `conf.d` it does not fail — it silently stops
+processing the entire include directory and starts with **no encryption at
+all**. `cp` preserves the source permissions, so a checkout with a restrictive
+umask produces exactly that. Verify with the query at the end of the
+encryption section rather than assuming.
 
 Edit `/opt/shared/.env` and set strong passwords:
 
@@ -136,18 +142,311 @@ docker exec shared-redis redis-cli -a <password> ping
 
 ### Encryption at Rest (TDE)
 
-Shared MySQL is configured with InnoDB tablespace encryption by default. The `mysql.cnf` file enables the `keyring_file` plugin and sets `default_table_encryption=ON`, so all new tables are encrypted automatically.
+Shared MySQL uses InnoDB tablespace encryption plus binary log encryption. Three files work together, all installed by the copy step above:
+
+| File | Mounted to | Role |
+|---|---|---|
+| `mysql.cnf` | `/etc/mysql/conf.d/encryption.cnf` | `default_table_encryption=ON`, `binlog_encryption=ON` |
+| `mysqld.my` | `/usr/sbin/mysqld.my` | manifest that activates the keyring component |
+| `component_keyring_file.cnf` | `/usr/lib64/mysql/plugin/…` | sets the key file path |
+
+The keys come from the keyring **component**. Do not reintroduce the older
+`early-plugin-load=keyring_file.so` plugin form found in pre-8.4 setups: that
+plugin was **removed in MySQL 8.4**, and with it the server refuses to start
+("Can't open shared library 'keyring_file.so' … Aborting").
 
 **How it works:**
 - Data files on disk are encrypted with AES — queries, indexes, and search work normally (decrypted transparently at the query layer)
 - The keyring file is stored in a separate Docker volume (`mysql-keyring`) from the data volume (`mysql-data`)
 - Each tenant's `db:encrypt-tables` command runs on startup to encrypt any pre-existing unencrypted tables
 
-**Copy the MySQL config to the shared directory:**
+**Verify it is actually on.** Both silent-failure modes above produce a
+perfectly healthy-looking server, so check rather than assume:
 
 ```bash
-cp <repo>/docker/mysql.cnf /opt/shared/mysql.cnf
+# Standalone: substitute the `mysql` service container for `shared-mysql`.
+docker exec shared-mysql mysql -uroot -p<password> -e "
+  SHOW VARIABLES LIKE 'default_table_encryption';
+  SHOW VARIABLES LIKE 'binlog_encryption';
+  SELECT STATUS_VALUE FROM performance_schema.keyring_component_status
+   WHERE STATUS_KEY='Component_status';"
 ```
+
+Expect `ON`, `ON`, and `Active`. Anything else means encryption is not in
+effect regardless of what the config files say.
+
+#### Migrating an existing encrypted install from the keyring plugin
+
+Only relevant for a server whose data was encrypted under the **old
+`keyring_file` plugin** — an install predating the MySQL 8.4 pin. If
+`/var/lib/mysql-keyring/keyring` is empty or absent, there is nothing to
+migrate and you can ignore this.
+
+The keys live in the plugin's keystore. Switching to the component without
+moving them leaves MySQL running against a keyring that has no keys in it,
+unable to decrypt existing tables. **Order matters, and getting it wrong is
+unrecoverable.**
+
+Note `mysql_migrate_keyring` is **not** the tool for this — it migrates between
+keyring *components* and explicitly does not support migrations involving
+plugins. Plugin-to-component uses a one-off `mysqld` in migration mode.
+
+**This applies to both deployment modes.** The keyring guard in the standalone
+`docker-compose.yml` and the one in `infra/shared/docker-compose.yml` both send
+you here. The two differ only in which container holds the data and where the
+keyring config files live, so the procedure is written against those two
+values — set them once, per the mode you are running, and the rest is
+identical:
+
+| | Shared server | Standalone / on-prem |
+|---|---|---|
+| `MYSQL_CONTAINER` | `shared-mysql` | the `mysql` service container (resolved below) |
+| `CONF_DIR` | `/opt/shared` | `infra/shared` in the repo checkout |
+
+**1. Back up the `mysql-keyring` volume and the database before anything
+else.** Everything below operates on the only copy of your keys.
+
+**2. Migrate while still on MySQL 8.0.** `keyring_file.so` does not ship in
+8.4, so after upgrading the old keystore cannot be read at all and the
+migration becomes impossible. Stop the server, then run a one-off migration
+server — it accepts no connections, migrates the keys, and exits:
+
+```bash
+# Pick ONE of these two pairs, matching your deployment.
+
+# Shared server:
+MYSQL_CONTAINER=shared-mysql
+CONF_DIR=/opt/shared
+
+# Standalone / on-prem — run from the repo checkout. Resolving the container
+# by service name avoids having to guess the Compose project prefix, and -a
+# finds it even though you have just stopped it:
+# MYSQL_CONTAINER=$(docker compose --profile standalone \
+#   -f docker-compose.yml -f docker-compose.onprem.yml ps -aq mysql)
+# CONF_DIR=$(pwd)/infra/shared
+
+# Both volume paths come from the container itself rather than from hardcoded
+# volume names, which differ per deployment (the Compose project prefix is the
+# checkout directory name for standalone, `shared_` on the shared server).
+KEYRING=$(docker inspect "$MYSQL_CONTAINER" \
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql-keyring" }}{{ .Source }}{{ end }}{{ end }}')
+DATA=$(docker inspect "$MYSQL_CONTAINER" \
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql" }}{{ .Source }}{{ end }}{{ end }}')
+
+# Capture the EXACT image this data directory has been running under, and use
+# it for both the migration and the verification below. Do NOT write a bare
+# `mysql:8.0` anywhere in this procedure: that resolves to the latest 8.0
+# point release, and starting a newer server against an existing data
+# directory can perform a data dictionary upgrade that cannot be undone —
+# while you are mid-migration, with your keys in an unverified state.
+#
+# Taken from the existing container, this is a local image ID: exact, and no
+# pull happens.
+MYSQL80=$(docker inspect "$MYSQL_CONTAINER" --format '{{ .Image }}')
+
+# All three must be non-empty, and nothing below may run if they are not —
+# an empty $KEYRING or $DATA would hand docker run a garbage bind mount.
+# If the container was already removed, none of them resolve: recover the
+# volume mountpoints with `docker volume inspect` and take the image from the
+# digest pinned in the compose file that was in use (mysql:8.0@sha256:...),
+# never the tag, then re-run from the top.
+#
+# This gates rather than calling `exit`, deliberately: the block is pasted
+# into an interactive shell, and `exit` would close it — over SSH, mid-
+# migration. The effect is the same, nothing after this point runs.
+if [ -z "$KEYRING" ] || [ -z "$DATA" ] || [ -z "$MYSQL80" ]; then
+  echo "UNRESOLVED — do not continue:" >&2
+  echo "  KEYRING=${KEYRING:-<empty>} DATA=${DATA:-<empty>} MYSQL80=${MYSQL80:-<empty>}" >&2
+  false  # leave a nonzero $? behind, without killing an interactive shell
+else
+  echo "migrating with $MYSQL80"
+
+  # migrate.cnf: keyring_file_data ONLY — see the warning below. Written to a
+  # temp file, not CONF_DIR: it is throwaway, and must not be left where the
+  # running server might pick it up.
+  MIGRATE_CNF=$(mktemp /tmp/keyring-migrate.XXXXXX.cnf)
+  printf '[mysqld]\nkeyring_file_data=/var/lib/mysql-keyring/keyring\n' > "$MIGRATE_CNF"
+  chmod 644 "$MIGRATE_CNF"
+
+  # Repair destination ownership first. This command bypasses the image
+  # entrypoint and runs as UID 999, so it cannot write a component_keyring_file
+  # left behind root-owned by an earlier failed startup — the very failure this
+  # setup fixes. Ownership only: never delete or truncate either file, as one of
+  # them may hold the sole copy of your keys.
+  chown 999:999 "$KEYRING"
+  [ -e "$KEYRING/component_keyring_file" ] && chown 999:999 "$KEYRING/component_keyring_file"
+
+  docker run --rm --user 999:999 --entrypoint mysqld \
+    -v "$DATA":/var/lib/mysql \
+    -v "$KEYRING":/var/lib/mysql-keyring \
+    -v "$MIGRATE_CNF":/etc/mysql/conf.d/migrate.cnf:ro \
+    -v "$CONF_DIR"/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
+    "$MYSQL80" \
+    --keyring-migration-to-component \
+    --keyring-migration-source=keyring_file.so \
+    --keyring-migration-destination=component_keyring_file.so
+fi
+```
+
+Two things must be **absent** from that command, both of which cause failures
+that are easy to misread:
+
+- **No `early-plugin-load=keyring_file.so`.** The migration server must not
+  start with a keyring of its own — it loads the source and destination itself
+  from the `--keyring-migration-*` options. `keyring_file_data` is still
+  required, so the source keystore can be found, which is why `migrate.cnf`
+  above carries that and nothing else. Do not reuse the running server's
+  config file here.
+- **No `mysqld.my`.** With the component manifest mounted, migration fails
+  with `Cannot load component from specified URN`.
+
+A successful run prints no errors and leaves a non-empty
+`component_keyring_file`. A failed one reports `Failed to initialize
+destination keyring` — and still leaves a `component_keyring_file` behind, so
+never treat that file's existence as success.
+
+**3. Verify while still on 8.0, before renaming anything.** Start 8.0 again
+with the *component* configuration — manifest and component config, no plugin
+config — and read an encrypted table:
+
+Run this as a script rather than pasting line by line — it exits non-zero on
+failure, and that is the point:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Passed in, not inherited: step 2's values were set in an interactive shell
+# and are not exported into this script.
+#
+#   Shared server:  ./verify-keyring.sh shared-mysql /opt/shared
+#   Standalone:     ./verify-keyring.sh \
+#                     "$(docker compose --profile standalone \
+#                        -f docker-compose.yml -f docker-compose.onprem.yml \
+#                        ps -aq mysql)" \
+#                     "$(pwd)/infra/shared"
+MYSQL_CONTAINER=${1:?usage: $0 <mysql-container> <conf-dir>}
+CONF_DIR=${2:?usage: $0 <mysql-container> <conf-dir>}
+
+# `|| true` so a missing container falls through to the check below with a
+# useful message, rather than dying on the bare `docker inspect` failure.
+KEYRING=$(docker inspect "$MYSQL_CONTAINER" \
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql-keyring" }}{{ .Source }}{{ end }}{{ end }}') || true
+DATA=$(docker inspect "$MYSQL_CONTAINER" \
+  --format '{{ range .Mounts }}{{ if eq .Destination "/var/lib/mysql" }}{{ .Source }}{{ end }}{{ end }}') || true
+
+# Must be the same image step 2 migrated with — same container, so it is.
+MYSQL80=$(docker inspect "$MYSQL_CONTAINER" --format '{{ .Image }}') || true
+
+if [ -z "$KEYRING" ] || [ -z "$DATA" ] || [ -z "$MYSQL80" ]; then
+  echo "could not resolve volumes or image from $MYSQL_CONTAINER" >&2
+  exit 1
+fi
+echo "verifying with $MYSQL80"
+
+# Refuse to run alongside a leftover verifier. A previous failed attempt
+# leaves one behind on purpose (see below), so this is a state you will
+# actually hit — and the consequence is severe: `docker run` would fail on the
+# name clash while every query afterwards silently hit the STALE container.
+# That container may hold another deployment's data, or this one's from before
+# the migration, and either way it can report a healthy keyring and real rows.
+# Believing that output is precisely how an unmigrated keyring gets archived.
+#
+# Not auto-removed: its log is the evidence the previous run preserved for
+# you. Read it, then remove it by hand.
+if docker inspect keyring-verify >/dev/null 2>&1; then
+  echo "keyring-verify already exists — a previous run left it for inspection." >&2
+  echo "Read its log, then remove it and re-run:" >&2
+  echo "  docker logs keyring-verify" >&2
+  echo "  docker rm -f keyring-verify" >&2
+  exit 1
+fi
+
+# Deliberately NOT --rm: if the server fails to start, the container has to
+# survive so its log can be read. A vanished container is the one case where
+# you most need the evidence.
+docker run -d --name keyring-verify -e MYSQL_ROOT_PASSWORD=<password> \
+  -v "$DATA":/var/lib/mysql \
+  -v "$KEYRING":/var/lib/mysql-keyring \
+  -v "$CONF_DIR"/mysql.cnf:/etc/mysql/conf.d/encryption.cnf:ro \
+  -v "$CONF_DIR"/mysqld.my:/usr/sbin/mysqld.my:ro \
+  -v "$CONF_DIR"/component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro \
+  "$MYSQL80"
+
+# The container is detached and MySQL takes tens of seconds to accept
+# connections, longer on a first start. Querying immediately just fails to
+# connect, which is easy to misread as a failed migration.
+ready=0
+for i in $(seq 1 60); do
+  if docker exec keyring-verify mysqladmin ping -uroot -p<password> --silent >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  sleep 2
+done
+
+if [ "$ready" -ne 1 ]; then
+  echo "keyring-verify never became ready — leaving it in place for inspection." >&2
+  # `|| true`: under pipefail a failing docker logs would abort here and skip
+  # the warning below, which is the line that actually matters.
+  docker logs keyring-verify 2>&1 | tail -40 || true
+  echo "Do NOT rename the legacy keyring. Investigate, then re-run." >&2
+  exit 1
+fi
+
+docker exec keyring-verify mysql -uroot -p<password> \
+  -e "SELECT STATUS_VALUE FROM performance_schema.keyring_component_status
+       WHERE STATUS_KEY='Component_status';
+      SELECT * FROM <some_encrypted_table> LIMIT 1;"
+```
+
+Expect `Active` and real rows. **Read that output yourself** — the query
+succeeding is not the check; the component being `Active` and the rows being
+real is. Only once you have seen both, clean up:
+
+```bash
+docker rm -f keyring-verify
+```
+
+If the server never became ready, the container is still there on purpose:
+read its log before concluding anything about the migration, because a startup
+problem and a failed migration look nothing alike, and only one of them means
+your keys are in trouble. Remove it before re-running — the script refuses to
+start while one exists, rather than risk querying a stale container and
+reporting a healthy keyring that belongs to some earlier attempt. This step
+deliberately runs 8.0 by hand rather
+than through Compose: the legacy keyring is still in place at this point, so
+the keyring-init service (`shared-mysql-keyring-init`, or `mysql-keyring-init`
+standalone) would refuse to start the Compose-managed server. Verify first,
+rename second — not the other way round.
+
+**4. Archive the legacy keyring.** Only once step 3 returns rows — run this in
+the same shell as step 2, which still has `$KEYRING`:
+
+```bash
+mv "$KEYRING/keyring" "$KEYRING/keyring.migrated"
+```
+
+Keep the file — do not delete it. Migration **copies** keys; it does not move
+or clear them, so this file still holds a complete set of the old plugin-format
+keys, byte-identical to before the migration. After the rename the keyring
+directory looks like this:
+
+| File | Contents |
+|---|---|
+| `component_keyring_file` | the live keys, in component format — **this is what to back up** |
+| `keyring.migrated` | the retained plugin-format originals, unchanged |
+| `keyring` | absent — the guard keys off this path |
+
+Renaming is how you record that a human verified the migration, and it is
+reversible: rename it back if step 3 ever needs repeating. Until it is renamed,
+`mysql-keyring-init` refuses to start, because a non-empty legacy keyring may
+hold the only copy of your keys and nothing about the component file can prove
+otherwise.
+
+**5. Upgrade to 8.4** and bring the stack up normally — `docker compose up -d`
+from `/opt/shared`, or the standalone command from the deployment-modes table
+in `CLAUDE.md`. Re-run the encrypted table read once more to confirm.
 
 **Keyring backup:**
 
@@ -158,8 +457,13 @@ The keyring file is critical — if lost, encrypted data is unrecoverable. Back 
 docker volume inspect shared_mysql-keyring --format '{{ .Mountpoint }}'
 
 # Copy the keyring file to a secure backup location (NOT the same location as DB backups)
-cp /var/lib/docker/volumes/shared_mysql-keyring/_data/keyring /path/to/secure/backup/
+cp /var/lib/docker/volumes/shared_mysql-keyring/_data/component_keyring_file /path/to/secure/backup/
 ```
+
+Note the filename: the component writes `component_keyring_file`. Older
+plugin-era installs also have an empty `keyring` file next to it, which is a
+leftover and is not the key material. `backup-nightly.sh` already copies the
+correct one.
 
 Back up the keyring after initial setup and after any key rotation. Store it in a different location from your database backups (different cloud account, different physical location, or a password manager vault).
 
@@ -263,21 +567,47 @@ This will dump all `polybag_*` databases, compress them, and upload to the S3 bu
 ```bash
 crontab -e
 # Add:
-0 3 * * * /opt/tenants/<any-tenant>/scripts/backup-db.sh >> /var/log/polybag-backup.log 2>&1
+0 3 * * * /opt/tenants/<any-tenant>/scripts/backup-nightly.sh >> /var/log/polybag-backup.log 2>&1
 ```
 
 Runs daily at 03:00 UTC. Old backups are automatically pruned after `BACKUP_RETENTION_DAYS` (default 30).
 
+Schedule **`backup-nightly.sh`**, not `backup-db.sh`. The wrapper runs the
+database backup *and* the MySQL keyring backup as one unit, brackets both with
+Sentry Cron check-ins so a missed or failed run pages, and checks credential
+age. `backup-db.sh` on its own dumps the databases and never touches the
+keyring — leaving you with restorable-looking backups and no key to decrypt
+them with.
+
 ### Keyring backup
 
-The MySQL keyring file should also be backed up to S3. Add this to the same crontab:
+The MySQL keyring must also be backed up — without it, encrypted data is
+unrecoverable. The `backup-nightly.sh` entry above already does this, so no
+separate crontab entry is needed. If you scheduled `backup-db.sh` instead, the
+keyring is **not** being backed up — fix the crontab entry.
+
+If you do copy the keyring by hand, take **`component_keyring_file`**:
 
 ```bash
-5 3 * * * docker cp shared-mysql:/var/lib/mysql-keyring/keyring /tmp/keyring && \
-  AWS_ACCESS_KEY_ID=$(grep S3_ACCESS_KEY /opt/shared/backup.env | cut -d= -f2-) \
-  AWS_SECRET_ACCESS_KEY=$(grep S3_SECRET_KEY /opt/shared/backup.env | cut -d= -f2-) \
-  aws s3 cp /tmp/keyring s3://polybag/backups/keyring/keyring-$(date +\%Y-\%m-\%d) \
-  --endpoint-url https://hel1.your-objectstorage.com && rm /tmp/keyring
+docker cp shared-mysql:/var/lib/mysql-keyring/component_keyring_file /tmp/keyring
+```
+
+Not `/var/lib/mysql-keyring/keyring`. Whatever that path holds, it is not the
+keys MySQL is currently using, and backing it up produces an archive that looks
+fine and restores nothing. What you find there depends on the server's history:
+
+| File present | Meaning |
+|---|---|
+| `keyring`, 0 bytes | a plugin was once configured but never held keys — inert |
+| `keyring.migrated`, non-empty | plugin-format originals retained after a migration — a historical safety net, not the live keys |
+| `keyring`, non-empty | keys never migrated; MySQL should be refusing to start. See the migration section |
+
+Only `component_keyring_file` is live. Confirm before trusting a keyring
+backup:
+
+```bash
+docker exec shared-mysql ls -l /var/lib/mysql-keyring/
+# component_keyring_file must be non-empty — that is the file to archive
 ```
 
 ### Backup encryption

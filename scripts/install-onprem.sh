@@ -135,6 +135,32 @@ mkdir -p storage/app/private
 touch storage/app/private/qz-private-key.pem
 touch public/qz-certificate.pem
 
+# MySQL reads its three encryption config files straight out of this checkout
+# through read-only bind mounts, as the mysql user (uid 999). If it cannot read
+# the one landing in conf.d it does not fail — it silently discards the entire
+# include directory and starts with encryption OFF, looking perfectly healthy.
+# A checkout made under a restrictive umask produces exactly that, so make the
+# files world-readable before first start. Checking the resulting mode rather
+# than the chmod's exit status keeps this working when the files are already
+# 644 but owned by another user.
+info "Checking MySQL encryption config permissions..."
+for cnf in infra/shared/mysql.cnf infra/shared/mysqld.my infra/shared/component_keyring_file.cnf; do
+    if [ ! -f "$cnf" ]; then
+        error "${cnf} is missing — MySQL cannot bring up encryption at rest without it."
+        error "Re-check out the repository and re-run."
+        exit 1
+    fi
+    chmod 644 "$cnf" 2>/dev/null || true
+    mode=$(stat -c '%a' "$cnf")
+    if [ "${mode: -1}" -lt 4 ]; then
+        error "${cnf} is mode ${mode} — unreadable by the MySQL container (uid 999)."
+        error "MySQL would start with encryption at rest silently disabled."
+        error "Fix it and re-run:  chmod 644 ${cnf}"
+        exit 1
+    fi
+done
+ok "MySQL encryption config readable."
+
 info "Building and starting containers (standalone mode)..."
 docker compose --profile standalone \
     -f docker-compose.yml \
@@ -163,6 +189,40 @@ if [ $elapsed -ge $timeout ]; then
 fi
 
 ok "Containers running."
+
+# --- Verify encryption at rest ---
+#
+# Every way this can break leaves a healthy-looking server behind: the keyring
+# component failing to activate, or an unreadable conf.d file taking
+# default_table_encryption down with it. Assert the end state rather than
+# trusting that the config files did what they say.
+
+
+# The `|| true` on both is load-bearing under `set -euo pipefail`: a failing
+# grep or an unreachable mysql would otherwise abort the script here, skipping
+# the diagnostics below — which are the whole point of this check.
+info "Verifying encryption at rest..."
+DB_ROOT_PASSWORD=$(grep '^DB_PASSWORD=' .env | cut -d= -f2-) || true
+ENC_STATUS=$(docker compose --profile standalone \
+    -f docker-compose.yml \
+    -f docker-compose.onprem.yml \
+    exec -T mysql mysql -uroot -p"${DB_ROOT_PASSWORD}" -N -B -e "
+        SELECT VARIABLE_VALUE FROM performance_schema.global_variables
+         WHERE VARIABLE_NAME='default_table_encryption';
+        SELECT STATUS_VALUE FROM performance_schema.keyring_component_status
+         WHERE STATUS_KEY='Component_status';" 2>/dev/null | tr '\n' ' ' | tr -s ' ') || true
+
+if [ "$ENC_STATUS" = "ON Active " ]; then
+    ok "Encryption at rest active."
+else
+    error "Encryption at rest is NOT active — got '${ENC_STATUS:-no response}', expected 'ON Active'."
+    error "New tables would be written unencrypted."
+    error "Check that these are readable by uid 999 and that MySQL loaded them:"
+    error "  infra/shared/{mysql.cnf,mysqld.my,component_keyring_file.cnf}"
+    error "Logs: docker compose --profile standalone -f docker-compose.yml -f docker-compose.onprem.yml logs mysql"
+    error "See the encryption-at-rest section of docs/server-setup.md."
+    exit 1
+fi
 
 # --- Generate app key ---
 # Write key to .env on the host (avoids container bind-mount write permission issues)
