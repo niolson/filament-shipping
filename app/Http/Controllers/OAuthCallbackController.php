@@ -21,35 +21,47 @@ class OAuthCallbackController extends Controller
     {
         abort_unless($request->user()?->role->isAtLeast(Role::Admin), 403);
 
-        // Handle error redirects from the broker
-        if ($request->has('error')) {
-            logger()->error("OAuth error for {$provider}", [
-                'error' => $request->input('error'),
-                'description' => $request->input('error_description'),
-            ]);
-
-            return redirect()->route('filament.app.pages.settings')
-                ->with('oauth_notification', [
-                    'status' => 'danger',
-                    'title' => 'Connection failed: '.($request->input('error_description') ?: $request->input('error')),
-                ]);
-        }
-
-        $transferCode = $request->input('transfer_code');
-
-        if (empty($transferCode)) {
-            return redirect()->route('filament.app.pages.settings')
-                ->with('oauth_notification', [
-                    'status' => 'danger',
-                    'title' => 'Connection failed: no transfer code received.',
-                ]);
-        }
-
         $accountId = session()->pull("oauth_account_id.{$provider}");
         $account = $accountId ? CarrierAccount::find($accountId) : null;
 
         $importSourceId = session()->pull("oauth_data_source_id.{$provider}");
         $importSource = $importSourceId ? DataSource::find($importSourceId) : null;
+
+        // Handle error redirects from the broker
+        if ($request->has('error')) {
+            session()->forget("oauth_state.{$provider}");
+
+            logger()->error("OAuth error for {$provider}", [
+                'error' => $request->input('error'),
+                'description' => $request->input('error_description'),
+            ]);
+
+            $redirect = $importSource
+                ? redirect()->route('filament.app.resources.data-sources.edit', $importSource->id)
+                : ($account
+                    ? redirect()->route('filament.app.resources.carrier-accounts.edit', $account->id)
+                    : redirect()->route('filament.app.pages.settings'));
+
+            return $redirect->with('oauth_notification', [
+                'status' => 'danger',
+                'title' => 'Connection failed: '.($request->input('error_description') ?: $request->input('error')),
+            ]);
+        }
+
+        $transferCode = $request->input('transfer_code');
+
+        if (empty($transferCode)) {
+            $redirect = $importSource
+                ? redirect()->route('filament.app.resources.data-sources.edit', $importSource->id)
+                : ($account
+                    ? redirect()->route('filament.app.resources.carrier-accounts.edit', $account->id)
+                    : redirect()->route('filament.app.pages.settings'));
+
+            return $redirect->with('oauth_notification', [
+                'status' => 'danger',
+                'title' => 'Connection failed: no transfer code received.',
+            ]);
+        }
 
         try {
             if ($importSource) {
@@ -59,7 +71,7 @@ class OAuthCallbackController extends Controller
                     ->route('filament.app.resources.data-sources.edit', $importSource->id)
                     ->with('oauth_notification', [
                         'status' => 'success',
-                        'title' => ucfirst($provider).' connected successfully.',
+                        'title' => $this->providerDisplayName($provider).' connected successfully.',
                     ]);
             }
 
@@ -70,7 +82,7 @@ class OAuthCallbackController extends Controller
                     ->route('filament.app.resources.carrier-accounts.edit', $account->id)
                     ->with('oauth_notification', [
                         'status' => 'success',
-                        'title' => ucfirst($provider).' connected successfully.',
+                        'title' => $this->providerDisplayName($provider).' connected successfully.',
                     ]);
             }
 
@@ -103,5 +115,13 @@ class OAuthCallbackController extends Controller
                 'title' => 'Connection failed: '.$e->getMessage(),
             ]);
         }
+    }
+
+    private function providerDisplayName(string $provider): string
+    {
+        return match ($provider) {
+            'sp-api' => 'Amazon',
+            default => ucfirst($provider),
+        };
     }
 }

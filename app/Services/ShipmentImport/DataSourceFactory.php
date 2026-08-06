@@ -29,6 +29,8 @@ class DataSourceFactory
             $config = $this->buildDatabaseConfig($dataSource->id, $config);
         }
 
+        $config['_data_source_id'] = $dataSource->id;
+
         return new $driver($config);
     }
 

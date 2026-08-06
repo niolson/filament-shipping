@@ -620,6 +620,49 @@ it('allows creating an inactive Amazon data source even when MFA is not required
     expect(DataSource::where('source_type', AmazonSource::class)->exists())->toBeTrue();
 });
 
+it('allows creating an Amazon data source without manual credentials when the broker is configured', function (): void {
+    config([
+        'services.oauth.broker_url' => 'https://connect.polybag.app',
+        'services.oauth.broker_secret' => 'broker-secret',
+        'services.oauth.instance_id' => 'test-instance',
+    ]);
+    $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm([
+            'name' => 'Amazon OAuth Import',
+            'source_type' => AmazonSource::class,
+            'active' => false,
+            'settings.marketplace_id' => 'ATVPDKIKX0DER',
+            'settings.channel_name' => $channel->id,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $source = DataSource::where('name', 'Amazon OAuth Import')->firstOrFail();
+    expect($source->secret('refresh_token'))->toBeNull();
+});
+
+it('shows Amazon OAuth actions on an Amazon data source', function (): void {
+    config([
+        'services.oauth.broker_url' => 'https://connect.polybag.app',
+        'services.oauth.broker_secret' => 'broker-secret',
+        'services.oauth.instance_id' => 'test-instance',
+    ]);
+    $this->actingAs($this->admin);
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['auth_mode' => 'authorization_code'],
+        'secret_settings' => ['refresh_token' => 'amazon-refresh-token'],
+    ]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->assertActionVisible('amazon_connect')
+        ->assertActionVisible('amazon_disconnect')
+        ->assertActionHidden('shopify_connect');
+});
+
 it('blocks saving an Amazon data source as active on edit when MFA is not required', function (): void {
     $this->actingAs($this->admin);
     $channel = Channel::factory()->create();

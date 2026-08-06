@@ -1,8 +1,11 @@
 <?php
 
 use App\Enums\Role;
+use App\Models\CarrierAccount;
+use App\Models\DataSource;
 use App\Models\User;
 use App\Services\OAuthService;
+use App\Services\ShipmentImport\Sources\AmazonSource;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
@@ -146,6 +149,31 @@ it('throws when broker is not configured', function (): void {
     app(OAuthService::class)->initiateAuthorizationForDataSource('shopify', $this->dataSource);
 })->throws(RuntimeException::class, 'OAuth broker is not configured');
 
+it('reports broker configuration from the OAuth service', function (): void {
+    expect(app(OAuthService::class)->isBrokerConfigured())->toBeTrue();
+
+    config(['services.oauth.broker_secret' => null]);
+
+    expect(app(OAuthService::class)->isBrokerConfigured())->toBeFalse();
+});
+
+it('uses the Amazon display name for carrier account callbacks', function (): void {
+    $user = User::factory()->admin()->create();
+    $account = CarrierAccount::factory()->create();
+    $oauthService = Mockery::mock(OAuthService::class);
+    $oauthService->shouldReceive('handleReceiveForAccount')
+        ->once()
+        ->with('sp-api', 'amazon-transfer', Mockery::on(fn (CarrierAccount $received): bool => $received->is($account)));
+    app()->instance(OAuthService::class, $oauthService);
+
+    $response = $this->actingAs($user)
+        ->withSession(['oauth_account_id.sp-api' => $account->id])
+        ->get('/oauth/sp-api/receive?transfer_code=amazon-transfer');
+
+    $response->assertRedirect(route('filament.app.resources.carrier-accounts.edit', $account->id));
+    $response->assertSessionHas('oauth_notification.title', 'Amazon connected successfully.');
+});
+
 it('disconnects and clears a data source OAuth connection', function (): void {
     $this->dataSource->mergeSecret('oauth_access_token', 'token-to-remove');
     $settings = $this->dataSource->settings;
@@ -165,4 +193,103 @@ it('disconnects and clears a data source OAuth connection', function (): void {
         ->and($this->dataSource->secret('oauth_access_token'))->toBeNull()
         ->and($this->dataSource->settings['auth_mode'] ?? null)->toBeNull()
         ->and($this->dataSource->settings['oauth_connected_at'] ?? null)->toBeNull();
+});
+
+it('stores an Amazon refresh token and selling partner from the broker', function (): void {
+    $user = User::factory()->admin()->create();
+    $nonce = 'amazon-nonce';
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER'],
+    ]);
+
+    Http::fake([
+        'connect.polybag.app/oauth/claim' => Http::response([
+            'provider' => 'sp-api',
+            'access_token' => 'temporary-amazon-access-token',
+            'refresh_token' => 'amazon-refresh-token',
+            'expires_in' => 3600,
+            'nonce' => $nonce,
+            'extra' => ['selling_partner_id' => 'SELLER123'],
+        ]),
+    ]);
+
+    $response = $this->actingAs($user)
+        ->withSession([
+            'oauth_state.sp-api' => $nonce,
+            'oauth_data_source_id.sp-api' => $source->id,
+        ])
+        ->get('/oauth/sp-api/receive?transfer_code=amazon-transfer');
+
+    $response->assertRedirect(route('filament.app.resources.data-sources.edit', $source->id));
+    $response->assertSessionHas('oauth_notification.title', 'Amazon connected successfully.');
+
+    $source->refresh();
+    expect($source->secret('refresh_token'))->toBe('amazon-refresh-token')
+        ->and($source->secret('oauth_access_token'))->toBeNull()
+        ->and($source->settings['auth_mode'])->toBe('authorization_code')
+        ->and($source->settings['amazon_selling_partner_id'])->toBe('SELLER123')
+        ->and(app(OAuthService::class)->isDataSourceConnected($source))->toBeTrue();
+});
+
+it('rejects an Amazon broker response without a selling partner ID', function (): void {
+    $user = User::factory()->admin()->create();
+    $nonce = 'amazon-nonce';
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER'],
+    ]);
+
+    Http::fake([
+        'connect.polybag.app/oauth/claim' => Http::response([
+            'provider' => 'sp-api',
+            'refresh_token' => 'amazon-refresh-token',
+            'nonce' => $nonce,
+            'extra' => [],
+        ]),
+    ]);
+
+    $response = $this->actingAs($user)
+        ->withSession([
+            'oauth_state.sp-api' => $nonce,
+            'oauth_data_source_id.sp-api' => $source->id,
+        ])
+        ->get('/oauth/sp-api/receive?transfer_code=amazon-transfer');
+
+    $response->assertRedirect(route('filament.app.resources.data-sources.edit', $source->id));
+    $response->assertSessionHas('oauth_notification.title', 'Connection failed: No Amazon selling partner ID received from broker.');
+
+    expect($source->refresh()->secret('refresh_token'))->toBeNull();
+});
+
+it('returns an Amazon denial to the originating data source', function (): void {
+    $user = User::factory()->admin()->create();
+    $source = DataSource::factory()->create(['source_type' => AmazonSource::class]);
+
+    $response = $this->actingAs($user)
+        ->withSession(['oauth_data_source_id.sp-api' => $source->id])
+        ->get('/oauth/sp-api/receive?error=access_denied&error_description=User+denied+access');
+
+    $response->assertRedirect(route('filament.app.resources.data-sources.edit', $source->id));
+    $response->assertSessionHas('oauth_notification.title', 'Connection failed: User denied access');
+});
+
+it('disconnects an Amazon OAuth data source and removes its refresh token', function (): void {
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => [
+            'auth_mode' => 'authorization_code',
+            'oauth_connected_at' => now()->toIso8601String(),
+            'amazon_selling_partner_id' => 'SELLER123',
+        ],
+        'secret_settings' => ['refresh_token' => 'amazon-refresh-token'],
+    ]);
+
+    app(OAuthService::class)->disconnectDataSource('sp-api', $source);
+
+    $source->refresh();
+    expect($source->secret('refresh_token'))->toBeNull()
+        ->and($source->settings['auth_mode'] ?? null)->toBeNull()
+        ->and($source->settings['amazon_selling_partner_id'] ?? null)->toBeNull()
+        ->and(app(OAuthService::class)->isDataSourceConnected($source))->toBeFalse();
 });

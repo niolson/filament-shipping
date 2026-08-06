@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Integrations\Amazon\AmazonSpApiConnector;
 use App\Http\Integrations\Amazon\Requests\ConfirmShipment;
 use App\Http\Integrations\Amazon\Requests\SearchOrders;
 use App\Models\Channel;
@@ -9,10 +10,12 @@ use App\Models\Package;
 use App\Models\Setting;
 use App\Models\Shipment;
 use App\Services\SettingsService;
+use App\Services\ShipmentImport\DataSourceFactory;
 use App\Services\ShipmentImport\PackageExportService;
 use App\Services\ShipmentImport\ShipmentImportService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
@@ -454,6 +457,118 @@ it('validates when per-source client_id and client_secret are present without te
 
     $source->validateConfiguration();
     expect(true)->toBeTrue();
+});
+
+it('refreshes an OAuth-connected Amazon source through polybag-connect', function (): void {
+    config([
+        'services.oauth.broker_url' => 'https://connect.polybag.app',
+        'services.oauth.broker_secret' => 'broker-secret',
+        'services.oauth.instance_id' => 'test-instance',
+    ]);
+    Cache::forget('amazon_sp_api_access_token_'.md5('oauth-refresh-token'));
+
+    Http::fake([
+        'connect.polybag.app/oauth/sp-api/refresh' => Http::response([
+            'access_token' => 'broker-access-token',
+            'expires_in' => 3600,
+        ]),
+    ]);
+    Saloon::fake([
+        SearchOrders::class => amazonOrdersResponse(),
+    ]);
+
+    $source = new AmazonSource([
+        'auth_mode' => 'authorization_code',
+        'refresh_token' => 'oauth-refresh-token',
+        'marketplace_id' => 'ATVPDKIKX0DER',
+        'channel_name' => 'Amazon',
+        'lookback_days' => 30,
+    ]);
+
+    $source->validateConfiguration();
+    $source->fetchShipments();
+
+    Http::assertSent(function ($request): bool {
+        return $request->url() === 'https://connect.polybag.app/oauth/sp-api/refresh'
+            && $request['refresh_token'] === 'oauth-refresh-token'
+            && $request['instance_id'] === 'test-instance'
+            && $request['signature'] === hash_hmac('sha256', 'oauth-refresh-token', 'broker-secret');
+    });
+});
+
+it('persists a rotated Amazon refresh token returned by polybag-connect', function (): void {
+    config([
+        'services.oauth.broker_url' => 'https://connect.polybag.app',
+        'services.oauth.broker_secret' => 'broker-secret',
+        'services.oauth.instance_id' => 'test-instance',
+    ]);
+    $dataSource = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => [
+            'auth_mode' => 'authorization_code',
+            'marketplace_id' => 'ATVPDKIKX0DER',
+            'channel_name' => 'Amazon',
+        ],
+        'secret_settings' => ['refresh_token' => 'old-refresh-token'],
+    ]);
+    Cache::forget('amazon_sp_api_access_token_'.md5('old-refresh-token'));
+    Cache::forget('amazon_sp_api_access_token_'.md5('rotated-refresh-token'));
+
+    Http::fake([
+        'connect.polybag.app/oauth/sp-api/refresh' => Http::response([
+            'access_token' => 'broker-access-token',
+            'refresh_token' => 'rotated-refresh-token',
+            'expires_in' => 3600,
+        ]),
+    ]);
+    Saloon::fake([
+        amazonOrdersResponse(nextToken: 'second-page'),
+        amazonOrdersResponse(),
+    ]);
+
+    $source = app(DataSourceFactory::class)->make($dataSource);
+    $source->fetchShipments();
+
+    expect($dataSource->refresh()->secret('refresh_token'))->toBe('rotated-refresh-token')
+        ->and(Cache::get('amazon_sp_api_access_token_'.md5('old-refresh-token')))->toBeNull()
+        ->and(Cache::get('amazon_sp_api_access_token_'.md5('rotated-refresh-token')))->toBe('broker-access-token');
+    Http::assertSentCount(1);
+    Saloon::assertSentCount(2);
+});
+
+it('reuses the rotated-token cache when Amazon headers are resolved again', function (): void {
+    config([
+        'services.oauth.broker_url' => 'https://connect.polybag.app',
+        'services.oauth.broker_secret' => 'broker-secret',
+        'services.oauth.instance_id' => 'test-instance',
+    ]);
+    $dataSource = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['auth_mode' => 'authorization_code'],
+        'secret_settings' => ['refresh_token' => 'old-refresh-token'],
+    ]);
+    Cache::forget('amazon_sp_api_access_token_'.md5('old-refresh-token'));
+    Cache::forget('amazon_sp_api_access_token_'.md5('rotated-refresh-token'));
+
+    Http::fake([
+        'connect.polybag.app/oauth/sp-api/refresh' => Http::response([
+            'access_token' => 'broker-access-token',
+            'refresh_token' => 'rotated-refresh-token',
+            'expires_in' => 3600,
+        ]),
+    ]);
+
+    $connector = new class(baseUrl: 'https://sellingpartnerapi-na.amazon.com', sandboxUrl: 'https://sandbox.sellingpartnerapi-na.amazon.com', clientId: '', clientSecret: '', refreshToken: 'old-refresh-token', authMode: 'authorization_code', dataSourceId: $dataSource->id) extends AmazonSpApiConnector
+    {
+        public function accessTokenHeader(): string
+        {
+            return $this->defaultHeaders()['x-amz-access-token'];
+        }
+    };
+
+    expect($connector->accessTokenHeader())->toBe('broker-access-token')
+        ->and($connector->accessTokenHeader())->toBe('broker-access-token');
+    Http::assertSentCount(1);
 });
 
 it('fails validation when only per-source client_id but no client_secret and no tenant credentials', function (): void {

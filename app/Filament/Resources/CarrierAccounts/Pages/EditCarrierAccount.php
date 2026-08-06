@@ -38,8 +38,8 @@ class EditCarrierAccount extends EditRecord
                 ->icon('heroicon-o-link')
                 ->color(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'warning' : 'primary')
                 ->visible(fn () => $this->record->carrier?->name === 'USPS')
-                ->disabled(fn () => ! $this->isBrokerConfigured())
-                ->tooltip(fn () => ! $this->isBrokerConfigured() ? 'OAuth broker not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID in .env.' : null)
+                ->disabled(fn () => ! app(OAuthService::class)->isBrokerConfigured())
+                ->tooltip(fn () => ! app(OAuthService::class)->isBrokerConfigured() ? 'OAuth broker not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID in .env.' : null)
                 ->requiresConfirmation()
                 ->modalHeading(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect USPS' : 'Connect USPS')
                 ->modalDescription(fn () => app(OAuthService::class)->isAccountConnected($this->record)
@@ -81,8 +81,8 @@ class EditCarrierAccount extends EditRecord
                 ->icon('heroicon-o-link')
                 ->color(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'warning' : 'primary')
                 ->visible(fn () => $this->record->carrier?->name === 'UPS')
-                ->disabled(fn () => ! $this->isBrokerConfigured())
-                ->tooltip(fn () => ! $this->isBrokerConfigured() ? 'OAuth broker not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID in .env.' : null)
+                ->disabled(fn () => ! app(OAuthService::class)->isBrokerConfigured())
+                ->tooltip(fn () => ! app(OAuthService::class)->isBrokerConfigured() ? 'OAuth broker not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID in .env.' : null)
                 ->requiresConfirmation()
                 ->modalHeading(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect UPS' : 'Connect UPS')
                 ->modalDescription(fn () => app(OAuthService::class)->isAccountConnected($this->record)
@@ -184,12 +184,5 @@ class EditCarrierAccount extends EditRecord
                 ->body('Authentication succeeded, but this account does not have EPS contract access. Standard retail rates will be used. Contact USPS to enable negotiated rates.')
                 ->send();
         }
-    }
-
-    private function isBrokerConfigured(): bool
-    {
-        return (bool) (config('services.oauth.broker_url')
-            && config('services.oauth.broker_secret')
-            && config('services.oauth.instance_id'));
     }
 }

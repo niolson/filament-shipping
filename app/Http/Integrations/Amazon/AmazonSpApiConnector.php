@@ -2,6 +2,7 @@
 
 namespace App\Http\Integrations\Amazon;
 
+use App\Services\OAuthService;
 use App\Services\SettingsService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -23,7 +24,9 @@ class AmazonSpApiConnector extends Connector
         private readonly string $sandboxUrl,
         private readonly string $clientId,
         private readonly string $clientSecret,
-        private readonly string $refreshToken,
+        private string $refreshToken,
+        private readonly string $authMode,
+        private readonly ?int $dataSourceId,
     ) {}
 
     public static function fromConfig(): self
@@ -45,6 +48,8 @@ class AmazonSpApiConnector extends Connector
             clientId: (string) ($settings['client_id'] ?? ''),
             clientSecret: (string) ($settings['client_secret'] ?? ''),
             refreshToken: (string) ($settings['refresh_token'] ?? ''),
+            authMode: (string) ($settings['auth_mode'] ?? 'manual'),
+            dataSourceId: isset($settings['_data_source_id']) ? (int) $settings['_data_source_id'] : null,
         );
     }
 
@@ -67,38 +72,47 @@ class AmazonSpApiConnector extends Connector
     {
         $cacheKey = self::CACHE_KEY_PREFIX.md5($this->refreshToken);
 
-        return Cache::get($cacheKey) ?? $this->requestNewToken($cacheKey);
+        return Cache::get($cacheKey) ?? $this->requestNewToken();
     }
 
-    private function requestNewToken(string $cacheKey): string
+    private function requestNewToken(): string
     {
-        $response = Http::asForm()->post(
-            'https://api.amazon.com/auth/o2/token',
-            [
-                'grant_type' => 'refresh_token',
-                'refresh_token' => $this->refreshToken,
-                'client_id' => $this->clientId,
-                'client_secret' => $this->clientSecret,
-            ]
-        );
-
-        if (! $response->successful()) {
-            throw new RuntimeException(
-                'Failed to obtain Amazon SP-API access token: '.$response->body()
+        if ($this->authMode === 'authorization_code') {
+            $data = $this->dataSourceId
+                ? app(OAuthService::class)->refreshTokenForDataSource('sp-api', $this->dataSourceId)
+                : app(OAuthService::class)->refreshToken('sp-api', $this->refreshToken);
+        } else {
+            $response = Http::asForm()->post(
+                'https://api.amazon.com/auth/o2/token',
+                [
+                    'grant_type' => 'refresh_token',
+                    'refresh_token' => $this->refreshToken,
+                    'client_id' => $this->clientId,
+                    'client_secret' => $this->clientSecret,
+                ]
             );
+
+            if (! $response->successful()) {
+                throw new RuntimeException(
+                    'Failed to obtain Amazon SP-API access token: '.$response->body()
+                );
+            }
+
+            $data = $response->json();
         }
 
-        $data = $response->json();
         $token = $data['access_token'] ?? null;
 
         if (! $token) {
-            throw new RuntimeException(
-                'Amazon token response missing access_token: '.$response->body()
-            );
+            throw new RuntimeException('Amazon token response missing access_token.');
         }
 
-        // Token lasts 1 hour; cache for 50 minutes
-        Cache::put($cacheKey, $token, 3000);
+        $cacheSeconds = max(60, ((int) ($data['expires_in'] ?? 3600)) - 600);
+        if (is_string($data['refresh_token'] ?? null) && $data['refresh_token'] !== '') {
+            $this->refreshToken = $data['refresh_token'];
+        }
+
+        Cache::put(self::CACHE_KEY_PREFIX.md5($this->refreshToken), $token, $cacheSeconds);
 
         return $token;
     }

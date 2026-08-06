@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\CarrierAccount;
 use App\Models\DataSource;
+use App\Services\ShipmentImport\Sources\AmazonSource;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -14,6 +16,13 @@ class OAuthService
     public function __construct(
         private readonly OAuthProviderRegistry $registry,
     ) {}
+
+    public function isBrokerConfigured(): bool
+    {
+        return filled(config('services.oauth.broker_url'))
+            && filled(config('services.oauth.broker_secret'))
+            && filled(config('services.oauth.instance_id'));
+    }
 
     /**
      * Generate the broker authorization URL and store nonce in session.
@@ -30,7 +39,7 @@ class OAuthService
         $brokerSecret = config('services.oauth.broker_secret');
         $instanceId = config('services.oauth.instance_id');
 
-        if (! $brokerUrl || ! $brokerSecret || ! $instanceId) {
+        if (! $this->isBrokerConfigured()) {
             throw new RuntimeException('OAuth broker is not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID.');
         }
 
@@ -64,7 +73,7 @@ class OAuthService
         $brokerSecret = config('services.oauth.broker_secret');
         $instanceId = config('services.oauth.instance_id');
 
-        if (! $brokerUrl || ! $brokerSecret || ! $instanceId) {
+        if (! $this->isBrokerConfigured()) {
             throw new RuntimeException('OAuth broker is not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID.');
         }
 
@@ -96,7 +105,7 @@ class OAuthService
         $brokerSecret = config('services.oauth.broker_secret');
         $instanceId = config('services.oauth.instance_id');
 
-        if (! $brokerUrl || ! $brokerSecret || ! $instanceId) {
+        if (! $this->isBrokerConfigured()) {
             throw new RuntimeException('OAuth broker is not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID.');
         }
 
@@ -144,20 +153,42 @@ class OAuthService
 
         $data = $response->json();
 
+        if (($data['provider'] ?? null) !== $providerKey) {
+            throw new RuntimeException('OAuth provider mismatch. Please try again.');
+        }
+
         $expectedNonce = session()->pull("oauth_state.{$providerKey}");
 
         if (empty($expectedNonce) || ! hash_equals($expectedNonce, $data['nonce'] ?? '')) {
             throw new RuntimeException('OAuth state mismatch. Please try again.');
         }
 
-        $accessToken = $data['access_token'] ?? null;
-        if (empty($accessToken)) {
-            throw new RuntimeException('No access token received from broker.');
+        $settings = $importSource->settings ?? [];
+
+        if ($providerKey === 'sp-api') {
+            $refreshToken = $data['refresh_token'] ?? null;
+            $sellingPartnerId = $data['extra']['selling_partner_id'] ?? null;
+
+            if (empty($refreshToken)) {
+                throw new RuntimeException('No Amazon refresh token received from broker.');
+            }
+
+            if (empty($sellingPartnerId)) {
+                throw new RuntimeException('No Amazon selling partner ID received from broker.');
+            }
+
+            $importSource->mergeSecret('refresh_token', $refreshToken);
+            $settings['amazon_selling_partner_id'] = $sellingPartnerId;
+        } else {
+            $accessToken = $data['access_token'] ?? null;
+
+            if (empty($accessToken)) {
+                throw new RuntimeException('No access token received from broker.');
+            }
+
+            $importSource->mergeSecret('oauth_access_token', $accessToken);
         }
 
-        $importSource->mergeSecret('oauth_access_token', $accessToken);
-
-        $settings = $importSource->settings ?? [];
         $settings['oauth_connected_at'] = now()->toIso8601String();
         $settings['oauth_scopes'] = $data['extra']['scope'] ?? $data['scope'] ?? '';
         $settings['auth_mode'] = 'authorization_code';
@@ -187,10 +218,15 @@ class OAuthService
 
         $secrets = $importSource->secret_settings ?? [];
         unset($secrets['oauth_access_token']);
+
+        if ($providerKey === 'sp-api' && ($importSource->settings['auth_mode'] ?? null) === 'authorization_code') {
+            Cache::forget('amazon_sp_api_access_token_'.md5((string) ($secrets['refresh_token'] ?? '')));
+            unset($secrets['refresh_token']);
+        }
         $importSource->secret_settings = $secrets ?: null;
 
         $settings = $importSource->settings ?? [];
-        foreach (['oauth_connected_at', 'oauth_scopes', 'auth_mode'] as $key) {
+        foreach (['oauth_connected_at', 'oauth_scopes', 'auth_mode', 'amazon_selling_partner_id'] as $key) {
             unset($settings[$key]);
         }
 
@@ -208,6 +244,14 @@ class OAuthService
      */
     public function isDataSourceConnected(DataSource $importSource): bool
     {
+        if (($importSource->settings['auth_mode'] ?? null) !== 'authorization_code') {
+            return false;
+        }
+
+        if ($importSource->source_type === AmazonSource::class) {
+            return filled($importSource->secret('refresh_token'));
+        }
+
         return filled($importSource->secret('oauth_access_token'));
     }
 
@@ -312,23 +356,7 @@ class OAuthService
             throw new RuntimeException("Refresh token expired for account {$account->id}. Please reconnect.");
         }
 
-        $brokerUrl = config('services.oauth.broker_url');
-        $brokerSecret = config('services.oauth.broker_secret');
-        $instanceId = config('services.oauth.instance_id');
-
-        $signature = hash_hmac('sha256', $refreshToken, $brokerSecret);
-
-        $response = Http::post(rtrim($brokerUrl, '/')."/oauth/{$providerKey}/refresh", [
-            'refresh_token' => $refreshToken,
-            'instance_id' => $instanceId,
-            'signature' => $signature,
-        ]);
-
-        if (! $response->successful()) {
-            throw new RuntimeException('Token refresh failed: '.$response->body());
-        }
-
-        $data = $response->json();
+        $data = $this->refreshToken($providerKey, $refreshToken);
 
         if (! empty($data['access_token'])) {
             $account->mergeSecret('oauth_token', $data['access_token']);
@@ -347,6 +375,100 @@ class OAuthService
         }
 
         $account->save();
+
+        return $data;
+    }
+
+    /**
+     * Refresh an access token and persist a rotated refresh token on its data source.
+     *
+     * @return array{access_token: string, refresh_token?: string|null, expires_in?: int|null, refresh_token_expires_in?: int|null}
+     */
+    public function refreshTokenForDataSource(string $providerKey, int $dataSourceId): array
+    {
+        $dataSource = DataSource::find($dataSourceId);
+
+        if (! $dataSource) {
+            throw new RuntimeException("Data source {$dataSourceId} no longer exists.");
+        }
+
+        $refreshToken = $dataSource->secret('refresh_token');
+
+        if (! is_string($refreshToken) || $refreshToken === '') {
+            throw new RuntimeException("No refresh token stored for data source {$dataSourceId}. Please reconnect.");
+        }
+
+        $data = $this->refreshToken($providerKey, $refreshToken);
+        $rotatedRefreshToken = $data['refresh_token'] ?? null;
+
+        if (! is_string($rotatedRefreshToken) || $rotatedRefreshToken === '' || hash_equals($refreshToken, $rotatedRefreshToken)) {
+            return $data;
+        }
+
+        $persistedRefreshToken = DB::transaction(function () use ($dataSourceId, $refreshToken, $rotatedRefreshToken): string {
+            $lockedDataSource = DataSource::query()->lockForUpdate()->find($dataSourceId);
+
+            if (! $lockedDataSource) {
+                throw new RuntimeException("Data source {$dataSourceId} no longer exists.");
+            }
+
+            $storedRefreshToken = $lockedDataSource->secret('refresh_token');
+
+            if (! is_string($storedRefreshToken) || $storedRefreshToken === '') {
+                throw new RuntimeException("No refresh token stored for data source {$dataSourceId}. Please reconnect.");
+            }
+
+            if (hash_equals($refreshToken, $storedRefreshToken)) {
+                $lockedDataSource->mergeSecret('refresh_token', $rotatedRefreshToken);
+                $lockedDataSource->save();
+
+                return $rotatedRefreshToken;
+            }
+
+            return $storedRefreshToken;
+        });
+
+        $data['refresh_token'] = $persistedRefreshToken;
+
+        if (! hash_equals($refreshToken, $persistedRefreshToken)) {
+            Cache::forget('amazon_sp_api_access_token_'.md5($refreshToken));
+        }
+
+        return $data;
+    }
+
+    /**
+     * Refresh an access token through the shared OAuth broker.
+     *
+     * @return array{access_token: string, refresh_token?: string|null, expires_in?: int|null, refresh_token_expires_in?: int|null}
+     */
+    public function refreshToken(string $providerKey, string $refreshToken): array
+    {
+        $brokerUrl = config('services.oauth.broker_url');
+        $brokerSecret = config('services.oauth.broker_secret');
+        $instanceId = config('services.oauth.instance_id');
+
+        if (! $this->isBrokerConfigured()) {
+            throw new RuntimeException('OAuth broker is not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID.');
+        }
+
+        $signature = hash_hmac('sha256', $refreshToken, $brokerSecret);
+
+        $response = Http::post(rtrim($brokerUrl, '/')."/oauth/{$providerKey}/refresh", [
+            'refresh_token' => $refreshToken,
+            'instance_id' => $instanceId,
+            'signature' => $signature,
+        ]);
+
+        if (! $response->successful()) {
+            throw new RuntimeException('Token refresh failed: '.$response->body());
+        }
+
+        $data = $response->json();
+
+        if (empty($data['access_token'])) {
+            throw new RuntimeException('Token refresh response did not include an access token.');
+        }
 
         return $data;
     }

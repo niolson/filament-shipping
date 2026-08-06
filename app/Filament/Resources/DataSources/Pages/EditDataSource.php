@@ -63,8 +63,8 @@ class EditDataSource extends EditRecord
                 ->icon('heroicon-o-link')
                 ->color(fn () => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'warning' : 'primary')
                 ->visible(fn () => $this->record->source_type === ShopifySource::class)
-                ->disabled(fn () => ! $this->isBrokerConfigured())
-                ->tooltip(fn () => ! $this->isBrokerConfigured() ? 'OAuth broker not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID in .env.' : null)
+                ->disabled(fn () => ! app(OAuthService::class)->isBrokerConfigured())
+                ->tooltip(fn () => ! app(OAuthService::class)->isBrokerConfigured() ? 'OAuth broker not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID in .env.' : null)
                 ->requiresConfirmation()
                 ->modalHeading(fn () => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'Reconnect Shopify' : 'Connect Shopify')
                 ->modalDescription(fn () => app(OAuthService::class)->isDataSourceConnected($this->record)
@@ -87,6 +87,37 @@ class EditDataSource extends EditRecord
                     app(OAuthService::class)->disconnectDataSource('shopify', $this->record);
                     Notification::make()->success()->title('Shopify disconnected.')->send();
                     $this->redirect(static::getUrl(['record' => $this->record->id]));
+                }),
+
+            Action::make('amazon_connect')
+                ->label(fn () => app(OAuthService::class)->isDataSourceConnected($this->dataSource()) ? 'Reconnect Amazon' : 'Connect Amazon')
+                ->icon('heroicon-o-link')
+                ->color(fn () => app(OAuthService::class)->isDataSourceConnected($this->dataSource()) ? 'warning' : 'primary')
+                ->visible(fn () => $this->dataSource()->source_type === AmazonSource::class)
+                ->disabled(fn () => ! app(OAuthService::class)->isBrokerConfigured())
+                ->tooltip(fn () => ! app(OAuthService::class)->isBrokerConfigured() ? 'OAuth broker not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID in .env.' : null)
+                ->requiresConfirmation()
+                ->modalHeading(fn () => app(OAuthService::class)->isDataSourceConnected($this->dataSource()) ? 'Reconnect Amazon' : 'Connect Amazon')
+                ->modalDescription('You will be redirected to Seller Central to authorize this Amazon SP-API data source.')
+                ->action(function (): void {
+                    $url = app(OAuthService::class)->initiateAuthorizationForDataSource('sp-api', $this->dataSource());
+                    $this->redirect($url, navigate: false);
+                }),
+
+            Action::make('amazon_disconnect')
+                ->label('Disconnect Amazon')
+                ->icon('heroicon-o-x-mark')
+                ->color('danger')
+                ->visible(fn () => $this->dataSource()->source_type === AmazonSource::class && app(OAuthService::class)->isDataSourceConnected($this->dataSource()))
+                ->requiresConfirmation()
+                ->modalHeading('Disconnect Amazon OAuth')
+                ->modalDescription('This removes the seller authorization and refresh token from this data source. You can reconnect at any time.')
+                ->action(function (): void {
+                    $dataSource = $this->dataSource();
+
+                    app(OAuthService::class)->disconnectDataSource('sp-api', $dataSource);
+                    Notification::make()->success()->title('Amazon disconnected.')->send();
+                    $this->redirect(static::getUrl(['record' => $dataSource->id]));
                 }),
 
             Action::make('sync_shopify_locations')
@@ -262,12 +293,5 @@ class EditDataSource extends EditRecord
         $this->addError('data.active', $message);
 
         throw new Halt;
-    }
-
-    private function isBrokerConfigured(): bool
-    {
-        return (bool) (config('services.oauth.broker_url')
-            && config('services.oauth.broker_secret')
-            && config('services.oauth.instance_id'));
     }
 }

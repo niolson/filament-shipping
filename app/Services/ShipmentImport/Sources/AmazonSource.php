@@ -40,11 +40,13 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
             throw new RuntimeException('Multi-factor authentication must be enabled to use Amazon SP-API imports. Enable it in App Settings → Authentication.');
         }
 
-        // Per-source client_id/client_secret are required.
+        $usesBrokerOAuth = ($this->config['auth_mode'] ?? null) === 'authorization_code';
+
+        // Manual connections keep their LWA credentials on the data source.
         $hasOwnCredentials = filled($this->config['client_id'] ?? null)
             && filled($this->config['client_secret'] ?? null);
 
-        if (! $hasOwnCredentials) {
+        if (! $usesBrokerOAuth && ! $hasOwnCredentials) {
             throw new InvalidArgumentException('Amazon SP-API client credentials are not configured for this source.');
         }
 
@@ -222,10 +224,11 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
 
     public function validateExportConfiguration(): void
     {
+        $usesBrokerOAuth = ($this->config['auth_mode'] ?? null) === 'authorization_code';
         $hasOwnCredentials = filled($this->config['client_id'] ?? null)
             && filled($this->config['client_secret'] ?? null);
 
-        if (! $hasOwnCredentials || empty($this->config['refresh_token'] ?? null)) {
+        if ((! $usesBrokerOAuth && ! $hasOwnCredentials) || empty($this->config['refresh_token'] ?? null)) {
             throw new InvalidArgumentException('Amazon SP-API credentials are not configured for this source.');
         }
     }

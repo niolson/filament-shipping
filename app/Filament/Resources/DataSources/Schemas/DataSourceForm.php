@@ -216,6 +216,11 @@ class DataSourceForm
                         ->visible(fn (): bool => ! app(SettingsService::class)->get('require_mfa', false))
                         ->columnSpanFull(),
 
+                    Placeholder::make('amazon_oauth_status')
+                        ->label('OAuth Status')
+                        ->content(fn (?DataSource $record): HtmlString => self::renderAmazonOAuthStatus($record))
+                        ->columnSpanFull(),
+
                     TextInput::make('settings.marketplace_id')
                         ->label('Marketplace ID')
                         ->placeholder('ATVPDKIKX0DER')
@@ -228,8 +233,8 @@ class DataSourceForm
                         ->placeholder(fn (?DataSource $record) => filled($record?->secret('refresh_token') ?? $record?->settings['refresh_token'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
-                        ->required(fn (?DataSource $record) => ! $record?->exists)
-                        ->helperText('LWA refresh token for this seller account.'),
+                        ->required(fn (?DataSource $record): bool => ! $record?->exists && ! app(OAuthService::class)->isBrokerConfigured())
+                        ->helperText('Manual fallback only. For normal setup, save the source and use Connect Amazon.'),
 
                     TextInput::make('settings.client_id')
                         ->label('App Client ID')
@@ -237,7 +242,7 @@ class DataSourceForm
                         ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
-                        ->helperText('Override the tenant-level SP-API app Client ID for this seller account.'),
+                        ->helperText('Manual fallback only. OAuth connections use credentials held by polybag-connect.'),
 
                     TextInput::make('settings.client_secret')
                         ->label('App Client Secret')
@@ -245,7 +250,7 @@ class DataSourceForm
                         ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
-                        ->helperText('Override the tenant-level SP-API app Client Secret for this seller account.'),
+                        ->helperText('Manual fallback only. OAuth connections use credentials held by polybag-connect.'),
                 ])
                 ->visible(fn (Get $get): bool => $get('source_type') === AmazonSource::class)
                 ->columns(2),
@@ -772,6 +777,24 @@ class DataSourceForm
                 'connected' => $connected,
                 'time' => $connectedAt ? Carbon::parse($connectedAt)->diffForHumans() : null,
                 'scopes' => $scopes,
+            ])->render()
+        );
+    }
+
+    private static function renderAmazonOAuthStatus(?DataSource $record): HtmlString
+    {
+        if (! $record?->exists) {
+            return new HtmlString('Save the data source, then use Connect Amazon.');
+        }
+
+        $connected = app(OAuthService::class)->isDataSourceConnected($record);
+        $connectedAt = $record->settings['oauth_connected_at'] ?? null;
+
+        return new HtmlString(
+            view('filament.pages.settings.oauth-status', [
+                'connected' => $connected,
+                'time' => $connectedAt ? Carbon::parse($connectedAt)->diffForHumans() : null,
+                'scopes' => null,
             ])->render()
         );
     }
