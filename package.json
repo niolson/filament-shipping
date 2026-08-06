@@ -1,5 +1,6 @@
 {
   "$schema": "https://www.schemastore.org/package.json",
+  "name": "polybag",
   "private": true,
   "type": "module",
   "scripts": {
