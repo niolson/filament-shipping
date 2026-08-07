@@ -400,7 +400,7 @@ if $NEEDS_RESTART && [ ${#SHARED_TENANTS[@]} -gt 0 ]; then
     for tenant in "${SHARED_TENANTS[@]}"; do
         (
             cd "${TENANTS_DIR}/${tenant}"
-            docker compose up -d --force-recreate app queue scheduler nginx 2>&1 | \
+            docker compose up -d --force-recreate app queue import-queue scheduler nginx 2>&1 | \
                 sed "s/^/  [${tenant}] /"
         ) &
         PIDS+=($!)
@@ -416,7 +416,7 @@ if $NEEDS_RESTART && [ ${#SHARED_TENANTS[@]} -gt 0 ]; then
 
     if [ "$FAILED" -gt 0 ]; then
         error "${FAILED} tenant(s) failed to restart — connections may be broken."
-        error "Run: cd /opt/tenants/<tenant> && docker compose up -d --force-recreate app queue scheduler"
+        error "Run: cd /opt/tenants/<tenant> && docker compose up -d --force-recreate app queue import-queue scheduler"
         exit 1
     fi
 

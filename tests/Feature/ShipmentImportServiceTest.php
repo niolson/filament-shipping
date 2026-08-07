@@ -7,6 +7,7 @@ use App\Models\Channel;
 use App\Models\ChannelAlias;
 use App\Models\Client;
 use App\Models\DataSource;
+use App\Models\Package;
 use App\Models\Product;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
@@ -165,6 +166,23 @@ it('imports a shipment with a matching shipping method', function (): void {
         ->and($shipment->source_record_id)->toBe('ORD-001')
         ->and($shipment->dataSource)->not->toBeNull()
         ->and($shipment->dataSource->id)->toBe($this->dataSource->id);
+});
+
+it('does not treat a mapped source status as an internal shipment status', function (): void {
+    $source = fakeSource(collect([[
+        'shipment_reference' => 'ORD-STATUS-001',
+        'address1' => '123 Main St',
+        'city' => 'Seattle',
+        'state_or_province' => 'WA',
+        'postal_code' => '98101',
+        'country' => 'US',
+        'status' => 'shipped',
+    ]]));
+
+    ShipmentImportService::forSource($source, $this->dataSource)->import();
+
+    expect(Shipment::where('shipment_reference', 'ORD-STATUS-001')->firstOrFail()->status)
+        ->toBe(ShipmentStatus::Open);
 });
 
 it('resolves shipping references and products inside the active client context', function (): void {
@@ -1123,6 +1141,24 @@ it('never updates shipped shipments regardless of mode', function (): void {
         ->and($result->shipmentsUpdated)->toBe(0);
 
     expect(Shipment::where('shipment_reference', 'ORD-EXIST-001')->value('address1'))->toBe('12 Original St');
+});
+
+it('does not mark an open shipment shipped when packing has begun', function (): void {
+    ShipmentImportService::forSource(fakeSource(collect([onExistingRow()])), $this->dataSource)->import();
+
+    $shipment = Shipment::where('shipment_reference', 'ORD-EXIST-001')->firstOrFail();
+    Package::factory()->for($shipment)->create();
+
+    $result = ShipmentImportService::forSource(
+        fakeSource(collect([onExistingRow([
+            '_import_status' => ShipmentStatus::Shipped->value,
+        ])])),
+        $this->dataSource,
+    )->import();
+
+    expect($result->shipmentsSkipped)->toBe(1)
+        ->and($result->shipmentsUpdated)->toBe(0)
+        ->and($shipment->fresh()->status)->toBe(ShipmentStatus::Open);
 });
 
 it('treats item changes as source changes for update-if-changed', function (): void {

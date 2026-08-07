@@ -2,6 +2,7 @@
 
 namespace App\Services\ShipmentImport;
 
+use App\Enums\ShipmentStatus;
 use App\Models\Client;
 use App\Models\DataSource;
 use App\Services\AddressReferenceService;
@@ -47,6 +48,7 @@ class ShipmentRowPreparer
         }
 
         $client = $clientOverride ?? $importSource->client;
+        $status = ShipmentStatus::tryFrom((string) ($data['_import_status'] ?? '')) ?? ShipmentStatus::Open;
 
         return new PreparedShipmentRow(
             attributes: [
@@ -77,6 +79,8 @@ class ShipmentRowPreparer
                 'channel_id' => $this->references->channelIdFor($data, $client),
                 'deliver_by' => $data['deliver_by'] ?? null,
                 'metadata' => isset($data['metadata']) ? json_encode($data['metadata']) : null,
+                'status' => $status->value,
+                '_preserve_existing_fields' => $data['_preserve_existing_fields'] ?? [],
             ],
             warnings: $validationWarnings,
         );

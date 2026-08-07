@@ -100,13 +100,16 @@ class ImportReferenceResolver
                 'weight' => $itemData['weight'] ?? null,
             ], fn ($value) => $value !== null);
 
-            $product = Product::updateOrCreate(
-                [
-                    'client_id' => $client->id,
-                    'sku' => $sku,
-                ],
-                array_merge($updateData, ['active' => true])
-            );
+            $product = Product::firstOrNew([
+                'client_id' => $client->id,
+                'sku' => $sku,
+            ]);
+
+            if (($itemData['_fill_missing_barcode_only'] ?? false) && filled($product->barcode)) {
+                unset($updateData['barcode']);
+            }
+
+            $product->fill(array_merge($updateData, ['active' => true]))->save();
 
             $this->productCache[$sku] = $product->id;
 

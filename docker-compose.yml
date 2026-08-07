@@ -181,6 +181,31 @@ services:
       - default
       - shared
 
+  import-queue:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: app
+      args:
+        APT_CACHE_BUST: ${APT_CACHE_BUST:-1}
+    restart: unless-stopped
+    env_file:
+      - path: /opt/shared/shared-secrets.env
+        required: false
+    volumes:
+      - ./.env:/var/www/html/.env
+    entrypoint: ["sh", "-c", "php artisan config:cache && php artisan queue:work imports --queue=imports --tries=3"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+        required: false
+      redis:
+        condition: service_healthy
+        required: false
+    networks:
+      - default
+      - shared
+
   scheduler:
     build:
       context: .

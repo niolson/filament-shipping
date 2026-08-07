@@ -126,5 +126,16 @@ it('scopes the overlap lock to the data source id', function (): void {
 
     expect($middleware)->toHaveCount(1)
         ->and($middleware[0])->toBeInstanceOf(WithoutOverlapping::class)
-        ->and($middleware[0]->key)->toBe('data-source-import:42');
+        ->and($middleware[0]->key)->toBe('data-source-import:42')
+        ->and($middleware[0]->releaseAfter)->toBe(60)
+        ->and($middleware[0]->expiresAfter)->toBe(1860)
+        ->and($job->timeout)->toBe(1800)
+        ->and($job->tries)->toBe(60)
+        ->and($job->maxExceptions)->toBe(1)
+        ->and($job->failOnTimeout)->toBeTrue()
+        ->and($job->connection)->toBe('imports')
+        ->and($job->queue)->toBe('imports')
+        ->and(config('queue.connections.redis.retry_after'))->toBe(90)
+        ->and(config('queue.connections.database.retry_after'))->toBe(90)
+        ->and(config('queue.connections.imports.retry_after'))->toBe(1860);
 });

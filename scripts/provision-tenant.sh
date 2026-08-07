@@ -355,9 +355,9 @@ sed -i "s|^APP_KEY=.*|APP_KEY=${APP_KEY}|" .env
 # Restart to pick up new key (entrypoint runs optimize)
 # nginx is also restarted so it re-resolves the app container's IP after recreation
 if [ "$MODE" = "standalone" ]; then
-    docker compose --profile standalone up -d --force-recreate app queue nginx
+    docker compose --profile standalone up -d --force-recreate app queue import-queue nginx
 else
-    docker compose up -d --force-recreate app queue nginx
+    docker compose up -d --force-recreate app queue import-queue nginx
 fi
 
 info "Waiting for app to become healthy after key rotation..."

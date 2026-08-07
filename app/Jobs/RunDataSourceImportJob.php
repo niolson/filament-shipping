@@ -16,14 +16,22 @@ class RunDataSourceImportJob implements ShouldQueue
 {
     use Queueable;
 
-    public int $timeout = 600;
+    public int $timeout = 1800;
 
-    public int $tries = 1;
+    public int $tries = 60;
+
+    public int $maxExceptions = 1;
+
+    public bool $failOnTimeout = true;
 
     public function __construct(
         public int $dataSourceId,
         public int $userId,
-    ) {}
+        /** @var array<string, mixed> */
+        public array $sourceOverrides = [],
+    ) {
+        $this->onConnection('imports')->onQueue('imports');
+    }
 
     /**
      * Prevent concurrent imports of the same source (double-clicks, scheduler overlap).
@@ -34,8 +42,8 @@ class RunDataSourceImportJob implements ShouldQueue
     {
         return [
             (new WithoutOverlapping("data-source-import:{$this->dataSourceId}"))
-                ->dontRelease()
-                ->expireAfter($this->timeout),
+                ->releaseAfter(60)
+                ->expireAfter($this->timeout + 60),
         ];
     }
 
@@ -55,7 +63,7 @@ class RunDataSourceImportJob implements ShouldQueue
             return;
         }
 
-        $result = ShipmentImportService::forRecord($source)->import();
+        $result = ShipmentImportService::forRecord($source, $this->sourceOverrides)->import();
 
         // ImportRunRecorder already notifies all active admins when an import
         // finishes with errors; only the success confirmation is on us here.

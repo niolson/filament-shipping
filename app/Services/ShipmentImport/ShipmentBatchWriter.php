@@ -10,6 +10,12 @@ use Illuminate\Support\Collection;
 
 class ShipmentBatchWriter
 {
+    private const PRESERVABLE_FIELDS = [
+        'first_name', 'last_name', 'company', 'address1', 'address2', 'city',
+        'state_or_province', 'postal_code', 'country', 'phone', 'phone_e164',
+        'phone_extension', 'email',
+    ];
+
     /**
      * Write prepared shipment rows, honoring the source's behavior for rows
      * that already exist locally:
@@ -50,6 +56,8 @@ class ShipmentBatchWriter
 
         foreach ($preparedRows as $row) {
             $existing = $existingShipments->get($row['source_record_id']);
+            $preserveExistingFields = $row['_preserve_existing_fields'] ?? [];
+            unset($row['_preserve_existing_fields']);
 
             if (! $existing) {
                 $rowsToWrite[] = $row;
@@ -58,6 +66,12 @@ class ShipmentBatchWriter
             }
 
             if ($this->shouldUpdate($existing, $row, $behavior)) {
+                foreach ($preserveExistingFields as $field) {
+                    if (is_string($field) && in_array($field, self::PRESERVABLE_FIELDS, true)) {
+                        $row[$field] = $existing->getAttribute($field);
+                    }
+                }
+
                 $rowsToWrite[] = $row;
                 $updatedSourceRecordIds[] = $row['source_record_id'];
             } else {
@@ -74,7 +88,7 @@ class ShipmentBatchWriter
             'phone', 'phone_e164', 'phone_extension', 'email', 'value',
             'validation_message', 'shipping_method_reference', 'shipping_method_id',
             'channel_reference', 'deliver_by', 'metadata', 'updated_at',
-            'channel_id',
+            'channel_id', 'status',
         ];
 
         if ($rowsToWrite !== []) {
@@ -106,7 +120,7 @@ class ShipmentBatchWriter
         return Shipment::where('data_source_id', $importSource->id)
             ->whereIn('source_record_id', $sourceRecordIds)
             ->withExists('packages')
-            ->get(['id', 'source_record_id', 'status', 'source_checksum', 'location_id'])
+            ->get()
             ->keyBy('source_record_id');
     }
 
@@ -116,6 +130,12 @@ class ShipmentBatchWriter
     private function shouldUpdate(Shipment $existing, array $row, ImportExistingBehavior $behavior): bool
     {
         if ($existing->status !== ShipmentStatus::Open) {
+            return false;
+        }
+
+        $incomingStatus = ShipmentStatus::tryFrom((string) ($row['status'] ?? '')) ?? ShipmentStatus::Open;
+
+        if ($incomingStatus !== ShipmentStatus::Open && (bool) $existing->getAttribute('packages_exists')) {
             return false;
         }
 

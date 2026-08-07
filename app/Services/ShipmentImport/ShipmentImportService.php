@@ -46,9 +46,12 @@ class ShipmentImportService
     /**
      * Build a service directly from an DataSource DB record.
      */
-    public static function forRecord(DataSource $record): self
+    /**
+     * @param  array<string, mixed>  $sourceOverrides
+     */
+    public static function forRecord(DataSource $record, array $sourceOverrides = []): self
     {
-        $source = app(DataSourceFactory::class)->make($record);
+        $source = app(DataSourceFactory::class)->make($record, $sourceOverrides);
         $references = app(ImportReferenceResolver::class);
 
         return new self(
@@ -245,7 +248,7 @@ class ShipmentImportService
      */
     private function sourceChecksum(array $attributes, Collection $items): string
     {
-        unset($attributes['source_checksum']);
+        unset($attributes['source_checksum'], $attributes['_preserve_existing_fields']);
 
         return hash('sha256', json_encode([$attributes, $items->values()->all()]));
     }

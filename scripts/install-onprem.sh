@@ -267,7 +267,7 @@ info "Restarting app with new key..."
 docker compose --profile standalone \
     -f docker-compose.yml \
     -f docker-compose.onprem.yml \
-    up -d --force-recreate app queue
+    up -d --force-recreate app queue import-queue
 ok "App restarted."
 
 # --- Summary ---

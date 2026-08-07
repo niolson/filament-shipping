@@ -10,7 +10,10 @@ use InvalidArgumentException;
 
 class DataSourceFactory
 {
-    public function make(DataSource $dataSource): DataSourceInterface
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    public function make(DataSource $dataSource, array $overrides = []): DataSourceInterface
     {
         $driver = $dataSource->source_type;
 
@@ -23,6 +26,7 @@ class DataSourceFactory
         $config = array_merge(
             $dataSource->settings ?? [],
             $dataSource->secret_settings ?? [],
+            $overrides,
         );
 
         if ($driver === DatabaseSource::class) {
