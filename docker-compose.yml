@@ -143,7 +143,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:alpine@sha256:883c7c980a2ff698f71c95cada99f968a54483ce5baad707b65877cfe0c98f1c
+    image: redis:alpine@sha256:978f0e01593e65eed801f2402944efcd936d43b5027e4908a7897baf88ed6241
     restart: unless-stopped
     profiles: [standalone]
     env_file: .env
