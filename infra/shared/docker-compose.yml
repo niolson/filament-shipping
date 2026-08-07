@@ -20,7 +20,7 @@ services:
   # Second, it refuses to start an upgrade that would silently make encrypted
   # tables unreadable. It never deletes or truncates an existing keyring.
   shared-mysql-keyring-init:
-    image: mysql:8.4@sha256:77e7fd3d377ad2d9e7983d457b71ff8a04c0f19e41948d722f15c508a48dcce3
+    image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
     container_name: shared-mysql-keyring-init
     restart: "no"
     user: root
@@ -60,7 +60,7 @@ services:
         chown 999:999 "$$DIR" "$$KEYFILE"
 
   shared-mysql:
-    image: mysql:8.4@sha256:77e7fd3d377ad2d9e7983d457b71ff8a04c0f19e41948d722f15c508a48dcce3
+    image: mysql:8.4@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
     container_name: shared-mysql
     restart: unless-stopped
     depends_on:
