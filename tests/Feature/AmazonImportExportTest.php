@@ -622,7 +622,7 @@ it('does not log historical Amazon response payloads', function (): void {
         SearchCatalogItems::class => amazonCatalogResponse(),
     ]);
 
-    Log::spy();
+    $log = Log::spy();
 
     $source = new AmazonSource([
         'channel_name' => 'Amazon',
@@ -639,7 +639,7 @@ it('does not log historical Amazon response payloads', function (): void {
 
     expect($source->fetchShipments())->toHaveCount(1);
 
-    Log::shouldNotHaveReceived('info');
+    $log->shouldNotHaveReceived('info');
 });
 
 it('batches Amazon catalog barcode lookups into at most twenty ASINs', function (): void {

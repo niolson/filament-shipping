@@ -4,12 +4,14 @@ namespace App\Filament\Resources\CarrierAccounts\Pages;
 
 use App\Filament\Resources\CarrierAccounts\CarrierAccountResource;
 use App\Filament\Resources\CarrierAccounts\Concerns\HasFedexRegistration;
+use App\Models\CarrierAccount;
 use App\Services\Carriers\UspsAdapter;
 use App\Services\OAuthService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use LogicException;
 
 class EditCarrierAccount extends EditRecord
 {
@@ -68,7 +70,7 @@ class EditCarrierAccount extends EditRecord
                 ->action(function (): void {
                     app(OAuthService::class)->disconnectAccount($this->record, 'usps');
                     Notification::make()->success()->title('USPS disconnected.')->send();
-                    $this->redirect(static::getUrl(['record' => $this->record->id]));
+                    $this->redirect(static::getUrl(['record' => $this->carrierAccountRecord()->id]));
                 }),
 
             // FedEx wizard and disconnect
@@ -80,7 +82,7 @@ class EditCarrierAccount extends EditRecord
                 ->label(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect UPS' : 'Connect UPS')
                 ->icon('heroicon-o-link')
                 ->color(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'warning' : 'primary')
-                ->visible(fn () => $this->record->carrier?->name === 'UPS')
+                ->visible(fn () => $this->carrierAccountRecord()->carrier?->name === 'UPS')
                 ->disabled(fn () => ! app(OAuthService::class)->isBrokerConfigured())
                 ->tooltip(fn () => ! app(OAuthService::class)->isBrokerConfigured() ? 'OAuth broker not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID in .env.' : null)
                 ->requiresConfirmation()
@@ -89,7 +91,7 @@ class EditCarrierAccount extends EditRecord
                     ? 'This will replace the existing OAuth token with a new one. You will be redirected to UPS to re-authorize.'
                     : 'You will be redirected to UPS to authorize access.')
                 ->action(function (): void {
-                    $url = app(OAuthService::class)->initiateAuthorization('ups', $this->record->id);
+                    $url = app(OAuthService::class)->initiateAuthorization('ups', $this->carrierAccountRecord()->id);
                     $this->redirect($url, navigate: false);
                 }),
 
@@ -97,18 +99,29 @@ class EditCarrierAccount extends EditRecord
                 ->label('Disconnect UPS')
                 ->icon('heroicon-o-x-mark')
                 ->color('danger')
-                ->visible(fn () => $this->record->carrier?->name === 'UPS' && app(OAuthService::class)->isAccountConnected($this->record))
+                ->visible(fn () => $this->carrierAccountRecord()->carrier?->name === 'UPS' && app(OAuthService::class)->isAccountConnected($this->record))
                 ->requiresConfirmation()
                 ->modalHeading('Disconnect UPS OAuth')
                 ->modalDescription('This will remove the OAuth access token. You can reconnect anytime, or the app will fall back to client credentials if configured.')
                 ->action(function (): void {
                     app(OAuthService::class)->disconnectAccount($this->record, 'ups');
                     Notification::make()->success()->title('UPS disconnected.')->send();
-                    $this->redirect(static::getUrl(['record' => $this->record->id]));
+                    $this->redirect(static::getUrl(['record' => $this->carrierAccountRecord()->id]));
                 }),
 
             DeleteAction::make(),
         ];
+    }
+
+    private function carrierAccountRecord(): CarrierAccount
+    {
+        $record = $this->getRecord();
+
+        if (! $record instanceof CarrierAccount) {
+            throw new LogicException('Carrier account actions require a carrier account record.');
+        }
+
+        return $record;
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
