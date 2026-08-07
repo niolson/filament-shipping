@@ -63,6 +63,14 @@ class RunDataSourceImportJob implements ShouldQueue
             return;
         }
 
+        if ($source->source_type === AmazonSource::class && blank($source->settings['marketplace_id'] ?? null)) {
+            User::find($this->userId)?->notify(
+                new ImportCompleted([], $source->name, ['Choose an Amazon marketplace before running imports.'])
+            );
+
+            return;
+        }
+
         $result = ShipmentImportService::forRecord($source, $this->sourceOverrides)->import();
 
         // ImportRunRecorder already notifies all active admins when an import

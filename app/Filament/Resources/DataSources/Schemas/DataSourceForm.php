@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\DataSources\Schemas;
 
+use App\Enums\AmazonMarketplace;
 use App\Enums\ImportExistingBehavior;
 use App\Enums\ScheduleInterval;
 use App\Filament\Pages\Settings as SettingsPage;
@@ -221,11 +222,13 @@ class DataSourceForm
                         ->content(fn (?DataSource $record): HtmlString => self::renderAmazonOAuthStatus($record))
                         ->columnSpanFull(),
 
-                    TextInput::make('settings.marketplace_id')
-                        ->label('Marketplace ID')
-                        ->placeholder('ATVPDKIKX0DER')
+                    Select::make('settings.marketplace_id')
+                        ->label('Marketplace')
+                        ->options(fn (?DataSource $record): array => self::amazonMarketplaceOptions($record))
+                        ->placeholder('Select a marketplace')
                         ->required()
-                        ->maxLength(50),
+                        ->searchable()
+                        ->helperText('Available marketplaces are discovered after Amazon OAuth. Manual connections may choose from the supported North American marketplaces.'),
 
                     TextInput::make('settings.refresh_token')
                         ->label('Refresh Token')
@@ -797,5 +800,50 @@ class DataSourceForm
                 'scopes' => null,
             ])->render()
         );
+    }
+
+    /** @return array<string, string> */
+    private static function amazonMarketplaceOptions(?DataSource $record): array
+    {
+        $settings = $record->settings ?? [];
+        $marketplaces = $settings['amazon_marketplaces'] ?? null;
+
+        $options = AmazonMarketplace::options();
+
+        if (is_array($marketplaces)) {
+            foreach ($marketplaces as $marketplace) {
+                if (! is_array($marketplace) || ! is_string($marketplace['id'] ?? null)) {
+                    continue;
+                }
+
+                $knownMarketplace = AmazonMarketplace::tryFrom($marketplace['id']);
+                $name = is_string($marketplace['name'] ?? null)
+                    ? $marketplace['name']
+                    : $knownMarketplace?->label();
+                $countryCode = is_string($marketplace['country_code'] ?? null)
+                    ? $marketplace['country_code']
+                    : $knownMarketplace?->countryCode();
+
+                if ($name === null || $countryCode === null) {
+                    continue;
+                }
+
+                $label = "{$name} ({$countryCode})";
+
+                if ((bool) ($marketplace['has_suspended_listings'] ?? false)) {
+                    $label .= ' — Listings suspended';
+                }
+
+                $options[$marketplace['id']] = $label;
+            }
+        }
+
+        $currentMarketplaceId = $settings['marketplace_id'] ?? null;
+
+        if (is_string($currentMarketplaceId) && $currentMarketplaceId !== '' && ! array_key_exists($currentMarketplaceId, $options)) {
+            $options[$currentMarketplaceId] = "{$currentMarketplaceId} (existing selection)";
+        }
+
+        return $options;
     }
 }

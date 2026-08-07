@@ -3,9 +3,12 @@
 use App\Contracts\DataSourceInterface;
 use App\Jobs\RunDataSourceImportJob;
 use App\Models\DataSource;
+use App\Models\Setting;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Notifications\ImportCompleted;
+use App\Services\SettingsService;
+use App\Services\ShipmentImport\Sources\AmazonSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Collection;
@@ -97,6 +100,29 @@ it('does nothing for an inactive source', function (): void {
 
     expect(Shipment::count())->toBe(0);
     Notification::assertNothingSent();
+});
+
+it('does not run an Amazon import without a selected marketplace', function (): void {
+    Notification::fake();
+    Setting::updateOrCreate(['key' => 'require_mfa'], ['value' => '1', 'type' => 'boolean', 'group' => 'general']);
+    app(SettingsService::class)->clearCache();
+
+    $user = User::factory()->admin()->create();
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'active' => true,
+        'settings' => [
+            'auth_mode' => 'authorization_code',
+            'channel_name' => 'Amazon',
+        ],
+        'secret_settings' => ['refresh_token' => 'amazon-refresh-token'],
+    ]);
+
+    app()->call([new RunDataSourceImportJob($source->id, $user->id), 'handle']);
+
+    Notification::assertSentTo($user, ImportCompleted::class, function (ImportCompleted $notification): bool {
+        return $notification->errors === ['Choose an Amazon marketplace before running imports.'];
+    });
 });
 
 it('leaves error notifications to the import pipeline when the import fails', function (): void {

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\AmazonMarketplace;
 use App\Enums\BoxSizeType;
 use App\Enums\FedexPackageType;
 use App\Enums\Role;
@@ -523,10 +524,13 @@ class SetupWizard extends Page
                 Section::make('Amazon')
                     ->visible(fn (Get $get) => $get('import_source') === 'amazon')
                     ->schema([
-                        Forms\Components\TextInput::make('amazon_marketplace_id')
-                            ->label('Marketplace ID')
+                        Forms\Components\Select::make('amazon_marketplace_id')
+                            ->label('Marketplace')
+                            ->options(AmazonMarketplace::options())
                             ->default('ATVPDKIKX0DER')
-                            ->helperText('US marketplace: ATVPDKIKX0DER'),
+                            ->required()
+                            ->searchable()
+                            ->helperText('Additional marketplaces are discovered after Amazon OAuth.'),
                         Forms\Components\Select::make('amazon_channel_id')
                             ->label('Channel')
                             ->options(fn () => Channel::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))

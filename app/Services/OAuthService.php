@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\DataTransferObjects\AmazonMarketplaceDiscoveryResult;
 use App\Models\CarrierAccount;
 use App\Models\DataSource;
 use App\Services\ShipmentImport\Sources\AmazonSource;
@@ -15,6 +16,7 @@ class OAuthService
 {
     public function __construct(
         private readonly OAuthProviderRegistry $registry,
+        private readonly AmazonMarketplaceDiscoveryService $amazonMarketplaceDiscovery,
     ) {}
 
     public function isBrokerConfigured(): bool
@@ -133,7 +135,7 @@ class OAuthService
      * Handle the broker redirect for a per-DataSource OAuth connection.
      * Tokens are stored in the DataSource settings JSON.
      */
-    public function handleReceiveForDataSource(string $providerKey, string $transferCode, DataSource $importSource): void
+    public function handleReceiveForDataSource(string $providerKey, string $transferCode, DataSource $importSource): ?AmazonMarketplaceDiscoveryResult
     {
         $brokerUrl = config('services.oauth.broker_url');
         $brokerSecret = config('services.oauth.broker_secret');
@@ -195,11 +197,25 @@ class OAuthService
         $importSource->settings = $settings;
         $importSource->save();
 
+        if ($providerKey === 'sp-api') {
+            $accessToken = $data['access_token'] ?? null;
+            $refreshToken = $data['refresh_token'] ?? null;
+
+            if (is_string($accessToken) && $accessToken !== '' && is_string($refreshToken) && $refreshToken !== '') {
+                $cacheSeconds = max(60, ((int) ($data['expires_in'] ?? 3600)) - 600);
+                Cache::put('amazon_sp_api_access_token_'.md5($refreshToken), $accessToken, $cacheSeconds);
+            }
+
+            return $this->amazonMarketplaceDiscovery->discover($importSource);
+        }
+
         // Bust the per-shop token cache so the new token is picked up immediately.
         $shopDomain = $settings['shop_domain'] ?? '';
         if ($shopDomain) {
             Cache::forget('shopify_access_token_'.md5($shopDomain));
         }
+
+        return null;
     }
 
     /**
@@ -226,7 +242,7 @@ class OAuthService
         $importSource->secret_settings = $secrets ?: null;
 
         $settings = $importSource->settings ?? [];
-        foreach (['oauth_connected_at', 'oauth_scopes', 'auth_mode', 'amazon_selling_partner_id'] as $key) {
+        foreach (['oauth_connected_at', 'oauth_scopes', 'auth_mode', 'amazon_selling_partner_id', 'amazon_marketplaces', 'amazon_marketplaces_synced_at', 'amazon_marketplaces_sync_error'] as $key) {
             unset($settings[$key]);
         }
 

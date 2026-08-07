@@ -6,6 +6,7 @@ use App\Filament\Resources\DataSources\DataSourceResource;
 use App\Jobs\RunDataSourceImportJob;
 use App\Models\DataSource;
 use App\Models\Shipment;
+use App\Services\AmazonMarketplaceDiscoveryService;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
@@ -32,10 +33,15 @@ class EditDataSource extends EditRecord
         parent::mount($record);
 
         if ($notification = session('oauth_notification')) {
-            Notification::make()
+            $message = Notification::make()
                 ->{$notification['status']}()
-                ->title($notification['title'])
-                ->send();
+                ->title($notification['title']);
+
+            if (filled($notification['body'] ?? null)) {
+                $message->body($notification['body']);
+            }
+
+            $message->send();
         }
     }
 
@@ -46,8 +52,12 @@ class EditDataSource extends EditRecord
                 ->label('Run Import Now')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->disabled(fn (): bool => ! $this->record->active)
-                ->tooltip(fn (): ?string => $this->record->active ? null : 'This source is inactive. Activate it to run imports.')
+                ->disabled(fn (): bool => ! $this->record->active || $this->amazonMarketplaceIsMissing())
+                ->tooltip(fn (): ?string => match (true) {
+                    ! $this->record->active => 'This source is inactive. Activate it to run imports.',
+                    $this->amazonMarketplaceIsMissing() => 'Choose an Amazon marketplace before running imports.',
+                    default => null,
+                })
                 ->requiresConfirmation()
                 ->modalHeading('Run import now?')
                 ->modalDescription('Fetch new shipments from this source in the background. You will receive a notification when it finishes.')
@@ -66,7 +76,7 @@ class EditDataSource extends EditRecord
                 ->icon('heroicon-o-clock')
                 ->color('gray')
                 ->visible(fn (): bool => config('app.env') === 'local' && $this->dataSource()->source_type === AmazonSource::class)
-                ->disabled(fn (): bool => ! $this->dataSource()->active || (bool) app(SettingsService::class)->get('sandbox_mode', false))
+                ->disabled(fn (): bool => ! $this->dataSource()->active || $this->amazonMarketplaceIsMissing() || (bool) app(SettingsService::class)->get('sandbox_mode', false))
                 ->tooltip(fn (): ?string => app(SettingsService::class)->get('sandbox_mode', false) ? 'Disable sandbox mode in App Settings to import real Amazon orders.' : null)
                 ->modalHeading('Import historical shipped Amazon orders')
                 ->modalDescription('Imports up to 1,000 shipped orders as historical shipped shipments. Large imports use multiple Amazon API pages and may take several minutes. This does not confirm anything back to Amazon or affect scheduled import settings.')
@@ -171,6 +181,52 @@ class EditDataSource extends EditRecord
                     app(OAuthService::class)->disconnectDataSource('sp-api', $dataSource);
                     Notification::make()->success()->title('Amazon disconnected.')->send();
                     $this->redirect(static::getUrl(['record' => $dataSource->id]));
+                }),
+
+            Action::make('amazon_refresh_marketplaces')
+                ->label('Refresh Amazon Marketplaces')
+                ->icon('heroicon-o-arrow-path')
+                ->color('gray')
+                ->visible(fn (): bool => $this->dataSource()->source_type === AmazonSource::class
+                    && app(OAuthService::class)->isDataSourceConnected($this->dataSource()))
+                ->disabled(fn (): bool => (bool) app(SettingsService::class)->get('sandbox_mode', false))
+                ->tooltip(fn (): ?string => app(SettingsService::class)->get('sandbox_mode', false)
+                    ? 'Disable sandbox mode in App Settings before refreshing Amazon marketplaces.'
+                    : null)
+                ->action(function (): void {
+                    $result = app(AmazonMarketplaceDiscoveryService::class)->discover($this->dataSource());
+
+                    if (! $result->succeeded) {
+                        Notification::make()
+                            ->warning()
+                            ->title('Amazon marketplace refresh failed')
+                            ->body($result->error)
+                            ->send();
+                    } elseif ($result->selectedMarketplaceUnavailable) {
+                        Notification::make()
+                            ->warning()
+                            ->title('Selected Amazon marketplace was not returned')
+                            ->body('The existing marketplace selection was preserved. Review it before changing imports.')
+                            ->send();
+                    } elseif ($result->marketplaces === []) {
+                        Notification::make()
+                            ->warning()
+                            ->title('No supported Amazon marketplaces found')
+                            ->send();
+                    } elseif ($result->selectionRequired) {
+                        Notification::make()
+                            ->warning()
+                            ->title('Amazon marketplaces refreshed')
+                            ->body('Choose a marketplace before importing.')
+                            ->send();
+                    } else {
+                        Notification::make()
+                            ->success()
+                            ->title('Amazon marketplaces refreshed')
+                            ->send();
+                    }
+
+                    $this->refreshFormData(['settings.marketplace_id']);
                 }),
 
             Action::make('sync_shopify_locations')
@@ -320,6 +376,14 @@ class EditDataSource extends EditRecord
         }
 
         return $record;
+    }
+
+    private function amazonMarketplaceIsMissing(): bool
+    {
+        $dataSource = $this->dataSource();
+
+        return $dataSource->source_type === AmazonSource::class
+            && blank($dataSource->settings['marketplace_id'] ?? null);
     }
 
     /**

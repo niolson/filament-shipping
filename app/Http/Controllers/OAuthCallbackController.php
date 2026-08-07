@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\DataTransferObjects\AmazonMarketplaceDiscoveryResult;
+use App\Enums\AmazonMarketplace;
 use App\Enums\Role;
 use App\Models\CarrierAccount;
 use App\Models\DataSource;
@@ -65,14 +67,12 @@ class OAuthCallbackController extends Controller
 
         try {
             if ($importSource) {
-                $this->oauthService->handleReceiveForDataSource($provider, $transferCode, $importSource);
+                $discoveryResult = $this->oauthService->handleReceiveForDataSource($provider, $transferCode, $importSource);
+                $notification = $this->dataSourceNotification($provider, $discoveryResult);
 
                 return redirect()
                     ->route('filament.app.resources.data-sources.edit', $importSource->id)
-                    ->with('oauth_notification', [
-                        'status' => 'success',
-                        'title' => $this->providerDisplayName($provider).' connected successfully.',
-                    ]);
+                    ->with('oauth_notification', $notification);
             }
 
             if ($account) {
@@ -123,5 +123,63 @@ class OAuthCallbackController extends Controller
             'sp-api' => 'Amazon',
             default => ucfirst($provider),
         };
+    }
+
+    /** @return array{status: string, title: string, body?: string} */
+    private function dataSourceNotification(
+        string $provider,
+        ?AmazonMarketplaceDiscoveryResult $discoveryResult,
+    ): array {
+        if ($provider !== 'sp-api' || $discoveryResult === null) {
+            return [
+                'status' => 'success',
+                'title' => $this->providerDisplayName($provider).' connected successfully.',
+            ];
+        }
+
+        if (! $discoveryResult->succeeded) {
+            return [
+                'status' => 'warning',
+                'title' => 'Amazon connected, but marketplaces could not be retrieved.',
+                'body' => $discoveryResult->error ?? 'Use Refresh Amazon Marketplaces to try again.',
+            ];
+        }
+
+        if ($discoveryResult->selectedMarketplaceUnavailable) {
+            return [
+                'status' => 'warning',
+                'title' => 'Amazon connected, but the selected marketplace was not returned.',
+                'body' => 'The existing marketplace selection was preserved. Review it before changing imports.',
+            ];
+        }
+
+        if ($discoveryResult->marketplaces === []) {
+            return [
+                'status' => 'warning',
+                'title' => 'Amazon connected, but no supported marketplaces were found.',
+                'body' => 'PolyBag currently supports Amazon retail marketplaces in North America.',
+            ];
+        }
+
+        if ($discoveryResult->selectionRequired) {
+            return [
+                'status' => 'warning',
+                'title' => 'Amazon connected. Choose a marketplace before importing.',
+            ];
+        }
+
+        $marketplace = AmazonMarketplace::tryFrom((string) $discoveryResult->selectedMarketplaceId);
+
+        if (count($discoveryResult->marketplaces) === 1 && $marketplace !== null) {
+            return [
+                'status' => 'success',
+                'title' => "Amazon connected. {$marketplace->label()} ({$marketplace->countryCode()}) was selected automatically.",
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'title' => 'Amazon connected successfully.',
+        ];
     }
 }

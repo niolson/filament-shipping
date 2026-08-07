@@ -1,10 +1,12 @@
 <?php
 
+use App\Enums\AmazonMarketplace;
 use App\Enums\Role;
 use App\Filament\Resources\DataSources\DataSourceResource;
 use App\Filament\Resources\DataSources\Pages\CreateDataSource;
 use App\Filament\Resources\DataSources\Pages\EditDataSource;
 use App\Filament\Resources\DataSources\Pages\ListDataSources;
+use App\Http\Integrations\Amazon\Requests\GetMarketplaceParticipations;
 use App\Jobs\RunDataSourceImportJob;
 use App\Models\Channel;
 use App\Models\DataSource;
@@ -18,7 +20,9 @@ use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use Filament\Actions\Testing\TestAction;
+use Filament\Forms\Components\Select;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
@@ -128,6 +132,7 @@ it('queues a bounded historical Amazon import from the edit page', function (): 
     $source = DataSource::factory()->create([
         'source_type' => AmazonSource::class,
         'active' => true,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER'],
     ]);
 
     Livewire::test(EditDataSource::class, ['record' => $source->id])
@@ -160,6 +165,7 @@ it('queues a historical Amazon import across a date range longer than thirty one
     $source = DataSource::factory()->create([
         'source_type' => AmazonSource::class,
         'active' => true,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER'],
     ]);
 
     Livewire::test(EditDataSource::class, ['record' => $source->id])
@@ -185,6 +191,7 @@ it('shows an inline error when the historical Amazon end date precedes the start
     $source = DataSource::factory()->create([
         'source_type' => AmazonSource::class,
         'active' => true,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER'],
     ]);
 
     Livewire::test(EditDataSource::class, ['record' => $source->id])
@@ -206,6 +213,7 @@ it('disables historical Amazon imports while sandbox mode is enabled', function 
     $source = DataSource::factory()->create([
         'source_type' => AmazonSource::class,
         'active' => true,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER'],
     ]);
 
     Livewire::test(EditDataSource::class, ['record' => $source->id])
@@ -765,7 +773,146 @@ it('shows Amazon OAuth actions on an Amazon data source', function (): void {
     Livewire::test(EditDataSource::class, ['record' => $source->id])
         ->assertActionVisible('amazon_connect')
         ->assertActionVisible('amazon_disconnect')
+        ->assertActionVisible('amazon_refresh_marketplaces')
         ->assertActionHidden('shopify_connect');
+});
+
+it('shows discovered Amazon marketplaces in the marketplace selector', function (): void {
+    $this->actingAs($this->admin);
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => [
+            'marketplace_id' => 'A2Q3Y263D00KWC',
+            'amazon_marketplaces' => [
+                [
+                    'id' => 'ATVPDKIKX0DER',
+                    'name' => 'Amazon.com',
+                    'country_code' => 'US',
+                    'is_participating' => true,
+                    'has_suspended_listings' => false,
+                ],
+                [
+                    'id' => 'A2Q3Y263D00KWC',
+                    'name' => 'Amazon.com.br',
+                    'country_code' => 'BR',
+                    'is_participating' => true,
+                    'has_suspended_listings' => true,
+                ],
+            ],
+        ],
+    ]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->assertFormFieldExists('settings.marketplace_id', function ($field): bool {
+            if (! $field instanceof Select) {
+                return false;
+            }
+
+            $options = $field->getOptions();
+
+            return count($options) === count(AmazonMarketplace::cases())
+                && $options['ATVPDKIKX0DER'] === 'Amazon.com (US)'
+                && $options['A2Q3Y263D00KWC'] === 'Amazon.com.br (BR) — Listings suspended';
+        });
+});
+
+it('falls back to supported Amazon marketplaces when discovery returns none', function (): void {
+    $this->actingAs($this->admin);
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['amazon_marketplaces' => []],
+    ]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->assertFormFieldExists('settings.marketplace_id', function ($field): bool {
+            return $field instanceof Select && $field->getOptions() === AmazonMarketplace::options();
+        });
+});
+
+it('preserves an existing Amazon marketplace outside the supported defaults when saving', function (): void {
+    $this->actingAs($this->admin);
+    $channel = Channel::factory()->create();
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'active' => false,
+        'settings' => [
+            'marketplace_id' => 'A1F83G8C2ARO7P',
+            'channel_name' => $channel->id,
+            'amazon_marketplaces' => [],
+        ],
+        'secret_settings' => ['refresh_token' => 'amazon-refresh-token'],
+    ]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->assertFormFieldExists('settings.marketplace_id', function ($field): bool {
+            return $field instanceof Select
+                && $field->getOptions()['A1F83G8C2ARO7P'] === 'A1F83G8C2ARO7P (existing selection)';
+        })
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($source->fresh()->settings['marketplace_id'])->toBe('A1F83G8C2ARO7P');
+});
+
+it('refreshes Amazon marketplaces from the edit page', function (): void {
+    $this->actingAs($this->admin);
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['auth_mode' => 'authorization_code'],
+        'secret_settings' => ['refresh_token' => 'marketplace-refresh-token'],
+    ]);
+    Cache::put('amazon_sp_api_access_token_'.md5('marketplace-refresh-token'), 'marketplace-access-token', 3600);
+
+    Saloon::fake([
+        GetMarketplaceParticipations::class => MockResponse::make([
+            'payload' => [
+                [
+                    'marketplace' => [
+                        'id' => 'ATVPDKIKX0DER',
+                        'name' => 'Amazon.com',
+                        'countryCode' => 'US',
+                    ],
+                    'participation' => [
+                        'isParticipating' => true,
+                        'hasSuspendedListings' => false,
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->callAction('amazon_refresh_marketplaces')
+        ->assertNotified('Amazon marketplaces refreshed')
+        ->assertFormSet(['settings.marketplace_id' => 'ATVPDKIKX0DER']);
+
+    expect($source->fresh()->settings['marketplace_id'])->toBe('ATVPDKIKX0DER');
+});
+
+it('disables Amazon marketplace refresh while sandbox mode is enabled', function (): void {
+    app(SettingsService::class)->set('sandbox_mode', true);
+    $this->actingAs($this->admin);
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['auth_mode' => 'authorization_code', 'marketplace_id' => 'ATVPDKIKX0DER'],
+        'secret_settings' => ['refresh_token' => 'amazon-refresh-token'],
+    ]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->assertActionDisabled('amazon_refresh_marketplaces');
+});
+
+it('prevents manually running an Amazon import without a selected marketplace', function (): void {
+    $this->actingAs($this->admin);
+    $source = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'active' => true,
+        'settings' => ['auth_mode' => 'authorization_code'],
+        'secret_settings' => ['refresh_token' => 'amazon-refresh-token'],
+    ]);
+
+    Livewire::test(EditDataSource::class, ['record' => $source->id])
+        ->assertActionDisabled('run_import');
 });
 
 it('blocks saving an Amazon data source as active on edit when MFA is not required', function (): void {
