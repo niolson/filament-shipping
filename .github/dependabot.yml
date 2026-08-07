@@ -55,3 +55,18 @@ updates:
     open-pull-requests-limit: 5
     cooldown:
       default-days: 7
+    ignore:
+      # Stay on the 8.4 LTS series. MySQL moved to calendar versioning after
+      # 9.7 (YY.M.P — 26.7 is July 2026), and those calver releases are
+      # Innovation releases: each is supported only until the next quarterly
+      # one ships. Tracking them would mean re-upgrading the database every
+      # quarter, and 8.4 -> 26.7 also skips the 9.7 LTS series, which MySQL
+      # does not support for in-place upgrades.
+      #
+      # This ignores major bumps only, so digest refreshes on the pinned
+      # `mysql:8.4` tag still arrive as usual and CVE patches keep flowing.
+      # Moving to 9.7 LTS is a staged migration (data dictionary upgrade plus
+      # the keyring/encryption steps in docs/server-setup.md), so it should be
+      # a deliberate decision rather than an image-tag bump.
+      - dependency-name: "mysql"
+        update-types: ["version-update:semver-major"]
