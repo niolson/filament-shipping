@@ -13,6 +13,7 @@ class ShipmentItem extends Model
     protected $fillable = [
         'shipment_id',
         'product_id',
+        'source_item_id',
         'quantity',
         'value',
         'transparency',

@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\DemoReset;
 use App\Enums\PackageStatus;
 use App\Enums\ShipmentStatus;
 use App\Models\ChannelAlias;
@@ -10,6 +11,8 @@ use App\Models\Package;
 use App\Models\Shipment;
 use App\Models\ShippingMethod;
 use App\Models\User;
+use App\Services\ShipmentImport\ExportResult;
+use App\Services\ShipmentImport\PackageExportService;
 use App\Services\ShipmentImport\ShipmentImportService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Config;
@@ -125,6 +128,12 @@ beforeEach(function (): void {
     setUpImportDatabase($this->dataSource);
 });
 
+it('explicitly truncates the package export ledger during reset', function (): void {
+    $tables = (new ReflectionClass(DemoReset::class))->getConstant('TRANSACTIONAL_TABLES');
+
+    expect($tables)->toContain('package_exports');
+});
+
 it('resets demo data end to end', function (): void {
     // Leftover transactional data from a previous demo that must be wiped
     Package::factory()->shipped()->create();
@@ -178,6 +187,29 @@ it('resets demo data end to end', function (): void {
     expect(DB::table('daily_shipping_stats')->count())->toBeGreaterThan(0);
 });
 
+it('clears package export claims before package IDs are reused', function (): void {
+    insertImportShipment($this->dataSource, 'D00REPEAT01', now('UTC')->subDays(5)->format('Y-m-d H:i:s'));
+
+    $this->artisan('demo:reset')->assertSuccessful();
+
+    $connection = importConnectionFor($this->dataSource);
+    expect(DB::table('package_exports')->count())->toBeGreaterThan(0);
+
+    DB::connection($connection)->table('shipments')
+        ->where('id', 'D00REPEAT01')
+        ->update([
+            'exported' => 'n',
+            'tracking_number' => null,
+            'carrier' => null,
+            'exported_at' => null,
+        ]);
+
+    $this->artisan('demo:reset')->assertSuccessful();
+
+    expect(DB::connection($connection)->table('shipments')->where('id', 'D00REPEAT01')->value('tracking_number'))
+        ->not->toBeNull();
+});
+
 it('does not duplicate shipments when the live import runs after a reset', function (): void {
     insertImportShipment($this->dataSource, 'D00OLD0001', now('UTC')->subDays(5)->format('Y-m-d H:i:s'));
     insertImportShipment($this->dataSource, 'D00NEW0001', now('UTC')->subMinutes(10)->format('Y-m-d H:i:s'));
@@ -203,6 +235,25 @@ it('marks fabricated packages exported without touching the import database when
 
     expect(Package::where('exported', false)->count())->toBe(0)
         ->and(DB::connection($connection)->table('shipments')->where('exported', 'y')->count())->toBe(0);
+});
+
+it('does not abort demo write-back when package exports are deferred', function (): void {
+    foreach (range(1, 12) as $index) {
+        insertImportShipment(
+            $this->dataSource,
+            'D00DEFER'.str_pad((string) $index, 4, '0', STR_PAD_LEFT),
+            now('UTC')->subDays(2)->format('Y-m-d H:i:s'),
+        );
+    }
+
+    $exportService = Mockery::mock(PackageExportService::class);
+    $exportService->shouldReceive('exportPackage')
+        ->andReturn(new ExportResult(success: false, deferred: true));
+    app()->instance(PackageExportService::class, $exportService);
+
+    $this->artisan('demo:reset')
+        ->doesntExpectOutputToContain('Aborting export write-back')
+        ->assertSuccessful();
 });
 
 it('refuses to run outside demo, local, or testing environments', function (): void {

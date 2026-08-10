@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\PackageExportStatus;
 use App\Enums\ShipmentStatus;
 use App\Http\Integrations\Amazon\AmazonSpApiConnector;
 use App\Http\Integrations\Amazon\Requests\ConfirmShipment;
@@ -9,9 +10,12 @@ use App\Models\Channel;
 use App\Models\ChannelAlias;
 use App\Models\DataSource;
 use App\Models\Package;
+use App\Models\PackageExport;
+use App\Models\PackageItem;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Models\Shipment;
+use App\Models\ShipmentItem;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\DataSourceFactory;
 use App\Services\ShipmentImport\PackageExportService;
@@ -39,7 +43,7 @@ function amazonOrdersResponse(array $orders = [], ?string $nextToken = null): Mo
 
 function amazonConfirmShipmentResponse(): MockResponse
 {
-    return MockResponse::make([], 200);
+    return MockResponse::make([], 204);
 }
 
 function amazonCatalogResponse(array $items = [], array $headers = []): MockResponse
@@ -78,6 +82,7 @@ function sampleAmazonOrderItems(): array
 {
     return [
         [
+            'orderItemId' => 'AMAZON-ITEM-100',
             'product' => [
                 'sellerSku' => 'SKU-100',
                 'title' => 'Test Product',
@@ -94,6 +99,7 @@ function sampleAmazonOrderItems(): array
             ],
         ],
         [
+            'orderItemId' => 'AMAZON-ITEM-200',
             'product' => [
                 'sellerSku' => 'SKU-200',
                 'title' => 'Another Product',
@@ -175,6 +181,8 @@ it('imports amazon orders into shipments table with metadata', function (): void
 
     // Items created
     expect($shipment->shipmentItems)->toHaveCount(2);
+    expect($shipment->shipmentItems->pluck('source_item_id')->all())
+        ->toBe(['AMAZON-ITEM-100', 'AMAZON-ITEM-200']);
 
     Saloon::assertSent(function (SearchOrders $request): bool {
         $includedData = (string) ($request->query()->all()['includedData'] ?? '');
@@ -224,6 +232,21 @@ it('exports package to amazon as shipment confirmation', function (): void {
         'carrier' => 'USPS',
         'service' => 'Priority Mail',
         'exported' => false,
+        'shipped_at' => '2026-08-07 15:30:00',
+    ]);
+
+    $product = Product::factory()->create();
+    $shipmentItem = $shipment->shipmentItems()->create([
+        'product_id' => $product->id,
+        'source_item_id' => 'AMAZON-ITEM-123',
+        'quantity' => 2,
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $package->id,
+        'shipment_item_id' => $shipmentItem->id,
+        'product_id' => $product->id,
+        'quantity' => 2,
+        'transparency_codes' => ['AZ:TRANSPARENCY'],
     ]);
 
     Saloon::fake([
@@ -238,12 +261,191 @@ it('exports package to amazon as shipment confirmation', function (): void {
     expect($result->destinationsSucceeded)->toBe(1);
     expect($package->fresh()->exported)->toBeTrue();
 
-    Saloon::assertSent(function (ConfirmShipment $request) {
+    Saloon::assertSent(function (ConfirmShipment $request) use ($package) {
         $body = $request->body()->all();
 
-        return ($body['packageDetail']['trackingNumber'] ?? '') === 'TRACK123'
-            && ($body['packageDetail']['carrierCode'] ?? '') === 'USPS';
+        return $request->resolveEndpoint() === '/orders/v0/orders/111-2222222-3333333/shipmentConfirmation'
+            && $body === [
+                'marketplaceId' => 'ATVPDKIKX0DER',
+                'packageDetail' => [
+                    'packageReferenceId' => (string) $package->id,
+                    'carrierCode' => 'USPS',
+                    'shippingMethod' => 'Priority Mail',
+                    'trackingNumber' => 'TRACK123',
+                    'shipDate' => '2026-08-07T15:30:00+00:00',
+                    'orderItems' => [[
+                        'orderItemId' => 'AMAZON-ITEM-123',
+                        'quantity' => 2,
+                        'transparencyCodes' => ['AZ:TRANSPARENCY'],
+                    ]],
+                ],
+            ];
     });
+
+    $secondPackage = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'TRACK456',
+        'carrier' => 'USPS',
+        'service' => 'Priority Mail',
+        'exported' => false,
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $secondPackage->id,
+        'shipment_item_id' => $shipmentItem->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+
+    $secondResult = $service->exportPackage($secondPackage);
+
+    expect($secondResult->success)->toBeTrue();
+    Saloon::assertSent(function (ConfirmShipment $request) use ($secondPackage): bool {
+        $packageDetail = $request->body()->all()['packageDetail'] ?? [];
+
+        return ($packageDetail['packageReferenceId'] ?? null) === (string) $secondPackage->id
+            && ($packageDetail['trackingNumber'] ?? null) === 'TRACK456';
+    });
+    Saloon::assertSentCount(2);
+});
+
+it('retries amazon shipment confirmation authentication failures', function (int $status): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => [
+            'marketplace_id' => 'ATVPDKIKX0DER',
+            'export_enabled' => true,
+        ],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
+        ],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource,
+        'shipment_reference' => '111-2222222-3333333',
+        'metadata' => ['amazon_order_id' => '111-2222222-3333333'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment,
+        'tracking_number' => 'TRACK-AUTH',
+        'carrier' => 'USPS',
+        'exported' => false,
+        'shipped_at' => now(),
+    ]);
+    $item = ShipmentItem::factory()->create([
+        'shipment_id' => $shipment,
+        'source_item_id' => 'AMAZON-AUTH-ITEM',
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $package,
+        'shipment_item_id' => $item,
+        'product_id' => $item->product_id,
+        'quantity' => 1,
+    ]);
+    Saloon::fake([
+        ConfirmShipment::class => MockResponse::make([
+            'errors' => [['code' => 'Unauthorized', 'message' => 'Try again']],
+        ], $status),
+    ]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+    $export = PackageExport::query()->where('package_id', $package->id)->firstOrFail();
+
+    expect($result->shouldRetry())->toBeTrue()
+        ->and($export->status)->toBe(PackageExportStatus::RetryableFailed);
+})->with([401, 403]);
+
+it('treats an already shipped amazon response as idempotent success', function (): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER', 'export_enabled' => true],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
+        ],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource,
+        'shipment_reference' => '111-2222222-3333333',
+        'metadata' => ['amazon_order_id' => '111-2222222-3333333'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment,
+        'tracking_number' => 'TRACK-DUPLICATE',
+        'carrier' => 'USPS',
+        'exported' => false,
+    ]);
+    $item = ShipmentItem::factory()->create([
+        'shipment_id' => $shipment,
+        'source_item_id' => 'AMAZON-DUPLICATE-ITEM',
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $package,
+        'shipment_item_id' => $item,
+        'product_id' => $item->product_id,
+        'quantity' => 1,
+    ]);
+    Saloon::fake([
+        ConfirmShipment::class => MockResponse::make([
+            'errors' => [['code' => 'InvalidInput', 'message' => 'The order has already been shipped.']],
+        ], 400),
+    ]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+    $export = PackageExport::query()->where('package_id', $package->id)->firstOrFail();
+
+    expect($result->errors)->toBeEmpty()
+        ->and($result->success)->toBeTrue()
+        ->and($export->status)->toBe(PackageExportStatus::Succeeded)
+        ->and($package->fresh()->exported)->toBeTrue();
+});
+
+it('reports a safe amazon package reference when shipment reference is not mapped', function (): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => [
+            'marketplace_id' => 'ATVPDKIKX0DER',
+            'export_enabled' => true,
+            'export_field_mapping' => [
+                'amazon_order_id' => 'amazon_order_id',
+                'carrier' => 'carrier',
+            ],
+        ],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
+        ],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource,
+        'shipment_reference' => '111-2222222-3333333',
+        'metadata' => ['amazon_order_id' => '111-2222222-3333333'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment,
+        'tracking_number' => 'TRACK-MISSING-MAPPING',
+        'carrier' => 'USPS',
+        'exported' => false,
+    ]);
+    $item = ShipmentItem::factory()->create([
+        'shipment_id' => $shipment,
+        'source_item_id' => 'AMAZON-MISSING-MAPPING-ITEM',
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $package,
+        'shipment_item_id' => $item,
+        'product_id' => $item->product_id,
+        'quantity' => 1,
+    ]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+
+    expect($result->errors[0])->toContain("package {$package->id}")
+        ->and($result->errors[0])->toContain('tracking_number is missing')
+        ->and($result->errors[0])->not->toContain('Undefined array key');
 });
 
 it('handles package without amazon metadata gracefully in export', function (): void {
@@ -291,6 +493,187 @@ it('handles package without amazon metadata gracefully in export', function (): 
     expect($result->success)->toBeFalse();
     expect($result->errors)->not->toBeEmpty();
     expect($result->errors[0])->toContain('Amazon order ID');
+});
+
+it('does not send an amazon confirmation without packed order item identifiers', function (): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'name' => 'Amazon Export',
+        'settings' => [
+            'marketplace_id' => 'ATVPDKIKX0DER',
+            'export_enabled' => true,
+        ],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
+        ],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource->id,
+        'shipment_reference' => '111-2222222-3333333',
+        'metadata' => ['amazon_order_id' => '111-2222222-3333333'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'TRACK123',
+        'carrier' => 'USPS',
+        'exported' => false,
+    ]);
+
+    Saloon::fake([ConfirmShipment::class => amazonConfirmShipmentResponse()]);
+
+    $service = new PackageExportService;
+    $result = $service->exportPackage($package);
+    $export = PackageExport::query()->where('package_id', $package->id)->firstOrFail();
+
+    expect($result->success)->toBeFalse()
+        ->and($result->errors[0])->toContain('no Amazon order items were packed')
+        ->and($package->fresh()->exported)->toBeFalse()
+        ->and($export->status)->toBe(PackageExportStatus::PermanentlyFailed);
+    $this->travel(5)->minutes();
+    expect($service->exportUnexported())->not->toHaveKey($package->id);
+    Saloon::assertNotSent(ConfirmShipment::class);
+});
+
+it('exports legacy amazon packages in sandbox without production item context', function (): void {
+    app(SettingsService::class)->set('sandbox_mode', true, 'boolean');
+    $exportSource = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER', 'export_enabled' => true],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
+        ],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource,
+        'metadata' => ['amazon_order_id' => '111-2222222-3333333'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment,
+        'exported' => false,
+    ]);
+    $legacyItem = ShipmentItem::factory()->create([
+        'shipment_id' => $shipment,
+        'source_item_id' => null,
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $package,
+        'shipment_item_id' => $legacyItem,
+        'product_id' => $legacyItem->product_id,
+    ]);
+    Saloon::fake([ConfirmShipment::class => amazonConfirmShipmentResponse()]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+
+    expect($result->success)->toBeTrue()
+        ->and($package->fresh()->exported)->toBeTrue();
+    Saloon::assertSent(ConfirmShipment::class);
+});
+
+it('does not send a partial amazon shipment confirmation', function (): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER', 'export_enabled' => true],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
+        ],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource->id,
+        'shipment_reference' => '111-2222222-3333333',
+        'metadata' => ['amazon_order_id' => '111-2222222-3333333'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'TRACK123',
+        'carrier' => 'USPS',
+        'exported' => false,
+    ]);
+    $mappedItem = ShipmentItem::factory()->create([
+        'shipment_id' => $shipment->id,
+        'source_item_id' => 'AMAZON-ITEM-123',
+    ]);
+    $unmappedItem = ShipmentItem::factory()->create([
+        'shipment_id' => $shipment->id,
+        'source_item_id' => null,
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $package->id,
+        'shipment_item_id' => $mappedItem->id,
+        'product_id' => $mappedItem->product_id,
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $package->id,
+        'shipment_item_id' => $unmappedItem->id,
+        'product_id' => $unmappedItem->product_id,
+    ]);
+
+    Saloon::fake([ConfirmShipment::class => amazonConfirmShipmentResponse()]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+
+    expect($result->success)->toBeFalse()
+        ->and($result->errors[0])->toContain('every packed item')
+        ->and($package->fresh()->exported)->toBeFalse();
+    Saloon::assertNotSent(ConfirmShipment::class);
+});
+
+it('omits zero quantity package rows from amazon shipment confirmation', function (): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'settings' => ['marketplace_id' => 'ATVPDKIKX0DER', 'export_enabled' => true],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
+        ],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource->id,
+        'shipment_reference' => '111-2222222-3333333',
+        'metadata' => ['amazon_order_id' => '111-2222222-3333333'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'TRACK123',
+        'carrier' => 'USPS',
+    ]);
+    $packedItem = ShipmentItem::factory()->create([
+        'shipment_id' => $shipment->id,
+        'source_item_id' => 'PACKED-LINE',
+    ]);
+    $unpackedItem = ShipmentItem::factory()->create([
+        'shipment_id' => $shipment->id,
+        'source_item_id' => 'UNPACKED-LINE',
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $package->id,
+        'shipment_item_id' => $packedItem->id,
+        'product_id' => $packedItem->product_id,
+        'quantity' => 1,
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $package->id,
+        'shipment_item_id' => $unpackedItem->id,
+        'product_id' => $unpackedItem->product_id,
+        'quantity' => 0,
+    ]);
+    Saloon::fake([ConfirmShipment::class => amazonConfirmShipmentResponse()]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+
+    expect($result->success)->toBeTrue();
+    Saloon::assertSent(function (ConfirmShipment $request): bool {
+        return ($request->body()->all()['packageDetail']['orderItems'] ?? []) === [[
+            'orderItemId' => 'PACKED-LINE',
+            'quantity' => 1,
+        ]];
+    });
 });
 
 it('imports multiple pages of amazon orders', function (): void {

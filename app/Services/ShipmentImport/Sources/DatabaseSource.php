@@ -5,6 +5,7 @@ namespace App\Services\ShipmentImport\Sources;
 use App\Contracts\DataSourceInterface;
 use App\Contracts\ExportDestinationInterface;
 use App\Enums\AuditAction;
+use App\Exceptions\PermanentExportException;
 use App\Models\AuditLog;
 use App\Services\ShipmentImport\FieldMapper;
 use App\Services\ShipmentImport\RawSqlGuard;
@@ -13,7 +14,6 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
-use RuntimeException;
 
 class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
 {
@@ -275,7 +275,7 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
             $affected = DB::connection($connection)->affectingStatement($query, $bindings);
 
             if ($affected > $cap) {
-                throw new RuntimeException(
+                throw new PermanentExportException(
                     "Query affected {$affected} rows, exceeding the configured limit of {$cap} — rolled back."
                 );
             }

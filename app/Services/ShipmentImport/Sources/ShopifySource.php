@@ -4,6 +4,7 @@ namespace App\Services\ShipmentImport\Sources;
 
 use App\Contracts\DataSourceInterface;
 use App\Contracts\ExportDestinationInterface;
+use App\Exceptions\PermanentExportException;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Http\Integrations\Shopify\ShopifyConnector;
 use DomainException;
@@ -47,6 +48,12 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
         'FedEx' => 'FedEx',
         'UPS' => 'UPS',
         'DHL' => 'DHL Express',
+    ];
+
+    private const RETRYABLE_GRAPHQL_ERROR_CODES = [
+        'THROTTLED',
+        'INTERNAL_SERVER_ERROR',
+        'SERVICE_UNAVAILABLE',
     ];
 
     private const FULFILLMENT_ORDERS_QUERY = <<<'GRAPHQL'
@@ -413,10 +420,13 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
         $this->validateExportConfiguration();
 
         $fulfillmentOrderId = $data['fulfillment_order_id'] ?? null;
+        $shipmentReference = filled($data['shipment_reference'] ?? null)
+            ? (string) $data['shipment_reference']
+            : 'package '.($data['_package_reference_id'] ?? 'unknown');
 
         if (empty($fulfillmentOrderId)) {
-            throw new InvalidArgumentException(
-                "Cannot export package for shipment {$data['shipment_reference']}: no fulfillment order ID in metadata."
+            throw new PermanentExportException(
+                "Cannot export package for shipment {$shipmentReference}: no fulfillment order ID in metadata."
             );
         }
 
@@ -442,19 +452,44 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
         $json = $response->json();
 
         if (! empty($json['errors'])) {
-            throw new RuntimeException(
-                'Shopify GraphQL error: '.json_encode($json['errors'])
+            $messages = array_map(
+                fn (array $error): string => (string) ($error['message'] ?? 'Unknown GraphQL error'),
+                $json['errors'],
             );
+            $message = 'Shopify GraphQL error: '.implode('; ', $messages);
+            $isRetryable = collect($json['errors'])->contains(
+                fn (array $error): bool => in_array(
+                    strtoupper((string) ($error['extensions']['code'] ?? '')),
+                    self::RETRYABLE_GRAPHQL_ERROR_CODES,
+                    true,
+                ),
+            );
+
+            throw $isRetryable
+                ? new RuntimeException($message)
+                : new PermanentExportException($message);
         }
 
         $userErrors = $json['data']['fulfillmentCreate']['userErrors'] ?? [];
 
         if (! empty($userErrors)) {
             $messages = array_map(
-                fn (array $e) => ($e['field'] ?? 'unknown').': '.$e['message'],
+                fn (array $e) => (is_array($e['field'] ?? null)
+                    ? implode('.', $e['field'])
+                    : ($e['field'] ?? 'unknown')).': '.($e['message'] ?? ''),
                 $userErrors
             );
-            throw new RuntimeException('Shopify fulfillment error: '.implode('; ', $messages));
+            $message = 'Shopify fulfillment error: '.implode('; ', $messages);
+            $allPermanent = collect($userErrors)->every(fn (array $error): bool => str_contains(
+                strtolower((string) ($error['message'] ?? '')),
+                'already fulfilled',
+            ));
+
+            if ($allPermanent) {
+                return;
+            }
+
+            throw new PermanentExportException($message);
         }
     }
 

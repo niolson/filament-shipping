@@ -5,6 +5,7 @@ namespace App\Services\ShipmentImport\Sources;
 use App\Contracts\DataSourceInterface;
 use App\Contracts\ExportDestinationInterface;
 use App\Enums\ShipmentStatus;
+use App\Exceptions\PermanentExportException;
 use App\Http\Integrations\Amazon\AmazonSpApiConnector;
 use App\Http\Integrations\Amazon\Requests\ConfirmShipment;
 use App\Http\Integrations\Amazon\Requests\SearchCatalogItems;
@@ -15,6 +16,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
 use InvalidArgumentException;
 use RuntimeException;
+use Saloon\Exceptions\Request\RequestException;
 use Saloon\Http\Response;
 use Throwable;
 
@@ -44,6 +46,7 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
 
     private const CARRIER_MAP = [
         'USPS' => 'USPS',
+        'FEDEX' => 'FedEx',
         'FedEx' => 'FedEx',
         'UPS' => 'UPS',
         'DHL' => 'DHL',
@@ -238,15 +241,19 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
         $this->validateExportConfiguration();
 
         $amazonOrderId = $data['amazon_order_id'] ?? null;
+        $shipmentReference = filled($data['shipment_reference'] ?? null)
+            ? (string) $data['shipment_reference']
+            : 'package '.($data['_package_reference_id'] ?? 'unknown');
 
         if (empty($amazonOrderId)) {
             throw new InvalidArgumentException(
-                "Cannot export package for shipment {$data['shipment_reference']}: no Amazon order ID in metadata."
+                "Cannot export package for shipment {$shipmentReference}: no Amazon order ID in metadata."
             );
         }
 
         $sandbox = (bool) app(SettingsService::class)->get('sandbox_mode', false);
-        $carrierCode = self::CARRIER_MAP[$data['carrier'] ?? ''] ?? ($data['carrier'] ?? null);
+        $carrier = trim((string) ($data['carrier'] ?? ''));
+        $carrierCode = self::CARRIER_MAP[$carrier] ?? self::CARRIER_MAP[strtoupper($carrier)] ?? 'Other';
 
         if ($sandbox) {
             // Sandbox requires exact pattern-matched values for a 204 response
@@ -271,22 +278,44 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
                 ],
             ];
         } else {
+            $orderItems = $data['_order_items'] ?? [];
+
+            foreach (['tracking_number', 'carrier', '_package_reference_id', '_shipped_at'] as $requiredField) {
+                if (blank($data[$requiredField] ?? null)) {
+                    throw new InvalidArgumentException(
+                        "Cannot export package for shipment {$shipmentReference}: {$requiredField} is missing."
+                    );
+                }
+            }
+
+            if ($orderItems === []) {
+                throw new PermanentExportException(
+                    "Cannot export package for shipment {$shipmentReference}: no Amazon order items were packed. Re-import the order before retrying."
+                );
+            }
+
             $orderId = $amazonOrderId;
             $body = [
                 'marketplaceId' => (string) ($this->config['marketplace_id'] ?? 'ATVPDKIKX0DER'),
                 'packageDetail' => [
-                    'packageReferenceId' => '1',
+                    'packageReferenceId' => (string) $data['_package_reference_id'],
                     'carrierCode' => $carrierCode,
-                    'trackingNumber' => $data['tracking_number'] ?? null,
-                    'shipDate' => now()->toIso8601String(),
-                    'orderItems' => $data['_order_items'] ?? [],
+                    ...($carrierCode === 'Other' ? ['carrierName' => $carrier] : []),
+                    ...(filled($data['_shipping_method'] ?? null) ? ['shippingMethod' => $data['_shipping_method']] : []),
+                    'trackingNumber' => $data['tracking_number'],
+                    'shipDate' => $data['_shipped_at'],
+                    'orderItems' => $orderItems,
                 ],
             ];
         }
 
-        $response = $this->connector->send(
-            new ConfirmShipment($orderId, $body)
-        );
+        try {
+            $response = $this->connector->send(
+                new ConfirmShipment($orderId, $body)
+            );
+        } catch (RequestException $exception) {
+            $response = $exception->getResponse();
+        }
 
         if (! $response->successful()) {
             $json = $response->json();
@@ -295,8 +324,64 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
                 fn (array $e) => ($e['code'] ?? 'unknown').': '.($e['message'] ?? ''),
                 $errors
             );
-            throw new RuntimeException('Amazon shipment confirmation error: '.implode('; ', $messages));
+            $message = 'Amazon shipment confirmation error: '.implode('; ', $messages);
+            $status = $response->status();
+
+            if ($this->shipmentWasAlreadyConfirmed($errors)) {
+                return;
+            }
+
+            if ($status >= 400 && $status < 500 && ! in_array($status, [401, 403, 408, 425, 429], true)) {
+                throw new PermanentExportException($message);
+            }
+
+            throw new RuntimeException($message);
         }
+    }
+
+    /** @param list<array<string, mixed>> $errors */
+    private function shipmentWasAlreadyConfirmed(array $errors): bool
+    {
+        if ($errors === []) {
+            return false;
+        }
+
+        $codes = [
+            'AlreadyShipped',
+            'DuplicateShipmentConfirmation',
+            'OrderAlreadyShipped',
+            'ShipmentAlreadyConfirmed',
+        ];
+        $messageFragments = [
+            'already been confirmed',
+            'already been fulfilled',
+            'already been shipped',
+            'already confirmed',
+            'already fulfilled',
+            'already shipped',
+        ];
+
+        foreach ($errors as $error) {
+            if (in_array((string) ($error['code'] ?? ''), $codes, true)) {
+                continue;
+            }
+
+            $message = strtolower((string) ($error['message'] ?? ''));
+            $matchesKnownMessage = false;
+
+            foreach ($messageFragments as $fragment) {
+                if (str_contains($message, $fragment)) {
+                    $matchesKnownMessage = true;
+                    break;
+                }
+            }
+
+            if (! $matchesKnownMessage) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public function validateExportConfiguration(): void
@@ -307,6 +392,10 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
 
         if ((! $usesBrokerOAuth && ! $hasOwnCredentials) || empty($this->config['refresh_token'] ?? null)) {
             throw new InvalidArgumentException('Amazon SP-API credentials are not configured for this source.');
+        }
+
+        if (blank($this->config['marketplace_id'] ?? null)) {
+            throw new InvalidArgumentException('Amazon SP-API marketplace ID is not configured for this source.');
         }
     }
 
@@ -396,6 +485,7 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
         return [
             'sku' => $item['product']['sellerSku'] ?? null,
             'name' => $item['product']['title'] ?? null,
+            'source_item_id' => $item['orderItemId'] ?? null,
             'quantity' => $qtyRemaining,
             'value' => round($unitPrice, 2),
             'barcode' => is_string($asin) ? ($this->catalogBarcodes[$asin] ?? null) : null,

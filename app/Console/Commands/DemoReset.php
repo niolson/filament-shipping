@@ -36,6 +36,7 @@ class DemoReset extends Command
     protected $description = 'Reset demo data: wipe transactional tables, re-seed history from the demo import database, fabricate shipped packages, and rebuild stats';
 
     private const TRANSACTIONAL_TABLES = [
+        'package_exports',
         'package_items',
         'package_special_services',
         'rate_quotes',
@@ -477,6 +478,8 @@ class DemoReset extends Command
 
             if ($result->success && $result->destinationsSucceeded > 0) {
                 $succeeded++;
+                $consecutiveFailures = 0;
+            } elseif ($result->deferred) {
                 $consecutiveFailures = 0;
             } elseif (! $result->success) {
                 if (++$consecutiveFailures >= 10) {

@@ -31,10 +31,16 @@ Schedule::command('shipments:validate')
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/validate-'.now()->format('Y-m-d').'.log'));
 
+Schedule::command('packages:export --scheduled')
+    ->everyFiveMinutes()
+    ->withoutOverlapping()
+    ->runInBackground()
+    ->appendOutputTo(storage_path('logs/export-'.now()->format('Y-m-d').'.log'));
+
 // appendOutputTo has no built-in rotation, so prune dated import-*.log /
 // validate-*.log files after 14 days, matching the other log channels.
 Schedule::call(function (): void {
-    collect(File::glob(storage_path('logs/{import,validate}-*.log'), GLOB_BRACE))
+    collect(File::glob(storage_path('logs/{import,validate,export}-*.log'), GLOB_BRACE))
         ->filter(fn (string $path): bool => File::lastModified($path) < now()->subDays(14)->timestamp)
         ->each(fn (string $path) => File::delete($path));
 })->daily();
