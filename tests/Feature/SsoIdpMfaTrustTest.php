@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Auth;
  * Slice 03 — trust the IdP's asserted MFA (`amr`) to skip the app's own challenge.
  * Azure/Entra only, gated on a trusted-`tid` allowlist. Everything here is a
  * fail-closed check: absence, wrong provider, or an untrusted tenant must leave
- * the app challenge in force. See .scratch/sso-mfa-federation/issues/03-*.
+ * the app challenge in force. See docs/issues/sso-mfa-federation/issues/03-*.
  */
 const TRUSTED_TID = 'fc6cceae-6ffd-432e-97cb-ad02ed2367f7';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
