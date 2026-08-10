@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Contracts\ExportDestinationInterface;
-use App\Enums\PackageStatus;
 use App\Models\DataSource;
 use App\Models\Package;
 use App\Services\ShipmentImport\DataSourceFactory;
@@ -14,23 +13,41 @@ class ExportPackagesCommand extends Command
 {
     protected $signature = 'packages:export
                             {--dry-run : Preview what would be exported without making changes}
-                            {--validate-only : Only validate the export destination configurations}';
+                            {--validate-only : Only validate the export destination configurations}
+                            {--retry-permanent : Reopen permanent export failures before exporting}
+                            {--scheduled : Apply the scheduled-run safety cutoff to unclaimed packages}
+                            {--package= : Limit export and recovery to one package ID}';
 
     protected $description = 'Export shipped packages to configured external destinations';
 
     public function handle(PackageExportService $service): int
     {
+        $packageOption = $this->option('package');
+
+        if ($packageOption !== null && filter_var($packageOption, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false) {
+            $this->error('Package must be a positive integer.');
+
+            return Command::FAILURE;
+        }
+
+        $packageId = $packageOption !== null ? (int) $packageOption : null;
+
         if ($this->option('validate-only')) {
             return $this->validateDestinations();
         }
 
         if ($this->option('dry-run')) {
-            return $this->dryRun();
+            return $this->dryRun($service, $packageId);
         }
 
         $this->info('Exporting shipped packages...');
 
-        $results = $service->exportUnexported();
+        if ($this->option('retry-permanent')) {
+            $reset = $service->retryPermanentFailures($packageId);
+            $this->info("Reopened {$reset} permanent export failure(s).");
+        }
+
+        $results = $service->exportUnexported($packageId, scheduled: (bool) $this->option('scheduled'));
 
         if (empty($results)) {
             $this->info('No unexported packages found.');
@@ -40,6 +57,10 @@ class ExportPackagesCommand extends Command
 
         $succeeded = collect($results)->filter(fn ($r) => $r->success)->count();
         $failed = collect($results)->filter(fn ($r) => $r->hasErrors())->count();
+        $permanentlyFailed = collect($results)
+            ->filter(fn ($r) => $r->hasPermanentErrors())
+            ->count();
+        $deferred = collect($results)->filter(fn ($r) => $r->deferred)->count();
 
         $this->newLine();
         $this->info('Export completed!');
@@ -49,6 +70,7 @@ class ExportPackagesCommand extends Command
                 ['Packages Processed', count($results)],
                 ['Succeeded', $succeeded],
                 ['Failed', $failed],
+                ['Deferred', $deferred],
             ]
         );
 
@@ -62,7 +84,11 @@ class ExportPackagesCommand extends Command
             }
         }
 
-        return $failed > 0 ? Command::FAILURE : Command::SUCCESS;
+        $shouldFail = (bool) $this->option('scheduled')
+            ? $permanentlyFailed > 0
+            : $failed > 0;
+
+        return $shouldFail ? Command::FAILURE : Command::SUCCESS;
     }
 
     private function validateDestinations(): int
@@ -104,14 +130,18 @@ class ExportPackagesCommand extends Command
         return $hasErrors ? Command::FAILURE : Command::SUCCESS;
     }
 
-    private function dryRun(): int
+    private function dryRun(PackageExportService $service, ?int $packageId): int
     {
         $this->info('Running in dry-run mode (no changes will be made)...');
 
-        $packages = Package::where('status', PackageStatus::Shipped)
-            ->where('exported', false)
-            ->with('shipment.channel')
-            ->get();
+        $retryPermanentFailures = (bool) $this->option('retry-permanent');
+
+        if ($retryPermanentFailures) {
+            $count = $service->countRecoverablePermanentFailures($packageId);
+            $this->info("Would reopen {$count} permanent export failure(s).");
+        }
+
+        $packages = $service->previewUnexported($packageId, $retryPermanentFailures);
 
         if ($packages->isEmpty()) {
             $this->info('No unexported packages found.');

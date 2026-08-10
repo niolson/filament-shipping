@@ -97,6 +97,14 @@ class Package extends Model
     }
 
     /**
+     * @return HasMany<PackageExport, $this>
+     */
+    public function packageExports(): HasMany
+    {
+        return $this->hasMany(PackageExport::class);
+    }
+
+    /**
      * @return BelongsTo<Shipment, $this>
      */
     public function shipment(): BelongsTo
@@ -231,6 +239,7 @@ class Package extends Model
                     'delivered_at' => null,
                     'tracking_details' => null,
                     'tracking_checked_at' => null,
+                    'exported' => false,
                     'updated_at' => now(),
                 ]);
 
@@ -335,12 +344,15 @@ class Package extends Model
                     'delivered_at' => null,
                     'tracking_details' => null,
                     'tracking_checked_at' => null,
+                    'exported' => false,
                     'updated_at' => now(),
                 ]);
 
             if ($updated === 0) {
                 throw new \RuntimeException('Package shipping state has changed. It may have already been voided.');
             }
+
+            PackageExport::query()->where('package_id', $this->id)->delete();
 
             // Refresh the model to get the updated state
             $this->refresh();

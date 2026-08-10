@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\PackageExportStatus;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
@@ -7,6 +8,7 @@ use App\Models\DataSource;
 use App\Models\DataSourceLocation;
 use App\Models\Location;
 use App\Models\Package;
+use App\Models\PackageExport;
 use App\Models\Shipment;
 use App\Services\ShipmentImport\PackageExportService;
 use App\Services\ShipmentImport\ShipmentImportService;
@@ -43,6 +45,28 @@ function fulfillmentSuccessResponse(): MockResponse
                 'userErrors' => [],
             ],
         ],
+    ]);
+}
+
+function fulfillmentUserErrorResponse(string $message): MockResponse
+{
+    return MockResponse::make([
+        'data' => [
+            'fulfillmentCreate' => [
+                'fulfillment' => null,
+                'userErrors' => [[
+                    'field' => ['fulfillment'],
+                    'message' => $message,
+                ]],
+            ],
+        ],
+    ]);
+}
+
+function fulfillmentGraphQlErrorResponse(array $error): MockResponse
+{
+    return MockResponse::make([
+        'errors' => [$error],
     ]);
 }
 
@@ -338,10 +362,205 @@ it('handles package without metadata gracefully in export', function (): void {
     $service = new PackageExportService;
     $result = $service->exportPackage($package);
 
-    // Should fail gracefully (no fulfillment order ID)
+    $export = PackageExport::query()->where('package_id', $package->id)->firstOrFail();
+
     expect($result->success)->toBeFalse();
     expect($result->errors)->not->toBeEmpty();
-    expect($result->errors[0])->toContain('fulfillment order ID');
+    expect($result->errors[0])->toContain('fulfillment order ID')
+        ->and($export->status)->toBe(PackageExportStatus::PermanentlyFailed);
+});
+
+it('reports a safe shopify package reference when shipment reference is not mapped', function (): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => ShopifySource::class,
+        'name' => 'Shopify Export',
+        'settings' => [
+            'shop_domain' => 'test-shop.myshopify.com',
+            'export_enabled' => true,
+            'export_field_mapping' => ['carrier' => 'carrier'],
+        ],
+        'secret_settings' => ['client_id' => 'test-client-id', 'client_secret' => 'test-client-secret'],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource,
+        'shipment_reference' => '#2001',
+        'metadata' => null,
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment,
+        'exported' => false,
+    ]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+    $export = PackageExport::query()->where('package_id', $package->id)->firstOrFail();
+
+    expect($result->errors[0])->toContain("package {$package->id}")
+        ->and($result->errors[0])->toContain('fulfillment order ID')
+        ->and($result->errors[0])->not->toContain('Undefined array key')
+        ->and($export->status)->toBe(PackageExportStatus::PermanentlyFailed);
+});
+
+it('treats an already fulfilled shopify response as idempotent success', function (): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => ShopifySource::class,
+        'name' => 'Shopify Export',
+        'settings' => [
+            'shop_domain' => 'test-shop.myshopify.com',
+            'export_enabled' => true,
+        ],
+        'secret_settings' => ['client_id' => 'test-client-id', 'client_secret' => 'test-client-secret'],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource->id,
+        'shipment_reference' => '#2002',
+        'metadata' => ['shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/2002'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'TRACK-2002',
+        'carrier' => 'USPS',
+    ]);
+    Saloon::fake([GraphQL::class => fulfillmentUserErrorResponse('Fulfillment order is already fulfilled.')]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+    $export = PackageExport::query()->where('package_id', $package->id)->firstOrFail();
+
+    expect($result->success)->toBeTrue()
+        ->and($export->status)->toBe(PackageExportStatus::Succeeded)
+        ->and($package->fresh()->exported)->toBeTrue();
+});
+
+it('permanently fails shopify fulfillment user errors', function (): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => ShopifySource::class,
+        'name' => 'Shopify Export',
+        'settings' => [
+            'shop_domain' => 'test-shop.myshopify.com',
+            'export_enabled' => true,
+        ],
+        'secret_settings' => ['client_id' => 'test-client-id', 'client_secret' => 'test-client-secret'],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource->id,
+        'shipment_reference' => '#2003',
+        'metadata' => ['shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/2003'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'TRACK-2003',
+        'carrier' => 'USPS',
+    ]);
+    Saloon::fake([GraphQL::class => fulfillmentUserErrorResponse('Fulfillment order is on hold and is not fulfillable.')]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+    $export = PackageExport::query()->where('package_id', $package->id)->firstOrFail();
+
+    expect($result->shouldRetry())->toBeFalse()
+        ->and($export->status)->toBe(PackageExportStatus::PermanentlyFailed);
+});
+
+it('permanently fails shopify top-level graphql errors without assuming a message', function (): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => ShopifySource::class,
+        'name' => 'Shopify Export',
+        'settings' => [
+            'shop_domain' => 'test-shop.myshopify.com',
+            'export_enabled' => true,
+        ],
+        'secret_settings' => ['client_id' => 'test-client-id', 'client_secret' => 'test-client-secret'],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource,
+        'shipment_reference' => '#2004',
+        'metadata' => ['shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/2004'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment,
+        'tracking_number' => 'TRACK-2004',
+        'carrier' => 'USPS',
+    ]);
+    Saloon::fake([GraphQL::class => fulfillmentGraphQlErrorResponse(['extensions' => ['code' => 'INVALID']])]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+    $export = PackageExport::query()->where('package_id', $package->id)->firstOrFail();
+
+    expect($result->shouldRetry())->toBeFalse()
+        ->and($result->errors[0])->not->toContain('Undefined array key')
+        ->and($export->status)->toBe(PackageExportStatus::PermanentlyFailed);
+});
+
+it('retries transient shopify top-level graphql errors', function (string $code, string $message): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => ShopifySource::class,
+        'name' => 'Shopify Export',
+        'settings' => [
+            'shop_domain' => 'test-shop.myshopify.com',
+            'export_enabled' => true,
+        ],
+        'secret_settings' => ['client_id' => 'test-client-id', 'client_secret' => 'test-client-secret'],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource,
+        'shipment_reference' => '#2006',
+        'metadata' => ['shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/2006'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment,
+        'tracking_number' => 'TRACK-2006',
+        'carrier' => 'USPS',
+    ]);
+    Saloon::fake([GraphQL::class => fulfillmentGraphQlErrorResponse([
+        'message' => $message,
+        'extensions' => ['code' => $code],
+    ])]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+    $export = PackageExport::query()->where('package_id', $package->id)->firstOrFail();
+
+    expect($result->shouldRetry())->toBeTrue()
+        ->and($result->errors[0])->toContain($message)
+        ->and($export->status)->toBe(PackageExportStatus::RetryableFailed);
+})->with([
+    'throttled' => ['THROTTLED', 'Throttled'],
+    'internal server error' => ['INTERNAL_SERVER_ERROR', 'Internal error'],
+    'service unavailable' => ['SERVICE_UNAVAILABLE', 'Service unavailable'],
+]);
+
+it('permanently fails shopify user errors without assuming a message', function (): void {
+    $exportSource = DataSource::factory()->create([
+        'source_type' => ShopifySource::class,
+        'name' => 'Shopify Export',
+        'settings' => [
+            'shop_domain' => 'test-shop.myshopify.com',
+            'export_enabled' => true,
+        ],
+        'secret_settings' => ['client_id' => 'test-client-id', 'client_secret' => 'test-client-secret'],
+    ]);
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource,
+        'shipment_reference' => '#2005',
+        'metadata' => ['shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/2005'],
+    ]);
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment,
+        'tracking_number' => 'TRACK-2005',
+        'carrier' => 'USPS',
+    ]);
+    Saloon::fake([GraphQL::class => MockResponse::make([
+        'data' => [
+            'fulfillmentCreate' => [
+                'fulfillment' => null,
+                'userErrors' => [['field' => ['fulfillment']]],
+            ],
+        ],
+    ])]);
+
+    $result = (new PackageExportService)->exportPackage($package);
+    $export = PackageExport::query()->where('package_id', $package->id)->firstOrFail();
+
+    expect($result->shouldRetry())->toBeFalse()
+        ->and($result->errors[0])->not->toContain('Undefined array key')
+        ->and($export->status)->toBe(PackageExportStatus::PermanentlyFailed);
 });
 
 it('imports multiple pages of fulfillment orders', function (): void {

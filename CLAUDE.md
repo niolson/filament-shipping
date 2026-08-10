@@ -596,7 +596,7 @@ livewire(ListUsers::class)
 
 ### Issue tracker
 
-Issues live as local markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
+Issues live as committed markdown files under `docs/issues/`. See `docs/agents/issue-tracker.md`. (`.scratch/` is gitignored scratch space, not the tracker.)
 
 ### Triage labels
 

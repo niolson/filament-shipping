@@ -27,7 +27,7 @@ class ShipmentItemImporter
         }
 
         $stats = $this->emptyStats();
-        $importedProductIds = [];
+        $importedShipmentItemIds = [];
         $hasUnresolvedItems = false;
 
         foreach ($items as $itemData) {
@@ -40,21 +40,49 @@ class ShipmentItemImporter
                 continue;
             }
 
-            $importedProductIds[] = $productId;
+            $sourceItemId = $itemData['source_item_id'] ?? null;
+            $values = [
+                'product_id' => $productId,
+                'quantity' => $itemData['quantity'] ?? 1,
+                'value' => $itemData['value'] ?? null,
+                'transparency' => $itemData['transparency'] ?? false,
+            ];
 
-            $shipmentItem = ShipmentItem::updateOrCreate(
-                [
-                    'shipment_id' => $shipment->id,
-                    'product_id' => $productId,
-                ],
-                [
-                    'barcode' => $itemData['barcode'] ?? null,
-                    'quantity' => $itemData['quantity'] ?? 1,
-                    'value' => $itemData['value'] ?? null,
-                    'description' => $itemData['description'] ?? null,
-                    'transparency' => $itemData['transparency'] ?? false,
-                ]
-            );
+            if (filled($sourceItemId)) {
+                $shipmentItem = ShipmentItem::query()
+                    ->where('shipment_id', $shipment->id)
+                    ->where('source_item_id', $sourceItemId)
+                    ->first()
+                    ?? ShipmentItem::query()
+                        ->where('shipment_id', $shipment->id)
+                        ->where('product_id', $productId)
+                        ->whereNull('source_item_id')
+                        ->when($importedShipmentItemIds !== [], fn ($query) => $query->whereNotIn('id', $importedShipmentItemIds))
+                        ->orderBy('id')
+                        ->first();
+
+                if ($shipmentItem) {
+                    $shipmentItem->update($values + ['source_item_id' => $sourceItemId]);
+                } else {
+                    $shipmentItem = ShipmentItem::query()->updateOrCreate(
+                        [
+                            'shipment_id' => $shipment->id,
+                            'source_item_id' => $sourceItemId,
+                        ],
+                        $values,
+                    );
+                }
+            } else {
+                $shipmentItem = ShipmentItem::query()->updateOrCreate(
+                    [
+                        'shipment_id' => $shipment->id,
+                        'product_id' => $productId,
+                    ],
+                    $values,
+                );
+            }
+
+            $importedShipmentItemIds[] = $shipmentItem->id;
 
             if ($shipmentItem->wasRecentlyCreated) {
                 $stats['items_created']++;
@@ -71,11 +99,11 @@ class ShipmentItemImporter
 
         if (($record->settings['authoritative_shipment_items'] ?? false)
             && $items->isNotEmpty()
-            && $importedProductIds !== []
+            && $importedShipmentItemIds !== []
             && ! $hasUnresolvedItems
             && ! $shipment->packages()->exists()) {
             $shipment->shipmentItems()
-                ->whereNotIn('product_id', $importedProductIds)
+                ->whereNotIn('id', $importedShipmentItemIds)
                 ->delete();
         }
 

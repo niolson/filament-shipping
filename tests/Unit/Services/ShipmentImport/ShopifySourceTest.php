@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\PermanentExportException;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use Illuminate\Support\Facades\Cache;
@@ -386,7 +387,7 @@ it('throws when fulfillment has no fulfillment order id', function (): void {
         'shipment_reference' => '#1001',
         'fulfillment_order_id' => null,
     ]);
-})->throws(InvalidArgumentException::class, 'fulfillment order ID');
+})->throws(PermanentExportException::class, 'fulfillment order ID');
 
 it('throws on shopify user errors', function (): void {
     Saloon::fake([
