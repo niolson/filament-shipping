@@ -566,7 +566,15 @@ class FedexAdapter implements CarrierAdapterInterface
             $requestedShipment = [
                 'shipper' => $this->buildContact($request->fromAddress),
                 'recipients' => [
-                    $this->buildContact($request->toAddress),
+                    // Standing in the shipper's phone keeps FedEx from rejecting a
+                    // domestic shipment outright over a missing recipient number.
+                    // Not done once customs is involved: the recipient contact then
+                    // feeds a customs declaration, and naming the warehouse there
+                    // would misstate who receives the goods.
+                    $this->buildContact(
+                        $request->toAddress,
+                        $request->toAddress->requiresCustomsDeclaration() ? null : $request->fromAddress->phone,
+                    ),
                 ],
                 ...($request->shipDate ? [
                     'shipDateStamp' => $request->shipDate->format('Y-m-d'),
@@ -1247,7 +1255,7 @@ class FedexAdapter implements CarrierAdapterInterface
         }
     }
 
-    private function buildContact(AddressData $address): array
+    private function buildContact(AddressData $address, ?string $fallbackPhone = null): array
     {
         $streetLines = array_filter(array_map(
             fn ($line) => $line ? substr($line, 0, 35) : null,
@@ -1258,7 +1266,7 @@ class FedexAdapter implements CarrierAdapterInterface
             'contact' => array_filter([
                 'personName' => trim($address->firstName.' '.$address->lastName),
                 'companyName' => $address->company,
-                'phoneNumber' => $address->phone,
+                'phoneNumber' => $address->phone ?? $fallbackPhone,
                 'phoneExtension' => $address->phoneExtension,
             ]),
             'address' => [

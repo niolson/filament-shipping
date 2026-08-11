@@ -16,15 +16,7 @@ class PhoneParserService
         try {
             $phoneNumber = $util->parse($rawPhone, $defaultRegion);
 
-            // isValidNumber() matches the number against libphonenumber's metadata,
-            // which trails NANP area code assignments — a perfectly dialable number
-            // in a recently issued area code (370, an Ohio overlay) reads as invalid
-            // and used to be discarded. Accept anything of a plausible length
-            // instead: keeping a number we cannot fully verify beats dropping it,
-            // because carriers that require a recipient phone reject the whole
-            // shipment when it is missing (FedEx returns "phoneNumber cannot be
-            // null"). Genuine garbage is still too short or too long to be possible.
-            if (! $util->isPossibleNumber($phoneNumber)) {
+            if (! $util->isValidNumber($phoneNumber)) {
                 return new PhoneParseResult(
                     phone: null,
                     e164: null,
@@ -59,33 +51,41 @@ class PhoneParserService
         }
     }
 
-    public static function nationalDigits(?string $phoneE164, ?string $defaultRegion = 'US'): ?string
-    {
-        if (! $phoneE164) {
-            return null;
-        }
-
-        return self::parse($phoneE164, $defaultRegion)->phone;
-    }
-
     /**
-     * The digits to hand a carrier API, preferring the normalized national number
-     * and falling back to the raw digits as they were entered.
+     * The national digits to hand a carrier API, preferring the stored E.164
+     * value and falling back to the raw phone as entered.
      *
-     * Rows stored before their number's area code reached libphonenumber's
-     * metadata have a null phone_e164 that no amount of re-reading will recover,
-     * so the unparsed value is the only phone number left to send.
+     * Deliberately more permissive than parse(): it asks only whether
+     * libphonenumber can read the number and whether the result is a plausible
+     * length, not whether isValidNumber() vouches for it. A number in an area
+     * code newer than the bundled metadata (370, an Ohio overlay) fails
+     * validation and so was never stored as phone_e164, but it dials fine — and
+     * carriers that require a recipient phone reject the whole shipment when one
+     * is missing (FedEx returns "phoneNumber cannot be null"). Sending digits we
+     * cannot fully verify beats sending none. Anything libphonenumber cannot
+     * parse, or that lands outside the length window, still yields null.
      */
     public static function carrierDigits(?string $phoneE164, ?string $rawPhone, ?string $defaultRegion = 'US'): ?string
     {
-        $nationalDigits = self::nationalDigits($phoneE164, $defaultRegion);
+        $defaultRegion = strtoupper($defaultRegion ?: 'US');
 
-        if ($nationalDigits !== null) {
-            return $nationalDigits;
+        foreach ([$phoneE164, $rawPhone] as $candidate) {
+            if (! filled($candidate)) {
+                continue;
+            }
+
+            try {
+                $phoneNumber = PhoneNumberUtil::getInstance()->parse($candidate, $defaultRegion);
+                $nationalDigits = (string) $phoneNumber->getNationalNumber();
+
+                if (strlen($nationalDigits) >= 7 && strlen($nationalDigits) <= 15) {
+                    return $nationalDigits;
+                }
+            } catch (NumberParseException) {
+                continue;
+            }
         }
 
-        $digits = preg_replace('/\D/', '', (string) $rawPhone);
-
-        return $digits === '' ? null : $digits;
+        return null;
     }
 }

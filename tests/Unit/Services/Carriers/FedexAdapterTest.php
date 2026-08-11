@@ -1230,6 +1230,142 @@ it('sends a recipient phone number stored before its area code was recognized', 
     });
 });
 
+it('uses the shipper phone when the recipient has no usable phone number', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        CreateShipment::class => MockResponse::make([
+            'output' => [
+                'transactionShipments' => [
+                    [
+                        'masterTrackingNumber' => '794644790138',
+                        'completedShipmentDetail' => [
+                            'shipmentRating' => ['shipmentRateDetails' => [['totalNetCharge' => 12.75]]],
+                        ],
+                        'pieceResponses' => [
+                            [
+                                'trackingNumber' => '794644790138',
+                                'packageDocuments' => [['encodedLabel' => 'JVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+            phone: '4255551234',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: '456 Customer Ave',
+            city: 'Austin',
+            stateOrProvince: 'TX',
+            postalCode: '78701',
+        ),
+        packageData: new PackageData(weight: 0.95, length: 4, width: 6, height: 6),
+        selectedRate: new RateResponse(
+            carrier: 'FedEx',
+            serviceCode: 'FEDEX_2_DAY',
+            serviceName: 'FedEx 2Day',
+            price: 12.75,
+            metadata: ['serviceType' => 'FEDEX_2_DAY'],
+        ),
+    );
+
+    expect($this->adapter->createShipment($request)->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $contact = $request->body()->all()['requestedShipment']['recipients'][0]['contact'] ?? [];
+
+        return ($contact['phoneNumber'] ?? null) === '4255551234';
+    });
+});
+
+it('does not stand in the shipper phone when the recipient clears customs', function (array $destination): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        CreateShipment::class => MockResponse::make([
+            'output' => [
+                'transactionShipments' => [
+                    [
+                        'masterTrackingNumber' => '794644790138',
+                        'completedShipmentDetail' => [
+                            'shipmentRating' => ['shipmentRateDetails' => [['totalNetCharge' => 12.75]]],
+                        ],
+                        'pieceResponses' => [
+                            [
+                                'trackingNumber' => '794644790138',
+                                'packageDocuments' => [['encodedLabel' => 'JVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+            phone: '4255551234',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: '456 Customer Ave',
+            city: $destination['city'],
+            stateOrProvince: $destination['stateOrProvince'],
+            postalCode: $destination['postalCode'],
+            country: $destination['country'],
+        ),
+        packageData: new PackageData(weight: 0.95, length: 4, width: 6, height: 6),
+        selectedRate: new RateResponse(
+            carrier: 'FedEx',
+            serviceCode: 'FEDEX_2_DAY',
+            serviceName: 'FedEx 2Day',
+            price: 12.75,
+            metadata: ['serviceType' => 'FEDEX_2_DAY'],
+        ),
+        customsItems: [
+            new CustomsItem(description: 'Dictionaries', quantity: 2, unitValue: 25.235, weight: 0.4),
+        ],
+    );
+
+    expect($this->adapter->createShipment($request)->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $contact = $request->body()->all()['requestedShipment']['recipients'][0]['contact'] ?? [];
+
+        return ! array_key_exists('phoneNumber', $contact);
+    });
+})->with([
+    'us territory' => [['city' => 'San Lorenzo', 'stateOrProvince' => 'PR', 'postalCode' => '00754', 'country' => 'US']],
+    'military post office' => [['city' => 'APO', 'stateOrProvince' => 'AE', 'postalCode' => '09123', 'country' => 'US']],
+    'foreign country' => [['city' => 'Toronto', 'stateOrProvince' => 'ON', 'postalCode' => 'M5V 2T6', 'country' => 'CA']],
+]);
+
 it('declares customs for a Puerto Rico destination that shares the US country code', function (): void {
     Saloon::fake([
         '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
