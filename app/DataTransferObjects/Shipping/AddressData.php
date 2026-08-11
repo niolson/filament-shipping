@@ -2,6 +2,7 @@
 
 namespace App\DataTransferObjects\Shipping;
 
+use App\Enums\DestinationZone;
 use App\Models\Location;
 use App\Models\Shipment;
 use App\Services\PhoneParserService;
@@ -36,7 +37,7 @@ readonly class AddressData
             postalCode: $shipment->validated_postal_code ?? $shipment->postal_code,
             country: $shipment->validated_country ?? $shipment->country ?? 'US',
             company: $shipment->validated_company ?? $shipment->company,
-            phone: PhoneParserService::nationalDigits($shipment->phone_e164, $shipment->validated_country ?? $shipment->country ?? 'US'),
+            phone: PhoneParserService::carrierDigits($shipment->phone_e164, $shipment->phone, $shipment->validated_country ?? $shipment->country ?? 'US'),
             email: $shipment->email,
             phoneExtension: $shipment->phone_extension,
             uspsCarrierRoute: $shipment->validated_carrier_route,
@@ -55,7 +56,7 @@ readonly class AddressData
             postalCode: $location->postal_code,
             country: $location->country,
             company: $location->company,
-            phone: PhoneParserService::nationalDigits($location->phone_e164, $location->country),
+            phone: PhoneParserService::carrierDigits($location->phone_e164, $location->phone, $location->country),
         );
     }
 
@@ -84,6 +85,22 @@ readonly class AddressData
      * @var array<int, string>
      */
     private const MILITARY_CITIES = ['APO', 'FPO', 'DPO'];
+
+    /**
+     * Whether this is a United States territory or possession.
+     */
+    public function isUsTerritory(): bool
+    {
+        if ($this->country !== 'US') {
+            return false;
+        }
+
+        return in_array(
+            strtoupper(trim((string) $this->stateOrProvince)),
+            DestinationZone::UsTerritories->states(),
+            true,
+        );
+    }
 
     /**
      * Whether this is an overseas military or diplomatic post office address.
@@ -151,17 +168,56 @@ readonly class AddressData
     }
 
     /**
-     * Whether a shipment to this address carries a customs declaration.
+     * The customs area this address sits in.
      *
-     * Military and diplomatic post offices cross a customs boundary despite
-     * being domestic addresses, so "customs applies" is not the same question
-     * as "the country is not US". Anything reasoning about customs data should
-     * ask this rather than comparing the country itself, or the two answers
-     * drift apart — which is how customs items reached the carrier without
-     * passing through weight reconciliation first.
+     * The fifty states share one area; every territory and the military post
+     * offices are their own, which is why a country code alone cannot answer
+     * whether a shipment clears customs.
+     */
+    private function customsZone(): string
+    {
+        if ($this->country !== 'US') {
+            return $this->country;
+        }
+
+        if ($this->isMilitary()) {
+            return 'US-MILITARY';
+        }
+
+        if ($this->isUsTerritory()) {
+            return 'US-'.strtoupper(trim((string) $this->stateOrProvince));
+        }
+
+        return 'US';
+    }
+
+    /**
+     * Whether a shipment between this address and the given one stays inside a
+     * single customs area, and so carries no declaration.
+     *
+     * Carriers ask about the pair, not either address alone: a label from
+     * Canada into Pennsylvania needs customs even though the destination is an
+     * ordinary US address.
+     */
+    public function sharesCustomsZoneWith(self $other): bool
+    {
+        return $this->customsZone() === $other->customsZone();
+    }
+
+    /**
+     * Whether a shipment to this address carries a customs declaration when it
+     * originates in the fifty states.
+     *
+     * Military and diplomatic post offices, along with the territories, cross a
+     * customs boundary despite being domestic addresses, so "customs applies" is
+     * not the same question as "the country is not US". Anything reasoning about
+     * customs data should ask this rather than comparing the country itself, or
+     * the two answers drift apart — which is how customs items reached the
+     * carrier without passing through weight reconciliation first, and how
+     * Puerto Rico labels reached FedEx with no customs value on them.
      */
     public function requiresCustomsDeclaration(): bool
     {
-        return $this->country !== 'US' || $this->isMilitary();
+        return $this->customsZone() !== 'US';
     }
 }

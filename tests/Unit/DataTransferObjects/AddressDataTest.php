@@ -89,3 +89,63 @@ it('does not let a PO Box also read as a military address', function (): void {
     expect($address->isPoBox())->toBeTrue()
         ->and($address->isMilitary())->toBeFalse();
 });
+
+function addressIn(string $stateOrProvince, string $city = 'Anytown', string $country = 'US'): AddressData
+{
+    return new AddressData(
+        firstName: 'John',
+        lastName: 'Doe',
+        streetAddress: 'PO BOX 1686',
+        city: $city,
+        stateOrProvince: $stateOrProvince,
+        postalCode: '00754',
+        country: $country,
+    );
+}
+
+it('requires a customs declaration for a US territory', function (string $territory): void {
+    expect(addressIn($territory)->isUsTerritory())->toBeTrue()
+        ->and(addressIn($territory)->requiresCustomsDeclaration())->toBeTrue();
+})->with(['PR', 'GU', 'VI', 'AS', 'MP']);
+
+it('requires a customs declaration for a military post office', function (): void {
+    expect(addressIn('AE', city: 'APO')->requiresCustomsDeclaration())->toBeTrue();
+});
+
+it('requires a customs declaration for a foreign address', function (): void {
+    expect(addressIn('ON', country: 'CA')->requiresCustomsDeclaration())->toBeTrue();
+});
+
+it('does not require a customs declaration for a state', function (string $state): void {
+    expect(addressIn($state)->isUsTerritory())->toBeFalse()
+        ->and(addressIn($state)->requiresCustomsDeclaration())->toBeFalse();
+})->with(['TX', 'AK', 'HI', 'DC']);
+
+it('reads a territory code that arrives unnormalized', function (): void {
+    expect(addressIn(' pr ')->isUsTerritory())->toBeTrue();
+});
+
+it('does not treat a foreign subdivision sharing a territory code as a territory', function (): void {
+    // Paraná, Brazil.
+    expect(addressIn('PR', country: 'BR')->isUsTerritory())->toBeFalse();
+});
+
+it('crosses a customs boundary between the states and a territory', function (): void {
+    expect(addressIn('PR')->sharesCustomsZoneWith(addressIn('WA')))->toBeFalse();
+});
+
+it('crosses a customs boundary between two different territories', function (): void {
+    expect(addressIn('PR')->sharesCustomsZoneWith(addressIn('GU')))->toBeFalse();
+});
+
+it('stays inside one customs area within a single territory', function (): void {
+    expect(addressIn('PR', city: 'San Lorenzo')->sharesCustomsZoneWith(addressIn('PR', city: 'Ponce')))->toBeTrue();
+});
+
+it('stays inside one customs area between two states', function (): void {
+    expect(addressIn('WA')->sharesCustomsZoneWith(addressIn('PA')))->toBeTrue();
+});
+
+it('crosses a customs boundary when only the origin is foreign', function (): void {
+    expect(addressIn('PA')->sharesCustomsZoneWith(addressIn('ON', country: 'CA')))->toBeFalse();
+});
