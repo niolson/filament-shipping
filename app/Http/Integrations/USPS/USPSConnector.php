@@ -116,7 +116,15 @@ class USPSConnector extends Connector
 
     protected static function getAuthenticatorCacheKey(): string
     {
-        return 'usps_authenticator';
+        return 'usps_authenticator'.static::sandboxCacheSuffix();
+    }
+
+    /**
+     * Cache key for an account's client-credentials token, namespaced by environment.
+     */
+    public static function authenticatorCacheKeyForAccount(int $accountId): string
+    {
+        return 'usps_authenticator'.static::sandboxCacheSuffix().":{$accountId}";
     }
 
     /**
@@ -140,7 +148,7 @@ class USPSConnector extends Connector
         /** @phpstan-ignore new.static */
         $connector = $account ? static::forAccount($account) : new static;
         $cacheKey = $account?->secret('client_id')
-            ? "usps_authenticator:{$account->id}"
+            ? static::authenticatorCacheKeyForAccount($account->id)
             : static::getAuthenticatorCacheKey();
 
         $cached = Cache::get($cacheKey);
@@ -249,13 +257,24 @@ class USPSConnector extends Connector
     }
 
     /**
+     * Cache key for a payment authorization token, namespaced by environment.
+     *
+     * The token is minted by whichever environment issued the access token
+     * used to request it, so sandbox and production must not share a slot.
+     */
+    public static function paymentAuthorizationCacheKey(?int $accountId = null): string
+    {
+        return 'usps_payment_authorization_token'.static::sandboxCacheSuffix().':'.($accountId ?? 'global');
+    }
+
+    /**
      * Fetches a USPS payment authorization token for the given account.
      * Keyed by account ID so invalidation is a single Cache::forget on the account.
      * Pass null to fall back to global Settings credentials.
      */
     public static function getUspsPaymentAuthorizationToken(?int $accountId = null): string
     {
-        $cacheKey = 'usps_payment_authorization_token:'.($accountId ?? 'global');
+        $cacheKey = static::paymentAuthorizationCacheKey($accountId);
 
         return Cache::get($cacheKey, function () use ($cacheKey, $accountId) {
             $account = $accountId ? CarrierAccount::find($accountId) : null;

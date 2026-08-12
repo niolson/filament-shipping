@@ -147,6 +147,9 @@ class DevSettings extends Page
 
         app(SettingsService::class)->clearCache();
 
+        // Token caches are namespaced by environment, so each environment keeps its
+        // own slot across a flip. This flush is belt-and-braces: it forces a clean
+        // re-auth rather than protecting against a cross-environment token.
         if ($sandboxMode !== $previousSandboxMode) {
             Cache::forget('usps_authenticator');
             Cache::forget('usps_payment_authorization_token:global');

@@ -210,10 +210,15 @@ class CarrierAccount extends Model
 
     private function clearTokenCaches(): void
     {
-        // USPS per-account caches
-        Cache::forget("usps_payment_authorization_token:{$this->id}");
+        // USPS per-account caches. Token caches are namespaced by environment,
+        // so both variants must go — a credential change invalidates each one.
+        foreach (['', '_sandbox'] as $env) {
+            Cache::forget("usps_payment_authorization_token{$env}:{$this->id}");
+            Cache::forget("usps_payment_authorization_token{$env}:global");
+            Cache::forget("usps_authenticator{$env}");
+            Cache::forget("usps_authenticator{$env}:{$this->id}");
+        }
         Cache::forget("usps_oauth_token:{$this->id}");
-        Cache::forget("usps_authenticator:{$this->id}");
         // Detected CONTRACT/RETAIL pricing tier — must be re-probed after a credential change.
         Cache::forget("usps_pricing_type:{$this->id}");
 
@@ -226,8 +231,10 @@ class CarrierAccount extends Model
         }
 
         // UPS: global caches + per-account caches (used when account has its own client_id)
-        Cache::forget('ups_authenticator');
-        Cache::forget("ups_authenticator:{$this->id}");
+        foreach (['', '_sandbox'] as $env) {
+            Cache::forget("ups_authenticator{$env}");
+            Cache::forget("ups_authenticator{$env}:{$this->id}");
+        }
         Cache::forget('ups_oauth_token');
         Cache::forget("ups_oauth_token:{$this->id}");
     }
