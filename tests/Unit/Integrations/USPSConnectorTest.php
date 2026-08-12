@@ -10,9 +10,12 @@ use App\Models\CarrierAccount;
 use App\Models\Setting;
 use App\Services\SettingsService;
 use GuzzleHttp\Psr7\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Saloon\Http\Auth\AccessTokenAuthenticator;
 use Saloon\Http\Faking\MockResponse;
+use Saloon\Http\OAuth2\GetClientCredentialsTokenRequest;
 use Saloon\Laravel\Facades\Saloon;
 
 it('builds correct shipping options request', function (): void {
@@ -268,4 +271,66 @@ it('throws a carrier unavailable exception for OAuth accounts in sandbox mode', 
 
     expect(fn () => USPSConnector::getAuthenticatedConnector($account))
         ->toThrow(CarrierUnavailableException::class);
+});
+
+it('namespaces the per-account token cache key by environment', function (): void {
+    $account = CarrierAccount::factory()->usps()->create([
+        'secret_credentials' => ['client_id' => 'abc', 'client_secret' => 'shh'],
+    ]);
+
+    $productionKey = USPSConnector::authenticatorCacheKeyForAccount($account->id);
+
+    Setting::create(['key' => 'sandbox_mode', 'value' => '1', 'type' => 'boolean', 'group' => 'testing']);
+    app(SettingsService::class)->clearCache();
+
+    $sandboxKey = USPSConnector::authenticatorCacheKeyForAccount($account->id);
+
+    expect($productionKey)->toBe("usps_authenticator:{$account->id}")
+        ->and($sandboxKey)->toBe("usps_authenticator_sandbox:{$account->id}")
+        ->and($sandboxKey)->not->toBe($productionKey);
+});
+
+it('namespaces the payment authorization cache key by environment', function (): void {
+    $productionKey = USPSConnector::paymentAuthorizationCacheKey(7);
+
+    Setting::create(['key' => 'sandbox_mode', 'value' => '1', 'type' => 'boolean', 'group' => 'testing']);
+    app(SettingsService::class)->clearCache();
+
+    expect($productionKey)->toBe('usps_payment_authorization_token:7')
+        ->and(USPSConnector::paymentAuthorizationCacheKey(7))->toBe('usps_payment_authorization_token_sandbox:7');
+});
+
+it('does not reuse a production token after switching to sandbox mode', function (): void {
+    $account = CarrierAccount::factory()->usps()->create([
+        'secret_credentials' => ['client_id' => 'abc', 'client_secret' => 'shh'],
+    ]);
+
+    // A production token is cached while sandbox_mode is off.
+    Cache::put(USPSConnector::authenticatorCacheKeyForAccount($account->id), [
+        'access_token' => 'production-token',
+        'refresh_token' => null,
+        'expires_at' => now()->addHours(8)->getTimestamp(),
+    ], 3600);
+
+    Setting::create(['key' => 'sandbox_mode', 'value' => '1', 'type' => 'boolean', 'group' => 'testing']);
+    app(SettingsService::class)->clearCache();
+
+    Saloon::fake([
+        GetClientCredentialsTokenRequest::class => MockResponse::make([
+            'access_token' => 'sandbox-token',
+            'token_type' => 'Bearer',
+            'expires_in' => 28799,
+        ], 200),
+    ]);
+
+    $connector = USPSConnector::getAuthenticatedConnector($account);
+
+    $authenticator = $connector->getAuthenticator();
+    expect($authenticator)->toBeInstanceOf(AccessTokenAuthenticator::class);
+
+    /** @var AccessTokenAuthenticator $authenticator */
+
+    // The sandbox connector must mint its own token, not present the production one.
+    expect($authenticator->getAccessToken())->toBe('sandbox-token')
+        ->and(Cache::get('usps_authenticator:'.$account->id)['access_token'])->toBe('production-token');
 });

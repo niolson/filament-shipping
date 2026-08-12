@@ -78,7 +78,15 @@ class UpsConnector extends Connector
 
     protected static function getAuthenticatorCacheKey(): string
     {
-        return 'ups_authenticator';
+        return 'ups_authenticator'.static::sandboxCacheSuffix();
+    }
+
+    /**
+     * Cache key for an account's client-credentials token, namespaced by environment.
+     */
+    public static function authenticatorCacheKeyForAccount(int $accountId): string
+    {
+        return 'ups_authenticator'.static::sandboxCacheSuffix().":{$accountId}";
     }
 
     /**
@@ -104,7 +112,7 @@ class UpsConnector extends Connector
         /** @phpstan-ignore new.static */
         $connector = $account ? static::forAccount($account) : new static;
         $cacheKey = $account?->secret('client_id')
-            ? "ups_authenticator:{$account->id}"
+            ? static::authenticatorCacheKeyForAccount($account->id)
             : static::getAuthenticatorCacheKey();
 
         $cached = Cache::get($cacheKey);

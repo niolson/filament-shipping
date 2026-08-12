@@ -2,6 +2,7 @@
 
 namespace App\Http\Integrations\Concerns;
 
+use App\Services\SettingsService;
 use DateInterval;
 use DateTimeImmutable;
 use Illuminate\Support\Facades\Cache;
@@ -23,6 +24,19 @@ trait HasCachedAuthentication
      * Get the cache key for storing the authenticator.
      */
     abstract protected static function getAuthenticatorCacheKey(): string;
+
+    /**
+     * Suffix that namespaces a token cache key by carrier environment.
+     *
+     * Access tokens are signed by the environment that minted them, so a
+     * sandbox token presented to production (or vice versa) is rejected with
+     * an "invalid token signature" 401. Keying the cache by environment keeps
+     * both tokens valid and independently cached across a sandbox_mode flip.
+     */
+    protected static function sandboxCacheSuffix(): string
+    {
+        return app(SettingsService::class)->get('sandbox_mode', false) ? '_sandbox' : '';
+    }
 
     /**
      * Get an authenticated connector instance with cached credentials.
