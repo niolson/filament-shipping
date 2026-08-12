@@ -3,6 +3,7 @@
 namespace App\DataTransferObjects\Shipping;
 
 use App\Models\Package;
+use App\Services\LabelReferenceResolver;
 use App\Services\ShipDateService;
 use App\Services\SpecialServiceResolver;
 use Carbon\CarbonImmutable;
@@ -13,6 +14,7 @@ readonly class ShipRequest
      * @param  array<int, CustomsItem>  $customsItems
      * @param  array<int, string>  $specialServiceCodes
      * @param  array<string, array<string, mixed>>  $specialServiceConfig  Per-code config values (e.g. declared_value amount)
+     * @param  array<int, string>  $references  Identifiers to print on the label, longest-lived first; carriers truncate to their own limits
      */
     public function __construct(
         public AddressData $fromAddress,
@@ -27,6 +29,7 @@ readonly class ShipRequest
         public ?int $clientId = null,
         public ?CarbonImmutable $shipDate = null,
         public array $specialServiceConfig = [],
+        public array $references = [],
     ) {}
 
     public function hasSpecialService(string $code): bool
@@ -67,6 +70,7 @@ readonly class ShipRequest
             clientId: $this->clientId,
             shipDate: $this->shipDate,
             specialServiceConfig: $this->specialServiceConfig,
+            references: $this->references,
         );
     }
 
@@ -113,6 +117,7 @@ readonly class ShipRequest
             clientId: $this->clientId,
             shipDate: $this->shipDate,
             specialServiceConfig: $this->specialServiceConfig,
+            references: $this->references,
         );
     }
 
@@ -154,6 +159,7 @@ readonly class ShipRequest
             clientId: $package->shipment->client_id,
             shipDate: $shipDate,
             specialServiceConfig: $resolver->configForPackage($package, $specialServiceCodes),
+            references: app(LabelReferenceResolver::class)->forPackage($package),
         );
     }
 }

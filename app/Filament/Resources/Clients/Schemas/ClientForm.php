@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\Clients\Schemas;
 
+use App\Enums\LabelReferenceSource;
 use App\Services\AddressReferenceService;
+use App\Services\LabelReferenceResolver;
 use App\Services\SettingsService;
 use App\Support\SvgUploadSanitizer;
 use Filament\Forms\Components\FileUpload;
@@ -69,6 +71,19 @@ class ClientForm
                     ])
                     ->collapsible()
                     ->collapsed(fn (?object $record): bool => blank($record?->company_name) && blank($record?->custom_message) && blank($record?->return_instructions))
+                    ->columns(2),
+
+                Section::make('Shipping Labels')
+                    ->description('How labels are printed for this client\'s shipments.')
+                    ->schema([
+                        Select::make('label_reference_source')
+                            ->label('Reference Printed on Labels')
+                            ->options(LabelReferenceSource::class)
+                            ->placeholder(fn (): string => 'Use app setting ('.app(LabelReferenceResolver::class)->instanceDefault()->getLabel().')')
+                            ->native(false)
+                            ->helperText('Printed in the carrier\'s reference field so a label can be matched back to its package. USPS and UPS print it as text; FedEx prints it after "REF:". Carriers cut it to their own length limits. Leave unset to follow the app-wide setting.')
+                            ->columnSpanFull(),
+                    ])
                     ->columns(2),
 
                 Section::make('Billing / Rate Card')

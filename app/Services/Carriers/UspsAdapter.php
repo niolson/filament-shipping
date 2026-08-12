@@ -24,6 +24,7 @@ use App\Http\Integrations\USPS\Requests\TrackShipment;
 use App\Http\Integrations\USPS\USPSConnector;
 use App\Models\CarrierAccount;
 use App\Models\Package;
+use App\Services\Carriers\Concerns\BuildsCustomerReferences;
 use App\Services\Carriers\Concerns\DecodesJsonResponses;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\Carriers\Concerns\ResolvesCarrierAccount;
@@ -38,6 +39,7 @@ use Saloon\Http\Response;
 
 class UspsAdapter implements CarrierAdapterInterface
 {
+    use BuildsCustomerReferences;
     use DecodesJsonResponses;
     use HasDefaultServiceCapabilities;
     use ResolvesCarrierAccount;
@@ -93,6 +95,30 @@ class UspsAdapter implements CarrierAdapterInterface
         '160138' => 'USPS reports this destination ZIP Code is no longer in service. Check the address with the customer.',
         '160140' => 'USPS requires customs details for this destination. The package needs scanned items before a label can be bought.',
     ];
+
+    /**
+     * USPS prints a reference in the label's reference block only when the entry
+     * asks for it, and only on a 4X6/4X5/6X4 domestic label — a label carrying a
+     * customs form shows nothing, which is what buildCustomsForm()'s
+     * invoiceNumber is for. referenceNumber is documented as 1..30 characters.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildCustomerReference(ShipRequest $request): array
+    {
+        $references = $this->labelReferences($request, maxLength: 30, maxCount: 2);
+
+        if ($references === []) {
+            return [];
+        }
+
+        return [
+            'customerReference' => array_map(fn (string $reference): array => [
+                'referenceNumber' => $reference,
+                'printReferenceNumber' => true,
+            ], $references),
+        ];
+    }
 
     /**
      * Map resolved special service codes to USPS numeric extra services plus
@@ -560,6 +586,7 @@ class UspsAdapter implements CarrierAdapterInterface
                     'mailingDate' => $request->shipDate?->format('Y-m-d') ?? date('Y-m-d'),
                     'extraServices' => $mapped['extraServices'],
                     'destinationEntryFacilityType' => 'NONE',
+                    ...$this->buildCustomerReference($request),
                     ...($mapped['packageOptions'] !== [] ? ['packageOptions' => $mapped['packageOptions']] : []),
                     ...($mapped['hazmat'] ? ['contentType' => 'HAZMAT'] : []),
                 ],
@@ -688,6 +715,7 @@ class UspsAdapter implements CarrierAdapterInterface
                     'mailingDate' => $request->shipDate?->format('Y-m-d') ?? date('Y-m-d'),
                     'extraServices' => $mapped['extraServices'],
                     'destinationEntryFacilityType' => $metadata['destinationEntryFacilityType'] ?? 'INTERNATIONAL_SERVICE_CENTER',
+                    ...$this->buildCustomerReference($request),
                     ...($mapped['packageOptions'] !== [] ? ['packageOptions' => $mapped['packageOptions']] : []),
                     ...($mapped['hazmat'] ? ['contentType' => 'HAZMAT'] : []),
                 ],
@@ -846,9 +874,17 @@ class UspsAdapter implements CarrierAdapterInterface
             $contents[] = $contentItem;
         }
 
+        // customerReference reaches USPS on a customs-bearing label but is only
+        // written to the Shipping Services File — USPS does not print it
+        // alongside a customs form. invoiceNumber is the field that shows up on
+        // the form itself, so the reference is repeated there to keep an
+        // international label matchable to its package.
+        $reference = $this->labelReferences($request, maxLength: 30, maxCount: 1)[0] ?? null;
+
         return [
             'AESITN' => 'NO EEI 30.37(a)',
             'customsContentType' => 'MERCHANDISE',
+            ...($reference !== null ? ['invoiceNumber' => $reference] : []),
             'contents' => $contents,
         ];
     }

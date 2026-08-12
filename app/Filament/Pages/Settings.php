@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Enums\LabelReferenceSource;
 use App\Enums\Role;
 use App\Filament\Resources\LocationResource;
 use App\Filament\Support\AddressForm;
@@ -12,6 +13,7 @@ use App\Models\Location;
 use App\Models\Setting;
 use App\Services\AccountLockoutService;
 use App\Services\AddressReferenceService;
+use App\Services\LabelReferenceResolver;
 use App\Services\PasswordPolicyService;
 use App\Services\PhoneParserService;
 use App\Services\SettingsService;
@@ -82,6 +84,7 @@ class Settings extends Page
             'manual_shipping_enabled' => $settings->get('manual_shipping_enabled', true),
             'picking_enabled' => $settings->get('picking_enabled', false),
             'require_picking_before_shipping' => $settings->get('require_picking_before_shipping', false),
+            'label_reference_source' => $settings->get('label_reference_source', LabelReferenceResolver::DEFAULT_SOURCE->value),
             'carrier_api_timeout' => $settings->get('carrier_api_timeout', 15),
             'address_validation_google_enabled' => $settings->get('address_validation_google_enabled', false),
             'audit_log_retention_days' => $settings->get('audit_log_retention_days', 365),
@@ -382,6 +385,19 @@ class Settings extends Page
                         ])
                         ->columns(1),
 
+                    Section::make('Shipping Labels')
+                        ->description('What carriers print on the labels this instance buys')
+                        ->schema([
+                            Select::make('label_reference_source')
+                                ->label('Reference Printed on Labels')
+                                ->options(LabelReferenceSource::class)
+                                ->default(LabelReferenceResolver::DEFAULT_SOURCE->value)
+                                ->selectablePlaceholder(false)
+                                ->native(false)
+                                ->helperText('Printed in the carrier\'s reference field so a label can be matched back to its package. USPS and UPS print it as text; FedEx prints it after "REF:". Carriers cut it to their own length limits. Individual clients can override this.'),
+                        ])
+                        ->columns(1),
+
                     Section::make('Carrier API')
                         ->description('Settings for carrier API requests')
                         ->schema([
@@ -579,6 +595,12 @@ class Settings extends Page
             }
         }
 
+        // A Select backed by an enum hands back the enum case, not its value.
+        $labelReferenceSource = $data['label_reference_source'] ?? null;
+        $labelReferenceSource = $labelReferenceSource instanceof LabelReferenceSource
+            ? $labelReferenceSource
+            : LabelReferenceSource::tryFrom((string) $labelReferenceSource);
+
         // Map form fields to setting keys
         $settings = [
             'company_name' => $data['company_name'] ?? '',
@@ -590,6 +612,7 @@ class Settings extends Page
             'manual_shipping_enabled' => $data['manual_shipping_enabled'] ?? true,
             'picking_enabled' => (bool) ($data['picking_enabled'] ?? false),
             'require_picking_before_shipping' => (bool) ($data['require_picking_before_shipping'] ?? false),
+            'label_reference_source' => ($labelReferenceSource ?? LabelReferenceResolver::DEFAULT_SOURCE)->value,
             'carrier_api_timeout' => (int) ($data['carrier_api_timeout'] ?? 15),
             'address_validation_google_enabled' => (bool) ($data['address_validation_google_enabled'] ?? false),
             'audit_log_retention_days' => (int) ($data['audit_log_retention_days'] ?? 365),

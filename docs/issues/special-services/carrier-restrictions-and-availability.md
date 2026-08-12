@@ -161,6 +161,21 @@ The Rating API (`ups-Rating.yaml`) documents several accessorials as restricted 
 | `ShipperReleaseIndicator` on a US→Canada package (documented US50/PR-only, §2.1) | `111538` | "Invalid Origin." |
 | Package-level `COD` on a Letter/Envelope US→Canada package | `110646` | **"Package Level COD is not valid for the shipment origin and/or destination"** — names the specific accessorial by name |
 
+#### A second cluster: fields a domestic payload never needed (2026-08-12)
+
+Found while buying the first international UPS label, not by probing accessorials — the requests below carried no accessorials at all. Each is a field UPS requires only once the lane leaves the origin country, and they surfaced one at a time, each one masking the next:
+
+| Scenario tested | Error code | Message |
+| --- | --- | --- |
+| `Rate` US→JP, origin given as `PostalCode` + `CountryCode` with no city or state | `111538` | "Invalid Origin." |
+| `Rate` US→JP with no `Shipment.InvoiceLineTotal` | `111549` | "Invalid Shipment Contents Value." |
+| `Rate` US→JP with no `Shipment.ShipmentTotalWeight` | `111546` | "Invalid Weight." — despite a present, valid `Package.PackageWeight` |
+| `Shipment` US→JP with no `ShipTo.Phone` | `120209` | "Missing or invalid ship to phone number" |
+
+**`111538` has at least two unrelated causes** — the accessorial violation in the table above, and a thin origin with no accessorials anywhere in the request. A `{code → accessorial}` resolver keyed on it alone would misdiagnose the second, so correlate against which fields the request actually carried before concluding anything.
+
+`DeliveryTimeInformation` is what makes the middle two mandatory rather than optional: including it turns a rate request into a time-in-transit request, which will not resolve without knowing what is moving and how heavy it is. All four are fixed in `UpsAdapter` rather than worked around.
+
 Takeaways: codes are stable and distinct per violation category — not a single catch-all. `110646` in particular is exactly the kind of specific signal a retry resolver needs (no string search required, just a code→accessorial lookup). `111538`/`111262` are more oblique (don't name the accessorial directly) but are still distinguishable from the generic no-rate case and from each other, so a resolver could still narrow down "which of the accessorials I requested is implicated" by correlating the error code against which accessorial-specific fields were present in that particular request. **Recommended approach for UPS:** build a small, empirically-grown map of `{error code → likely accessorial(s)}` as we encounter these in practice, rather than assuming (as the first probe suggested) that UPS gives us nothing to work with. The day-map-based preemptive guess should still be the primary mechanism for Saturday specifically (fastest, no round-trip), with error-code-based retry as the general-purpose fallback for everything else.
 
 ---
