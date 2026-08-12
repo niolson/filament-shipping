@@ -98,8 +98,9 @@ class UspsAdapter implements CarrierAdapterInterface
 
     /**
      * USPS prints a reference in the label's reference block only when the entry
-     * asks for it. The Labels API takes two entries; it publishes no length
-     * limit, so the cap here is the printable width of that block.
+     * asks for it, and only on a 4X6/4X5/6X4 domestic label — a label carrying a
+     * customs form shows nothing, which is what buildCustomsForm()'s
+     * invoiceNumber is for. referenceNumber is documented as 1..30 characters.
      *
      * @return array<string, mixed>
      */
