@@ -5,6 +5,7 @@ namespace App\Services\Carriers;
 use App\Contracts\CarrierAdapterInterface;
 use App\DataTransferObjects\Shipping\AddressData;
 use App\DataTransferObjects\Shipping\CancelResponse;
+use App\DataTransferObjects\Shipping\PackageData;
 use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
@@ -22,6 +23,7 @@ use App\Http\Integrations\Ups\Requests\VoidShipment;
 use App\Http\Integrations\Ups\UpsConnector;
 use App\Models\CarrierAccount;
 use App\Models\Package;
+use App\Services\Carriers\Concerns\BuildsCustomerReferences;
 use App\Services\Carriers\Concerns\DecodesJsonResponses;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\Carriers\Concerns\HasSaturdayDelivery;
@@ -36,6 +38,7 @@ use Saloon\Http\Response;
 
 class UpsAdapter implements CarrierAdapterInterface
 {
+    use BuildsCustomerReferences;
     use DecodesJsonResponses;
     use HasDefaultServiceCapabilities;
     use HasSaturdayDelivery;
@@ -113,6 +116,58 @@ class UpsAdapter implements CarrierAdapterInterface
         }
 
         return ['options' => $options, 'appliedCodes' => $appliedCodes];
+    }
+
+    /**
+     * UPS accepts two reference numbers, each up to 35 characters. Which level
+     * of the payload they belong on depends on the lane — see
+     * acceptsPackageLevelReferences().
+     *
+     * @return array<string, mixed>
+     */
+    private function buildReferenceNumbers(ShipRequest $request): array
+    {
+        $references = $this->labelReferences($request, maxLength: 35, maxCount: 2);
+
+        if ($references === []) {
+            return [];
+        }
+
+        return [
+            'ReferenceNumber' => array_map(fn (string $reference): array => [
+                // TN = Transaction Reference Number, the generic bucket in the
+                // UPS reference code list.
+                'Code' => 'TN',
+                'Value' => $reference,
+            ], $references),
+        ];
+    }
+
+    /**
+     * Whether reference numbers belong on the package rather than the shipment.
+     *
+     * UPS splits this by lane, and each level is wrong for the other's lane:
+     * package-level references are only permitted when both ends sit inside one
+     * domestic area — the fifty states, or Puerto Rico — while shipment-level
+     * references are accepted everywhere but are not printed on labels for
+     * those same domestic lanes. Note that US↔PR is not domestic for this rule
+     * even though both ends carry country code US, so the comparison has to be
+     * zone against zone rather than country against country.
+     */
+    private function acceptsPackageLevelReferences(ShipRequest $request): bool
+    {
+        $origin = $request->fromAddress;
+
+        if ($origin->country !== 'US' || ! $origin->sharesCustomsZoneWith($request->toAddress)) {
+            return false;
+        }
+
+        if ($origin->isMilitary()) {
+            return false;
+        }
+
+        return ! $origin->isUsTerritory()
+            || strtoupper(trim((string) $origin->stateOrProvince)) === 'PR';
     }
 
     /**
@@ -448,10 +503,7 @@ class UpsAdapter implements CarrierAdapterInterface
                 ],
                 'Shipment' => [
                     'Shipper' => [
-                        'Address' => [
-                            'PostalCode' => $request->originPostalCode,
-                            'CountryCode' => 'US',
-                        ],
+                        'Address' => $this->buildRateOriginAddress($request),
                     ],
                     'ShipTo' => [
                         'Address' => array_filter([
@@ -463,11 +515,10 @@ class UpsAdapter implements CarrierAdapterInterface
                         ], fn ($v) => $v !== null),
                     ],
                     'ShipFrom' => [
-                        'Address' => [
-                            'PostalCode' => $request->originPostalCode,
-                            'CountryCode' => 'US',
-                        ],
+                        'Address' => $this->buildRateOriginAddress($request),
                     ],
+                    ...$this->buildRateShipmentTotalWeight($request),
+                    ...$this->buildRateInvoiceLineTotal($request),
                     'Package' => [
                         'PackagingType' => [
                             'Code' => '02',
@@ -516,15 +567,23 @@ class UpsAdapter implements CarrierAdapterInterface
 
             $mapped = $this->buildPackageServiceOptions($request->specialServiceCodes, $request->specialServiceConfig);
 
+            $references = $this->buildReferenceNumbers($request);
+            $packageLevelReferences = $this->acceptsPackageLevelReferences($request) ? $references : [];
+            $shipmentLevelReferences = $packageLevelReferences === [] ? $references : [];
+
             $shipment = [
                 'Description' => 'Shipment',
                 'Shipper' => [
                     'Name' => trim($request->fromAddress->company ?: $request->fromAddress->firstName.' '.$request->fromAddress->lastName),
+                    'AttentionName' => $this->buildAttentionName($request->fromAddress),
                     'ShipperNumber' => $this->resolveAccountNumber($account),
+                    ...$this->buildPhone($request->fromAddress),
                     'Address' => $this->buildAddress($request->fromAddress),
                 ],
                 'ShipTo' => [
                     'Name' => trim($request->toAddress->firstName.' '.$request->toAddress->lastName),
+                    'AttentionName' => $this->buildAttentionName($request->toAddress),
+                    ...$this->buildPhone($request->toAddress),
                     'Address' => $this->buildAddress($request->toAddress),
                 ],
                 'ShipFrom' => [
@@ -544,6 +603,7 @@ class UpsAdapter implements CarrierAdapterInterface
                 'Service' => [
                     'Code' => $serviceCode,
                 ],
+                ...$shipmentLevelReferences,
                 'Package' => [
                     [
                         'Packaging' => [
@@ -564,6 +624,7 @@ class UpsAdapter implements CarrierAdapterInterface
                             'Width' => (string) (int) $request->packageData->width,
                             'Height' => (string) (int) $request->packageData->height,
                         ],
+                        ...$packageLevelReferences,
                         ...($mapped['options'] !== [] ? [
                             'PackageServiceOptions' => $mapped['options'],
                         ] : []),
@@ -777,6 +838,129 @@ class UpsAdapter implements CarrierAdapterInterface
         ]);
 
         return $response;
+    }
+
+    /**
+     * The origin as sent on a rate request.
+     *
+     * Postal code and country alone are enough for UPS to rate a domestic lane,
+     * but not to resolve an origin for an international one — the request comes
+     * back as "Invalid Origin" (111538). City and state are sent whenever the
+     * location has them.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildRateOriginAddress(RateRequest $request): array
+    {
+        return array_filter([
+            'City' => $request->originCity,
+            'StateProvinceCode' => $request->originStateOrProvince,
+            'PostalCode' => $request->originPostalCode,
+            'CountryCode' => $request->originCountry,
+        ], fn ($value) => filled($value));
+    }
+
+    /**
+     * Whether a rate request leaves the country it ships from.
+     *
+     * Puerto Rico reaches us under either encoding depending on the import
+     * source (country PR, or country US with state PR), so both count as
+     * leaving the origin's country.
+     */
+    private function crossesBorder(RateRequest $request): bool
+    {
+        return $request->originCountry !== $request->destinationCountry
+            || strtoupper(trim((string) $request->destinationStateOrProvince)) === 'PR';
+    }
+
+    /**
+     * The shipment's total weight, which UPS requires to return time-in-transit
+     * data for an international rate request — without it the quote comes back
+     * "Invalid Weight" (111546) no matter what the package itself weighs.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildRateShipmentTotalWeight(RateRequest $request): array
+    {
+        if (! $this->crossesBorder($request)) {
+            return [];
+        }
+
+        $totalWeight = round(
+            array_sum(array_map(fn (PackageData $package): float => $package->weight, $request->packages)),
+            1,
+        );
+
+        if ($totalWeight <= 0) {
+            return [];
+        }
+
+        return [
+            'ShipmentTotalWeight' => [
+                'UnitOfMeasurement' => [
+                    'Code' => 'LBS',
+                ],
+                'Weight' => (string) $totalWeight,
+            ],
+        ];
+    }
+
+    /**
+     * The declared value of what is being shipped, which UPS wants before it
+     * will rate a forward international lane. Observed against a US→Japan quote,
+     * which came back "Invalid Shipment Contents Value" (111549) without it;
+     * UPS documents the same requirement for Puerto Rico and Canada.
+     *
+     * Puerto Rico reaches us under either encoding depending on the import
+     * source (country PR, or country US with state PR), so both are treated as
+     * leaving the origin's country.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildRateInvoiceLineTotal(RateRequest $request): array
+    {
+        if (! $this->crossesBorder($request) || ! ($request->contentsValue > 0)) {
+            return [];
+        }
+
+        return [
+            'InvoiceLineTotal' => [
+                'CurrencyCode' => 'USD',
+                'MonetaryValue' => number_format($request->contentsValue, 2, '.', ''),
+            ],
+        ];
+    }
+
+    /**
+     * UPS wants the contact number as digits in a container of its own, and
+     * turns down an international label without one on the recipient
+     * ("Missing or invalid ship to phone number", 120209). AddressData already
+     * holds carrier-ready digits, so nothing is reformatted here.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildPhone(AddressData $address): array
+    {
+        if (blank($address->phone)) {
+            return [];
+        }
+
+        return [
+            'Phone' => array_filter([
+                'Number' => $address->phone,
+                'Extension' => $address->phoneExtension,
+            ], fn ($value) => filled($value)),
+        ];
+    }
+
+    /**
+     * The person UPS should ask for on delivery. Required on both ends of an
+     * international shipment; the company name stands in when the address names
+     * no individual.
+     */
+    private function buildAttentionName(AddressData $address): string
+    {
+        return trim($address->firstName.' '.$address->lastName) ?: (string) $address->company;
     }
 
     private function buildAddress(AddressData $address): array

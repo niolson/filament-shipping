@@ -7,6 +7,7 @@ use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
 use App\Enums\FedexPackageType;
+use App\Enums\LabelReferenceSource;
 use App\Enums\TrackingStatus;
 use App\Http\Integrations\Fedex\Requests\CancelShipment;
 use App\Http\Integrations\Fedex\Requests\CreateShipment;
@@ -1171,6 +1172,71 @@ it('maps battery details into express ship requests', function (): void {
             && ($special['batteryDetails'][0]['batteryMaterialType'] ?? null) === 'LITHIUM_ION';
     });
 });
+
+it('prints the client-selected reference on the label', function (LabelReferenceSource $source, callable $expected): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        CreateShipment::class => MockResponse::make([
+            'output' => [
+                'transactionShipments' => [
+                    [
+                        'masterTrackingNumber' => '794644790138',
+                        'completedShipmentDetail' => [
+                            'shipmentRating' => ['shipmentRateDetails' => [['totalNetCharge' => 12.75]]],
+                        ],
+                        'pieceResponses' => [
+                            [
+                                'trackingNumber' => '794644790138',
+                                'packageDocuments' => [['encodedLabel' => 'JVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ]),
+    ]);
+
+    $client = Client::factory()->create(['label_reference_source' => $source]);
+    $shipment = Shipment::factory()->create([
+        'client_id' => $client->id,
+        'shipment_reference' => 'ORD-10042',
+        'country' => 'US',
+    ]);
+    $package = Package::factory()->for($shipment)->create();
+
+    $rate = new RateResponse(
+        carrier: 'FedEx',
+        serviceCode: 'FEDEX_2_DAY',
+        serviceName: 'FedEx 2Day',
+        price: 12.75,
+        metadata: ['serviceType' => 'FEDEX_2_DAY'],
+    );
+
+    expect($this->adapter->createShipment(ShipRequest::fromPackageAndRate($package, $rate))->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) use ($package, $expected) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $lineItem = $request->body()->all()['requestedShipment']['requestedPackageLineItems'][0];
+
+        return ($lineItem['customerReferences'] ?? null) === $expected($package);
+    });
+})->with([
+    'shipment reference' => [
+        LabelReferenceSource::ShipmentReference,
+        fn (Package $package): array => [['customerReferenceType' => 'CUSTOMER_REFERENCE', 'value' => 'ORD-10042']],
+    ],
+    'package id' => [
+        LabelReferenceSource::PackageId,
+        fn (Package $package): array => [['customerReferenceType' => 'CUSTOMER_REFERENCE', 'value' => (string) $package->id]],
+    ],
+    'none' => [
+        LabelReferenceSource::None,
+        fn (Package $package): ?array => null,
+    ],
+]);
 
 it('sends a recipient phone number stored before its area code was recognized', function (): void {
     Saloon::fake([

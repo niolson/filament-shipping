@@ -10,6 +10,7 @@ use App\Enums\BoxSizeType;
 use App\Enums\TrackingStatus;
 use App\Http\Integrations\USPS\Requests\CancelInternationalLabel;
 use App\Http\Integrations\USPS\Requests\CancelLabel;
+use App\Http\Integrations\USPS\Requests\InternationalLabel;
 use App\Http\Integrations\USPS\Requests\Label;
 use App\Http\Integrations\USPS\Requests\PaymentAuthorization;
 use App\Http\Integrations\USPS\Requests\ShippingOptions;
@@ -1048,7 +1049,7 @@ it('handles residential vs commercial addresses', function (): void {
     expect($rates)->toHaveCount(1);
 });
 
-function uspsSpecialServiceShipRequest(array $codes, array $config = []): ShipRequest
+function uspsSpecialServiceShipRequest(array $codes, array $config = [], array $references = []): ShipRequest
 {
     return new ShipRequest(
         fromAddress: new AddressData(
@@ -1082,6 +1083,7 @@ function uspsSpecialServiceShipRequest(array $codes, array $config = []): ShipRe
         ),
         specialServiceCodes: $codes,
         specialServiceConfig: $config,
+        references: $references,
     );
 }
 
@@ -1096,6 +1098,54 @@ function fakeUspsLabelEndpoints(): void
         ),
     ]);
 }
+
+it('asks USPS to print the label reference', function (): void {
+    fakeUspsLabelEndpoints();
+
+    expect($this->adapter->createShipment(uspsSpecialServiceShipRequest([], [], ['ORD-10042']))->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Label) {
+            return false;
+        }
+
+        return ($request->body()->all()['packageDescription']['customerReference'] ?? null) === [
+            ['referenceNumber' => 'ORD-10042', 'printReferenceNumber' => true],
+        ];
+    });
+});
+
+it('sends no customer reference when the client prints none', function (): void {
+    fakeUspsLabelEndpoints();
+
+    expect($this->adapter->createShipment(uspsSpecialServiceShipRequest([]))->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Label) {
+            return false;
+        }
+
+        return ! array_key_exists('customerReference', $request->body()->all()['packageDescription'] ?? []);
+    });
+});
+
+it('cuts the label reference down to what USPS will print', function (): void {
+    fakeUspsLabelEndpoints();
+
+    $reference = str_repeat('A', 40);
+
+    expect($this->adapter->createShipment(uspsSpecialServiceShipRequest([], [], [$reference]))->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Label) {
+            return false;
+        }
+
+        $printed = $request->body()->all()['packageDescription']['customerReference'][0]['referenceNumber'] ?? null;
+
+        return $printed === str_repeat('A', 30);
+    });
+});
 
 it('maps signature and declared value into the domestic label request', function (): void {
     fakeUspsLabelEndpoints();
@@ -1323,6 +1373,130 @@ it('attaches a customs form to domestic military destinations', function (): voi
         return isset($body['customsForm'])
             && $body['customsForm']['contents'][0]['itemDescription'] === 'Blue Widget'
             && $body['customsForm']['contents'][0]['itemTotalValue'] === 39.98;
+    });
+});
+
+it('repeats the label reference as the customs form invoice number, which is what prints', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        PaymentAuthorization::class => MockResponse::make(['paymentAuthorizationToken' => 'test_payment_token']),
+        InternationalLabel::class => MockResponse::make(
+            body: "--boundary\r\nContent-Type: application/json\r\n\r\n{\"internationalTrackingNumber\":\"LN123456789US\",\"postage\":42.50}\r\n--boundary\r\nContent-Type: application/pdf\r\n\r\nJVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh\r\n--boundary--",
+            headers: ['Content-Type' => 'multipart/mixed; boundary=boundary']
+        ),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+        ),
+        toAddress: new AddressData(
+            firstName: 'Kenji',
+            lastName: 'Sato',
+            streetAddress: '4 Chome-2-8 Shibakoen',
+            city: 'Minato City',
+            stateOrProvince: 'TOKYO',
+            postalCode: '105-0011',
+            country: 'JP',
+        ),
+        packageData: new PackageData(weight: 2.5, length: 10, width: 8, height: 6),
+        selectedRate: new RateResponse(
+            carrier: 'USPS',
+            serviceCode: 'PRIORITY_MAIL_INTERNATIONAL',
+            serviceName: 'Priority Mail International',
+            price: 42.50,
+            metadata: [
+                'mailClass' => 'PRIORITY_MAIL_INTERNATIONAL',
+                'processingCategory' => 'MACHINABLE',
+                'rateIndicator' => 'SP',
+            ],
+        ),
+        customsItems: [new CustomsItem(
+            description: 'Blue Widget',
+            quantity: 2,
+            unitValue: 19.99,
+            weight: 0.5,
+        )],
+        references: ['ORD-10042'],
+    );
+
+    expect($this->adapter->createShipment($request)->success)->toBeTrue();
+
+    Saloon::assertSent(function (Request $request): bool {
+        if (! $request instanceof InternationalLabel) {
+            return false;
+        }
+
+        $body = $request->body()->all();
+
+        // Still sent as a customer reference too — USPS files that in the
+        // Shipping Services File even though it never reaches the label.
+        return ($body['customsForm']['invoiceNumber'] ?? null) === 'ORD-10042'
+            && ($body['packageDescription']['customerReference'][0]['referenceNumber'] ?? null) === 'ORD-10042';
+    });
+});
+
+it('leaves the invoice number off the customs form when no reference is printed', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        PaymentAuthorization::class => MockResponse::make(['paymentAuthorizationToken' => 'test_payment_token']),
+        InternationalLabel::class => MockResponse::make(
+            body: "--boundary\r\nContent-Type: application/json\r\n\r\n{\"internationalTrackingNumber\":\"LN123456789US\",\"postage\":42.50}\r\n--boundary\r\nContent-Type: application/pdf\r\n\r\nJVBERi0xLjQKYmFzZTY0bGFiZWxkYXRh\r\n--boundary--",
+            headers: ['Content-Type' => 'multipart/mixed; boundary=boundary']
+        ),
+    ]);
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+        ),
+        toAddress: new AddressData(
+            firstName: 'Kenji',
+            lastName: 'Sato',
+            streetAddress: '4 Chome-2-8 Shibakoen',
+            city: 'Minato City',
+            stateOrProvince: 'TOKYO',
+            postalCode: '105-0011',
+            country: 'JP',
+        ),
+        packageData: new PackageData(weight: 2.5, length: 10, width: 8, height: 6),
+        selectedRate: new RateResponse(
+            carrier: 'USPS',
+            serviceCode: 'PRIORITY_MAIL_INTERNATIONAL',
+            serviceName: 'Priority Mail International',
+            price: 42.50,
+            metadata: [
+                'mailClass' => 'PRIORITY_MAIL_INTERNATIONAL',
+                'processingCategory' => 'MACHINABLE',
+                'rateIndicator' => 'SP',
+            ],
+        ),
+        customsItems: [new CustomsItem(
+            description: 'Blue Widget',
+            quantity: 2,
+            unitValue: 19.99,
+            weight: 0.5,
+        )],
+    );
+
+    expect($this->adapter->createShipment($request)->success)->toBeTrue();
+
+    Saloon::assertSent(function (Request $request): bool {
+        if (! $request instanceof InternationalLabel) {
+            return false;
+        }
+
+        return ! array_key_exists('invoiceNumber', $request->body()->all()['customsForm']);
     });
 });
 

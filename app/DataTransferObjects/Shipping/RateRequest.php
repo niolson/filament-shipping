@@ -27,6 +27,9 @@ readonly class RateRequest
         public ?int $clientId = null,
         public ?CarbonImmutable $shipDate = null,
         public array $specialServiceConfig = [],
+        public ?string $originCity = null,
+        public ?string $originStateOrProvince = null,
+        public ?float $contentsValue = null,
     ) {}
 
     public static function fromPackage(Package $package): self
@@ -59,6 +62,9 @@ readonly class RateRequest
             locationId: $package->location_id,
             clientId: $package->shipment->client_id,
             specialServiceConfig: $resolver->configForPackage($package, $specialServiceCodes),
+            originCity: $origin->city,
+            originStateOrProvince: $origin->stateOrProvince,
+            contentsValue: $shipment->value !== null ? (float) $shipment->value : null,
         );
     }
 
@@ -101,6 +107,9 @@ readonly class RateRequest
             clientId: $this->clientId,
             shipDate: $this->shipDate,
             specialServiceConfig: $this->specialServiceConfig,
+            originCity: $this->originCity,
+            originStateOrProvince: $this->originStateOrProvince,
+            contentsValue: $this->contentsValue,
         );
     }
 
@@ -120,6 +129,9 @@ readonly class RateRequest
             clientId: $this->clientId,
             shipDate: $date,
             specialServiceConfig: $this->specialServiceConfig,
+            originCity: $this->originCity,
+            originStateOrProvince: $this->originStateOrProvince,
+            contentsValue: $this->contentsValue,
         );
     }
 }

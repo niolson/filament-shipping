@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\LabelReferenceSource;
 use App\Exceptions\FedexRegistrationMaxRetriesException;
 use App\Filament\Pages\Settings;
 use App\Filament\Resources\CarrierAccounts\Pages\EditCarrierAccount;
@@ -16,6 +17,7 @@ use App\Models\Location;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\FedexRegistrationService;
+use App\Services\LabelReferenceResolver;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -365,6 +367,22 @@ it('saves default client fields from settings form in single-client mode', funct
         ->custom_message->toBe('Thanks for shopping!')
         ->return_address1->toBe('456 Elm St')
         ->return_city->toBe('Shelbyville');
+});
+
+it('saves the instance-wide label reference source and applies it to clients with no override', function (): void {
+    Livewire::test(Settings::class)
+        ->fillForm(['label_reference_source' => LabelReferenceSource::PackageId->value])
+        ->call('save')
+        ->assertNotified()
+        ->assertHasNoFormErrors();
+
+    expect(app(SettingsService::class)->get('label_reference_source'))->toBe(LabelReferenceSource::PackageId->value)
+        ->and(app(LabelReferenceResolver::class)->instanceDefault())->toBe(LabelReferenceSource::PackageId);
+});
+
+it('defaults the label reference source to the shipment reference before it is ever saved', function (): void {
+    Livewire::test(Settings::class)
+        ->assertFormSet(['label_reference_source' => LabelReferenceSource::ShipmentReference]);
 });
 
 it('saves the Entra IdP-MFA trust settings from the form', function (): void {

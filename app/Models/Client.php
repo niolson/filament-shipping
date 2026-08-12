@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\LabelReferenceSource;
 use Database\Factories\ClientFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -32,6 +33,7 @@ class Client extends Model
         'pick_fee_first_item',
         'pick_fee_additional_item',
         'label_fee_per_package',
+        'label_reference_source',
     ];
 
     public function hasReturnAddress(): bool
@@ -45,6 +47,7 @@ class Client extends Model
         'pick_fee_first_item' => 'decimal:2',
         'pick_fee_additional_item' => 'decimal:2',
         'label_fee_per_package' => 'decimal:2',
+        'label_reference_source' => LabelReferenceSource::class,
     ];
 
     protected static function booted(): void

@@ -435,7 +435,7 @@ it('handles non-json UPS tracking errors without crashing', function (): void {
         ->and(data_get($response->details, 'raw.body'))->toContain('Service unavailable');
 });
 
-function upsSpecialServiceShipRequest(array $codes, array $config = []): ShipRequest
+function upsSpecialServiceShipRequest(array $codes, array $config = [], array $references = []): ShipRequest
 {
     return new ShipRequest(
         fromAddress: new AddressData(
@@ -464,6 +464,34 @@ function upsSpecialServiceShipRequest(array $codes, array $config = []): ShipReq
         ),
         specialServiceCodes: $codes,
         specialServiceConfig: $config,
+        references: $references,
+    );
+}
+
+/**
+ * A ship request carrying a label reference, addressed to the given destination.
+ */
+function upsShipRequestTo(AddressData $toAddress, string $reference = 'ORD-10042'): ShipRequest
+{
+    return new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+        ),
+        toAddress: $toAddress,
+        packageData: new PackageData(weight: 2.0, length: 10, width: 8, height: 4),
+        selectedRate: new RateResponse(
+            carrier: 'UPS',
+            serviceCode: '03',
+            serviceName: 'UPS Ground',
+            price: 11.00,
+            metadata: ['serviceCode' => '03'],
+        ),
+        references: [$reference],
     );
 }
 
@@ -487,6 +515,221 @@ function fakeUpsShipEndpoints(): void
         ]),
     ]);
 }
+
+it('puts the label reference on the package, where UPS prints it for domestic shipments', function (): void {
+    fakeUpsShipEndpoints();
+
+    expect($this->adapter->createShipment(upsSpecialServiceShipRequest([], [], ['ORD-10042']))->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $shipment = $request->body()->all()['ShipmentRequest']['Shipment'];
+
+        return ($shipment['Package'][0]['ReferenceNumber'] ?? null) === [
+            ['Code' => 'TN', 'Value' => 'ORD-10042'],
+        ]
+            && ! array_key_exists('ReferenceNumber', $shipment);
+    });
+});
+
+it('moves the label reference to the shipment for lanes UPS will not take it on the package', function (array $destination): void {
+    fakeUpsShipEndpoints();
+
+    expect($this->adapter->createShipment(upsShipRequestTo(new AddressData(...$destination)))->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $shipment = $request->body()->all()['ShipmentRequest']['Shipment'];
+
+        return ($shipment['ReferenceNumber'] ?? null) === [['Code' => 'TN', 'Value' => 'ORD-10042']]
+            && ! array_key_exists('ReferenceNumber', $shipment['Package'][0]);
+    });
+})->with([
+    'international' => [[
+        'firstName' => 'Jean',
+        'lastName' => 'Tremblay',
+        'streetAddress' => '100 Queen St W',
+        'city' => 'Toronto',
+        'stateOrProvince' => 'ON',
+        'postalCode' => 'M5H 2N2',
+        'country' => 'CA',
+    ]],
+    // Country code US on both ends, but US↔PR is not one domestic area to UPS.
+    'puerto rico' => [[
+        'firstName' => 'Ana',
+        'lastName' => 'Rivera',
+        'streetAddress' => '1 Calle Fortaleza',
+        'city' => 'San Juan',
+        'stateOrProvince' => 'PR',
+        'postalCode' => '00901',
+        'country' => 'US',
+    ]],
+]);
+
+it('keeps the label reference on the package for shipments inside Puerto Rico', function (): void {
+    fakeUpsShipEndpoints();
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '500 Ave Ponce de Leon',
+            city: 'San Juan',
+            stateOrProvince: 'PR',
+            postalCode: '00901',
+        ),
+        toAddress: new AddressData(
+            firstName: 'Ana',
+            lastName: 'Rivera',
+            streetAddress: '1 Calle Fortaleza',
+            city: 'Ponce',
+            stateOrProvince: 'PR',
+            postalCode: '00716',
+        ),
+        packageData: new PackageData(weight: 2.0, length: 10, width: 8, height: 4),
+        selectedRate: new RateResponse(
+            carrier: 'UPS',
+            serviceCode: '03',
+            serviceName: 'UPS Ground',
+            price: 11.00,
+            metadata: ['serviceCode' => '03'],
+        ),
+        references: ['ORD-10042'],
+    );
+
+    expect($this->adapter->createShipment($request)->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $shipment = $request->body()->all()['ShipmentRequest']['Shipment'];
+
+        return ($shipment['Package'][0]['ReferenceNumber'] ?? null) === [['Code' => 'TN', 'Value' => 'ORD-10042']]
+            && ! array_key_exists('ReferenceNumber', $shipment);
+    });
+});
+
+it('sends the recipient phone and attention name on the label request', function (): void {
+    fakeUpsShipEndpoints();
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: 'Shipping',
+            lastName: 'Center',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+            company: 'PolyBag Fulfillment',
+            phone: '4255551234',
+        ),
+        toAddress: new AddressData(
+            firstName: 'Kenji',
+            lastName: 'Sato',
+            streetAddress: '4 Chome-2-8 Shibakoen',
+            city: 'Minato City',
+            stateOrProvince: 'TOKYO',
+            postalCode: '105-0011',
+            country: 'JP',
+            // What carrierDigits() yields for +81-3-3433-5111: the national
+            // number, with the country code stripped.
+            phone: '334335111',
+            phoneExtension: '22',
+        ),
+        packageData: new PackageData(weight: 0.1, length: 10, width: 8, height: 4),
+        selectedRate: new RateResponse(
+            carrier: 'UPS',
+            serviceCode: '07',
+            serviceName: 'UPS Worldwide Express',
+            price: 61.00,
+            metadata: ['serviceCode' => '07'],
+        ),
+    );
+
+    expect($this->adapter->createShipment($request)->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $shipment = $request->body()->all()['ShipmentRequest']['Shipment'];
+
+        return ($shipment['ShipTo']['Phone'] ?? null) === ['Number' => '334335111', 'Extension' => '22']
+            && ($shipment['ShipTo']['AttentionName'] ?? null) === 'Kenji Sato'
+            && ($shipment['Shipper']['Phone'] ?? null) === ['Number' => '4255551234']
+            && ($shipment['Shipper']['AttentionName'] ?? null) === 'Shipping Center';
+    });
+});
+
+it('falls back to the company when an address names no person to ask for', function (): void {
+    fakeUpsShipEndpoints();
+
+    $request = new ShipRequest(
+        fromAddress: new AddressData(
+            firstName: '',
+            lastName: '',
+            streetAddress: '123 Warehouse St',
+            city: 'Seattle',
+            stateOrProvince: 'WA',
+            postalCode: '98072',
+            company: 'PolyBag Fulfillment',
+        ),
+        toAddress: new AddressData(
+            firstName: 'John',
+            lastName: 'Doe',
+            streetAddress: '456 Main St',
+            city: 'Los Angeles',
+            stateOrProvince: 'CA',
+            postalCode: '90210',
+        ),
+        packageData: new PackageData(weight: 2.0, length: 10, width: 8, height: 4),
+        selectedRate: new RateResponse(
+            carrier: 'UPS',
+            serviceCode: '03',
+            serviceName: 'UPS Ground',
+            price: 11.00,
+            metadata: ['serviceCode' => '03'],
+        ),
+    );
+
+    expect($this->adapter->createShipment($request)->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        $shipment = $request->body()->all()['ShipmentRequest']['Shipment'];
+
+        // No phone on either address, so UPS gets no empty container to reject.
+        return ($shipment['Shipper']['AttentionName'] ?? null) === 'PolyBag Fulfillment'
+            && ! array_key_exists('Phone', $shipment['Shipper'])
+            && ! array_key_exists('Phone', $shipment['ShipTo']);
+    });
+});
+
+it('sends no reference number when the client prints none', function (): void {
+    fakeUpsShipEndpoints();
+
+    expect($this->adapter->createShipment(upsSpecialServiceShipRequest([]))->success)->toBeTrue();
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof CreateShipment) {
+            return false;
+        }
+
+        return ! array_key_exists('ReferenceNumber', $request->body()->all()['ShipmentRequest']['Shipment']['Package'][0]);
+    });
+});
 
 it('maps delivery confirmation and declared value into the ship request', function (): void {
     fakeUpsShipEndpoints();
@@ -535,6 +778,178 @@ it('uses DCIS type 2 for standard signature and sends no options for unwired cod
         return ($options['DeliveryConfirmation']['DCISType'] ?? null) === '2'
             && ! array_key_exists('DeclaredValue', $options)
             && ! array_key_exists('HazMat', $options);
+    });
+});
+
+it('sends a fully qualified origin on rate requests so international lanes resolve', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rate::class => MockResponse::make(['RateResponse' => ['RatedShipment' => []]]),
+    ]);
+
+    $this->adapter->getRates(new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: 'M5H 2N2',
+        destinationCountry: 'CA',
+        destinationCity: 'Toronto',
+        destinationStateOrProvince: 'ON',
+        packages: [new PackageData(weight: 2.0, length: 10, width: 8, height: 4)],
+        originCity: 'Woodinville',
+        originStateOrProvince: 'WA',
+    ), ['07']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Rate) {
+            return false;
+        }
+
+        $shipment = $request->body()->all()['RateRequest']['Shipment'];
+        $origin = [
+            'City' => 'Woodinville',
+            'StateProvinceCode' => 'WA',
+            'PostalCode' => '98072',
+            'CountryCode' => 'US',
+        ];
+
+        return $shipment['Shipper']['Address'] === $origin
+            && $shipment['ShipFrom']['Address'] === $origin;
+    });
+});
+
+it('declares the contents value on rate requests that leave the origin country', function (array $destination): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rate::class => MockResponse::make(['RateResponse' => ['RatedShipment' => []]]),
+    ]);
+
+    $this->adapter->getRates(new RateRequest(
+        originPostalCode: '98072',
+        packages: [new PackageData(weight: 2.0, length: 10, width: 8, height: 4)],
+        contentsValue: 18.03,
+        destinationPostalCode: $destination['destinationPostalCode'],
+        destinationCountry: $destination['destinationCountry'],
+        destinationStateOrProvince: $destination['destinationStateOrProvince'] ?? null,
+    ), ['03']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Rate) {
+            return false;
+        }
+
+        return ($request->body()->all()['RateRequest']['Shipment']['InvoiceLineTotal'] ?? null) === [
+            'CurrencyCode' => 'USD',
+            'MonetaryValue' => '18.03',
+        ];
+    });
+})->with([
+    // The lane that surfaced 111549.
+    'japan' => [['destinationPostalCode' => '105-0011', 'destinationCountry' => 'JP', 'destinationStateOrProvince' => 'TOKYO']],
+    'canada' => [['destinationPostalCode' => 'M5H 2N2', 'destinationCountry' => 'CA']],
+    'puerto rico as its own country' => [['destinationPostalCode' => '00926', 'destinationCountry' => 'PR']],
+    // The same destination as imported by a source that files PR under US.
+    'puerto rico under US' => [[
+        'destinationPostalCode' => '00926',
+        'destinationCountry' => 'US',
+        'destinationStateOrProvince' => 'PR',
+    ]],
+]);
+
+it('sends the shipment total weight on international rate requests', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rate::class => MockResponse::make(['RateResponse' => ['RatedShipment' => []]]),
+    ]);
+
+    $this->adapter->getRates(new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: '105-0011',
+        destinationCountry: 'JP',
+        destinationStateOrProvince: 'TOKYO',
+        packages: [new PackageData(weight: 0.1, length: 10, width: 8, height: 4)],
+        contentsValue: 400.00,
+    ), ['07']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Rate) {
+            return false;
+        }
+
+        return ($request->body()->all()['RateRequest']['Shipment']['ShipmentTotalWeight'] ?? null) === [
+            'UnitOfMeasurement' => ['Code' => 'LBS'],
+            'Weight' => '0.1',
+        ];
+    });
+});
+
+it('leaves the shipment total weight off domestic rate requests', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rate::class => MockResponse::make(['RateResponse' => ['RatedShipment' => []]]),
+    ]);
+
+    $this->adapter->getRates(new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: '90210',
+        packages: [new PackageData(weight: 2.0, length: 10, width: 8, height: 4)],
+    ), ['03']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Rate) {
+            return false;
+        }
+
+        return ! array_key_exists('ShipmentTotalWeight', $request->body()->all()['RateRequest']['Shipment']);
+    });
+});
+
+it('leaves the contents value off domestic rate requests and off shipments with no value', function (?float $contentsValue, string $destinationCountry): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rate::class => MockResponse::make(['RateResponse' => ['RatedShipment' => []]]),
+    ]);
+
+    $this->adapter->getRates(new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: '90210',
+        destinationCountry: $destinationCountry,
+        packages: [new PackageData(weight: 2.0, length: 10, width: 8, height: 4)],
+        contentsValue: $contentsValue,
+    ), ['03']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Rate) {
+            return false;
+        }
+
+        return ! array_key_exists('InvoiceLineTotal', $request->body()->all()['RateRequest']['Shipment']);
+    });
+})->with([
+    'domestic with a value' => [18.03, 'US'],
+    'international with no value' => [null, 'CA'],
+    'international with a zero value' => [0.0, 'CA'],
+]);
+
+it('omits origin fields the location does not have rather than sending blanks', function (): void {
+    Saloon::fake([
+        '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
+        Rate::class => MockResponse::make(['RateResponse' => ['RatedShipment' => []]]),
+    ]);
+
+    $this->adapter->getRates(new RateRequest(
+        originPostalCode: '98072',
+        destinationPostalCode: '90210',
+        packages: [new PackageData(weight: 2.0, length: 10, width: 8, height: 4)],
+    ), ['03']);
+
+    Saloon::assertSent(function ($request) {
+        if (! $request instanceof Rate) {
+            return false;
+        }
+
+        return $request->body()->all()['RateRequest']['Shipment']['Shipper']['Address'] === [
+            'PostalCode' => '98072',
+            'CountryCode' => 'US',
+        ];
     });
 });
 

@@ -24,6 +24,7 @@ use App\Http\Integrations\Fedex\Requests\TrackShipment;
 use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\Package;
+use App\Services\Carriers\Concerns\BuildsCustomerReferences;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\Carriers\Concerns\HasSaturdayDelivery;
 use App\Services\Carriers\Concerns\ResolvesCarrierAccount;
@@ -37,6 +38,7 @@ use Saloon\Http\Response;
 
 class FedexAdapter implements CarrierAdapterInterface
 {
+    use BuildsCustomerReferences;
     use HasDefaultServiceCapabilities;
     use HasSaturdayDelivery;
     use ResolvesCarrierAccount;
@@ -612,6 +614,7 @@ class FedexAdapter implements CarrierAdapterInterface
                             'height' => (int) $request->packageData->height,
                             'units' => 'IN',
                         ],
+                        ...$this->buildCustomerReferences($request),
                         ...$packageLevelServices['lineItemFields'],
                     ],
                 ],
@@ -1276,6 +1279,28 @@ class FedexAdapter implements CarrierAdapterInterface
                 'postalCode' => $address->postalCode,
                 'countryCode' => $address->country,
             ],
+        ];
+    }
+
+    /**
+     * FedEx prints CUSTOMER_REFERENCE values on the label prefixed with "REF:".
+     * Values are capped at 40 characters, and the label has room for three.
+     *
+     * @return array<string, mixed>
+     */
+    private function buildCustomerReferences(ShipRequest $request): array
+    {
+        $references = $this->labelReferences($request, maxLength: 40, maxCount: 3);
+
+        if ($references === []) {
+            return [];
+        }
+
+        return [
+            'customerReferences' => array_map(fn (string $reference): array => [
+                'customerReferenceType' => 'CUSTOMER_REFERENCE',
+                'value' => $reference,
+            ], $references),
         ];
     }
 

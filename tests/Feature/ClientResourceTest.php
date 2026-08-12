@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\LabelReferenceSource;
 use App\Filament\Resources\Clients\Pages\CreateClient;
 use App\Filament\Resources\Clients\Pages\EditClient;
 use App\Filament\Resources\Clients\Pages\ListClients;
@@ -69,6 +70,32 @@ it('can create a client with a return address', function (): void {
         'return_address1' => '123 Main St',
         'return_city' => 'Springfield',
         'return_postal_code' => '62701',
+    ]);
+});
+
+it('creates clients following the app-wide label reference setting', function (): void {
+    Livewire::test(CreateClient::class)
+        ->fillForm(['name' => 'Acme Corp'])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $this->assertDatabaseHas(Client::class, [
+        'name' => 'Acme Corp',
+        'label_reference_source' => null,
+    ]);
+});
+
+it('can override which reference is printed on labels', function (): void {
+    $client = Client::factory()->create(['label_reference_source' => null]);
+
+    Livewire::test(EditClient::class, ['record' => $client->id])
+        ->fillForm(['label_reference_source' => LabelReferenceSource::None->value])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $this->assertDatabaseHas(Client::class, [
+        'id' => $client->id,
+        'label_reference_source' => LabelReferenceSource::None->value,
     ]);
 });
 

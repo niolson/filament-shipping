@@ -85,7 +85,7 @@ Each tenant's `default` network is isolated. The `shared` network connects app/q
 - **Product** — Product catalog with barcodes and weights; scoped to a `Client`
 - **DataSource** — Configurable shipment import/export source (Database/Shopify/Amazon) with per-client assignment, encrypted secrets, and per-source scheduling
 - **Location** — Warehouse / fulfillment center with address, timezone, and carrier associations
-- **Client** — 3PL brand/retailer; scopes shipments, products, data sources, and shipping rules; carries return address and pack slip branding fields
+- **Client** — 3PL brand/retailer; scopes shipments, products, data sources, and shipping rules; carries return address, pack slip branding fields, and the reference printed on carrier labels
 
 ## Key Workflows
 
