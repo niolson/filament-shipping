@@ -16,6 +16,8 @@ use App\Models\Product;
 use App\Models\Setting;
 use App\Models\Shipment;
 use App\Models\ShipmentItem;
+use App\Models\ShippingMethod;
+use App\Models\ShippingMethodAlias;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\DataSourceFactory;
 use App\Services\ShipmentImport\PackageExportService;
@@ -41,6 +43,22 @@ function amazonOrdersResponse(array $orders = [], ?string $nextToken = null): Mo
     return MockResponse::make($body);
 }
 
+function amazonSourceForTest(array $overrides = []): AmazonSource
+{
+    return new AmazonSource(array_merge([
+        'source_type' => AmazonSource::class,
+        'enabled' => true,
+        'channel_name' => 'Amazon',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
+        'refresh_token' => 'test-refresh-token',
+        'marketplace_id' => 'ATVPDKIKX0DER',
+        'shipping_method' => null,
+        'lookback_days' => 30,
+        'export' => ['enabled' => false, 'field_mapping' => []],
+    ], $overrides));
+}
+
 function amazonConfirmShipmentResponse(): MockResponse
 {
     return MockResponse::make([], 204);
@@ -58,7 +76,20 @@ function sampleAmazonOrder(string $orderId = '111-2222222-3333333'): array
 {
     return [
         'orderId' => $orderId,
-        'orderStatus' => 'Unshipped',
+        'fulfillment' => [
+            'fulfillmentStatus' => 'UNSHIPPED',
+            'fulfilledBy' => 'MERCHANT',
+            'fulfillmentServiceLevel' => 'STANDARD',
+            'shipByWindow' => [
+                'earliestDateTime' => '2026-08-12T15:00:00Z',
+                'latestDateTime' => '2026-08-13T03:00:00Z',
+            ],
+            'deliverByWindow' => [
+                'earliestDateTime' => '2026-08-14T15:00:00Z',
+                // 2026-08-15 23:59:59 in America/New_York, the default location timezone.
+                'latestDateTime' => '2026-08-16T03:59:59Z',
+            ],
+        ],
         'recipient' => [
             'deliveryAddress' => [
                 'name' => 'Jane Smith',
@@ -191,6 +222,81 @@ it('imports amazon orders into shipments table with metadata', function (): void
             && ! str_contains($includedData, 'BUYER');
     });
     Saloon::assertNotSent(SearchCatalogItems::class);
+});
+
+it('maps the Amazon fulfillment service level to a shipping method alias', function (): void {
+    tap(Channel::factory()->create(['name' => 'Amazon']), fn ($c) => ChannelAlias::create(['reference' => 'Amazon', 'channel_id' => $c->id]));
+    $method = ShippingMethod::factory()->create(['name' => 'Ground']);
+    ShippingMethodAlias::create(['reference' => 'STANDARD', 'shipping_method_id' => $method->id]);
+
+    Saloon::fake([SearchOrders::class => amazonOrdersResponse([sampleAmazonOrder()])]);
+
+    ShipmentImportService::forSource(amazonSourceForTest(), $this->dataSource)->import();
+
+    $shipment = Shipment::where('shipment_reference', '111-2222222-3333333')->firstOrFail();
+
+    expect($shipment->shipping_method_id)->toBe($method->id)
+        ->and($shipment->shipping_method_reference)->toBe('STANDARD')
+        ->and($shipment->metadata['amazon_fulfillment_service_level'])->toBe('STANDARD');
+});
+
+it('falls back to the source default shipping method when the service level has no alias', function (): void {
+    tap(Channel::factory()->create(['name' => 'Amazon']), fn ($c) => ChannelAlias::create(['reference' => 'Amazon', 'channel_id' => $c->id]));
+    $default = ShippingMethod::factory()->create(['name' => 'Default Ground']);
+
+    Saloon::fake([SearchOrders::class => amazonOrdersResponse([sampleAmazonOrder()])]);
+
+    ShipmentImportService::forSource(amazonSourceForTest(['shipping_method' => (string) $default->id]), $this->dataSource)->import();
+
+    $shipment = Shipment::where('shipment_reference', '111-2222222-3333333')->firstOrFail();
+
+    // The unmapped service level is still recorded so it surfaces for mapping.
+    expect($shipment->shipping_method_id)->toBe($default->id)
+        ->and($shipment->shipping_method_reference)->toBe('STANDARD');
+});
+
+it('leaves the shipping method unset when Amazon omits the service level and no default is configured', function (): void {
+    tap(Channel::factory()->create(['name' => 'Amazon']), fn ($c) => ChannelAlias::create(['reference' => 'Amazon', 'channel_id' => $c->id]));
+
+    $order = sampleAmazonOrder();
+    unset($order['fulfillment']['fulfillmentServiceLevel']);
+
+    Saloon::fake([SearchOrders::class => amazonOrdersResponse([$order])]);
+
+    ShipmentImportService::forSource(amazonSourceForTest(), $this->dataSource)->import();
+
+    $shipment = Shipment::where('shipment_reference', '111-2222222-3333333')->firstOrFail();
+
+    expect($shipment->shipping_method_id)->toBeNull()
+        ->and($shipment->shipping_method_reference)->toBeNull();
+});
+
+it('records the deliver-by date and ship-by window from the Amazon fulfillment block', function (): void {
+    tap(Channel::factory()->create(['name' => 'Amazon']), fn ($c) => ChannelAlias::create(['reference' => 'Amazon', 'channel_id' => $c->id]));
+
+    Saloon::fake([SearchOrders::class => amazonOrdersResponse([sampleAmazonOrder()])]);
+
+    ShipmentImportService::forSource(amazonSourceForTest(), $this->dataSource)->import();
+
+    $shipment = Shipment::where('shipment_reference', '111-2222222-3333333')->firstOrFail();
+
+    // 2026-08-16T03:59:59Z is still 2026-08-15 in the default location's timezone.
+    expect($shipment->deliver_by->toDateString())->toBe('2026-08-15')
+        ->and($shipment->metadata['amazon_ship_by_window']['latestDateTime'])->toBe('2026-08-13T03:00:00Z')
+        ->and($shipment->metadata['amazon_deliver_by_window']['latestDateTime'])->toBe('2026-08-16T03:59:59Z');
+});
+
+it('leaves deliver_by null when Amazon returns no deliver-by window', function (): void {
+    tap(Channel::factory()->create(['name' => 'Amazon']), fn ($c) => ChannelAlias::create(['reference' => 'Amazon', 'channel_id' => $c->id]));
+
+    $order = sampleAmazonOrder();
+    unset($order['fulfillment']['deliverByWindow']);
+
+    Saloon::fake([SearchOrders::class => amazonOrdersResponse([$order])]);
+
+    ShipmentImportService::forSource(amazonSourceForTest(), $this->dataSource)->import();
+
+    expect(Shipment::where('shipment_reference', '111-2222222-3333333')->firstOrFail()->deliver_by)->toBeNull();
 });
 
 it('exports package to amazon as shipment confirmation', function (): void {
@@ -728,10 +834,13 @@ it('imports a bounded historical shipped-order sample with full quantities', fun
 
     $orders = collect(range(1, 4))->map(function (int $number): array {
         $order = sampleAmazonOrder("111-0000000-000000{$number}");
-        $order['orderStatus'] = 'Shipped';
         $order['createdTime'] = '2025-12-01T12:00:00Z';
         $order['salesChannel'] = 'Amazon.com';
-        $order['fulfillment'] = ['fulfilledBy' => 'MERCHANT'];
+        $order['fulfillment'] = [
+            'fulfillmentStatus' => 'SHIPPED',
+            'fulfilledBy' => 'MERCHANT',
+            'fulfillmentServiceLevel' => 'EXPEDITED',
+        ];
         $order['orderItems'][0]['product']['asin'] = 'B000TEST01';
         $order['orderItems'][0]['fulfillment']['quantityFulfilled'] = 3;
         $order['orderItems'][1]['fulfillment']['quantityFulfilled'] = 1;
@@ -774,10 +883,11 @@ it('imports a bounded historical shipped-order sample with full quantities', fun
     expect($shipment->status)->toBe(ShipmentStatus::Shipped)
         ->and($shipment->shipmentItems)->toHaveCount(2)
         ->and($shipment->shipmentItems->sum('quantity'))->toBe(4)
-        ->and($shipment->metadata['amazon_order_status'])->toBe('Shipped')
+        ->and($shipment->metadata['amazon_order_status'])->toBe('SHIPPED')
         ->and($shipment->metadata['amazon_created_time'])->toBe('2025-12-01T12:00:00Z')
         ->and($shipment->metadata['amazon_sales_channel'])->toBe('Amazon.com')
         ->and($shipment->metadata['amazon_fulfilled_by'])->toBe('MERCHANT')
+        ->and($shipment->metadata['amazon_fulfillment_service_level'])->toBe('EXPEDITED')
         ->and($shipment->metadata['amazon_asins'])->toBe(['B000TEST01'])
         ->and($shipment->metadata['amazon_recipient_available'])->toBeTrue();
 
@@ -840,7 +950,7 @@ it('imports up to one thousand historical orders in pages of one hundred', funct
     $responses = collect(range(0, 9))->map(function (int $page): MockResponse {
         $orders = collect(range(1, 100))->map(fn (int $number): array => [
             'orderId' => sprintf('111-%07d-%07d', $page, $number),
-            'orderStatus' => 'Shipped',
+            'fulfillment' => ['fulfillmentStatus' => 'SHIPPED'],
             'orderItems' => [],
         ])->all();
 
@@ -898,7 +1008,7 @@ it('retains an old shipped order when Amazon no longer returns its recipient add
     tap(Channel::factory()->create(['name' => 'Amazon']), fn ($channel) => ChannelAlias::create(['reference' => 'Amazon', 'channel_id' => $channel->id]));
 
     $order = sampleAmazonOrder();
-    $order['orderStatus'] = 'Shipped';
+    $order['fulfillment']['fulfillmentStatus'] = 'SHIPPED';
     $order['recipient'] = [];
     $order['orderItems'][0]['fulfillment']['quantityFulfilled'] = 3;
     $order['orderItems'][1]['fulfillment']['quantityFulfilled'] = 1;
@@ -949,7 +1059,7 @@ it('preserves existing recipient data while marking a historical Amazon order sh
     ]);
 
     $order = sampleAmazonOrder();
-    $order['orderStatus'] = 'Shipped';
+    $order['fulfillment']['fulfillmentStatus'] = 'SHIPPED';
     $order['recipient'] = [];
 
     Saloon::fake([
