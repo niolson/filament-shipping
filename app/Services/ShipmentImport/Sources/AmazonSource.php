@@ -10,7 +10,9 @@ use App\Http\Integrations\Amazon\AmazonSpApiConnector;
 use App\Http\Integrations\Amazon\Requests\ConfirmShipment;
 use App\Http\Integrations\Amazon\Requests\SearchCatalogItems;
 use App\Http\Integrations\Amazon\Requests\SearchOrders;
+use App\Models\Location;
 use App\Services\SettingsService;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
@@ -437,6 +439,13 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
         $firstName = $nameParts[0] ?? null;
         $lastName = $nameParts[1] ?? null;
 
+        // Orders v2026-01-01 moved the order status and the buyer's selected
+        // shipping speed into the order-level fulfillment block, which is only
+        // present when FULFILLMENT is requested in includedData.
+        $fulfillment = $order['fulfillment'] ?? [];
+        $serviceLevel = $fulfillment['fulfillmentServiceLevel'] ?? null;
+        $defaultShippingMethod = $this->config['shipping_method'] ?? null;
+
         return [
             'source_record_id' => $order['orderId'] ?? '',
             'shipment_reference' => $order['orderId'] ?? '',
@@ -453,21 +462,45 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
             'email' => null,
             'value' => round($totalValue, 2),
             'channel_id' => $this->config['channel_name'] ?? 'Amazon',
-            'shipping_method_id' => $this->config['shipping_method'] ?? null,
-            'deliver_by' => null,
+            'shipping_method_id' => filled($serviceLevel) ? $serviceLevel : $defaultShippingMethod,
+            '_shipping_method_fallback' => $defaultShippingMethod,
+            'deliver_by' => $this->localDateFromTimestamp($fulfillment['deliverByWindow']['latestDateTime'] ?? null),
             '_import_status' => $this->isHistoricalImport() ? ShipmentStatus::Shipped->value : ShipmentStatus::Open->value,
             '_preserve_existing_fields' => $preserveExistingFields,
             'metadata' => [
                 'amazon_order_id' => $order['orderId'] ?? null,
-                'amazon_order_status' => $order['orderStatus'] ?? null,
+                'amazon_order_status' => $fulfillment['fulfillmentStatus'] ?? null,
                 'amazon_created_time' => $order['createdTime'] ?? null,
                 'amazon_sales_channel' => $order['salesChannel'] ?? null,
-                'amazon_fulfilled_by' => $order['fulfillment']['fulfilledBy'] ?? null,
+                'amazon_fulfilled_by' => $fulfillment['fulfilledBy'] ?? null,
+                'amazon_fulfillment_service_level' => $serviceLevel,
+                'amazon_ship_by_window' => $fulfillment['shipByWindow'] ?? null,
+                'amazon_deliver_by_window' => $fulfillment['deliverByWindow'] ?? null,
                 'amazon_asins' => collect($items)->pluck('product.asin')->filter()->unique()->values()->all(),
                 'amazon_packages' => $order['packages'] ?? [],
                 'amazon_recipient_available' => $recipientAvailable,
             ],
         ];
+    }
+
+    /**
+     * Convert an Amazon ISO 8601 timestamp to a calendar date in the default
+     * location's timezone. Amazon quotes promise windows in UTC, so taking the
+     * raw UTC date would push an evening-local deadline onto the next day.
+     */
+    private function localDateFromTimestamp(mixed $timestamp): ?string
+    {
+        if (! is_string($timestamp) || trim($timestamp) === '') {
+            return null;
+        }
+
+        try {
+            return CarbonImmutable::parse($timestamp)
+                ->setTimezone(Location::timezone())
+                ->toDateString();
+        } catch (Throwable) {
+            return null;
+        }
     }
 
     private function mapOrderItemToShipmentItem(array $item): array

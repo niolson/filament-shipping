@@ -49,6 +49,18 @@ class ShipmentRowPreparer
 
         $client = $clientOverride ?? $importSource->client;
         $status = ShipmentStatus::tryFrom((string) ($data['_import_status'] ?? '')) ?? ShipmentStatus::Open;
+        $shippingMethodId = $this->references->shippingMethodIdFor($data, $client);
+
+        // Sources that read a per-order shipping reference (e.g. Amazon's
+        // fulfillmentServiceLevel) can supply the source's configured default as
+        // a fallback for references that have no alias yet. The unmapped
+        // reference is still recorded so it surfaces for mapping.
+        if ($shippingMethodId === null && filled($data['_shipping_method_fallback'] ?? null)) {
+            $shippingMethodId = $this->references->shippingMethodIdFor(
+                ['shipping_method_id' => $data['_shipping_method_fallback']],
+                $client,
+            );
+        }
 
         return new PreparedShipmentRow(
             attributes: [
@@ -74,7 +86,7 @@ class ShipmentRowPreparer
                 'value' => $data['value'] ?? null,
                 'validation_message' => $validationWarnings !== [] ? implode('; ', $validationWarnings) : null,
                 'shipping_method_reference' => $data['shipping_method_id'] ?? null,
-                'shipping_method_id' => $this->references->shippingMethodIdFor($data, $client),
+                'shipping_method_id' => $shippingMethodId,
                 'channel_reference' => $data['channel_id'] ?? null,
                 'channel_id' => $this->references->channelIdFor($data, $client),
                 'deliver_by' => $data['deliver_by'] ?? null,
