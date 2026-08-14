@@ -107,14 +107,6 @@ class DataSourceForm
                         ->maxLength(255)
                         ->rule('regex:/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i'),
 
-                    TextInput::make('settings.access_token')
-                        ->label('Custom Access Token')
-                        ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('access_token') ?? $record?->settings['access_token'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
-                        ->afterStateHydrated(fn ($component) => $component->state(null))
-                        ->dehydrated(fn ($state) => filled($state))
-                        ->helperText('Permanent offline token from a custom app. Leave blank to use OAuth (below) or client credentials.'),
-
                     TextInput::make('settings.client_id')
                         ->label('App Client ID')
                         ->password()

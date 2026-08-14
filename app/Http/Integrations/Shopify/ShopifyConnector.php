@@ -51,16 +51,15 @@ class ShopifyConnector extends Connector
 
     /**
      * Build from a per-source config array. All values (shop_domain, client_id,
-     * client_secret, access_token) are per-source and stored on the DataSource.
+     * client_secret, oauth_access_token) are per-source and stored on the DataSource.
      *
      * @param  array<string, mixed>  $settings
      */
     public static function fromSettings(array $settings): self
     {
-        // Manual access_token takes priority over OAuth token; both are per-source.
-        $accessToken = filled($settings['access_token'] ?? null)
-            ? (string) $settings['access_token']
-            : (filled($settings['oauth_access_token'] ?? null) ? (string) $settings['oauth_access_token'] : null);
+        $accessToken = filled($settings['oauth_access_token'] ?? null)
+            ? (string) $settings['oauth_access_token']
+            : null;
 
         return new self(
             shopDomain: (string) ($settings['shop_domain'] ?? ''),
@@ -85,8 +84,8 @@ class ShopifyConnector extends Connector
     }
 
     /**
-     * Get a valid access token. Per-source injected tokens take priority,
-     * then global OAuth token, then client credentials flow.
+     * Get a valid access token. The per-source OAuth token takes priority,
+     * then the client credentials flow.
      */
     private function getAccessToken(): string
     {

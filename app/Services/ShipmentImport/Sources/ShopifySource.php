@@ -128,8 +128,7 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
             throw new InvalidArgumentException('Shopify shop domain is not configured for this source.');
         }
 
-        $hasOwnToken = filled($this->config['access_token'] ?? null)
-            || filled($this->config['oauth_access_token'] ?? null);
+        $hasOwnToken = filled($this->config['oauth_access_token'] ?? null);
         $hasOwnCredentials = filled($this->config['client_id'] ?? null)
             && filled($this->config['client_secret'] ?? null);
 
@@ -495,8 +494,7 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
 
     public function validateExportConfiguration(): void
     {
-        $hasToken = filled($this->config['access_token'] ?? null)
-            || filled($this->config['oauth_access_token'] ?? null);
+        $hasToken = filled($this->config['oauth_access_token'] ?? null);
         $hasCredentials = filled($this->config['client_id'] ?? null)
             && filled($this->config['client_secret'] ?? null);
 

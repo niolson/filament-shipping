@@ -16,7 +16,7 @@ class DataSource extends Model
     use HasDefaultClient, HasFactory;
 
     /** @var list<string> Keys that belong in the encrypted secret_settings column. */
-    public const SECRET_SETTINGS_KEYS = ['access_token', 'oauth_access_token', 'client_id', 'client_secret', 'refresh_token', 'db_password'];
+    public const SECRET_SETTINGS_KEYS = ['oauth_access_token', 'client_id', 'client_secret', 'refresh_token', 'db_password'];
 
     protected $table = 'data_sources';
 
