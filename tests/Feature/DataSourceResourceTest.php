@@ -387,7 +387,6 @@ it('routes secret keys to encrypted secret_settings on create', function (): voi
             'name' => 'Shopify Test',
             'source_type' => ShopifySource::class,
             'settings.shop_domain' => 'test.myshopify.com',
-            'settings.access_token' => 'shpat_secret_token',
             'settings.client_id' => 'secret_client_id',
             'settings.client_secret' => 'secret_client_secret',
             'settings.channel_name' => $channel->id,
@@ -398,11 +397,9 @@ it('routes secret keys to encrypted secret_settings on create', function (): voi
     $record = DataSource::where('name', 'Shopify Test')->firstOrFail();
 
     // Secrets must be in encrypted column, not plain settings
-    expect($record->settings)->not->toHaveKey('access_token');
     expect($record->settings)->not->toHaveKey('client_id');
     expect($record->settings)->not->toHaveKey('client_secret');
 
-    expect($record->secret('access_token'))->toBe('shpat_secret_token');
     expect($record->secret('client_id'))->toBe('secret_client_id');
     expect($record->secret('client_secret'))->toBe('secret_client_secret');
     // Fulfillment-order import is a guarded, one-way activation; creating a
@@ -439,7 +436,7 @@ it('shows synchronized Shopify locations in a fixed mapping repeater', function 
 
 it('synchronizes Shopify locations from the edit action', function (): void {
     $this->actingAs($this->admin);
-    $source = createShopifyDataSource(secrets: ['access_token' => 'shpat_test']);
+    $source = createShopifyDataSource(secrets: ['oauth_access_token' => 'shpat_test']);
     Saloon::fake([
         shopifyAccessScopesResponse(),
         MockResponse::make([
@@ -467,7 +464,7 @@ it('reports packed shipments with null locations when a Shopify mapping exists',
     $channel = Channel::factory()->create();
     $source = createShopifyDataSource([
         'channel_name' => $channel->id,
-    ], ['access_token' => 'shpat_test']);
+    ], ['oauth_access_token' => 'shpat_test']);
     $sourceLocation = DataSourceLocation::factory()->create([
         'data_source_id' => $source,
         'location_id' => Location::getDefault(),
@@ -526,21 +523,21 @@ it('preserves existing secrets when a blank password is submitted on edit', func
     $channel = Channel::factory()->create();
 
     $source = DataSource::factory()->shopify()->create([
-        'secret_settings' => ['access_token' => 'original_token'],
+        'secret_settings' => ['client_secret' => 'original_secret'],
     ]);
 
     Livewire::test(EditDataSource::class, ['record' => $source->id])
         ->fillForm([
             'name' => 'Updated Name',
             'settings.shop_domain' => 'test.myshopify.com',
-            'settings.access_token' => null,
+            'settings.client_secret' => null,
             'settings.channel_name' => $channel->id,
         ])
         ->call('save')
         ->assertHasNoFormErrors();
 
     $source->refresh();
-    expect($source->secret('access_token'))->toBe('original_token');
+    expect($source->secret('client_secret'))->toBe('original_secret');
 });
 
 it('replaces a secret when a new value is submitted on edit', function (): void {
@@ -548,21 +545,21 @@ it('replaces a secret when a new value is submitted on edit', function (): void 
     $channel = Channel::factory()->create();
 
     $source = DataSource::factory()->shopify()->create([
-        'secret_settings' => ['access_token' => 'old_token'],
+        'secret_settings' => ['client_secret' => 'old_secret'],
     ]);
 
     Livewire::test(EditDataSource::class, ['record' => $source->id])
         ->fillForm([
             'name' => 'Updated Name',
             'settings.shop_domain' => 'test.myshopify.com',
-            'settings.access_token' => 'new_token',
+            'settings.client_secret' => 'new_secret',
             'settings.channel_name' => $channel->id,
         ])
         ->call('save')
         ->assertHasNoFormErrors();
 
     $source->refresh();
-    expect($source->secret('access_token'))->toBe('new_token');
+    expect($source->secret('client_secret'))->toBe('new_secret');
 });
 
 it('migrates legacy plaintext secrets from settings to secret_settings on edit', function (): void {
@@ -574,7 +571,7 @@ it('migrates legacy plaintext secrets from settings to secret_settings on edit',
         'settings' => [
             'shop_domain' => 'test.myshopify.com',
             'channel_name' => $channel->id,
-            'access_token' => 'legacy_plaintext_token',
+            'client_secret' => 'legacy_plaintext_secret',
         ],
     ]);
 
@@ -582,15 +579,15 @@ it('migrates legacy plaintext secrets from settings to secret_settings on edit',
         ->fillForm([
             'name' => 'Legacy Source',
             'settings.shop_domain' => 'test.myshopify.com',
-            'settings.access_token' => null,
+            'settings.client_secret' => null,
             'settings.channel_name' => $channel->id,
         ])
         ->call('save')
         ->assertHasNoFormErrors();
 
     $source->refresh();
-    expect($source->settings)->not->toHaveKey('access_token');
-    expect($source->secret('access_token'))->toBe('legacy_plaintext_token');
+    expect($source->settings)->not->toHaveKey('client_secret');
+    expect($source->secret('client_secret'))->toBe('legacy_plaintext_secret');
 });
 
 // ── ShopifySource validation ──────────────────────────────────────────────────
@@ -626,6 +623,24 @@ it('fails validation when neither token nor credentials exist', function (): voi
     ]);
 
     expect(fn () => $source->validateConfiguration())->toThrow(InvalidArgumentException::class, 'credentials are not configured');
+});
+
+it('fails validation when only a deprecated custom-app access token exists', function (): void {
+    $source = new ShopifySource([
+        'shop_domain' => 'test.myshopify.com',
+        'access_token' => 'shpat_legacy_custom_app_token',
+        'channel_name' => 'Shopify',
+    ]);
+
+    expect(fn () => $source->validateConfiguration())->toThrow(InvalidArgumentException::class, 'credentials are not configured');
+});
+
+it('no longer offers a custom access token field on the Shopify form', function (): void {
+    $this->actingAs($this->admin);
+
+    Livewire::test(CreateDataSource::class)
+        ->fillForm(['source_type' => ShopifySource::class])
+        ->assertFormFieldDoesNotExist('settings.access_token');
 });
 
 // ── Raw-SQL statement-type validation (issue 07) ──────────────────────────────

@@ -18,7 +18,7 @@ it('--all --dry-run does not run real imports', function (): void {
             'channel_name' => 'Shopify',
         ],
         'secret_settings' => [
-            'access_token' => 'shpat_test_token',
+            'oauth_access_token' => 'shpat_test_token',
         ],
     ]);
 
@@ -41,11 +41,11 @@ it('--all --validate-only does not run real imports', function (): void {
             'channel_name' => 'Shopify',
         ],
         'secret_settings' => [
-            'access_token' => 'shpat_test_token',
+            'oauth_access_token' => 'shpat_test_token',
         ],
     ]);
 
-    // validate-only just calls validateConfiguration(); with an access_token it should pass.
+    // validate-only just calls validateConfiguration(); with an OAuth token it should pass.
     $this->artisan('shipments:import', ['--all' => true, '--validate-only' => true])
         ->assertExitCode(0);
 
@@ -62,7 +62,7 @@ it('--all without flags runs real imports (not dry-run) for each source', functi
             'channel_name' => 'Shopify',
         ],
         'secret_settings' => [
-            'access_token' => 'shpat_test_token',
+            'oauth_access_token' => 'shpat_test_token',
         ],
     ]);
 
