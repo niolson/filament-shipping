@@ -32,6 +32,8 @@ Reboot if the kernel was updated:
 reboot
 ```
 
+This is the initial build only. Ongoing patching is automated — see [Automatic Updates & Reboots](#automatic-updates--reboots) in step 12.
+
 ## 2. Firewall
 
 If using a cloud provider firewall (Hetzner, DigitalOcean, etc.), allow inbound on:
@@ -48,6 +50,20 @@ Block everything else.
 ```bash
 curl -fsSL https://get.docker.com | sh
 docker compose version  # verify
+```
+
+Enable `live-restore` so running containers survive a daemon restart. This is what makes Docker upgrades a non-event rather than an outage — without it, every `docker-ce` upgrade stops every container:
+
+```bash
+cat > /etc/docker/daemon.json <<'EOF'
+{
+  "live-restore": true
+}
+EOF
+
+# SIGHUP-reloadable, so enabling it does not itself bounce anything
+systemctl reload docker
+docker info | grep -i 'live restore'   # expect: Live Restore Enabled: true
 ```
 
 ## 4. Create Docker Networks
@@ -1039,6 +1055,25 @@ install usb-storage /bin/true
 * hard core 0
 ```
 
+That covers PAM login sessions, which containers do not go through. Containers share the host kernel's `core_pattern`, so a crash inside an app container (php-fpm and friends) would still write process memory to host disk via the host's handler — and that memory can contain customer shipment PII. Discard dumps outright in `/etc/sysctl.d/60-disable-core-dumps.conf`:
+
+```
+kernel.core_pattern=|/bin/false
+fs.suid_dumpable=0
+```
+
+Ubuntu's crash reporter owns `core_pattern` by default, so disable it as well. Mask it rather than merely disabling it: an `apport` package upgrade will otherwise restart the service and quietly reset the pattern.
+
+```bash
+systemctl disable --now apport.service
+systemctl mask apport.service
+systemctl disable --now apport-autoreport.path
+sed -i 's/^enabled=1/enabled=0/' /etc/default/apport
+sysctl -p /etc/sysctl.d/60-disable-core-dumps.conf
+
+cat /proc/sys/kernel/core_pattern   # expect: |/bin/false
+```
+
 **Umask** — tighten to `027` in `/etc/login.defs`:
 
 ```
@@ -1082,6 +1117,52 @@ apt install -y lynis
 
 Weekly audit every Sunday at 2am via `/etc/cron.d/lynis`. Report: `/var/log/lynis-weekly.log`.
 
+### Automatic Updates & Reboots
+
+Ubuntu packages patch themselves. Third-party repos do not, and that split is deliberate.
+
+**Ubuntu Pro (free tier).** Attaching enables Livepatch — kernel CVEs patched into the running kernel with no reboot — plus ESM, which adds security coverage for universe packages that otherwise have none. The free personal subscription covers up to five machines and carries no non-commercial restriction in its terms, so it is fine for hosted tenants. An on-prem customer's own server is not covered by ours and needs its own.
+
+```bash
+pro attach <token>
+pro status                    # esm-apps, esm-infra, livepatch: all "enabled"
+canonical-livepatch status    # running kernel should report "supported"
+```
+
+Livepatch defers reboots, it does not remove them: each kernel carries an `upgradeRequiredDate` after which it must be replaced.
+
+**unattended-upgrades.** Local overrides go in `/etc/apt/apt.conf.d/52unattended-upgrades-local`, kept separate from the shipped `50unattended-upgrades` so upgrading the package cannot clobber them:
+
+```
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
+Unattended-Upgrade::Automatic-Reboot-Time "09:00";
+
+Unattended-Upgrade::Allowed-Origins {
+	"${distro_id}:${distro_codename}-updates";
+};
+```
+
+APT appends to list-valued options, so the `Allowed-Origins` block *adds* the `-updates` pocket to the security pockets already declared in `50unattended-upgrades` rather than replacing them. Verify with `apt-config dump | grep Allowed-Origins` — five entries expected. Preview what would be taken with `unattended-upgrade --dry-run -v`.
+
+`Automatic-Reboot-WithUsers "true"` is intentional. This is a headless box, so a logged-in user is nearly always a forgotten SSH session; `"false"` would defer security reboots indefinitely, which is the failure it is meant to prevent. The time is server-local (UTC) and should fall outside warehouse hours.
+
+**Docker and Caddy are deliberately excluded.** Their repos publish as `o=Docker,a=noble` and `o=cloudsmith/caddy/stable`, matching no allowed origin, so unattended-upgrades will never touch them regardless of which pockets are configured. Upgrading either restarts a daemon that can take tenants down, so both stay manual and watched. The practical consequence: anything appearing in `apt list --upgradable` is Docker or Caddy, because Ubuntu packages apply themselves.
+
+Upgrading Docker, with a before/after check that nothing bounced:
+
+```bash
+docker inspect --format '{{.Name}} {{.State.StartedAt}}' $(docker ps -q) | sort > /root/pre-upgrade.txt
+
+apt-get install -y --only-upgrade docker-ce docker-ce-cli containerd.io \
+  docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras
+
+docker inspect --format '{{.Name}} {{.State.StartedAt}}' $(docker ps -q) | sort > /root/post-upgrade.txt
+diff /root/pre-upgrade.txt /root/post-upgrade.txt   # expect: no differences
+```
+
+Health checks reset to `health: starting` while the daemon reattaches to running containers. Wait for them to return to `healthy` before calling it done.
+
 ### Trivy (Host OS + Container Image Vulnerability Scanning)
 
 CVE scanning for two things CI does not cover:
@@ -1106,6 +1187,19 @@ shipped a fix — so the actionable number there is usually zero. Container
 image findings are the opposite: overwhelmingly fixable, because they clear
 by pulling a current image. That is why reports sort by fixable rather than
 by severity.
+
+Enabling Ubuntu Pro moves the host baseline, so do not compare raw totals
+across that boundary. Trivy starts detecting the OS as `24.04-ESM` and pulls
+ESM vulnerability data, which tracks packages that previously had no security
+coverage at all (`vim`, `nano`, `xxd` and similar). Counts go *up* on the
+first post-attach scan while actual exposure goes down — the packages were
+never clean, merely unwatched. Compare the Fixable column, not the totals.
+
+A stale kernel is the usual reason the Fixable column is non-zero: purging an
+old `linux-image` / `linux-modules` pair is what clears it, and `apt-get
+autoremove` deliberately will not do that for you (it keeps one previous
+kernel as a rollback). Confirm `uname -r` matches the newest installed kernel
+before purging.
 
 Install a pinned, checksum-verified release rather than piping an install
 script — this runs as root, so we don't trust whatever happens to be
