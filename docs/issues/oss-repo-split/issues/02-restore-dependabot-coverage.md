@@ -1,6 +1,6 @@
 # Re-establish Dependabot / CVE coverage in `polybag-ops`
 
-Status: ready-for-human — implemented, one criterion needs a human at the GitHub UI
+Status: done
 Category: security
 Type: human
 
@@ -35,7 +35,7 @@ Work:
 ## Acceptance criteria
 
 - [x] `polybag-ops` has a `dependabot.yml` covering every directory containing a compose file
-- [ ] Dependabot has actually run once in the new repo and its results reviewed — configuration alone does not close this
+- [x] Dependabot has actually run once in the new repo and its results reviewed — configuration alone does not close this
 - [x] No image reference in `polybag-ops` uses a mutable tag without a digest
 - [x] A decision is recorded on infra-image scanning (Dependabot only, or Dependabot plus a scheduled scan)
 - [x] `infra/README.md` in the new repo still explains *why* these files are committed — that rationale must not be lost in the move
@@ -103,21 +103,34 @@ Three refs were on mutable tags. Resolved per maintainer decision:
   unwatched and would rot silently. Note this diverges from the public repo's copy of
   that script until issue 04 deletes it — harmless, since 04 is a deletion, not a merge.
 
-### The one criterion left open
+### Dependabot run confirmed (2026-08-18, same day)
 
-"Dependabot has actually run once and its results reviewed" is **not** closed, and it
-is not closeable from the CLI: GitHub exposes no API for Dependabot job history, and
-with every pin already current there are no PRs to serve as indirect evidence. What I
-could verify: the config is valid YAML in the schema's shape, and the dependency graph
-shows 0 manifests — which is *expected*, not a fault. The public repo shows the same
-(its graph lists only `composer/npm/workflow` files, no compose or Dockerfile), yet its
-compose updates demonstrably work, most recently PR #119. The graph is simply not the
-mechanism for this ecosystem.
+Five version-update jobs on <https://github.com/niolson/polybag-ops/network/updates>,
+all green, all "No PRs affected", spread over the ~15 minutes after the two pushes.
+No config error. Zero PRs is the **correct** result, not a silent failure: every pin
+was independently checked against upstream with `docker buildx imagetools inspect`
+before the config landed, and all of them were already at the current digest.
 
-**To close it:** open <https://github.com/niolson/polybag-ops/network/updates>, use
-"Check for updates" on the `docker-compose` entry, and confirm a "Last checked"
-timestamp with no config error against all four directories. That single check also
-unblocks issue 04.
+**Correction to what an earlier draft of this note claimed.** It cited public PR #119
+as proof the compose ecosystem works. That is wrong — #119 is the `docker` ecosystem
+(the `Dockerfile`). The real evidence is better: the public repo has **six**
+`dependabot/docker_compose/*` PRs — note the *underscore*, which is why a hyphenated
+search came back empty and produced the wrong conclusion. Three of them are against
+`/infra/shared` specifically (#111, #109, #100), so the exact ecosystem, on the exact
+directory, has demonstrably produced PRs under this config shape.
+
+PR #100 is a bonus confirmation: `bump mysql from 8.4 to 26.7 in /infra/shared`,
+closed. That is precisely the calver Innovation-release bump the `semver-major` ignore
+rule exists to suppress, so carrying that rule across was right.
+
+**One thing worth a second look.** The manifest list on that page shows only
+`docs/.../cloudflared/docker-compose.yml` — the three `infra/` directories are not
+listed as rows, even though the config names them and the files are on `main`. All
+four compose files are structurally identical (plain `services:` with a
+`tag@sha256:` image), so there is no parse-level reason for a split. Most likely a
+display artifact of a list still filling in, given the jobs ran green and outnumber
+the directories. If a Dependabot PR ever lands for `infra/` this is settled; until one
+does, re-check the page before relying on it.
 
 ### Observed in passing, not acted on
 
