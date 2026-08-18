@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a change or addition
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        PolyBag is source-available under the Business Source License 1.1, and it is
+        built around one shipping operation's real workflow. Requests that fit that
+        workflow land faster than ones that generalise it.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what stops you? Describe the operational situation, not just the feature.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you have tried
+      description: Workarounds, existing settings, or other tools you considered.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to work on this myself (see CONTRIBUTING.md — a CLA is required)
+          required: false

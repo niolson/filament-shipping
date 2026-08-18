@@ -1,0 +1,158 @@
+# Contributing to PolyBag
+
+Thanks for taking an interest. This document covers what you need to know before
+opening a pull request: the licence position, the contributor agreement, and the local
+development loop.
+
+## Before you write any code
+
+### This project is source-available, not open source
+
+PolyBag is licensed under the [Business Source License 1.1](LICENSE). You may read,
+modify, and run it for personal, educational, internal evaluation, and development
+purposes. You may **not** use it for a production commercial purpose until the change
+date, **March 11, 2030**, when the licence converts to Apache-2.0.
+
+BSL 1.1 is not an OSI-approved licence. We say this plainly here so nobody contributes
+under a misunderstanding about what they are contributing to. If you need different
+terms, contact `license@polybag.app`.
+
+### Contributions require a CLA
+
+Because PolyBag is dual-licensed — BSL for everyone, commercial terms available from
+POLYBAG.APP LLC — we need the right to sublicense contributed code under those
+commercial terms and under the eventual Apache-2.0 conversion. A sign-off alone
+(DCO-style) does not grant that, so we ask for a **Contributor License Agreement**.
+
+The CLA does not take your copyright away. You keep it, and you keep the right to use
+your own contribution however you like. It grants POLYBAG.APP LLC a licence broad
+enough to keep shipping the project under both sets of terms.
+
+There is no bot and no click-through yet. **Open your pull request first** — a
+maintainer will email you the CLA on your first contribution, and it only needs signing
+once. If you are contributing on behalf of an employer, tell us, as the agreement will
+need to be signed by someone who can bind them.
+
+### Security issues do not go here
+
+If you have found a vulnerability, **stop and read [SECURITY.md](SECURITY.md)**. Do not
+open a public issue or pull request for it.
+
+## Getting set up
+
+Requirements: PHP 8.4, Composer, Node.js 22+, and MySQL 8.4. SQLite works for running
+the test suite and is what CI uses, but develop against MySQL — that is what
+deployments run.
+
+```bash
+git clone https://github.com/niolson/polybag.git
+cd polybag
+composer run setup   # install deps, copy .env, generate key, migrate, build assets
+```
+
+`composer run setup` copies `.env.example`, which is the Docker-shaped config. For
+non-Docker local work, `.env.local.example` is the better starting point — no Redis, no
+Docker hostnames.
+
+Then run everything at once:
+
+```bash
+composer run dev   # serve + queue workers + scheduler + Vite, via concurrently
+```
+
+Set `FAKE_CARRIERS=true` in `.env`. It swaps in fake carrier adapters and a fake address
+validator, so you can exercise the rate, label, and validation paths without carrier
+credentials — and without spending money, since USPS address validation and FedEx
+tracking are billed per request.
+
+## The loop
+
+```bash
+composer run test                                # full Pest suite (clears config first)
+php artisan test --compact --filter="some name"  # one test
+php artisan test tests/Feature/AuthorizationTest.php
+
+vendor/bin/pint                                  # auto-fix formatting
+vendor/bin/phpstan analyse --memory-limit=1G     # static analysis, level 5
+composer run format                              # rector + phpstan + pint together
+```
+
+Browser and end-to-end tests:
+
+```bash
+php artisan test tests/Browser/   # Pest browser tests
+npm run test:e2e                  # Playwright, requires FAKE_CARRIERS=true
+npm run test:e2e:headed
+```
+
+`tests/External/` is excluded from the default suite on purpose — those tests hit real
+carrier sandboxes and need real credentials. Do not add to them unless you have an
+account to run them against.
+
+## Testing expectations
+
+Every behavioural change needs a test. Most should be feature tests.
+
+- Create them with `php artisan make:test --pest SomeFeatureTest` (add `--unit` for a
+  unit test). Note that the name must not include the suite directory.
+- `RefreshDatabase` is applied globally in [`tests/Pest.php`](tests/Pest.php) — you do
+  not need to add it per file.
+- Use model factories, and check for an existing state before setting fields by hand.
+- Filament pages and resources are Livewire components. Test them with
+  `livewire(SomePage::class)`, and call `$this->actingAs(...)` first — the panel
+  requires auth.
+- PHPStan runs at level 5 with a baseline in `phpstan-baseline.neon`. Fix new errors;
+  do not regenerate the baseline to make them disappear.
+
+## The pre-push hook
+
+`composer install` points `core.hooksPath` at [`.githooks/`](.githooks), so
+[`.githooks/pre-push`](.githooks/pre-push) runs automatically.
+
+- **PHPStan blocks the push.** Static analysis failures are your code, and CI will fail
+  on them anyway.
+- **`composer audit` and `npm audit` only warn.** They print findings and let the push
+  through. An advisory published upstream this morning is not your bug, and it should
+  not stand between you and a pull request on unrelated code. The `security-audit`
+  workflow runs both on every push and pull request, so the gate still exists where it
+  belongs — in CI, where a maintainer sees it.
+
+To skip the hook entirely for one push:
+
+```bash
+git push --no-verify
+```
+
+## Pull requests
+
+- Branch off `main`. Descriptive branch names, no fixed prefix — `fix-usps-token-cache`,
+  `package-export-ledger`.
+- Commit subjects are imperative and sentence case: "Print a package reference on carrier
+  labels", not "feat: add reference printing". No Conventional Commits.
+- Keep a pull request to one concern. A drive-by reformat buried in a behaviour change is
+  the hardest kind of diff to review.
+- Fill in the pull request template — particularly how you tested it, and whether it
+  touches carrier API behaviour.
+- CI must be green: Pint, PHPStan, Pest, the browser suite, the Docker build, the image
+  CVE scan, Semgrep, and Hadolint.
+
+## Things worth knowing before you change them
+
+- **Carrier adapters** (`app/Services/Carriers/`) each talk to a live API with its own
+  quirks. Changes there need a test using `FakeCarrierAdapter` or a mocked Saloon
+  response, and a note in the pull request about what you verified against a real
+  sandbox, if anything.
+- **Hardware integration** — QZ Tray printing and the scale — is inline JavaScript in
+  Blade components (`<x-qz-tray>`, `<x-qz-tray-script>`, `<x-scale-script>`), not
+  standalone JS files. WebHID needs a secure context, so scale work has to be tested
+  over HTTPS or on localhost, in Chrome or Edge.
+- **Dependencies.** Please ask before adding one. This app ships as a Docker image that
+  gets CVE-scanned on every build, so each new package is an ongoing cost.
+- **`docs/adr/`** records architectural decisions and [`CONTEXT.md`](CONTEXT.md) the
+  domain language. Read the relevant one before reshaping something structural, and add
+  an ADR if you are making a decision worth remembering.
+
+## Code of Conduct
+
+Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md). Report problems
+to `conduct@polybag.app`.

@@ -290,4 +290,15 @@ Three roles with hierarchical permissions:
 
 ## License
 
-[MIT](LICENSE)
+PolyBag is **source-available, not open source**. It is licensed under the
+[Business Source License 1.1](LICENSE): personal, educational, internal evaluation, and
+development use are permitted; production use for a commercial purpose is not. The
+licence converts to Apache-2.0 on **March 11, 2030**.
+
+For commercial terms, contact `license@polybag.app`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development loop and the contributor
+agreement, and [SECURITY.md](SECURITY.md) to report a vulnerability privately.
+Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
