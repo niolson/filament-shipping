@@ -123,3 +123,46 @@ Then sweep for references that now dangle:
 - `issues/01-stand-up-ops-repo.md` — content must exist elsewhere first
 - `issues/02-restore-dependabot-coverage.md` — do not drop `infra/` until CVE watching is live in the private repo
 - `issues/03-de-tenant-deployment-surface.md` — determines what stays
+
+---
+
+## Blocker found while doing issue 02 (2026-08-18)
+
+**Deleting `infra/shared/docker-compose.yml` from the public repo leaves `/opt/shared`
+deployable from neither repo.** Resolve this before the deletion; it is not covered by
+the pre-flight secret scan above.
+
+`infra/shared/docker-compose.yml` mounts three sibling files by relative path:
+
+```yaml
+- ./mysql.cnf:/etc/mysql/conf.d/encryption.cnf:ro
+- ./mysqld.my:/usr/sbin/mysqld.my:ro
+- ./component_keyring_file.cnf:/usr/lib64/mysql/plugin/component_keyring_file.cnf:ro
+```
+
+Issue 01 moved the compose file to `polybag-ops` and — correctly, per the PRD — left
+the three `.cnf` files public, because the root `docker-compose.yml` mounts them for
+the standalone self-host path. The result after this issue's deletion:
+
+| Repo | Has the compose file | Has the `.cnf` files |
+| --- | --- | --- |
+| `polybag` (public) | no (deleted here) | yes |
+| `polybag-ops` (private) | yes | **no** |
+
+So `cp infra/shared/* /opt/shared/` — the documented procedure in `infra/README.md` —
+cannot be run from either checkout alone. Right now it still works only because the
+public repo happens to hold all four files; this issue is what breaks it.
+
+The failure mode is worse than a clean error. Docker creates a **directory** at a
+bind-mount source that does not exist, so MySQL would start with a directory mounted
+over `mysqld.my` and its keyring component config, rather than refusing to boot. On a
+server using TDE that risks an encrypted-tablespace failure at startup, and the
+keyring migration in `docs/server-setup.md` is exactly the hard-won procedure this
+would put at risk.
+
+Likely resolution: copy the three `.cnf` files into `polybag-ops/infra/shared/` so
+that directory is self-contained, and accept that they exist in both repos serving two
+different consumers — the public copies for the standalone path in the root
+`docker-compose.yml`, the private copies for the shared stack. They contain no
+secrets. Whichever way it is decided, `infra/README.md` in `polybag-ops` needs its
+deploy instructions updated to match.
