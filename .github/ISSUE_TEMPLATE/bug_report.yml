@@ -1,0 +1,126 @@
+name: Bug report
+description: Something in PolyBag does not work the way it should
+labels: ["needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report.
+
+        **If this is a security vulnerability, stop and read [SECURITY.md](https://github.com/niolson/polybag/blob/main/SECURITY.md) instead.**
+        Do not describe it here — this issue is public.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+      placeholder: |
+        1. Scanned box code BX-12 on /pack/4821
+        2. Scanned three items
+        3. Expected the ship button to enable; the item count stayed at 2
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where in the app
+      options:
+        - Picking
+        - Packing
+        - Shipping / rates / labels
+        - Batch shipping
+        - Manual ship
+        - End of day / manifests
+        - Shipment import
+        - Package export
+        - Label printing (QZ Tray)
+        - Scale (WebHID / QZ Tray)
+        - Admin, settings, or users
+        - Something else
+    validations:
+      required: true
+
+  - type: dropdown
+    id: carrier
+    attributes:
+      label: Carrier
+      description: Which carrier is involved, if any. Carrier APIs differ enough that this usually narrows it immediately.
+      options:
+        - Not carrier-specific
+        - USPS
+        - FedEx
+        - UPS
+        - Fake carriers (FAKE_CARRIERS=true)
+        - More than one
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment-mode
+    attributes:
+      label: Deployment mode
+      description: See the deployment modes table in CLAUDE.md if you are unsure.
+      options:
+        - Local development (no Docker)
+        - Standalone (Docker, --profile standalone, bundled MySQL and Redis)
+        - Shared (multi-tenant, shared MySQL and Redis)
+        - External (managed cloud database or cache)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sandbox
+    attributes:
+      label: Sandbox mode
+      description: Were carrier calls hitting sandbox or production endpoints?
+      options:
+        - Sandbox
+        - Production
+        - Not applicable
+    validations:
+      required: true
+
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Browser
+      description: The WebHID scale backend only exists in Chrome and Edge, over HTTPS or localhost. Print and scale bugs are often browser-specific.
+      options:
+        - Chrome
+        - Edge
+        - Firefox
+        - Safari
+        - Other
+        - Not applicable (CLI, queue, or API)
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Commit SHA, or the output of `git rev-parse --short HEAD`.
+      placeholder: a51c364
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and errors
+      description: Relevant lines from `storage/logs/laravel.log`, the browser console, or `docker compose logs app`. **Redact carrier credentials, OAuth tokens, and customer addresses before pasting.**
+      render: text
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have removed credentials, tokens, and real customer data from everything pasted above
+          required: true
+        - label: This is not a security vulnerability (those go through SECURITY.md)
+          required: true

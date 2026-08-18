@@ -86,7 +86,7 @@ class CarrierAccountForm
                     ->collapsible(),
 
                 Section::make('Advanced / API App Credentials')
-                    ->description('Custom USPS developer app credentials. Most installations leave these empty and use the shared OAuth connection.')
+                    ->description('Your own USPS developer app credentials. Hosted installs normally leave these empty and use the shared OAuth connection; self-hosted installs fill them in — see docs/self-hosting.md.')
                     ->schema([
                         TextInput::make('usps_adv_client_id')
                             ->label('Client ID')
@@ -127,7 +127,7 @@ class CarrierAccountForm
                     ->collapsible(),
 
                 Section::make('Advanced / API App Credentials')
-                    ->description('Custom FedEx developer app credentials. Leave empty to use the shared polybag-connect credentials.')
+                    ->description('Your own FedEx developer app credentials. Hosted installs normally leave these empty and use the shared broker credentials; self-hosted installs fill them in — see docs/self-hosting.md.')
                     ->schema([
                         TextInput::make('fedex_adv_api_key')
                             ->label('Production API Key')
@@ -209,7 +209,7 @@ class CarrierAccountForm
                     ->collapsible(),
 
                 Section::make('Advanced / API App Credentials')
-                    ->description('Custom UPS developer app credentials. Most installations leave these empty and use the shared OAuth connection.')
+                    ->description('Your own UPS developer app credentials. Hosted installs normally leave these empty and use the shared OAuth connection; self-hosted installs fill them in — see docs/self-hosting.md.')
                     ->schema([
                         TextInput::make('ups_adv_client_id')
                             ->label('Client ID')

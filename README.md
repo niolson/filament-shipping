@@ -154,6 +154,12 @@ composer run format
 
 ## Configuration
 
+> **Self-hosting?** Several `.env` keys and UI actions refer to services POLYBAG.APP LLC
+> operates — the OAuth broker at `connect.polybag.app` above all. You cannot use those,
+> and you do not need to. [`docs/self-hosting.md`](docs/self-hosting.md) lists what to
+> register with each carrier and vendor, where each credential goes, and how to get to a
+> working rate quote using only your own accounts.
+
 ### Environment Variables (`.env`)
 
 Copy `.env.example` to `.env` and configure. Most settings only need the database connection — carrier API credentials, company address, and feature flags are managed through the App Settings UI.
@@ -290,4 +296,41 @@ Three roles with hierarchical permissions:
 
 ## License
 
-[MIT](LICENSE)
+PolyBag is **source-available, not open source**. It is licensed under the
+[Business Source License 1.1](LICENSE), with POLYBAG.APP LLC as licensor. BSL 1.1 is not
+OSI-approved and GitHub will not surface it as a recognised licence, so read the grant
+rather than assuming anything MIT-shaped.
+
+The Additional Use Grant **permits** reading, modifying, and redistributing the source,
+and running it for personal, educational, internal evaluation, and development use.
+
+It **does not permit** any use intended to generate revenue or commercial advantage — in
+particular, running PolyBag in production for a commercial entity. Shipping real customer
+parcels through it as a business is the case the licence is written to exclude, whether
+you self-host it or offer it to others.
+
+**Change date.** On **March 11, 2030** — or four years after a given version was first
+published, whichever comes first — that version's licence converts to the
+[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) and the commercial
+restriction falls away. The conversion is written into `LICENSE`, not a promise held
+separately from it.
+
+For commercial terms before then, contact `license@polybag.app`.
+
+### Trademark and branding
+
+The licence covers the code. It does not license the **PolyBag** name, the logo, or the
+`polybag.app` branding — and neither will the Apache-2.0 conversion, which grants
+copyright and patent rights but no trademark rights. This note holds after the change
+date as well as before it.
+
+Fork PolyBag within the terms above if you like. If you distribute or operate a fork,
+give it your own name and branding, and do not present it as PolyBag or imply that
+POLYBAG.APP LLC endorses it. Factual references — "based on PolyBag", "a fork of
+PolyBag" — are fine.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development loop and the contributor
+agreement, and [SECURITY.md](SECURITY.md) to report a vulnerability privately.
+Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).

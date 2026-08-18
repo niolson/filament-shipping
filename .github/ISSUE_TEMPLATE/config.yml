@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/niolson/polybag/security/advisories/new
+    about: Never report vulnerabilities in a public issue. Open a private advisory, or email security@polybag.app.
+  - name: Commercial licensing
+    url: https://polybag.app
+    about: PolyBag is licensed under BSL 1.1. For production commercial use, email license@polybag.app.

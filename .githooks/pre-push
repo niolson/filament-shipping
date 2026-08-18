@@ -1,30 +1,47 @@
 #!/bin/sh
+#
+# Static analysis blocks the push; dependency audits only warn.
+#
+# An advisory published upstream overnight is not the fault of the branch being
+# pushed, and blocking on it strands unrelated work — including work from outside
+# contributors who cannot bump the dependency themselves. The security-audit
+# workflow runs `composer audit` and `npm audit` on every push and pull request,
+# so the gate still exists in CI where a maintainer sees it.
+#
+# Skip this hook entirely with: git push --no-verify
+
 echo "Running static analysis before push..."
 
-vendor/bin/phpstan analyse --no-progress --memory-limit=1G
-if [ $? -ne 0 ]; then
+if ! vendor/bin/phpstan analyse --no-progress --memory-limit=1G; then
   echo ""
   echo "phpstan found errors. Push blocked."
   echo "Run 'vendor/bin/phpstan analyse' to review."
   exit 1
 fi
 
-echo "Running security audits before push..."
+echo "Running security audits before push (advisory only)..."
 
-composer audit --no-interaction 2>&1
-if [ $? -ne 0 ]; then
+audit_findings=0
+
+if ! composer audit --no-interaction 2>&1; then
   echo ""
-  echo "composer audit found vulnerabilities. Push blocked."
+  echo "WARNING: composer audit found vulnerabilities."
   echo "Run 'composer audit' to review, or 'composer update' to fix."
-  exit 1
+  audit_findings=1
 fi
 
-npm audit --audit-level=high 2>&1
-if [ $? -ne 0 ]; then
+if ! npm audit --audit-level=high 2>&1; then
   echo ""
-  echo "npm audit found high/critical vulnerabilities. Push blocked."
+  echo "WARNING: npm audit found high/critical vulnerabilities."
   echo "Run 'npm audit fix' to fix, or 'npm audit' to review."
-  exit 1
+  audit_findings=1
 fi
 
-echo "Security audits passed."
+if [ "$audit_findings" -eq 0 ]; then
+  echo "Security audits passed."
+else
+  echo ""
+  echo "Dependency advisories above did not block this push, but CI will report them."
+fi
+
+exit 0
