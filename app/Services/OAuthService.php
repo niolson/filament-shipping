@@ -27,6 +27,24 @@ class OAuthService
     }
 
     /**
+     * Explain a UI affordance that only works with the hosted OAuth broker, and
+     * name the direct alternative. Returns null when a broker is configured.
+     *
+     * The broker holds our carrier and IdP developer credentials, so a self-hoster
+     * can never be issued its secret. Never tell the reader to set OAUTH_BROKER_*.
+     *
+     * @param  string  $alternative  What to do instead, as a full sentence.
+     */
+    public function brokerlessGuidance(string $alternative): ?string
+    {
+        if ($this->isBrokerConfigured()) {
+            return null;
+        }
+
+        return "Guided OAuth needs the hosted OAuth broker, which is not configured. {$alternative} See docs/self-hosting.md.";
+    }
+
+    /**
      * Generate the broker authorization URL and store nonce in session.
      */
     public function initiateAuthorization(string $providerKey, ?int $accountId = null): string
@@ -42,7 +60,7 @@ class OAuthService
         $instanceId = config('services.oauth.instance_id');
 
         if (! $this->isBrokerConfigured()) {
-            throw new RuntimeException('OAuth broker is not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID.');
+            throw new RuntimeException('OAuth broker is not configured. This flow is hosted-only; self-hosted installs enter credentials directly (see docs/self-hosting.md).');
         }
 
         $nonce = Str::random(40);
@@ -76,7 +94,7 @@ class OAuthService
         $instanceId = config('services.oauth.instance_id');
 
         if (! $this->isBrokerConfigured()) {
-            throw new RuntimeException('OAuth broker is not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID.');
+            throw new RuntimeException('OAuth broker is not configured. This flow is hosted-only; self-hosted installs enter credentials directly (see docs/self-hosting.md).');
         }
 
         $nonce = Str::random(40);
@@ -108,7 +126,7 @@ class OAuthService
         $instanceId = config('services.oauth.instance_id');
 
         if (! $this->isBrokerConfigured()) {
-            throw new RuntimeException('OAuth broker is not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID.');
+            throw new RuntimeException('OAuth broker is not configured. This flow is hosted-only; self-hosted installs enter credentials directly (see docs/self-hosting.md).');
         }
 
         $nonce = Str::random(40);
@@ -465,7 +483,7 @@ class OAuthService
         $instanceId = config('services.oauth.instance_id');
 
         if (! $this->isBrokerConfigured()) {
-            throw new RuntimeException('OAuth broker is not configured. Set OAUTH_BROKER_URL, OAUTH_BROKER_SECRET, and OAUTH_INSTANCE_ID.');
+            throw new RuntimeException('OAuth broker is not configured. This flow is hosted-only; self-hosted installs enter credentials directly (see docs/self-hosting.md).');
         }
 
         $signature = hash_hmac('sha256', $refreshToken, $brokerSecret);

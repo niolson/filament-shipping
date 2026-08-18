@@ -25,6 +25,12 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * Internal tooling for our sales demo environment, not a self-host feature. It
+ * re-seeds from whichever active Database data source it is pointed at, and the
+ * wrapper that fills our demo import database to the current date lives in a
+ * private repository. See docs/self-hosting.md.
+ */
 class DemoReset extends Command
 {
     protected $signature = 'demo:reset
@@ -33,7 +39,7 @@ class DemoReset extends Command
         {--open-hours=8 : Shipments newer than this many hours stay open for the live demo}
         {--skip-export : Do not write fabricated tracking data back to the import database}';
 
-    protected $description = 'Reset demo data: wipe transactional tables, re-seed history from the demo import database, fabricate shipped packages, and rebuild stats';
+    protected $description = '[Internal] Reset demo data: wipe transactional tables, re-seed history from a Database data source, fabricate shipped packages, and rebuild stats';
 
     private const TRANSACTIONAL_TABLES = [
         'package_exports',

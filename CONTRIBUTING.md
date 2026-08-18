@@ -153,6 +153,10 @@ git push --no-verify
   over HTTPS or on localhost, in Chrome or Edge.
 - **Dependencies.** Please ask before adding one. This app ships as a Docker image that
   gets CVE-scanned on every build, so each new package is an ongoing cost.
+- **Hosted-only services.** The OAuth broker, and the Resend domain behind transactional
+  mail, are ours. [`docs/self-hosting.md`](docs/self-hosting.md) documents the
+  bring-your-own-credentials path for every integration — keep it accurate if you change
+  how one of them authenticates.
 - **`docs/adr/`** records architectural decisions and [`CONTEXT.md`](CONTEXT.md) the
   domain language. Read the relevant one before reshaping something structural, and add
   an ADR if you are making a decision worth remembering.

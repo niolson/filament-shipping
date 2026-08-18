@@ -5,9 +5,10 @@ namespace App\Http\Integrations\Google;
 use Saloon\Http\Connector;
 
 /**
- * Direct-to-Google connector, used only when polybag-connect isn't
- * configured (local development). Production traffic always routes
- * through GoogleAddressValidationProxyConnector for per-tenant metering.
+ * Direct-to-Google connector, used whenever no OAuth broker is configured —
+ * local development, and self-hosted installs, where it is the production
+ * path. Hosted traffic routes through GoogleAddressValidationProxyConnector
+ * instead, for per-tenant metering.
  */
 class GoogleAddressValidationConnector extends Connector
 {

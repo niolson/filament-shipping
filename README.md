@@ -154,6 +154,12 @@ composer run format
 
 ## Configuration
 
+> **Self-hosting?** Several `.env` keys and UI actions refer to services POLYBAG.APP LLC
+> operates — the OAuth broker at `connect.polybag.app` above all. You cannot use those,
+> and you do not need to. [`docs/self-hosting.md`](docs/self-hosting.md) lists what to
+> register with each carrier and vendor, where each credential goes, and how to get to a
+> working rate quote using only your own accounts.
+
 ### Environment Variables (`.env`)
 
 Copy `.env.example` to `.env` and configure. Most settings only need the database connection — carrier API credentials, company address, and feature flags are managed through the App Settings UI.

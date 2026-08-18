@@ -110,18 +110,18 @@ class DataSourceForm
                     TextInput::make('settings.client_id')
                         ->label('App Client ID')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
-                        ->helperText('Override the tenant-level Shopify app Client ID for this store.'),
+                        ->helperText('The Shopify app Client ID for this store. Required unless a hosted OAuth broker supplies it.'),
 
                     TextInput::make('settings.client_secret')
                         ->label('App Client Secret')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
-                        ->helperText('Override the tenant-level Shopify app Client Secret for this store.'),
+                        ->helperText('The Shopify app Client Secret for this store. Required unless a hosted OAuth broker supplies it.'),
                 ])
                 ->visible(fn (Get $get): bool => $get('source_type') === ShopifySource::class)
                 ->columns(2),
@@ -229,23 +229,23 @@ class DataSourceForm
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->required(fn (?DataSource $record): bool => ! $record?->exists && ! app(OAuthService::class)->isBrokerConfigured())
-                        ->helperText('Manual fallback only. For normal setup, save the source and use Connect Amazon.'),
+                        ->helperText('Required when no hosted OAuth broker is configured. Otherwise save the source and use Connect Amazon.'),
 
                     TextInput::make('settings.client_id')
                         ->label('App Client ID')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
-                        ->helperText('Manual fallback only. OAuth connections use credentials held by polybag-connect.'),
+                        ->helperText('Your own SP-API application credentials. Required when no hosted OAuth broker is configured — see docs/self-hosting.md.'),
 
                     TextInput::make('settings.client_secret')
                         ->label('App Client Secret')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Uses tenant-level credentials')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
-                        ->helperText('Manual fallback only. OAuth connections use credentials held by polybag-connect.'),
+                        ->helperText('Your own SP-API application credentials. Required when no hosted OAuth broker is configured — see docs/self-hosting.md.'),
                 ])
                 ->visible(fn (Get $get): bool => $get('source_type') === AmazonSource::class)
                 ->columns(2),
