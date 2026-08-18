@@ -17,6 +17,11 @@ BSL 1.1 is not an OSI-approved licence. We say this plainly here so nobody contr
 under a misunderstanding about what they are contributing to. If you need different
 terms, contact `license@polybag.app`.
 
+Separately from the licence: the **PolyBag** name, logo, and `polybag.app` branding are
+not licensed with the code, and the 2030 Apache-2.0 conversion will not change that —
+Apache-2.0 grants no trademark rights either. Fork it under your own name. See
+[Trademark and branding](README.md#trademark-and-branding) in the README.
+
 ### Contributions require a CLA
 
 Because PolyBag is dual-licensed — BSL for everyone, commercial terms available from

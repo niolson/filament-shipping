@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "polybag/polybag",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "Barcode-driven shipping workstation for packing and labeling shipments.",
+    "keywords": ["shipping", "fulfillment", "laravel", "filament"],
     "license": "BUSL-1.1",
     "require": {
         "php": "^8.2",
