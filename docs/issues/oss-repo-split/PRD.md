@@ -80,9 +80,10 @@ removal from history.
   mounts `mysql.cnf`, `mysqld.my`, and `component_keyring_file.cnf` into the
   **standalone** MySQL service, which is the self-host path. Only the compose file in
   that directory is ours.
-- **`infra/gotenberg/`** — resolve in issue 03. Gotenberg backs `GOTENBERG_URL` (PDF
-  rendering), so self-hosters need it; it is arguably part of the on-prem stack rather
-  than of our server.
+- **`docker-compose.onprem.yml`'s `gotenberg` service** — this is the self-hoster's
+  Gotenberg and it stays. `infra/gotenberg/docker-compose.yml` is a *different*
+  deployment of the same image (a `container_name: gotenberg` singleton on the external
+  `shared` network) and moves with the rest of `infra/`. Settled in issue 03.
 
 ## Constraint discovered: moving `infra/` regresses CVE watching
 
@@ -96,6 +97,27 @@ new repo has Dependabot enabled on the same paths, with the same pinned-digest
 discipline. Issue 02 covers this, and it **blocks the deletion in issue 04** — do not
 remove `infra/` from the public repo until the private repo is demonstrably watching
 those images.
+
+## Constraint discovered: the split turns in-repo pin duplication into cross-repo
+
+Three images are pinned twice — once for what self-hosters run, once for the
+shared-server singleton — and today both copies sit in this repo:
+
+| Image | Public repo (self-host) | Moves to `polybag-ops` |
+| --- | --- | --- |
+| `mysql:8.4` | `docker-compose.yml:70`, `:117` | `infra/shared/docker-compose.yml:23`, `:63` |
+| `redis:alpine` | `docker-compose.yml:146` | `infra/shared/docker-compose.yml:86` |
+| `gotenberg/gotenberg:8` | `docker-compose.onprem.yml:12` | `infra/gotenberg/docker-compose.yml:19` |
+
+All six digests are currently identical. After the split, each repo's Dependabot bumps
+its own copy independently, so the pairs will drift apart in time. That is acceptable —
+they are genuinely independent deployments — but nothing currently tells a reader that a
+sibling copy exists at all. [`infra/README.md`](../../../infra/README.md) explains why
+pins are digests and how to bump one, and says nothing about there being more than one.
+
+Requirement: whichever document survives as the public pin policy must name the sibling
+location for each image, and `polybag-ops` must do the same in reverse. Issue 03 owns the
+public side; issue 01 owns the private side.
 
 ## Slices
 
