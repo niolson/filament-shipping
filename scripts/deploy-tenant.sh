@@ -13,7 +13,9 @@ set -euo pipefail
 #   ./scripts/deploy-tenant.sh --all
 
 TENANTS_DIR="/opt/tenants"
-HEALTH_TIMEOUT=120
+# 300s, not 120: the app healthcheck now only passes once entrypoint.sh has
+# finished migrating, so a cold first boot legitimately takes minutes.
+HEALTH_TIMEOUT=300
 
 # --- Helpers ---
 

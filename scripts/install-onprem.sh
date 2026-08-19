@@ -105,6 +105,14 @@ if [ "$SKIP_ENV" = false ]; then
     sed -i "s|^CACHE_STORE=.*|CACHE_STORE=redis|" .env
     sed -i "s|^GOTENBERG_URL=.*|GOTENBERG_URL=http://gotenberg:3000|" .env
 
+    # Generate the app key here, before the first container start, so the
+    # entrypoint's `optimize` caches the real key on its very first run. This
+    # used to happen after the stack was up and required recreating the app
+    # container to take effect, which raced with the initial migration.
+    # Keeping it inside this branch also means re-running the installer over an
+    # existing .env no longer rotates the key out from under encrypted data.
+    sed -i "s|^APP_KEY=.*|APP_KEY=base64:$(openssl rand -base64 32)|" .env
+
     # Set custom port if specified
     if [ -n "${APP_PORT:-}" ] && [ "$APP_PORT" != "80" ]; then
         sed -i "s|^# APP_PORT=.*|APP_PORT=${APP_PORT}|" .env
@@ -168,7 +176,9 @@ docker compose --profile standalone \
     up -d --build
 
 info "Waiting for app to become healthy..."
-timeout=120
+# 300s, not 120: the app healthcheck now only passes once entrypoint.sh has
+# finished migrating, so a cold first boot legitimately takes minutes.
+timeout=300
 elapsed=0
 while [ $elapsed -lt $timeout ]; do
     status=$(docker compose --profile standalone \
@@ -224,14 +234,6 @@ else
     exit 1
 fi
 
-# --- Generate app key ---
-# Write key to .env on the host (avoids container bind-mount write permission issues)
-
-info "Generating application key..."
-APP_KEY="base64:$(openssl rand -base64 32)"
-sed -i "s|^APP_KEY=.*|APP_KEY=${APP_KEY}|" .env
-ok "App key generated."
-
 # --- Generate QZ Tray certificate ---
 
 info "Generating QZ Tray certificate..."
@@ -260,15 +262,6 @@ docker compose --profile standalone \
     -f docker-compose.onprem.yml \
     exec app php artisan app:generate-ssh-key --force
 ok "SSH keypair generated."
-
-# --- Restart to pick up new key ---
-
-info "Restarting app with new key..."
-docker compose --profile standalone \
-    -f docker-compose.yml \
-    -f docker-compose.onprem.yml \
-    up -d --force-recreate app queue import-queue
-ok "App restarted."
 
 # --- Summary ---
 

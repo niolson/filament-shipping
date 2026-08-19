@@ -28,12 +28,23 @@ services:
     networks:
       - default
       - shared
+    # `php artisan --version` used to be the probe here, which succeeds the
+    # instant the container starts — before entrypoint.sh has run a single
+    # migration. Callers that wait for `(healthy)` and then recreate the
+    # container therefore killed `migrate` mid-run, committing a CREATE TABLE
+    # without its `migrations` row and leaving the app in a crash loop on the
+    # next boot. Probe php-fpm instead: the entrypoint only execs it after
+    # migrate and optimize finish, so accepting a connection on 9000 is the
+    # first moment the container is genuinely serving.
+    #
+    # start_period covers a cold first boot migrating the full schema; failures
+    # inside it are not counted, and the first success ends it immediately.
     healthcheck:
-      test: ["CMD-SHELL", "php artisan --version > /dev/null 2>&1"]
-      interval: 30s
+      test: ["CMD-SHELL", "php -r 'exit(@fsockopen(\"127.0.0.1\", 9000) ? 0 : 1);'"]
+      interval: 10s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 300s
 
   nginx:
     build:
