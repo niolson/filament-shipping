@@ -85,6 +85,18 @@ Each workstation configures its own hardware through the **Device Settings** pag
 - **Label DPI** — 203 or 300
 - **Scale Backend** — Auto / WebHID / QZ Tray with context-appropriate pairing UI
 
+## Deployment
+
+`scripts/install-onprem.sh` installs a single-tenant instance with its own MySQL and
+Redis containers, which is the supported self-host path. See
+[`docs/self-hosting.md`](docs/self-hosting.md) for running PolyBag without any service we
+operate.
+
+Tooling for our own hosted deployment — server provisioning, backups, secret rotation,
+TLS, and monitoring — lives in a separate private repository. Its absence here is
+deliberate, not an omission: none of it is needed to run PolyBag, and all of it is
+specific to infrastructure we operate.
+
 ## Requirements
 
 - PHP 8.2+

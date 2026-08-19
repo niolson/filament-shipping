@@ -49,8 +49,10 @@ return Application::configure(basePath: dirname(__DIR__))
         // Trust only the reverse-proxy chain in front of the app — the internal
         // Docker hops (Caddy/nginx) and the Cloudflare edge — so a client-supplied
         // X-Forwarded-For can't spoof the perceived IP (which `at: '*'` allowed).
-        // The Cloudflare ranges mirror docs/cloudflare-hardening + the DOCKER-USER
-        // firewall; keep them in sync if Cloudflare ever updates its ranges.
+        // The Cloudflare ranges are published at the URL below and are only
+        // relevant when the app sits behind Cloudflare; keep them in sync if
+        // Cloudflare ever updates its ranges. Deployments not using Cloudflare
+        // can leave them — they match no client the internal hops would forward.
         $middleware->trustProxies(at: [
             // Internal reverse-proxy hops (Docker private networks)
             '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', 'fc00::/7',

@@ -41,15 +41,13 @@ updates:
 
   # Compose files. A SEPARATE ecosystem from "docker" above — that one only
   # reads Dockerfiles, so without this every image referenced in a compose file
-  # goes unmanaged. Covers the tenant stack at the root and the shared server
-  # infrastructure under infra/ (see infra/README.md).
+  # goes unmanaged. The root directory covers docker-compose.yml and
+  # docker-compose.onprem.yml — MySQL, Redis, and Gotenberg. The shared-server
+  # compose files that used to be listed here live in the private ops repo and
+  # are watched by its own Dependabot config.
   - package-ecosystem: "docker-compose"
     directories:
       - "/"
-      - "/infra/shared"
-      - "/infra/caddy"
-      - "/infra/gotenberg"
-      - "/infra/uptime-kuma"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
@@ -66,7 +64,7 @@ updates:
       # This ignores major bumps only, so digest refreshes on the pinned
       # `mysql:8.4` tag still arrive as usual and CVE patches keep flowing.
       # Moving to 9.7 LTS is a staged migration (data dictionary upgrade plus
-      # the keyring/encryption steps in docs/server-setup.md), so it should be
-      # a deliberate decision rather than an image-tag bump.
+      # the keyring/encryption steps — see infra/README.md), so it should be a
+      # deliberate decision rather than an image-tag bump.
       - dependency-name: "mysql"
         update-types: ["version-update:semver-major"]

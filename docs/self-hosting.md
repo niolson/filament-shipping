@@ -19,7 +19,7 @@ is.
 | `noreply@updates.polybag.app` | Our Resend sending domain | Any Laravel mailer, sending from a domain you control. |
 | `polybag-connect` | The broker's own repository. Not in this repo and not published. | — |
 | `polybag-demo-data-tools`, `demo:reset` | Internal demo tooling | Ignore. See [Internal tooling](#internal-tooling). |
-| `scripts/provision-tenant.sh` | Multi-tenant control plane for our shared server | Use `scripts/install-onprem.sh`. |
+| Tenant provisioning / deploy / backup scripts | Multi-tenant control plane for our shared server. Not in this repo. | Use `scripts/install-onprem.sh`. |
 
 ### Why you cannot point at the broker
 
@@ -255,12 +255,12 @@ They are not broken; they are just not aimed at you.
   private repo. There is no schema documentation for that import database because it is
   simply whatever your Database data source's queries return — but the intended audience
   is our sales demo, and you should assume it is internal.
-- **`scripts/provision-tenant.sh`**, and the deploy, backup, and rotation scripts
-  alongside it. These assume our `/opt/tenants` multi-tenant server layout.
-  `scripts/install-onprem.sh` is the self-host installer.
-- **`infra/shared/docker-compose.yml`.** Our shared MySQL/Redis stack. The `.cnf` files
-  in that directory are *not* internal — `docker-compose.yml` mounts all three into the
-  standalone MySQL service and they are required together.
+- **Tenant provisioning, deploy, backup, and secret-rotation scripts.** These assumed
+  our `/opt/tenants` multi-tenant server layout and are no longer in this repo.
+  `scripts/install-onprem.sh` is the self-host installer and is not going anywhere.
+- **The shared MySQL/Redis stack**, likewise. The `.cnf` files under `infra/shared/` are
+  *not* internal and stay — `docker-compose.yml` mounts all three into the standalone
+  MySQL service and they are required together. See [`infra/README.md`](../infra/README.md).
 
 ## Related documents
 

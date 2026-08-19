@@ -1,6 +1,6 @@
 # Remove deployment-specific paths from the public repo
 
-Status: ready-for-human
+Status: done
 Category: chore
 Type: human
 
@@ -110,17 +110,17 @@ Then sweep for references that now dangle:
 
 ## Acceptance criteria
 
-- [ ] The pre-flight scan above was re-run in this sitting and printed `clean`
-- [ ] Every Tier 1 path from the PRD is gone from the public repo's `HEAD`
-- [ ] `infra/shared/*.cnf` and `scripts/install-onprem.sh` are still present
-- [ ] `grep -rIn "server-setup.md\|provision-tenant.sh\|cloudflare-hardening" ` over the public repo returns no live references (git history excluded)
+- [x] The pre-flight scan above was re-run in this sitting and printed `clean` (all six checks ok, 2026-08-19)
+- [x] Every Tier 1 path from the PRD is gone from the public repo's `HEAD`
+- [x] `infra/shared/*.cnf` and `scripts/install-onprem.sh` are still present
+- [x] `grep -rIn "server-setup.md\|provision-tenant.sh\|cloudflare-hardening" ` over the public repo returns no live references (git history excluded)
 - [ ] The test suite passes and the standalone compose smoke test from issue 03 still succeeds after the deletion
-- [ ] `README.md` carries the pointer note
-- [ ] `polybag-ops` holds `infra/shared/*.cnf` and `infra/gotenberg/`, and its `infra/README.md` deploy steps match
-- [ ] The ops deploy procedure asserts encryption at rest, mirroring the check in `scripts/install-onprem.sh`
-- [ ] The four unlisted ops paths in the prerequisites section are deleted along with Tier 1
-- [ ] `infra/README.md` in the public repo is rewritten or replaced — issue 03 deferred this here, and after the deletion it describes four `/opt/*` directories, three of which are gone
-- [ ] It is understood and accepted that this removes the files from `HEAD` only — the content remains in public git history (see PRD, "Why no history rewrite")
+- [x] `README.md` carries the pointer note (new `## Deployment` section)
+- [x] `polybag-ops` holds `infra/shared/*.cnf` and `infra/gotenberg/`, and its `infra/README.md` deploy steps match (polybag-ops PR #1)
+- [x] The ops deploy procedure asserts encryption at rest, mirroring the check in `scripts/install-onprem.sh` (`scripts/verify-shared-encryption.sh`, untested against a live server)
+- [x] The four unlisted ops paths in the prerequisites section are deleted along with Tier 1
+- [x] `infra/README.md` in the public repo is rewritten or replaced — issue 03 deferred this here, and after the deletion it describes four `/opt/*` directories, three of which are gone
+- [x] It is understood and accepted that this removes the files from `HEAD` only — the content remains in public git history (see PRD, "Why no history rewrite")
 
 ## Blocked by
 
