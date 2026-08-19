@@ -117,7 +117,7 @@ Then sweep for references that now dangle:
 - [x] The test suite passes (1591 tests, 4328 assertions) and the standalone smoke test still succeeds after the deletion — clean clone of this branch, `EXIT_CODE=0`, 85/85 migrations, `GET /login` 200, `Encryption at rest active`
 - [x] `README.md` carries the pointer note (new `## Deployment` section)
 - [x] `polybag-ops` holds `infra/shared/*.cnf` and `infra/gotenberg/`, and its `infra/README.md` deploy steps match (polybag-ops PR #1)
-- [x] The ops deploy procedure asserts encryption at rest, mirroring the check in `scripts/install-onprem.sh` (`scripts/verify-shared-encryption.sh`, untested against a live server)
+- [x] The ops deploy procedure asserts encryption at rest, mirroring the check in `scripts/install-onprem.sh` (`scripts/verify-shared-encryption.sh`; run against the live server 2026-08-19 — encryption confirmed active across tables, binlogs, and the keyring component, after fixing a `docker exec -i` that let the exec drain the rest of the script from stdin and exit 0 without ever reaching the comparison)
 - [x] The four unlisted ops paths in the prerequisites section are deleted along with Tier 1
 - [x] `infra/README.md` in the public repo is rewritten or replaced — issue 03 deferred this here, and after the deletion it describes four `/opt/*` directories, three of which are gone
 - [x] It is understood and accepted that this removes the files from `HEAD` only — the content remains in public git history (see PRD, "Why no history rewrite")
