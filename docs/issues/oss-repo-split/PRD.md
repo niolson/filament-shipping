@@ -70,6 +70,12 @@ removal from history.
 | `scripts/provision-tenant.sh` | Multi-tenant control plane, not a self-host tool |
 | `infra/caddy/`, `infra/uptime-kuma/`, `infra/shared/docker-compose.yml`, `infra/shared-secrets.env.example` | Our server's stack |
 | `docs/issues/` | Internal planning (issue 09) |
+| `infra/.env.example`, `infra/backup.env.example` | Shared datastore passwords and S3 backup credentials; already in `polybag-ops` |
+| `scripts/lib/backup-keys.test.sh`, `scripts/lib/env-list.sh`, `scripts/lib/env-list.test.sh` | Orphaned by the Tier 1 script deletions above |
+
+The last two rows were added on 2026-08-19 after checking the tree against this table;
+the original list was assembled by category and missed them. See the prerequisites
+section of issue 04.
 
 ### Stays public
 

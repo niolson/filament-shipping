@@ -116,6 +116,10 @@ Then sweep for references that now dangle:
 - [ ] `grep -rIn "server-setup.md\|provision-tenant.sh\|cloudflare-hardening" ` over the public repo returns no live references (git history excluded)
 - [ ] The test suite passes and the standalone compose smoke test from issue 03 still succeeds after the deletion
 - [ ] `README.md` carries the pointer note
+- [ ] `polybag-ops` holds `infra/shared/*.cnf` and `infra/gotenberg/`, and its `infra/README.md` deploy steps match
+- [ ] The ops deploy procedure asserts encryption at rest, mirroring the check in `scripts/install-onprem.sh`
+- [ ] The four unlisted ops paths in the prerequisites section are deleted along with Tier 1
+- [ ] `infra/README.md` in the public repo is rewritten or replaced — issue 03 deferred this here, and after the deletion it describes four `/opt/*` directories, three of which are gone
 - [ ] It is understood and accepted that this removes the files from `HEAD` only — the content remains in public git history (see PRD, "Why no history rewrite")
 
 ## Blocked by
@@ -166,3 +170,78 @@ different consumers — the public copies for the standalone path in the root
 `docker-compose.yml`, the private copies for the shared stack. They contain no
 secrets. Whichever way it is decided, `infra/README.md` in `polybag-ops` needs its
 deploy instructions updated to match.
+
+---
+
+## Prerequisites in `polybag-ops` (verified 2026-08-19)
+
+Inspected a fresh clone of `polybag-ops`. Two paths the public repo is about to delete
+do not exist there yet, so deleting them here makes each deployable from neither
+checkout. **All four items below must land in `polybag-ops` before the deletion commit.**
+
+Current `polybag-ops/infra/`: `shared/docker-compose.yml` (byte-identical to the public
+copy), `caddy/`, `uptime-kuma/`, `.env.example`, `backup.env.example`,
+`shared-secrets.env.example`.
+
+### 1. The three `.cnf` files are absent from `polybag-ops`
+
+Already described above. Worth noting the procedure is *already* broken in the private
+repo: `polybag-ops/infra/README.md:36` documents
+
+```
+cp infra/shared/* /opt/shared/          # excludes .env, which is server-only
+```
+
+which copies four files from a public checkout and exactly one from an ops checkout.
+This issue does not create that problem, it removes the last checkout where the command
+still works.
+
+### 2. `infra/gotenberg/` is absent from `polybag-ops`
+
+Issue 03 settled that `infra/gotenberg/docker-compose.yml` — the `container_name:
+gotenberg` singleton on the external `shared` network — moves to `polybag-ops`, while
+the self-hoster's Gotenberg stays in `docker-compose.onprem.yml`. The decision is
+recorded; the move was never executed. Same failure shape as the `.cnf` files, without
+the partial-copy subtlety: delete it here and the shared-server Gotenberg is deployable
+from nowhere.
+
+### 3. Add an encryption assertion to the ops deploy procedure
+
+Duplicating the `.cnf` files means a change to encryption config has to land in both
+repos. That is a real but small risk — the three files total 31 lines and have changed
+twice ever (`4ddaaca`, `3e9903e`) — and the two copies may legitimately diverge later,
+since one serves a single-tenant standalone MySQL and the other a shared multi-tenant
+one.
+
+The consequence, however, is severe and silent. `infra/shared/mysql.cnf` says so itself:
+if the config does not land correctly "the whole conf.d include is skipped silently and
+you get a server that starts fine with no encryption at all."
+
+So mitigate by detection rather than by trying to prevent drift.
+`scripts/install-onprem.sh` already asserts `default_table_encryption=ON` and a keyring
+component status of `Active` after install; the `/opt/shared` procedure has no
+equivalent. Port that assertion into the ops deploy steps. It catches a stale copy at
+the moment it matters, which is more reliable than remembering to sync two files that
+change once every two years.
+
+Rejected alternative: having `polybag-ops` fetch the `.cnf` files from the public repo
+at deploy time. It removes drift, but adds a network dependency to a procedure you run
+precisely when things are already broken.
+
+### 4. Four ops files are missing from the PRD's Tier 1 list
+
+The Tier 1 table was assembled by category and skipped these. Two of them are already
+in `polybag-ops`, so the public copies are pure duplication with no plan to remove them:
+
+| Path | Why it is ours | In `polybag-ops`? |
+| --- | --- | --- |
+| `infra/.env.example` | "Copy to `/opt/shared/.env`" — shared datastore passwords | yes |
+| `infra/backup.env.example` | S3 backup credentials, `S3_BUCKET=polybag` | yes |
+| `scripts/lib/backup-keys.test.sh` | tests `backup-keys.sh`, which is Tier 1 | — |
+| `scripts/lib/env-list.sh` + `env-list.test.sh` | only consumer is `rotate-internal-secrets.sh`, which is Tier 1 | — |
+
+Leaving the last three behind orphans a test suite against deleted code.
+
+Staying, correctly: `scripts/backup-local-db.sh` and `scripts/restore-local-db.sh` are
+local development helpers that dump to `storage/app/private/db-backups/`, unrelated to
+the server.
