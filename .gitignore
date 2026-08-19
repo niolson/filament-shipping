@@ -55,7 +55,6 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
-/e2e/.auth/
 /tests/Browser/Screenshots/
 
 # Security scan reports (may contain origin details)

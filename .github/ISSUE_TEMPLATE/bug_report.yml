@@ -61,12 +61,15 @@ body:
     id: deployment-mode
     attributes:
       label: Deployment mode
-      description: See the deployment modes table in CLAUDE.md if you are unsure.
+      description: >-
+        Standalone is what scripts/install-onprem.sh sets up and what most self-hosters
+        run. Pick "External database or cache" if you pointed DB_HOST or REDIS_HOST at a
+        host you manage yourself.
       options:
         - Local development (no Docker)
         - Standalone (Docker, --profile standalone, bundled MySQL and Redis)
-        - Shared (multi-tenant, shared MySQL and Redis)
-        - External (managed cloud database or cache)
+        - External database or cache (DB_HOST/REDIS_HOST point elsewhere)
+        - Other / not sure
     validations:
       required: true
 

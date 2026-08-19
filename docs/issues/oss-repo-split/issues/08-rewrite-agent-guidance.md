@@ -1,6 +1,6 @@
 # Rewrite `CLAUDE.md` and `AGENTS.md` down to app-only scope
 
-Status: ready-for-agent
+Status: done
 Category: documentation
 Type: AFK
 
@@ -35,11 +35,16 @@ file explains the project, and cutting them leaves gaps rather than a shorter do
 
 ## Acceptance criteria
 
-- [ ] No path referenced in public `CLAUDE.md` or `AGENTS.md` is absent from the public repo
-- [ ] The standalone / on-prem deployment path is still fully documented publicly
-- [ ] Hosted-mode content exists in `polybag-ops`, not merely deleted
-- [ ] `AGENTS.md` and `CLAUDE.md` no longer contradict each other on structure, commands, or test invocation
-- [ ] The Agent skills section reflects reality after issue 09
+- [x] Nothing references `CLAUDE.md` for content any more, now that it is a one-line import. Two did and both were fixed here: `docker-compose.yml`'s `env_file` comment, and `.github/ISSUE_TEMPLATE/bug_report.yml`, which sent reporters to a deployment modes table that has moved to `polybag-ops` — its dropdown also still offered "Shared (multi-tenant)" as a mode, which is not something a public user can be running
+- [x] No path referenced in public `CLAUDE.md` or `AGENTS.md` is absent from the public repo — checked by extracting every backticked path-like token from both files and testing it. Turned up two real drifts, fixed here: `e2e/` has no tracked files at all (so the `npm run test:e2e` scripts invoke an uncommitted harness, and browser coverage is actually Pest 4 in `tests/Browser/`), and `ImportSourceInterface`/`ImportSourceFactory` had been renamed to `DataSourceInterface`/`DataSourceFactory`
+- [x] The standalone / on-prem deployment path is still fully documented publicly — expanded, in fact: the service table now lists `import-queue`, `scheduler`, and `gotenberg`, which the old three-mode table omitted
+- [x] Hosted-mode content exists in `polybag-ops`, not merely deleted — `polybag-ops` PR #2 adds a `CLAUDE.md` there
+- [x] `AGENTS.md` and `CLAUDE.md` no longer contradict each other on structure, commands, or test invocation — made impossible rather than merely fixed. **`AGENTS.md` is the single source**; `CLAUDE.md` is one line, `@AGENTS.md`, using Claude Code's import syntax. There is no second copy to drift.
+
+  Chosen over the reverse (`CLAUDE.md` canonical, `AGENTS.md` pointing at it) because `AGENTS.md` is the cross-tool convention, so the content sits in the file every agent reads natively and the Claude-specific file is the thin one. A symlink would also work but breaks on Windows checkouts without symlink support, which matters for a QZ Tray user base.
+
+  Each file previously carried its own Boost-generated block. `AGENTS.md`'s survives: it is close to a superset — its "Artisan & Debugging" condenses the other's Artisan and Tinker sections, and it adds Laravel 13 rules, Frontend Bundling, and Documentation Files. The one bullet unique to the dropped block (add factories and seeders with new models) was carried into the hand-written section rather than edited into generated content.
+- [x] The Agent skills section reflects reality **as of now**, and issue 09 owns the post-move state. It now exists once, in `AGENTS.md`
 
 ## Blocked by
 

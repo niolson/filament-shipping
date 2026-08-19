@@ -146,12 +146,14 @@ php artisan test tests/Feature/AuthorizationTest.php
 php artisan test --filter="manager role access"
 ```
 
-End-to-end tests use [Playwright](https://playwright.dev/) and require `FAKE_CARRIERS=true` in `.env`:
+Browser tests live in `tests/Browser/` and use Pest 4 browser testing, which drives
+Playwright. They are **not** in the default suite — `phpunit.xml` defines only `Unit` and
+`Feature` — so run them explicitly. They need a Chromium binary and `FAKE_CARRIERS=true`
+in `.env` so no carrier API is called.
 
 ```bash
-npm run test:e2e          # Run E2E tests headlessly
-npm run test:e2e:headed   # Run with a visible browser
-npm run test:e2e:ui       # Open the Playwright UI
+npx playwright install chromium   # once
+php artisan test tests/Browser/
 ```
 
 ## Code Style

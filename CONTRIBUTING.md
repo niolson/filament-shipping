@@ -82,12 +82,13 @@ vendor/bin/phpstan analyse --memory-limit=1G     # static analysis, level 5
 composer run format                              # rector + phpstan + pint together
 ```
 
-Browser and end-to-end tests:
+Browser tests — Pest 4 browser testing, which drives Playwright under the hood. They are
+**not** picked up by `php artisan test`: `phpunit.xml` defines only the `Unit` and
+`Feature` suites, so `tests/Browser/` and `tests/External/` both need naming explicitly.
 
 ```bash
-php artisan test tests/Browser/   # Pest browser tests
-npm run test:e2e                  # Playwright, requires FAKE_CARRIERS=true
-npm run test:e2e:headed
+npx playwright install chromium   # once
+php artisan test tests/Browser/   # requires FAKE_CARRIERS=true
 ```
 
 `tests/External/` is excluded from the default suite on purpose — those tests hit real

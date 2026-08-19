@@ -15,7 +15,7 @@ services:
     #
     # Deliberately not `env_file: .env`. That would inject these as OS-level
     # environment variables, which take precedence over the mounted .env file
-    # and are then invisible to `config:clear`. See CLAUDE.md.
+    # and are then invisible to `config:clear`. See AGENTS.md.
     env_file:
       - path: /opt/shared/shared-secrets.env
         required: false
