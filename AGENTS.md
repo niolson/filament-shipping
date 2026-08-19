@@ -460,11 +460,20 @@ Testing setup:
 
 ### Issue tracker
 
-Issues live as committed markdown files under `docs/issues/`. See `docs/agents/issue-tracker.md`. (`.scratch/` is gitignored scratch space, not the tracker.)
+**GitHub Issues**, with the templates under `.github/ISSUE_TEMPLATE/`. There is no
+markdown issue tracker in this repo — the `docs/issues/` directory moved to a private
+repo in August 2026, because it held product planning and internal triage state written
+for us rather than for an outside audience.
+
+So when a skill says "publish to the issue tracker" or "fetch the relevant ticket", it
+means `gh issue create` / `gh issue view`, not a file. `.scratch/` is gitignored scratch
+space and is not a tracker either.
 
 ### Triage labels
 
-Default five-role vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
+`needs-triage`, `needs-info`, and `wontfix` exist as GitHub labels. The
+`ready-for-agent` / `ready-for-human` distinction is not defined here — it describes how
+maintainers schedule work rather than anything a reporter needs to see.
 
 ### Domain docs
 

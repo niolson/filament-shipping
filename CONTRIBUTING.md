@@ -38,6 +38,17 @@ maintainer will email you the CLA on your first contribution, and it only needs 
 once. If you are contributing on behalf of an employer, tell us, as the agreement will
 need to be signed by someone who can bind them.
 
+### Reporting a bug or proposing a feature
+
+Use **GitHub Issues** — [bug report](../../issues/new?template=bug_report.yml) or
+[feature request](../../issues/new?template=feature_request.yml). Blank issues are off,
+so the templates are the way in; they ask for the deployment mode and carrier
+configuration, which is usually what determines whether we can reproduce something.
+
+Maintainer planning happens in a private tracker, so an issue you open may be closed
+with a fix that references no public planning document. That is not the issue being
+dismissed — it means the work was scheduled elsewhere.
+
 ### Security issues do not go here
 
 If you have found a vulnerability, **stop and read [SECURITY.md](SECURITY.md)**. Do not

@@ -13,9 +13,9 @@ class CarrierServiceSpecialServiceSeeder extends Seeder
      * carrier services can carry which special services, and to which
      * destination countries).
      *
-     * These rows are code-owned carrier facts sourced from
-     * docs/issues/special-services/carrier-restrictions-and-availability.md
-     * (USPS rows from the official STC list + Pub 52). Scoping is opt-in per
+     * These rows are code-owned carrier facts, transcribed from each carrier's
+     * published restrictions (USPS rows from the official STC list and Pub 52;
+     * UPS and FedEx from their service guides). Scoping is opt-in per
      * carrier: a special service with no rows for any of a carrier's services
      * is unrestricted for that carrier — which is why UPS has no signature
      * rows (DeliveryConfirmation is available across its services) and USPS
