@@ -125,10 +125,10 @@ appears after that, see Troubleshooting.
 
 - **System-wide trust.** `authcert.override` lives in the install directory's
   `qz-tray.properties`, so the trust applies to every OS user on the workstation.
-- **Per-domain certificate.** PolyBag's signing cert is per-domain. For
-  multi-tenant `*.polybag.app` deployments, use the shared wildcard QZ certificate
-  (see `docs/server-setup.md` §9) so one cert covers all tenants. For on-prem
-  standalone, the per-install cert is the one to install.
+- **Per-domain certificate.** PolyBag's signing cert is per-domain. For a
+  multi-tenant deployment, generate one wildcard certificate and reuse it across
+  tenants so a workstation trusts them all. For on-prem standalone, the
+  per-install cert is the one to install.
 - **Cert rotation.** If the signing certificate is regenerated, re-run the script;
   it overwrites `polybag-qz.crt` and the `authcert.override` line in place.
 

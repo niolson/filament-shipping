@@ -1,7 +1,6 @@
 # De-tenant the public deployment surface
 
-Status: ready-for-human
-Blocked on: `infra/README.md` rewrite, which needs issue 04 first
+Status: done
 Category: enhancement
 Type: human
 

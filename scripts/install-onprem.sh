@@ -230,7 +230,7 @@ else
     error "Check that these are readable by uid 999 and that MySQL loaded them:"
     error "  infra/shared/{mysql.cnf,mysqld.my,component_keyring_file.cnf}"
     error "Logs: docker compose --profile standalone -f docker-compose.yml -f docker-compose.onprem.yml logs mysql"
-    error "See the encryption-at-rest section of docs/server-setup.md."
+    error "See infra/README.md for what these three files do."
     exit 1
 fi
 

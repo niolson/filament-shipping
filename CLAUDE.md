@@ -52,7 +52,6 @@ Each tenant's `default` network is isolated. The `shared` network connects app/q
 
 ### Scripts
 
-- `scripts/provision-tenant.sh [--mode shared|standalone] <name> [domain]` — provisions a new tenant
 - `scripts/install-onprem.sh` — interactive single-tenant on-prem installer
 - `app:generate-qz-cert {domain?} {--force}` — generates QZ Tray signing certificate
 - Demo reset wrapper lives in the polybag-demo-data-tools repo (`bin/reset-demo.sh`) — fills the demo import DB to "now" and runs `demo:reset` on the demo tenant
@@ -207,9 +206,8 @@ php artisan demo:reset                        # Reset demo data from the demo im
 - `app/Filament/Resources/DataSources/DataSourceResource.php` — Data source management (Integrations nav group)
 - `docker-compose.yml` — Production container orchestration
 - `docker/entrypoint.sh` — Container startup (migrate + optimize)
-- `scripts/provision-tenant.sh` — Multi-tenant provisioning
 - `scripts/install-onprem.sh` — On-prem installer
-- `docs/server-setup.md` — VPS setup guide
+- `infra/README.md` — MySQL encryption-at-rest config (three files, required together)
 
 ## Testing
 
