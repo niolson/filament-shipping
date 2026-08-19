@@ -114,7 +114,7 @@ Then sweep for references that now dangle:
 - [x] Every Tier 1 path from the PRD is gone from the public repo's `HEAD`
 - [x] `infra/shared/*.cnf` and `scripts/install-onprem.sh` are still present
 - [x] `grep -rIn "server-setup.md\|provision-tenant.sh\|cloudflare-hardening" ` over the public repo returns no live references (git history excluded)
-- [ ] The test suite passes and the standalone compose smoke test from issue 03 still succeeds after the deletion
+- [x] The test suite passes (1591 tests, 4328 assertions) and the standalone smoke test still succeeds after the deletion — clean clone of this branch, `EXIT_CODE=0`, 85/85 migrations, `GET /login` 200, `Encryption at rest active`
 - [x] `README.md` carries the pointer note (new `## Deployment` section)
 - [x] `polybag-ops` holds `infra/shared/*.cnf` and `infra/gotenberg/`, and its `infra/README.md` deploy steps match (polybag-ops PR #1)
 - [x] The ops deploy procedure asserts encryption at rest, mirroring the check in `scripts/install-onprem.sh` (`scripts/verify-shared-encryption.sh`, untested against a live server)
