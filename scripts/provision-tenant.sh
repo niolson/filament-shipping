@@ -150,6 +150,12 @@ sed -i "s|^SESSION_DRIVER=.*|SESSION_DRIVER=redis|" .env
 # mechanism whose absence let a tenant ship without it — see pentest issue 05.
 sed -i "s|^SESSION_SECURE_COOKIE=.*|SESSION_SECURE_COOKIE=true|" .env
 sed -i "s|^CACHE_STORE=.*|CACHE_STORE=redis|" .env
+# Generate the app key here, before the first container start, so the
+# entrypoint's `optimize` caches the real key on its very first run. This used
+# to happen after the stack was up and required recreating the app container to
+# take effect, which raced with the initial migration — see the healthcheck
+# comment in docker-compose.yml.
+sed -i "s|^APP_KEY=.*|APP_KEY=base64:$(openssl rand -base64 32)|" .env
 if grep -q '^SENTRY_ENVIRONMENT=' .env; then
     sed -i "s|^SENTRY_ENVIRONMENT=.*|SENTRY_ENVIRONMENT=${TENANT}|" .env
 else
@@ -323,7 +329,9 @@ else
 fi
 
 info "Waiting for app to become healthy..."
-timeout=120
+# 300s, not 120: the app healthcheck now only passes once entrypoint.sh has
+# finished migrating, so a cold first boot legitimately takes minutes.
+timeout=300
 elapsed=0
 while [ $elapsed -lt $timeout ]; do
     if [ "$MODE" = "standalone" ]; then
@@ -345,44 +353,6 @@ if [ $elapsed -ge $timeout ]; then
 fi
 
 ok "Containers running."
-
-# --- Generate App Key ---
-
-info "Generating application key..."
-APP_KEY="base64:$(openssl rand -base64 32)"
-sed -i "s|^APP_KEY=.*|APP_KEY=${APP_KEY}|" .env
-
-# Restart to pick up new key (entrypoint runs optimize)
-# nginx is also restarted so it re-resolves the app container's IP after recreation
-if [ "$MODE" = "standalone" ]; then
-    docker compose --profile standalone up -d --force-recreate app queue import-queue nginx
-else
-    docker compose up -d --force-recreate app queue import-queue nginx
-fi
-
-info "Waiting for app to become healthy after key rotation..."
-timeout=120
-elapsed=0
-while [ $elapsed -lt $timeout ]; do
-    if [ "$MODE" = "standalone" ]; then
-        status=$(docker compose --profile standalone ps app --format '{{.Status}}' 2>/dev/null || echo "")
-    else
-        status=$(docker compose ps app --format '{{.Status}}' 2>/dev/null || echo "")
-    fi
-    if echo "$status" | grep -q "(healthy)"; then
-        break
-    fi
-    sleep 5
-    elapsed=$((elapsed + 5))
-done
-
-if [ $elapsed -ge $timeout ]; then
-    error "App container did not become healthy within ${timeout}s after key rotation."
-    error "Check logs: cd ${TENANT_DIR} && docker compose logs app"
-    exit 1
-fi
-
-ok "App key generated."
 
 # --- SSH Key for Import Tunneling ---
 info "Generating SSH keypair for import tunneling..."
