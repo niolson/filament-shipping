@@ -1,22 +1,249 @@
 # Repository Guidelines
 
-**`CLAUDE.md` is the canonical project document.** Repository layout, deployment, domain
-model, workflows, commands, testing, contribution, and security guidance all live there,
-and this file deliberately does not restate them — two copies of that material drifted
-apart once already, disagreeing about which processes `composer run dev` starts and
-naming an `ImportSource` model that had been renamed to `DataSource`.
+Guidance for coding agents working in this repository. This is the single source —
+`CLAUDE.md` is one line importing this file, so Claude Code and every other agent read
+exactly the same instructions and cannot drift apart. Two hand-maintained copies existed
+until 2026-08-19 and had already diverged, disagreeing about which processes
+`composer run dev` starts and naming an `ImportSource` model renamed to `DataSource`.
 
-Read `CLAUDE.md` first. Also useful:
+Also worth reading: `CONTEXT.md` for domain language, `docs/adr/` for architecture
+decisions and why they were made, `CONTRIBUTING.md` for the development loop and the
+contributor agreement, and `SECURITY.md` for reporting a vulnerability.
 
-- `CONTEXT.md` — domain language. **Shipment**, **Package**, and **Package Draft** are
-  distinct things; keep the terms straight in code and prose.
-- `docs/adr/` — architecture decisions and why they were made.
-- `CONTRIBUTING.md` — development loop and the contributor agreement.
-- `SECURITY.md` — reporting a vulnerability.
+## Project Overview
 
-The Laravel Boost guidelines below are generated and cover framework-level conventions
-for PHP, Pest, Filament, and Saloon.
+PolyBag — web-based shipping workstation app for packing and labeling shipments. Built with Laravel 13 + Filament.
 
+**Tech Stack:** PHP 8.4, Laravel 13.x, Filament 5.x, Livewire 4.x, Vite 7.0, Tailwind CSS 4.x, Pest 4.x
+
+**Database:** MySQL 8.4
+
+**Local Hardware Integration:**
+- **Printing:** QZ Tray (local WebSocket print agent) — supports PDF and ZPL label formats
+- **Scale:** Dual-backend (WebHID for Chrome/Edge, QZ Tray fallback) — see `<x-scale-script>`
+
+## Repository Layout
+
+- `app/` — application code: `Models/`, `Services/`, `Filament/`, `Http/`, `Console/Commands/`, `Jobs/`, `Enums/`, `Policies/`
+- `resources/views`, `resources/js`, `resources/css` — Blade templates and frontend entrypoints. All hardware JS (QZ Tray, barcode, scale) is inline in Blade components, not standalone JS files
+- `resources/data/` — carrier reference data and FedEx test cases
+- `database/` — migrations, factories, seeders
+- `tests/Feature`, `tests/Unit`, `tests/External`, `tests/Browser` — Pest suites
+- `docker/`, `infra/` — container entrypoint and MySQL encryption-at-rest config
+- `scripts/` — the on-prem installer and QZ workstation provisioning
+- `docs/` — self-hosting guide, QZ provisioning, ADRs, agent guidance
+
+## Deployment
+
+PolyBag ships as a Docker stack. The supported install is **standalone / on-prem**: a single tenant with its own MySQL and Redis containers, brought up by `scripts/install-onprem.sh`.
+
+```bash
+docker compose --profile standalone -f docker-compose.yml -f docker-compose.onprem.yml up -d
+```
+
+`DB_HOST=mysql` and `REDIS_HOST=redis` point at the containers the `standalone` profile starts. Pointing them at an external host instead (managed MySQL, managed Redis) works and skips the profile, but that path is not what the installer sets up.
+
+### Services
+
+| Service | Does |
+|---|---|
+| `app` | PHP 8.4-FPM. Entrypoint: wait for DB → `migrate` → `optimize` → php-fpm |
+| `nginx` | Serves static assets, proxies PHP to `app:9000` |
+| `queue` | `queue:work --queue=default,low` with its own config cache |
+| `import-queue` | `queue:work imports` — shipment imports run on their own queue |
+| `scheduler` | `schedule:work` |
+| `mysql`, `redis` | Started only by `--profile standalone` |
+| `gotenberg` | PDF rendering for pack slips and pick batches. Defined in `docker-compose.onprem.yml` |
+
+Key files: `Dockerfile` (4-stage build), `docker/entrypoint.sh`, `docker-compose.onprem.yml`.
+
+### Docker and caching notes
+
+- Config and routes are cached at **runtime** by the entrypoint (`php artisan optimize`), not at build time. This keeps the Livewire endpoint hash — derived from `APP_KEY` — consistent. Only views are pre-cached at build time, since they don't depend on env values.
+- The app healthcheck probes php-fpm rather than running `php artisan --version`, because the entrypoint only `exec`s php-fpm after migrations finish. Anything that waits for `(healthy)` and then recreates the container must not do so while `migrate` is still running.
+- Never add `env_file: .env` to the app or queue services — it injects OS-level environment variables that take precedence over the mounted `.env` file and are then invisible to `config:clear`. The `env_file: /opt/shared/shared-secrets.env` entry with `required: false` is a hosted-mode injection point and a no-op everywhere else; the comment on the `app` service explains it.
+- QZ cert paths are configurable via `QZ_PRIVATE_KEY_PATH` and `QZ_CERTIFICATE_PATH`.
+- Passwords generated by scripts use `openssl rand -hex 16` — no special characters that break `.env` parsing.
+- Always rebuild with `--build` after changing files copied into the image. `scp` or an edit on the host does not update a running container.
+- After changing `.env`, run `php artisan config:clear` inside the container **and** restart it. Laravel's config cache and Docker's `env_file` both cache aggressively.
+
+`infra/shared/` holds three MySQL encryption-at-rest config files that `docker-compose.yml` mounts together — see `infra/README.md` before touching them; two of the ways they can break leave a healthy-looking server with encryption off.
+
+Server-operations tooling for our own hosted deployment lives in a separate private repository and is deliberately not here. See `docs/self-hosting.md` for running PolyBag without any service we operate.
+
+## Domain Model
+
+- **Shipment** — Order to be shipped (address, items, validation status); scoped to a `Client`
+- **ShipmentItem** — Line items in a shipment
+- **Package** — Physical package with tracking, label, dimensions; scoped to a `Location`
+- **PackageItem** — Items packed in a package (with transparency codes)
+- **ShippingMethod** — Available shipping options
+- **Carrier** / **CarrierService** — USPS, FedEx, UPS and their services
+- **CarrierAccount** — Per-carrier API credentials; supports multiple accounts per carrier with OAuth
+- **CarrierAccountScope** — Routes a `CarrierAccount` to a specific `Location` and/or `Client` combination with priority-based resolution
+- **BoxSize** — Predefined box dimensions (scanned by code)
+- **Channel** — Sales channel source (Shopify, Amazon, database import)
+- **Product** — Product catalog with barcodes and weights; scoped to a `Client`
+- **DataSource** — Configurable shipment import/export source (Database/Shopify/Amazon) with per-client assignment, encrypted secrets, and per-source scheduling
+- **Location** — Warehouse / fulfillment center with address, timezone, and carrier associations
+- **Client** — 3PL brand/retailer; scopes shipments, products, data sources, and shipping rules; carries return address, pack slip branding fields, and the reference printed on carrier labels
+
+Preserve these domain terms in code and prose — see `CONTEXT.md`. In particular **Shipment**, **Package**, and **Package Draft** are distinct things.
+
+## Key Workflows
+
+1. **Picking** (`/generate-pick-batch`) — Optional; generate pick batches and print picking summaries before packing. Gated by `picking_enabled`; `require_picking_before_shipping` enforces it before packing/batch shipping
+2. **Packing** (`/pack/{shipment_id}`) — Scan box code, scan items, read weight from scale; shows client indicator when multi-client is enabled
+3. **Shipping** (`/ship/{package_id}`) — Get rates, buy postage, print label; rate requests are scoped by location and client
+4. **Manual Ship** (`/manual-ship`) — Ship without a pre-existing shipment
+5. **Batch Ship** — Generate labels for multiple packages
+6. **End of Day** (`/end-of-day`) — Create USPS SCAN forms / manifests; location-scoped when multi-location is enabled
+
+## Hardware Integration
+
+### QZ Tray (Printing)
+- Must be installed on each workstation: https://qz.io/download/
+- Connects via WebSocket to `wss://localhost:8181`
+- Printer selection and label format stored in browser `localStorage`
+- Configured via Device Settings page
+- Supports PDF (default) and ZPL (opt-in) label formats at 203 or 300 DPI
+- Signing certificate generated via `app:generate-qz-cert`
+- Integration code in `<x-qz-tray>` and `<x-qz-tray-script>` Blade components
+- Workstation trust provisioning: `scripts/qz-provision/` and `docs/qz-tray-provisioning.md`
+
+### Scale (WebHID / QZ Tray)
+- Dual-backend: WebHID if `navigator.hid` exists (Chrome/Edge over HTTPS), else QZ Tray
+- Backend selection and scale IDs stored in browser `localStorage`
+- Integration code in `<x-scale-script>` Blade component
+- WebHID requires secure context (HTTPS or localhost)
+
+## API Integrations
+
+- **USPS** — Address validation, domestic/international rates, label generation, SCAN forms (via Saloon)
+- **FedEx** — Rate quotes and shipment creation (via Saloon)
+- **UPS** — Rate quotes and shipment creation (via Saloon)
+
+Carrier adapters: `app/Services/Carriers/` — `UspsAdapter`, `FedexAdapter`, `UpsAdapter`, `FakeCarrierAdapter`
+
+Rate/label/track/cancel paths resolve carrier accounts via `CarrierAccount::resolveForShipment()` using the package's `location_id` and shipment's `client_id`.
+
+## Data Import / Export
+
+Shipment import sources are configured as `DataSource` records in the database (Integrations nav group), not in `.env`. Each source can be assigned to a `Client` and has its own encrypted credentials and schedule.
+
+Supported drivers:
+- **Database** — Custom SQL queries against MySQL, SQL Server, or PostgreSQL
+- **Shopify** — Via Shopify Admin API with per-source OAuth
+- **Amazon** — Via SP-API with per-source client credentials + refresh token
+
+Import sources: `app/Services/ShipmentImport/Sources/` — `DatabaseSource`, `ShopifySource`, `AmazonSource`
+Export: `app/Services/ShipmentImport/PackageExportService.php` — supports per-client export destination overrides
+
+## Commands
+
+```bash
+# Local Development (Valet Linux)
+composer run setup       # Install deps, create .env, generate key, migrate, build assets
+composer run dev         # server + queue + import-queue + vite + scheduler, concurrently
+npm run dev              # Vite dev server only
+npm run build            # Production build
+
+# Testing
+composer run test                    # Pest suite (clears config first)
+php artisan test --compact --filter=TestName
+composer run test:external           # External carrier/reference tests (tests/External)
+composer run test:fedex-reference    # Narrow that to the FedEx reference cases
+php artisan test tests/Browser/      # Pest browser tests — not in the default suite;
+                                     # needs `npx playwright install chromium`
+
+# Database
+php artisan migrate      # Run migrations
+php artisan db:seed      # Seed test data (idempotent for users)
+php artisan tinker       # Interactive PHP shell
+
+# Code Style
+vendor/bin/pint          # Format PHP
+composer run format      # Rector, then PHPStan, then Pint
+
+# Docker (standalone / on-prem)
+docker compose --profile standalone -f docker-compose.yml -f docker-compose.onprem.yml up -d
+docker compose --profile standalone -f docker-compose.yml -f docker-compose.onprem.yml exec app php artisan <command>
+
+# Utilities
+php artisan app:generate-qz-cert              # Generate QZ Tray certificate (interactive)
+php artisan app:generate-qz-cert example.com  # Non-interactive with domain
+php artisan app:create-user                   # Create admin user
+php artisan app:generate-ssh-key              # Keypair for import tunneling
+php artisan demo:reset                        # Reset demo data (APP_ENV demo/local/testing only)
+```
+
+## Architecture
+
+### Service Layer
+- `app/Services/CacheService.php` — Centralized caching for box sizes and carrier services (1-hour TTL)
+- `app/Services/SettingsService.php` — Key-value settings stored in DB
+- `app/Services/ClientContext.php` — Resolves the default `Client` for the current request
+- `app/Services/ShippingRateService.php` — Multi-carrier rate comparison
+- `app/Services/BatchLabelService.php` — Batch label generation
+- `app/Services/ManifestService.php` — USPS SCAN form / end-of-day manifests; location-scoped
+
+Prefer small service classes over controller-heavy logic. When adding a model, add its
+factory and seeder too — the test suite leans on factories heavily.
+
+### UI (Filament)
+- Auto-discovers resources from `app/Filament/Resources/`
+- Auto-discovers pages from `app/Filament/Pages/`
+- Auto-discovers widgets from `app/Filament/Widgets/`
+- Panel config: `app/Providers/Filament/AppPanelProvider.php` — path `/`, auth required, teal theme
+
+### Frontend
+- Tailwind CSS 4.0 config in `resources/css/app.css`
+- Vite handles HMR and builds
+- QZ Tray and scale integration via Blade components (not standalone JS files)
+- All hardware JS is inline in Blade: `<x-qz-tray>`, `<x-qz-tray-script>`, `<x-scale-script>`
+
+## Key Files
+
+- `app/Providers/Filament/AppPanelProvider.php` — Filament panel config
+- `app/Filament/Pages/Pack.php` — Packing workflow with scale integration
+- `app/Filament/Pages/Ship.php` — Label generation and print dispatch
+- `app/Filament/Pages/DeviceSettings.php` — Printer/scale/label format configuration
+- `app/Services/Carriers/CarrierRegistry.php` — Carrier adapter registration
+- `app/Services/CacheService.php` — Box size and carrier service caching
+- `app/Models/CarrierAccount.php` — Per-carrier credentials with `resolveForShipment()` priority logic
+- `app/Filament/Resources/Clients/ClientResource.php` — 3PL client management (Admin nav group)
+- `app/Filament/Resources/LocationResource.php` — Warehouse location management (Admin nav group)
+- `app/Filament/Resources/DataSources/DataSourceResource.php` — Data source management (Integrations nav group)
+- `docker-compose.yml` — Container orchestration
+- `docker/entrypoint.sh` — Container startup (migrate + optimize)
+- `scripts/install-onprem.sh` — On-prem installer
+- `infra/README.md` — MySQL encryption-at-rest config (three files, required together)
+
+## Testing
+
+Pest 4 on PHPUnit 12. Test files use a `*Test.php` suffix.
+
+- `tests/Unit` — isolated services, enums, factories, integrations, DTOs
+- `tests/Feature` — Filament pages, jobs, events, middleware, HTTP flows, import/export, package draft/label/shipping workflows, carrier account routing, client scoping
+- `tests/External` — explicit external carrier and reference coverage only; run via `composer run test:external`
+- `tests/Browser` — Pest 4 browser tests (`ShippingFlowTest`), driving Playwright
+
+`phpunit.xml` defines only the `Unit` and `Feature` suites, so a bare `php artisan test`
+runs neither `tests/External` nor `tests/Browser`. Both must be named explicitly.
+
+Set `FAKE_CARRIERS=true` in `.env` to use fake carrier adapters and address validator for end-to-end testing without hitting carrier APIs.
+
+## Contributing
+
+Keep commits focused, with short imperative subjects (`Add per-client export destination override to PackageExportService`). PRs should explain user-visible impact, note schema or config changes, link related issues, and include screenshots for Filament/UI changes. Flag follow-up steps such as migrations, seeders, or workstation hardware setup. See `CONTRIBUTING.md`.
+
+## Security & Configuration
+
+Never commit secrets: `.env` values, carrier credentials, data source credentials, OAuth tokens, database connection strings, or private QZ signing keys. `.env` holds infrastructure and base URLs; operational credentials live encrypted in the App Settings, Carrier Accounts, and Data Sources UIs. Carrier credentials live on `CarrierAccount` records and may be scoped by location and client through `CarrierAccountScope`; import/export credentials live on `DataSource` records and may be overridden per client.
+
+If you touch printing, scale, OAuth, pack slips, or carrier account routing, document the workstation, callback URL, certificate, or client-scope implications in the PR.
+
+To report a vulnerability, see `SECURITY.md`.
 ===
 
 <laravel-boost-guidelines>
@@ -241,4 +468,4 @@ Default five-role vocabulary (needs-triage, needs-info, ready-for-agent, ready-f
 
 ### Domain docs
 
-Single-context layout - `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context layout — `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

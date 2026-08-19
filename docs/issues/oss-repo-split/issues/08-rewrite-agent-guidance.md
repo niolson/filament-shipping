@@ -38,8 +38,12 @@ file explains the project, and cutting them leaves gaps rather than a shorter do
 - [x] No path referenced in public `CLAUDE.md` or `AGENTS.md` is absent from the public repo — checked by extracting every backticked path-like token from both files and testing it. Turned up two real drifts, fixed here: `e2e/` has no tracked files at all (so the `npm run test:e2e` scripts invoke an uncommitted harness, and browser coverage is actually Pest 4 in `tests/Browser/`), and `ImportSourceInterface`/`ImportSourceFactory` had been renamed to `DataSourceInterface`/`DataSourceFactory`
 - [x] The standalone / on-prem deployment path is still fully documented publicly — expanded, in fact: the service table now lists `import-queue`, `scheduler`, and `gotenberg`, which the old three-mode table omitted
 - [x] Hosted-mode content exists in `polybag-ops`, not merely deleted — `polybag-ops` PR #2 adds a `CLAUDE.md` there
-- [x] `AGENTS.md` and `CLAUDE.md` no longer contradict each other on structure, commands, or test invocation — resolved by construction rather than by syncing: `AGENTS.md` names `CLAUDE.md` as canonical and no longer restates any of it. Its unique content (repository layout, commit/PR guidance, security notes) moved into `CLAUDE.md`
-- [x] The Agent skills section reflects reality **as of now**, and issue 09 owns the post-move state — its acceptance criteria were amended to name both files, since each carries its own copy of the section
+- [x] `AGENTS.md` and `CLAUDE.md` no longer contradict each other on structure, commands, or test invocation — made impossible rather than merely fixed. **`AGENTS.md` is the single source**; `CLAUDE.md` is one line, `@AGENTS.md`, using Claude Code's import syntax. There is no second copy to drift.
+
+  Chosen over the reverse (`CLAUDE.md` canonical, `AGENTS.md` pointing at it) because `AGENTS.md` is the cross-tool convention, so the content sits in the file every agent reads natively and the Claude-specific file is the thin one. A symlink would also work but breaks on Windows checkouts without symlink support, which matters for a QZ Tray user base.
+
+  Each file previously carried its own Boost-generated block. `AGENTS.md`'s survives: it is close to a superset — its "Artisan & Debugging" condenses the other's Artisan and Tinker sections, and it adds Laravel 13 rules, Frontend Bundling, and Documentation Files. The one bullet unique to the dropped block (add factories and seeders with new models) was carried into the hand-written section rather than edited into generated content.
+- [x] The Agent skills section reflects reality **as of now**, and issue 09 owns the post-move state. It now exists once, in `AGENTS.md`
 
 ## Blocked by
 
