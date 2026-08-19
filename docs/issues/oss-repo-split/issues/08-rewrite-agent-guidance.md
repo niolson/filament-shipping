@@ -35,6 +35,7 @@ file explains the project, and cutting them leaves gaps rather than a shorter do
 
 ## Acceptance criteria
 
+- [x] Nothing references `CLAUDE.md` for content any more, now that it is a one-line import. Two did and both were fixed here: `docker-compose.yml`'s `env_file` comment, and `.github/ISSUE_TEMPLATE/bug_report.yml`, which sent reporters to a deployment modes table that has moved to `polybag-ops` — its dropdown also still offered "Shared (multi-tenant)" as a mode, which is not something a public user can be running
 - [x] No path referenced in public `CLAUDE.md` or `AGENTS.md` is absent from the public repo — checked by extracting every backticked path-like token from both files and testing it. Turned up two real drifts, fixed here: `e2e/` has no tracked files at all (so the `npm run test:e2e` scripts invoke an uncommitted harness, and browser coverage is actually Pest 4 in `tests/Browser/`), and `ImportSourceInterface`/`ImportSourceFactory` had been renamed to `DataSourceInterface`/`DataSourceFactory`
 - [x] The standalone / on-prem deployment path is still fully documented publicly — expanded, in fact: the service table now lists `import-queue`, `scheduler`, and `gotenberg`, which the old three-mode table omitted
 - [x] Hosted-mode content exists in `polybag-ops`, not merely deleted — `polybag-ops` PR #2 adds a `CLAUDE.md` there
