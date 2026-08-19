@@ -1,6 +1,7 @@
 # De-tenant the public deployment surface
 
 Status: ready-for-human
+Blocked on: `infra/README.md` rewrite, which needs issue 04 first
 Category: enhancement
 Type: human
 
@@ -83,7 +84,12 @@ next to `GOTENBERG_URL`; issue 07 can own the wider explanation.
 
 Once `infra/` is down to a handful of public files, reconsider whether `infra/README.md`
 should be rewritten for the public repo (it currently describes a shared server) or
-replaced with a short note.
+replaced with a short note. **This is the one piece of the issue that cannot be finished
+here**: the file opens "# Shared server infrastructure" and tables four directories
+deploying to `/opt/shared`, `/opt/caddy`, `/opt/gotenberg`, and `/opt/uptime-kuma`, three
+of which issue 04 deletes. Its shape is decidable now — a short note on why three `.cnf`
+files live in `infra/shared/` and where the digest siblings are — but it cannot be written
+until 04 settles what remains.
 
 ### `scripts/install-onprem.sh` and `.env.example`
 
@@ -93,15 +99,15 @@ replaced with a short note.
 
 ## Acceptance criteria
 
-- [ ] The `/opt/shared/shared-secrets.env` comment block is in place on all four services, and no hosted invocation had to change
-- [ ] `docker-compose.onprem.yml` still brings up Gotenberg, and a standalone install satisfies `GOTENBERG_URL` with no `infra/` present
-- [ ] The public pin policy names the sibling `polybag-ops` location for `mysql:8.4`, `redis:alpine`, and `gotenberg/gotenberg:8`
-- [ ] `.env.example` states which deployment modes ship a Gotenberg service
-- [ ] `infra/shared/*.cnf` remains public and the standalone MySQL service still starts with encryption and a working keyring
-- [ ] `scripts/install-onprem.sh` completes an install with no `polybag.app` value anywhere in its output or generated `.env`
-- [ ] `.env.example` contains no `polybag.app` hostname
-- [ ] A clean-clone smoke test passes: `scripts/install-onprem.sh` on a machine with no `/opt/shared`, reaching a working login page
-- [ ] That run reports `Encryption at rest active` — the installer asserts it directly, and every way it breaks leaves a healthy-looking server behind
+- [x] The `/opt/shared/shared-secrets.env` comment block is in place on all four services, and no hosted invocation had to change
+- [x] `docker-compose.onprem.yml` still brings up Gotenberg, and a standalone install satisfies `GOTENBERG_URL` with no `infra/gotenberg/` present (`infra/shared/*.cnf` is still required — an earlier wording said "no `infra/`", which would have left MySQL unencrypted)
+- [x] The public pin policy names the sibling location for `mysql:8.4`, `redis:alpine`, and `gotenberg/gotenberg:8` (`infra/README.md`, "Images pinned in more than one place")
+- [x] `.env.example` states which deployment modes ship a Gotenberg service
+- [x] `infra/shared/*.cnf` remains public and the standalone MySQL service still starts with encryption and a working keyring — the installer's `Encryption at rest active` check passed on a clean clone
+- [x] `scripts/install-onprem.sh` completes an install with no `polybag.app` value anywhere in its output or generated `.env` — it never contained one (`git log -S polybag.app -- scripts/install-onprem.sh` is empty); this criterion was written without checking
+- [x] `.env.example` contains no `polybag.app` hostname — removed in `2394bdf` by issue 07, before this issue was started
+- [x] A clean-clone smoke test passes: `scripts/install-onprem.sh` on a machine with no `/opt/shared`, reaching a working login page
+- [x] That run reports `Encryption at rest active` — the installer asserts it directly, and every way it breaks leaves a healthy-looking server behind
 
 ## Blocked by
 
@@ -122,5 +128,8 @@ rest — so it is both the only way the command works and the stronger signal.
 The standalone smoke test is the real acceptance signal here. Everything else in this
 issue is bookkeeping in service of it.
 
-Both open questions in the original draft are now decided, so this issue no longer needs
-a decision-making pass — it is implementation plus the smoke test.
+Both open questions in the original draft are now decided, and every acceptance criterion
+except the `infra/README.md` rewrite is met. Two of them turned out to be already satisfied
+when checked: `install-onprem.sh` never carried a `polybag.app` value, and `.env.example`
+lost its one reference to `updates.polybag.app` in `2394bdf` under issue 07. Both had been
+asserted rather than verified when this issue was drafted.

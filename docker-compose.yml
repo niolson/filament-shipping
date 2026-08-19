@@ -7,6 +7,15 @@ services:
       args:
         APT_CACHE_BUST: ${APT_CACHE_BUST:-1}
     restart: unless-stopped
+    # Hosted-mode secret injection. On our multi-tenant server this file holds
+    # the secrets shared across every tenant — Redis password, Google SSO, OAuth
+    # broker secret — so they are not copied into each tenant's .env. It exists
+    # nowhere else, and `required: false` makes its absence a no-op rather than
+    # an error: if you are self-hosting, ignore it and put everything in .env.
+    #
+    # Deliberately not `env_file: .env`. That would inject these as OS-level
+    # environment variables, which take precedence over the mounted .env file
+    # and are then invisible to `config:clear`. See CLAUDE.md.
     env_file:
       - path: /opt/shared/shared-secrets.env
         required: false
@@ -175,6 +184,7 @@ services:
       args:
         APT_CACHE_BUST: ${APT_CACHE_BUST:-1}
     restart: unless-stopped
+    # Hosted-mode secret injection; ignorable when self-hosting — see `app`.
     env_file:
       - path: /opt/shared/shared-secrets.env
         required: false
@@ -200,6 +210,7 @@ services:
       args:
         APT_CACHE_BUST: ${APT_CACHE_BUST:-1}
     restart: unless-stopped
+    # Hosted-mode secret injection; ignorable when self-hosting — see `app`.
     env_file:
       - path: /opt/shared/shared-secrets.env
         required: false
@@ -225,6 +236,7 @@ services:
       args:
         APT_CACHE_BUST: ${APT_CACHE_BUST:-1}
     restart: unless-stopped
+    # Hosted-mode secret injection; ignorable when self-hosting — see `app`.
     env_file:
       - path: /opt/shared/shared-secrets.env
         required: false

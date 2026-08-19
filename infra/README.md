@@ -58,6 +58,25 @@ pulling `caddy:alpine` gives you whatever its publisher pushed most recently,
 which could be minutes old. A digest is immutable, so what runs in production
 is exactly what was reviewed.
 
+### Images pinned in more than one place
+
+Three images run in two separate deployments: the shared-server singleton here,
+and the self-host stack in the root compose files. Each copy is pinned
+independently, and neither location mentions the other.
+
+| Image | Shared server | Self-host |
+| --- | --- | --- |
+| `mysql:8.4` | `shared/docker-compose.yml` | `docker-compose.yml` (standalone profile) |
+| `redis:alpine` | `shared/docker-compose.yml` | `docker-compose.yml` (standalone profile) |
+| `gotenberg/gotenberg:8` | `gotenberg/docker-compose.yml` | `docker-compose.onprem.yml` |
+
+Dependabot opens a PR per occurrence, so they do not drift unnoticed. A hand-bump
+that skips the sibling does leave the other deployment on the old digest — which
+is tolerable, since they are independent deployments, but should be a choice
+rather than an oversight.
+
+### How pins move
+
 Pins move through Dependabot PRs, under the `docker-compose` ecosystem in
 `.github/dependabot.yml`, with a **7-day cooldown**. The delay is deliberate:
 a compromised or broken upstream release is usually caught within days, and
