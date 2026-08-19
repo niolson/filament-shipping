@@ -1,6 +1,6 @@
 # Rewrite `CLAUDE.md` and `AGENTS.md` down to app-only scope
 
-Status: ready-for-agent
+Status: done
 Category: documentation
 Type: AFK
 
@@ -35,11 +35,11 @@ file explains the project, and cutting them leaves gaps rather than a shorter do
 
 ## Acceptance criteria
 
-- [ ] No path referenced in public `CLAUDE.md` or `AGENTS.md` is absent from the public repo
-- [ ] The standalone / on-prem deployment path is still fully documented publicly
-- [ ] Hosted-mode content exists in `polybag-ops`, not merely deleted
-- [ ] `AGENTS.md` and `CLAUDE.md` no longer contradict each other on structure, commands, or test invocation
-- [ ] The Agent skills section reflects reality after issue 09
+- [x] No path referenced in public `CLAUDE.md` or `AGENTS.md` is absent from the public repo — checked by extracting every backticked path-like token from both files and testing it. Turned up two real drifts, fixed here: `e2e/` has no tracked files at all (so the `npm run test:e2e` scripts invoke an uncommitted harness, and browser coverage is actually Pest 4 in `tests/Browser/`), and `ImportSourceInterface`/`ImportSourceFactory` had been renamed to `DataSourceInterface`/`DataSourceFactory`
+- [x] The standalone / on-prem deployment path is still fully documented publicly — expanded, in fact: the service table now lists `import-queue`, `scheduler`, and `gotenberg`, which the old three-mode table omitted
+- [x] Hosted-mode content exists in `polybag-ops`, not merely deleted — `polybag-ops` PR #2 adds a `CLAUDE.md` there
+- [x] `AGENTS.md` and `CLAUDE.md` no longer contradict each other on structure, commands, or test invocation — resolved by construction rather than by syncing: `AGENTS.md` names `CLAUDE.md` as canonical and no longer restates any of it. Its unique content (repository layout, commit/PR guidance, security notes) moved into `CLAUDE.md`
+- [x] The Agent skills section reflects reality **as of now**, and issue 09 owns the post-move state — its acceptance criteria were amended to name both files, since each carries its own copy of the section
 
 ## Blocked by
 

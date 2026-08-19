@@ -47,7 +47,7 @@ carrier API reference files.
 - [ ] `docs/agents/issue-tracker.md` and `triage-labels.md` are moved or corrected — no public file claims a tracker that is not there
 - [ ] `docs/agents/domain.md` remains public and accurate (`CONTEXT.md`, `docs/adr/` unchanged)
 - [ ] A decision is recorded on the public issue front door, and if GitHub Issues, it is enabled with the issue 05 templates
-- [ ] `CLAUDE.md`'s Agent skills section is correct
+- [ ] The **Agent skills** section is correct in **both** `CLAUDE.md` and `AGENTS.md` — each carries its own copy, and both currently say issues live under `docs/issues/` and point at `docs/agents/issue-tracker.md`. Issue 08 left them accurate for the pre-move state; this issue owns the post-move state
 - [ ] Remaining open slices from this PRD are tracked in `polybag-ops` and none are lost in the move
 
 ## Blocked by

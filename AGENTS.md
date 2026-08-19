@@ -1,31 +1,21 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
-PolyBag is a Laravel 13 application with Filament 5 admin pages for barcode-driven packing, shipping, batch labels, carrier integrations, shipment imports/exports, multi-client/3PL setup, and workstation hardware configuration. Core PHP code lives in `app/`, including `Models/`, `Services/`, `Contracts/`, `Filament/`, `Http/Integrations/`, `Console/Commands/`, `Jobs/`, `Events/`, `Listeners/`, `Policies/`, `Enums/`, and `DataTransferObjects/`. Blade views and frontend entrypoints live under `resources/views`, `resources/js`, and `resources/css`, with QZ Tray, barcode, and scale browser code in `resources/js`. Carrier reference data and FedEx test cases live under `resources/data/`. Database migrations, factories, and seeders live in `database/`. Pest tests are grouped under `tests/Feature` and `tests/Unit`; explicit external/reference carrier runs are covered by command tests and the `composer run test:external` scripts when `tests/External` exists. Browser coverage is in `e2e/`. Deployment, tenant, workstation, and server setup docs/scripts live in `docs/`, `docker/`, `infra/`, and `scripts/`.
+**`CLAUDE.md` is the canonical project document.** Repository layout, deployment, domain
+model, workflows, commands, testing, contribution, and security guidance all live there,
+and this file deliberately does not restate them — two copies of that material drifted
+apart once already, disagreeing about which processes `composer run dev` starts and
+naming an `ImportSource` model that had been renamed to `DataSource`.
 
-## Build, Test, and Development Commands
-Use the repo scripts instead of ad hoc commands when possible:
+Read `CLAUDE.md` first. Also useful:
 
-- `composer run setup` installs PHP and Node dependencies, creates `.env`, generates the app key, runs migrations, and builds assets.
-- `composer run dev` starts the Laravel server, queue worker, scheduler, and Vite dev server together.
-- `composer run test` clears config and runs the application test suite.
-- `composer run test:external` runs external integration/reference tests when present, and `composer run test:fedex-reference` narrows that suite to FedEx reference cases.
-- `npm run test:e2e` runs Playwright flows from `e2e/`.
-- `npm run test:e2e:ui` and `npm run test:e2e:headed` run the same Playwright wrapper in UI or headed mode.
-- `composer run format` runs Rector, PHPStan, and Pint in sequence.
-- `npm run build` creates production frontend assets.
+- `CONTEXT.md` — domain language. **Shipment**, **Package**, and **Package Draft** are
+  distinct things; keep the terms straight in code and prose.
+- `docs/adr/` — architecture decisions and why they were made.
+- `CONTRIBUTING.md` — development loop and the contributor agreement.
+- `SECURITY.md` — reporting a vulnerability.
 
-## Coding Style & Naming Conventions
-Follow PSR-12 with 4-space indentation for PHP. Run `vendor/bin/pint` before opening a PR. Keep class names singular and descriptive (`ShipmentImportService`, `PackageShippingResult`), and mirror Laravel conventions for models, migrations, and seeders. Use `PascalCase` for PHP classes, `camelCase` for methods, and kebab-case for Blade view filenames where appropriate. Prefer small service classes over controller-heavy logic. Preserve domain terms from `CONTEXT.md`: use **Shipment**, **Package**, and **Package Draft** consistently.
-
-## Testing Guidelines
-This repo uses Pest 4 on top of PHPUnit 12. Add unit tests in `tests/Unit` for isolated services, enums, factories, integrations, and DTOs, and feature tests in `tests/Feature` for Filament pages, jobs, events, middleware, API/HTTP flows, import/export flows, package draft/label/shipping workflows, carrier account routing, client scoping, and service orchestration. Use `tests/External` only for explicit external carrier/reference coverage. Name test files with a `*Test.php` suffix. For browser workflows, add or update Playwright specs in `e2e/*.spec.ts`. Cover new behavior and regressions before merging.
-
-## Commit & Pull Request Guidelines
-Recent commits use short, imperative subjects such as `Add per-client export destination override to PackageExportService`. Keep commits focused and descriptive; avoid mixed-purpose changes. PRs should explain the user-visible impact, note schema or config changes, link related issues, and include screenshots for Filament/UI updates. Mention any required follow-up steps such as migrations, seeders, or workstation hardware setup.
-
-## Security & Configuration Tips
-Do not commit secrets from `.env`, carrier credentials, import source credentials, OAuth tokens, database connection strings, or private QZ signing keys. Use `.env` for infrastructure/base URLs and the App Settings, Carrier Accounts, and Import Sources UIs for encrypted operational credentials. Carrier credentials now usually live on `CarrierAccount` records and may be scoped by location/client through `CarrierAccountScope`; import/export credentials live on `ImportSource` records and may be overridden per client. If you touch printing, scale, OAuth, pack slips, or carrier account routing, document workstation, callback URL, certificate, or client-scope requirements in the PR.
+The Laravel Boost guidelines below are generated and cover framework-level conventions
+for PHP, Pest, Filament, and Saloon.
 
 ===
 
@@ -77,7 +67,7 @@ This application is a Laravel application and its main Laravel ecosystems packag
 - Carrier and marketplace API SDK code belongs in `app/Http/Integrations/` using Saloon v4 connectors, requests, responses, OAuth providers, and shared concerns.
 - Business workflows belong in small service classes under `app/Services/`; keep Filament resources focused on UI configuration and orchestration.
 - Package preparation, label reprint/void, and shipment purchase flows should use the workflow contracts in `app/Contracts/` with implementations under `app/Services/PackageDrafts/`, `app/Services/PackageLabels/`, and `app/Services/PackageShipping/`.
-- Import/export flows should use `ImportSourceInterface`, `ExportDestinationInterface`, `ImportSourceFactory`, and source classes under `app/Services/ShipmentImport/Sources/`.
+- Import/export flows should use `DataSourceInterface`, `ExportDestinationInterface`, `DataSourceFactory`, and source classes under `app/Services/ShipmentImport/Sources/`.
 - Multi-client/3PL code must preserve `client_id` scoping for shipments, products, aliases, import sources, shipping rules, pick batches, and carrier account resolution. Use `ClientContext` and existing `HasDefaultClient` patterns instead of ad hoc defaults.
 - Use typed DTOs from `app/DataTransferObjects/` for structured data crossing service and integration boundaries.
 
