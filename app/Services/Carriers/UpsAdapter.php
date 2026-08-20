@@ -68,8 +68,9 @@ class UpsAdapter implements CarrierAdapterInterface
             'lithium_battery_in_equipment' => ServiceCapability::Supported,
             'lithium_battery_ground_only' => ServiceCapability::Supported,
             // Standalone lithium (UN3480) requires UPS's full HazMat dangerous
-            // goods declaration + DG contract — out of scope (see
-            // docs/issues/special-services/issues/06-lithium-battery-family.md)
+            // goods declaration and a signed DG contract with UPS. Deliberately
+            // out of scope: without that contract UPS rejects the shipment at
+            // manifest, so claiming support here would fail at label purchase.
             default => ServiceCapability::NotImplemented,
         };
     }
