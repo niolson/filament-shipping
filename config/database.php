@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\ReadinessProbe;
 use Illuminate\Support\Str;
 use Pdo\Mysql;
 
@@ -193,6 +194,22 @@ return [
             'backoff_algorithm' => env('REDIS_BACKOFF_ALGORITHM', 'decorrelated_jitter'),
             'backoff_base' => env('REDIS_BACKOFF_BASE', 100),
             'backoff_cap' => env('REDIS_BACKOFF_CAP', 1000),
+        ],
+
+        // Used only by App\Services\ReadinessProbe. Same server as 'default',
+        // but with a short timeout and no retries: a readiness check has to
+        // report an unreachable Redis in seconds, not sit on a PHP worker
+        // retrying with backoff while the monitor times out.
+        'readiness' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_DB', '0'),
+            'timeout' => ReadinessProbe::TIMEOUT_SECONDS,
+            'read_timeout' => ReadinessProbe::TIMEOUT_SECONDS,
+            'max_retries' => 0,
         ],
 
     ],
