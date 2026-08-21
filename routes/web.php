@@ -12,13 +12,42 @@ use App\Http\Controllers\PickBatchController;
 use App\Http\Controllers\QzProvisionScriptController;
 use App\Http\Controllers\QzSignController;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::get('/up', function () {
     // Liveness endpoint for container/web health checks.
     // Dependency-specific readiness checks belong on dedicated diagnostics routes.
     return response()->json(['status' => 'ok']);
 });
+
+// Readiness probe for external monitoring: 200 when this instance can reach
+// MySQL (and Redis, where it is used), 503 when it cannot, so a monitor can act
+// on the status code with no keyword matching. Keep it off /up and out of any
+// container healthcheck — a healthcheck that fails on a datastore blip makes
+// Docker restart the container, turning an outage into a restart loop.
+//
+// The response body names which dependency is unreachable, so restrict this
+// path to your monitoring at the reverse proxy. See HealthController.
+//
+// The session middleware is stripped — along with the CSRF middleware, which
+// needs a session to issue its cookie — so a Redis outage surfaces as this
+// route's own 503 rather than a 500 from the session store. (With
+// CACHE_STORE=redis the throttle middleware can still 500 first on a Redis
+// outage; that is still non-2xx, and MySQL — the case nothing else catches —
+// always reaches the probe.)
+//
+// Throttled at the same rate as the other unauthenticated routes: generous for a
+// monitor polling once a minute, and it caps how many workers a stranger can tie
+// up for the probe's timeout while a datastore is unreachable.
+Route::get('/api/health', HealthController::class)
+    ->middleware('throttle:20,1')
+    ->withoutMiddleware([
+        StartSession::class,
+        ShareErrorsFromSession::class,
+        PreventRequestForgery::class,
+    ]);
 
 Route::post('/qz/sign', [QzSignController::class, 'sign'])->name('qz.sign')->middleware(['auth', 'throttle:60,1']);
 
@@ -64,10 +93,6 @@ if (app()->environment(['local', 'testing'])) {
 }
 
 Route::prefix('api')->group(function (): void {
-    if (app()->environment(['local', 'testing'])) {
-        Route::get('/health', HealthController::class);
-    }
-
     if (app()->environment(['local', 'testing'])) {
         Route::post('/test/create-package', TestPackageController::class)
             ->withoutMiddleware([PreventRequestForgery::class]);
