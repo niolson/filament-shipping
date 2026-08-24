@@ -60,22 +60,6 @@ it('uses client credentials when no token is provided', function (): void {
     expect($headers['X-Shopify-Access-Token'])->toBe('shpat_cc_token');
 });
 
-it('ignores a deprecated custom-app access token left in settings', function (): void {
-    Http::fake([
-        'test-shop.myshopify.com/admin/oauth/access_token' => Http::response([
-            'access_token' => 'shpat_cc_token',
-            'expires_in' => 86399,
-        ]),
-    ]);
-
-    $connector = ShopifyConnector::fromSettings(shopifyAuthConfig([
-        'access_token' => 'shpat_legacy_custom_app_token',
-    ]));
-
-    $headers = $connector->headers()->all();
-    expect($headers['X-Shopify-Access-Token'])->toBe('shpat_cc_token');
-});
-
 it('falls back to client credentials when the OAuth token is empty', function (): void {
     Http::fake([
         'test-shop.myshopify.com/admin/oauth/access_token' => Http::response([

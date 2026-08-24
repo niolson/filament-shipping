@@ -59,8 +59,7 @@ class PackingValidationReport extends Page implements HasTable
 
     private function weightMismatchTable(Table $table): Table
     {
-        // Uses the pre-computed weight_mismatch flag (set at pack time,
-        // backfilled via packages:backfill-weight-mismatch). No JOINs needed.
+        // Uses the pre-computed weight_mismatch flag set at pack time. No JOINs needed.
         $query = Package::query()
             ->where('packages.status', PackageStatus::Shipped)
             ->where('packages.weight_mismatch', true)

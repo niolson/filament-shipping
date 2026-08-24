@@ -1187,7 +1187,7 @@ class UspsAdapter implements CarrierAdapterInterface
             return true;
         }
 
-        // If no box type specified, allow all known rate indicators (backwards compatibility)
+        // Packages with no box size (manual ship) have no box type to filter on
         if ($boxType === null) {
             return in_array($rateIndicator, [
                 ...self::UNIVERSAL_RATE_INDICATORS,

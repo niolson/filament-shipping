@@ -27,7 +27,7 @@ class ViewPickBatch extends ViewRecord
 
     /**
      * Pull fresh batch state when a nested component (the shipments relation manager)
-     * completes the batch, so the header actions and infolist stop showing stale status.
+     * completes the batch, so the header actions and detail view stop showing stale status.
      */
     #[On('pick-batch-updated')]
     public function refreshBatch(): void

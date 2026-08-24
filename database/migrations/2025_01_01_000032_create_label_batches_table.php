@@ -8,10 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('label_batches')) {
-            return;
-        }
         Schema::create('label_batches', function (Blueprint $table) {
             $table->id();
             $table->string('bus_batch_id')->nullable()->index();

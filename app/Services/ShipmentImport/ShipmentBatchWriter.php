@@ -21,7 +21,7 @@ class ShipmentBatchWriter
      * that already exist locally:
      *
      *  - Shipped/void shipments are never updated — they are historical records.
-     *  - `update` always rewrites open shipments from the source (legacy behavior).
+     *  - `update` always rewrites open shipments from the source.
      *  - `skip` never touches existing shipments.
      *  - `update_if_changed` rewrites only when the row's source_checksum differs
      *    from the one stored at the previous import.

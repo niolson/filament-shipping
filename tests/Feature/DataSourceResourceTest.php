@@ -562,34 +562,6 @@ it('replaces a secret when a new value is submitted on edit', function (): void 
     expect($source->secret('client_secret'))->toBe('new_secret');
 });
 
-it('migrates legacy plaintext secrets from settings to secret_settings on edit', function (): void {
-    $this->actingAs($this->admin);
-    $channel = Channel::factory()->create();
-
-    // Simulate a record saved before the encrypted column was introduced
-    $source = DataSource::factory()->shopify()->create([
-        'settings' => [
-            'shop_domain' => 'test.myshopify.com',
-            'channel_name' => $channel->id,
-            'client_secret' => 'legacy_plaintext_secret',
-        ],
-    ]);
-
-    Livewire::test(EditDataSource::class, ['record' => $source->id])
-        ->fillForm([
-            'name' => 'Legacy Source',
-            'settings.shop_domain' => 'test.myshopify.com',
-            'settings.client_secret' => null,
-            'settings.channel_name' => $channel->id,
-        ])
-        ->call('save')
-        ->assertHasNoFormErrors();
-
-    $source->refresh();
-    expect($source->settings)->not->toHaveKey('client_secret');
-    expect($source->secret('client_secret'))->toBe('legacy_plaintext_secret');
-});
-
 // ── ShopifySource validation ──────────────────────────────────────────────────
 
 it('validates when oauth_access_token is present even without tenant credentials', function (): void {
@@ -623,24 +595,6 @@ it('fails validation when neither token nor credentials exist', function (): voi
     ]);
 
     expect(fn () => $source->validateConfiguration())->toThrow(InvalidArgumentException::class, 'credentials are not configured');
-});
-
-it('fails validation when only a deprecated custom-app access token exists', function (): void {
-    $source = new ShopifySource([
-        'shop_domain' => 'test.myshopify.com',
-        'access_token' => 'shpat_legacy_custom_app_token',
-        'channel_name' => 'Shopify',
-    ]);
-
-    expect(fn () => $source->validateConfiguration())->toThrow(InvalidArgumentException::class, 'credentials are not configured');
-});
-
-it('no longer offers a custom access token field on the Shopify form', function (): void {
-    $this->actingAs($this->admin);
-
-    Livewire::test(CreateDataSource::class)
-        ->fillForm(['source_type' => ShopifySource::class])
-        ->assertFormFieldDoesNotExist('settings.access_token');
 });
 
 // ── Raw-SQL statement-type validation (issue 07) ──────────────────────────────

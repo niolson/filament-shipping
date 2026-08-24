@@ -8,11 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('box_sizes')) {
-            return;
-        }
-
         Schema::create('box_sizes', function (Blueprint $table) {
             $table->id();
             $table->decimal('height', 8, 2);

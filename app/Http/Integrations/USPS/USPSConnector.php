@@ -249,14 +249,6 @@ class USPSConnector extends Connector
     }
 
     /**
-     * @deprecated Use getAuthenticatedConnector() instead
-     */
-    public static function getUspsConnector(): self
-    {
-        return self::getAuthenticatedConnector();
-    }
-
-    /**
      * Cache key for a payment authorization token, namespaced by environment.
      *
      * The token is minted by whichever environment issued the access token

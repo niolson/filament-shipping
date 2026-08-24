@@ -115,22 +115,6 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
-        // External database for shipment imports
-        'import' => [
-            'driver' => env('SHIPMENT_IMPORT_DB_DRIVER', 'sqlsrv'),
-            'host' => env('SHIPMENT_IMPORT_DB_HOST', 'localhost'),
-            'port' => env('SHIPMENT_IMPORT_DB_PORT', '1433'),
-            'database' => env('SHIPMENT_IMPORT_DB_DATABASE', ''),
-            'username' => env('SHIPMENT_IMPORT_DB_USERNAME', ''),
-            'password' => env('SHIPMENT_IMPORT_DB_PASSWORD', ''),
-            'charset' => 'utf8',
-            'prefix' => '',
-            'prefix_indexes' => true,
-            'options' => [
-                PDO::ATTR_TIMEOUT => 30,
-            ],
-        ],
-
     ],
 
     /*

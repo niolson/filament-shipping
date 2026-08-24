@@ -8,11 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('users')) {
-            return;
-        }
-
         Schema::create('users', function (Blueprint $table) {
             $table->id();
             $table->string('name');
@@ -29,8 +24,6 @@ return new class extends Migration
             $table->boolean('has_email_authentication')->default(false);
             $table->rememberToken();
             $table->timestamps();
-            // Trails the timestamps because the migration that added it chained
-            // ->after('role') onto constrained(), where Laravel ignores it.
             $table->foreignId('location_id')->nullable()->constrained('locations')->nullOnDelete();
         });
     }
