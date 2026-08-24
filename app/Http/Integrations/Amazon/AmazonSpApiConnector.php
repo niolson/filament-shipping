@@ -29,11 +29,6 @@ class AmazonSpApiConnector extends Connector
         private readonly ?int $dataSourceId,
     ) {}
 
-    public static function fromConfig(): self
-    {
-        return self::fromSettings([]);
-    }
-
     /**
      * Build from a per-source config array. All credentials (client_id, client_secret,
      * refresh_token) are per-source and stored on the DataSource.

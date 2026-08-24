@@ -8,11 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('pick_batches')) {
-            return;
-        }
-
         Schema::create('pick_batches', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained();
@@ -21,8 +16,6 @@ return new class extends Migration
             $table->timestamp('completed_at')->nullable();
             $table->timestamp('summary_printed_at')->nullable();
             $table->timestamps();
-            // Trails the timestamps because the migration that added it chained
-            // ->after('user_id') onto constrained(), where Laravel ignores it.
             $table->foreignId('client_id')->nullable()->constrained()->nullOnDelete();
 
             $table->index('status');

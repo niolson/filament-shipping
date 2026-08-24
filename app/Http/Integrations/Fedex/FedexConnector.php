@@ -276,14 +276,6 @@ class FedexConnector extends Connector
             ->sub(DateInterval::createFromDateString('10 minutes'));
     }
 
-    /**
-     * @deprecated Use getAuthenticatedConnector() instead
-     */
-    public static function getFedexConnector(): self
-    {
-        return self::getAuthenticatedConnector();
-    }
-
     private function getBrokeredChildAccessToken(string $childKey): OAuthAuthenticator
     {
         $childSecret = $this->carrierAccount?->secret('child_secret');

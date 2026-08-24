@@ -8,11 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('pick_batch_shipments')) {
-            return;
-        }
-
         Schema::create('pick_batch_shipments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('pick_batch_id')->constrained()->cascadeOnDelete();

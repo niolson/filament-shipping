@@ -110,7 +110,7 @@ class DataSourceForm
                     TextInput::make('settings.client_id')
                         ->label('App Client ID')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('The Shopify app Client ID for this store. Required unless a hosted OAuth broker supplies it.'),
@@ -118,7 +118,7 @@ class DataSourceForm
                     TextInput::make('settings.client_secret')
                         ->label('App Client Secret')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('The Shopify app Client Secret for this store. Required unless a hosted OAuth broker supplies it.'),
@@ -225,7 +225,7 @@ class DataSourceForm
                     TextInput::make('settings.refresh_token')
                         ->label('Refresh Token')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('refresh_token') ?? $record?->settings['refresh_token'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('refresh_token')) ? 'Configured (leave empty to keep)' : 'Not configured')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->required(fn (?DataSource $record): bool => ! $record?->exists && ! app(OAuthService::class)->isBrokerConfigured())
@@ -234,7 +234,7 @@ class DataSourceForm
                     TextInput::make('settings.client_id')
                         ->label('App Client ID')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id') ?? $record?->settings['client_id'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('Your own SP-API application credentials. Required when no hosted OAuth broker is configured — see docs/self-hosting.md.'),
@@ -242,7 +242,7 @@ class DataSourceForm
                     TextInput::make('settings.client_secret')
                         ->label('App Client Secret')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret') ?? $record?->settings['client_secret'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state))
                         ->helperText('Your own SP-API application credentials. Required when no hosted OAuth broker is configured — see docs/self-hosting.md.'),
@@ -317,7 +317,7 @@ class DataSourceForm
                     TextInput::make('settings.db_password')
                         ->label('Password')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('db_password') ?? $record?->settings['db_password'] ?? null) ? 'Configured (leave empty to keep)' : 'Not configured')
+                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('db_password')) ? 'Configured (leave empty to keep)' : 'Not configured')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
                         ->dehydrated(fn ($state) => filled($state)),
                 ])
@@ -667,7 +667,7 @@ class DataSourceForm
         $connName = 'import_test_'.($record?->id ?? uniqid());
         $password = filled($get('settings.db_password'))
             ? $get('settings.db_password')
-            : ($record?->secret('db_password') ?? $record?->settings['db_password'] ?? null);
+            : $record?->secret('db_password');
 
         config([
             "database.connections.{$connName}.driver" => $get('settings.db_driver') ?? 'mysql',

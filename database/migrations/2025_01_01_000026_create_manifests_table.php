@@ -8,11 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('manifests')) {
-            return;
-        }
-
         Schema::create('manifests', function (Blueprint $table) {
             $table->id();
             $table->string('carrier');
@@ -21,8 +16,6 @@ return new class extends Migration
             $table->date('manifest_date');
             $table->unsignedInteger('package_count');
             $table->timestamps();
-            // Trails the timestamps because the migration that added it chained
-            // ->after('carrier') onto constrained(), where Laravel ignores it.
             $table->foreignId('location_id')->nullable()->constrained('locations')->nullOnDelete();
 
             $table->index(['carrier', 'manifest_date']);

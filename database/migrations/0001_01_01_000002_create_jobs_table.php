@@ -11,10 +11,6 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('jobs')) {
-            return;
-        }
         Schema::create('jobs', function (Blueprint $table) {
             $table->id();
             $table->string('queue')->index();

@@ -44,11 +44,6 @@ class ShopifyConnector extends Connector
         }
     }
 
-    public static function fromConfig(): self
-    {
-        return self::fromSettings([]);
-    }
-
     /**
      * Build from a per-source config array. All values (shop_domain, client_id,
      * client_secret, oauth_access_token) are per-source and stored on the DataSource.

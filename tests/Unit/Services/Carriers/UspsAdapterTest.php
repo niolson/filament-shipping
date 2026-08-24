@@ -855,7 +855,7 @@ it('filters rate indicators for padded mailer same as polybag', function (): voi
         ->not->toContain('CP');
 });
 
-it('allows all rate indicators when box type is null for backwards compatibility', function (): void {
+it('allows all rate indicators when the package has no box type', function (): void {
     Saloon::fake([
         '*oauth*' => MockResponse::make(['access_token' => 'test_token', 'token_type' => 'Bearer', 'expires_in' => 3600]),
         ShippingOptions::class => MockResponse::make([

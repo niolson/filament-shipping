@@ -8,10 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('settings')) {
-            return;
-        }
         Schema::create('settings', function (Blueprint $table) {
             $table->string('key')->primary();
             $table->text('value')->nullable();

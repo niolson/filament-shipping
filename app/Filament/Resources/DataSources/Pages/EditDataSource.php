@@ -310,14 +310,6 @@ class EditDataSource extends EditRecord
         $existingSecrets = $record->secret_settings ?? [];
         $submitted = $data['settings'] ?? [];
 
-        // Migrate any legacy secrets still sitting in the plain settings column.
-        foreach (DataSource::SECRET_SETTINGS_KEYS as $key) {
-            if (isset($existing[$key])) {
-                $existingSecrets[$key] = $existing[$key];
-                unset($existing[$key]);
-            }
-        }
-
         // Route newly-submitted secret keys to secret_settings; preserve existing for blanks.
         foreach (DataSource::SECRET_SETTINGS_KEYS as $key) {
             if (array_key_exists($key, $submitted) && filled($submitted[$key])) {

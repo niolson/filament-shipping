@@ -11,10 +11,6 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('data_source_locations')) {
-            return;
-        }
         Schema::create('data_source_locations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('data_source_id')->constrained()->cascadeOnDelete();

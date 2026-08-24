@@ -8,11 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('shipping_method_aliases')) {
-            return;
-        }
-
         Schema::create('shipping_method_aliases', function (Blueprint $table) {
             $table->id();
             $table->foreignId('client_id')->constrained();

@@ -8,11 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('data_sources')) {
-            return;
-        }
-
         Schema::create('data_sources', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('client_id')->nullable();
@@ -25,12 +20,8 @@ return new class extends Migration
             $table->longText('secret_settings')->nullable();
             $table->timestamps();
 
-            // This table was created as `import_sources` and renamed in place, so
-            // existing installs carry the old index and constraint names. Name them
-            // explicitly here so a fresh install matches an upgraded one exactly.
-            $table->index('client_id', 'import_sources_client_id_index');
-            $table->foreign('client_id', 'import_sources_client_id_foreign')
-                ->references('id')->on('clients')->nullOnDelete();
+            $table->index('client_id');
+            $table->foreign('client_id')->references('id')->on('clients')->nullOnDelete();
         });
     }
 

@@ -250,7 +250,7 @@ it('updates a fulfillment order reassignment before packing and reports a confli
         ->and($shipment->shipmentItems->first()->quantity)->toBe(1);
 });
 
-it('exports package to the singular fulfillment order with legacy metadata fallback', function (array $metadata, string $expectedFulfillmentOrderId): void {
+it('exports package to the singular fulfillment order', function (): void {
     $channel = Channel::factory()->create(['name' => 'Shopify']);
 
     $exportSource = DataSource::factory()->create([
@@ -278,7 +278,10 @@ it('exports package to the singular fulfillment order with legacy metadata fallb
         'channel_id' => $channel->id,
         'data_source_id' => $exportSource->id,
         'shipment_reference' => '#1001',
-        'metadata' => $metadata,
+        'metadata' => [
+            'shopify_order_id' => 'gid://shopify/Order/1001',
+            'shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/9002',
+        ],
     ]);
 
     $package = Package::factory()->shipped()->create([
@@ -301,25 +304,15 @@ it('exports package to the singular fulfillment order with legacy metadata fallb
     expect($result->destinationsSucceeded)->toBe(1);
     expect($package->fresh()->exported)->toBeTrue();
 
-    Saloon::assertSent(function (GraphQL $request) use ($expectedFulfillmentOrderId) {
+    Saloon::assertSent(function (GraphQL $request): bool {
         $body = $request->body()->all();
         $fulfillment = $body['variables']['fulfillment'] ?? [];
 
         return ($fulfillment['trackingInfo']['number'] ?? '') === 'TRACK123'
             && ($fulfillment['trackingInfo']['company'] ?? '') === 'USPS'
-            && ($fulfillment['lineItemsByFulfillmentOrder'][0]['fulfillmentOrderId'] ?? '') === $expectedFulfillmentOrderId;
+            && ($fulfillment['lineItemsByFulfillmentOrder'][0]['fulfillmentOrderId'] ?? '') === 'gid://shopify/FulfillmentOrder/9002';
     });
-})->with([
-    'singular fulfillment order metadata' => [[
-        'shopify_order_id' => 'gid://shopify/Order/1001',
-        'shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/9002',
-        'shopify_fulfillment_order_ids' => ['gid://shopify/FulfillmentOrder/legacy'],
-    ], 'gid://shopify/FulfillmentOrder/9002'],
-    'legacy plural fulfillment order metadata' => [[
-        'shopify_order_id' => 'gid://shopify/Order/1001',
-        'shopify_fulfillment_order_ids' => ['gid://shopify/FulfillmentOrder/9001'],
-    ], 'gid://shopify/FulfillmentOrder/9001'],
-]);
+});
 
 it('handles package without metadata gracefully in export', function (): void {
     $channel = Channel::factory()->create(['name' => 'Shopify']);

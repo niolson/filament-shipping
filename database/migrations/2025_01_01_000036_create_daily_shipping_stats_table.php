@@ -8,10 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('daily_shipping_stats')) {
-            return;
-        }
         Schema::create('daily_shipping_stats', function (Blueprint $table) {
             $table->id();
             $table->date('date');

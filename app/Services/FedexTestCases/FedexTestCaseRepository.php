@@ -30,7 +30,7 @@ class FedexTestCaseRepository
             throw new \RuntimeException("Fixture file contains invalid JSON: {$fixturePath}");
         }
 
-        $cases = $data['cases'] ?? $data['testCases'] ?? [];
+        $cases = $data['cases'] ?? [];
 
         if (! is_array($cases)) {
             throw new \RuntimeException("Fixture file has no valid cases array: {$fixturePath}");
