@@ -12,17 +12,16 @@ return new class extends Migration
     public function up(): void
     {
         // Squashed migration: no-op on installs that ran the pre-squash history.
-        if (Schema::hasTable('jobs')) {
+        if (Schema::hasTable('password_histories')) {
             return;
         }
-        Schema::create('jobs', function (Blueprint $table) {
+        Schema::create('password_histories', function (Blueprint $table) {
             $table->id();
-            $table->string('queue')->index();
-            $table->longText('payload');
-            $table->unsignedTinyInteger('attempts');
-            $table->unsignedInteger('reserved_at')->nullable();
-            $table->unsignedInteger('available_at');
-            $table->unsignedInteger('created_at');
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->string('password_hash');
+            $table->timestamps();
+
+            $table->index(['user_id', 'created_at']);
         });
     }
 
@@ -31,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('jobs');
+        Schema::dropIfExists('password_histories');
     }
 };
