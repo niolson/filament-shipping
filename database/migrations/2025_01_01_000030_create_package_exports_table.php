@@ -1,0 +1,36 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        // Squashed migration: no-op on installs that ran the pre-squash history.
+        if (Schema::hasTable('package_exports')) {
+            return;
+        }
+
+        Schema::create('package_exports', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('package_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('data_source_id')->constrained()->cascadeOnDelete();
+            $table->string('status');
+            $table->unsignedInteger('attempts')->default(0);
+            $table->text('last_error')->nullable();
+            $table->timestamp('locked_at')->nullable();
+            $table->timestamp('completed_at')->nullable();
+            $table->timestamps();
+
+            $table->unique(['package_id', 'data_source_id']);
+            $table->index(['package_id', 'status', 'locked_at']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('package_exports');
+    }
+};
