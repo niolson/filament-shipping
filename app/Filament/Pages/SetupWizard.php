@@ -19,6 +19,7 @@ use App\Models\Location;
 use App\Models\ShippingMethod;
 use App\Services\CacheService;
 use App\Services\SettingsService;
+use App\Services\ShipmentImport\ImportConnectionConfig;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
@@ -29,6 +30,7 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Components\Wizard;
 use Filament\Schemas\Components\Wizard\Step;
 use Filament\Schemas\Schema;
@@ -426,30 +428,34 @@ class SetupWizard extends Page
                     ->schema([
                         Forms\Components\Select::make('db_driver')
                             ->label('Driver')
-                            ->options([
-                                'mysql' => 'MySQL / MariaDB',
-                                'pgsql' => 'PostgreSQL',
-                                'sqlsrv' => 'SQL Server',
-                                'sqlite' => 'SQLite',
-                            ])
+                            ->options(ImportConnectionConfig::DRIVERS)
                             ->default('mysql')
-                            ->required(),
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set, ?string $state) => $set(
+                                'db_port',
+                                ImportConnectionConfig::defaultPort($state),
+                            )),
                         Forms\Components\TextInput::make('db_host')
                             ->label('Host')
                             ->default('127.0.0.1')
-                            ->required(),
+                            ->required(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('db_driver')))
+                            ->visible(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('db_driver'))),
                         Forms\Components\TextInput::make('db_port')
                             ->label('Port')
                             ->default('3306')
-                            ->required(),
+                            ->required(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('db_driver')))
+                            ->visible(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('db_driver'))),
                         Forms\Components\TextInput::make('db_database')
-                            ->label('Database')
+                            ->label(fn (Get $get): string => $get('db_driver') === 'sqlite' ? 'Database File Path' : 'Database')
                             ->required(),
                         Forms\Components\TextInput::make('db_username')
                             ->label('Username')
-                            ->required(),
+                            ->required(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('db_driver')))
+                            ->visible(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('db_driver'))),
                         Forms\Components\TextInput::make('db_password')
                             ->label('Password')
+                            ->visible(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('db_driver')))
                             ->password()
                             ->revealable(),
                         Forms\Components\Toggle::make('db_ssh_enabled')
@@ -818,7 +824,7 @@ class SetupWizard extends Page
         $newSettings = [
             'db_driver' => $data['db_driver'] ?? 'mysql',
             'db_host' => $data['db_host'] ?? '127.0.0.1',
-            'db_port' => (int) ($data['db_port'] ?? 3306),
+            'db_port' => (int) ($data['db_port'] ?: ImportConnectionConfig::defaultPort($data['db_driver'] ?? 'mysql')),
             'db_database' => $data['db_database'] ?? '',
             'db_username' => $data['db_username'] ?? '',
             'ssh_enabled' => (bool) ($data['db_ssh_enabled'] ?? false),

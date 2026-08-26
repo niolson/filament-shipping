@@ -37,10 +37,16 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     libpng-dev \
     libicu-dev \
     libonig-dev \
+    libpq-dev \
+    libkrb5-3 \
+    unixodbc \
+    unixodbc-dev \
+    odbcinst \
     openssh-client \
     unzip \
     && docker-php-ext-install \
         pdo_mysql \
+        pdo_pgsql \
         zip \
         gd \
         intl \
@@ -51,6 +57,29 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     && docker-php-ext-enable redis \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Microsoft ODBC Driver 18 + pdo_sqlsrv, so DataSource records can import from a
+# customer's SQL Server ERP. Installed from a version-pinned .deb with a
+# hardcoded checksum rather than by adding Microsoft's apt repo, so a rebuild
+# cannot silently pull a different driver. Update both the version and the
+# checksum together from
+# https://packages.microsoft.com/debian/13/prod/dists/trixie/main/binary-<arch>/Packages
+# arm64 trails amd64 by a patch release, hence the separate pins.
+ARG TARGETARCH
+RUN set -eux; \
+    arch="${TARGETARCH:-amd64}"; \
+    case "$arch" in \
+        amd64) msodbc_version=18.6.2.1-1; msodbc_sha256=11e26f96feb95a7ecf55544441fa24233fab0debe8901e0ca9715c19fea05ab0 ;; \
+        arm64) msodbc_version=18.6.1.1-1; msodbc_sha256=7ff666b1d18387d1b5640093a4f42c1f0461d8715c9da31e2c03bb213d61743b ;; \
+        *) echo "msodbcsql18: unsupported architecture '$arch'" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/msodbcsql18.deb \
+        "https://packages.microsoft.com/debian/13/prod/pool/main/m/msodbcsql18/msodbcsql18_${msodbc_version}_${arch}.deb"; \
+    echo "${msodbc_sha256}  /tmp/msodbcsql18.deb" | sha256sum -c -; \
+    ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive dpkg -i /tmp/msodbcsql18.deb; \
+    rm /tmp/msodbcsql18.deb; \
+    pecl install pdo_sqlsrv-5.13.3; \
+    docker-php-ext-enable pdo_sqlsrv
 
 WORKDIR /var/www/html
 

@@ -50,18 +50,17 @@ class DataSourceFactory
     {
         $connectionName = 'import_'.$sourceId;
 
-        if (isset($settings['db_host'])) {
+        // A file-based driver has no host to configure, so gating purely on
+        // db_host would leave its connection unregistered and unusable.
+        $hasConnectionSettings = filled($settings['db_host'] ?? null)
+            || ! ImportConnectionConfig::usesHost($settings['db_driver'] ?? 'mysql');
+
+        if ($hasConnectionSettings) {
             config([
-                "database.connections.{$connectionName}.driver" => $settings['db_driver'] ?? 'mysql',
-                "database.connections.{$connectionName}.host" => $settings['db_host'],
-                "database.connections.{$connectionName}.port" => (int) ($settings['db_port'] ?? 3306),
-                "database.connections.{$connectionName}.database" => $settings['db_database'] ?? null,
-                "database.connections.{$connectionName}.username" => $settings['db_username'] ?? null,
-                "database.connections.{$connectionName}.password" => $settings['db_password'] ?? null,
-                "database.connections.{$connectionName}.charset" => 'utf8mb4',
-                "database.connections.{$connectionName}.collation" => 'utf8mb4_unicode_ci',
-                "database.connections.{$connectionName}.prefix" => '',
-                "database.connections.{$connectionName}.strict" => true,
+                "database.connections.{$connectionName}" => ImportConnectionConfig::build(
+                    $settings,
+                    $settings['db_password'] ?? null,
+                ),
             ]);
             DB::purge($connectionName);
         }
