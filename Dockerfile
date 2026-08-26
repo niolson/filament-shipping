@@ -75,9 +75,10 @@ RUN set -eux; \
     esac; \
     curl -fsSL -o /tmp/msodbcsql18.deb \
         "https://packages.microsoft.com/debian/13/prod/pool/main/m/msodbcsql18/msodbcsql18_${msodbc_version}_${arch}.deb"; \
-    echo "${msodbc_sha256}  /tmp/msodbcsql18.deb" | sha256sum -c -; \
+    echo "${msodbc_sha256}  /tmp/msodbcsql18.deb" > /tmp/msodbcsql18.sha256; \
+    sha256sum -c /tmp/msodbcsql18.sha256; \
     ACCEPT_EULA=Y DEBIAN_FRONTEND=noninteractive dpkg -i /tmp/msodbcsql18.deb; \
-    rm /tmp/msodbcsql18.deb; \
+    rm /tmp/msodbcsql18.deb /tmp/msodbcsql18.sha256; \
     pecl install pdo_sqlsrv-5.13.3; \
     docker-php-ext-enable pdo_sqlsrv
 
