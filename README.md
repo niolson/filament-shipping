@@ -1,350 +1,200 @@
 # PolyBag
 
-Streamlined, barcode-driven shipping workstation for packing and labeling shipments. Operators scan barcodes to select boxes, verify item contents, and validate packed quantities before purchasing postage and printing labels — all from a single browser tab connected to a local scale and label printer.
+PolyBag is a barcode-driven shipping workstation for picking, packing, buying
+postage, and printing labels. Operators work from a browser connected to a local
+scale and label printer.
 
-Built with **Laravel 13**, **Filament 5**, and **Tailwind CSS 4**.
+Built with Laravel 13, Filament 5, Livewire 4, Tailwind CSS 4, MySQL, and Redis.
+
+> PolyBag is source-available under the Business Source License 1.1. Production
+> commercial use requires a commercial licence until the applicable change date.
+> See [Licence](#licence).
 
 ## Features
 
-- **Picking workflow** — Optionally generate pick batches and print picking summaries before packing; can be required before shipments are packed or batch shipped (toggled in Settings)
-- **Packing workflow** — Scan box codes, scan items into packages, read weight from a USB scale, with command barcodes for ship/reprint/cancel
-- **Shipping workflow** — Compare carrier rates with delivery date awareness, purchase postage, and print labels (PDF or ZPL)
-- **Batch shipping** — Select multiple shipments and generate labels in bulk via background jobs
-- **Manual shipping** — Create ad-hoc shipments without a prior import
-- **Address validation** — USPS address verification with DPV confirmation and correction suggestions
-- **Multi-carrier support** — USPS, FedEx, and UPS rate quotes and label generation via Saloon
-- **Multi-account carriers** — Multiple carrier accounts per carrier with per-account OAuth, scoped by location and/or client
-- **Shipping rules** — Pre-select or exclude carrier services per shipping method based on configurable conditions
-- **End of Day** — Generate carrier manifests (USPS scan forms, FedEx/UPS close-out), mark packages as manifested; location-scoped when multi-location is enabled
-- **Product weight management** — Scan a product barcode, place it on the scale, and update its stored weight
-- **Shipment import** — Import from external databases, Shopify, or Amazon SP-API with automatic channel/method mapping; sources are per-client with individual schedules
-- **Package export** — Export shipped package data back to external systems; supports per-client destination overrides
-- **Multi-location** — Ship from multiple warehouse locations, each with its own carrier credentials and manifests (optional, toggled in Settings)
-- **Multi-client / 3PL** — Manage shipments for multiple brands or retailers, with per-client return addresses, pack slip branding, import sources, and carrier account routing (optional, toggled in Settings)
-- **Dashboard** — Shipping volume trends, carrier breakdown, cost-per-package analysis, open shipments per client, and exception tracking
-- **Role-based access control** — User, Manager, and Admin roles with policy-based authorization
+- Optional pick batches with printable summaries and pack slips
+- Barcode-guided packing with item, quantity, and transparency-code validation
+- USB scale support through WebHID or QZ Tray
+- USPS, FedEx, and UPS rates, postage purchase, labels, tracking, and voids
+- PDF labels, plus ZPL at 203 or 300 DPI
+- Delivery-date-aware rate comparison and configurable shipping rules
+- Manual shipping and background batch shipping
+- USPS SCAN forms and location-scoped end-of-day processing
+- Database, Shopify, and Amazon SP-API shipment imports
+- Package export with per-client destination overrides
+- Multi-location carrier-account routing
+- Optional multi-client / 3PL scoping and pack-slip branding
+- Product weights, special services, and hazmat metadata
+- Shipping, billing, rate-comparison, and packing-validation reports
+- Tracking exception monitoring, audit logs, and configurable data retention
+- User, Manager, and Admin roles with optional MFA and Google or Entra SSO
 
-## Hardware Integration
+## Hardware
 
-This app connects directly to local hardware through the browser — no cloud print services required.
+### Label printing
 
-### Label Printing (QZ Tray)
+[QZ Tray](https://qz.io/download/) runs on each workstation and sends jobs to
+local label and report printers. Printer, label format, DPI, and scale preferences
+are stored in that browser and managed from **Device Settings**.
 
-[QZ Tray](https://qz.io/download/) must be installed on each workstation. It runs as a local WebSocket service (`wss://localhost:8181`) that the browser communicates with to send print jobs. Printer selection is stored per-browser in `localStorage` and configured through the Device Settings page.
-
-**Supported label formats:**
-
-| Format | Use Case |
-|---|---|
-| **PDF** | Works out of the box with any printer |
-| **ZPL** | Direct thermal printing at 203 or 300 DPI |
-
-ZPL is opt-in via Device Settings. Each carrier has its own ZPL integration (USPS `ZPL203DPI`/`ZPL300DPI`, FedEx `ZPLII`, UPS with 300 DPI scaling).
-
-#### Signing Certificate
-
-QZ Tray requires a signing certificate to allow silent printing (no confirmation popup per print job):
-
-1. **Commercial certificate** — Purchase from [QZ Industries](https://qz.io/pricing/) for automatic trust on any workstation.
-2. **Self-signed certificate** — Generate your own keypair and whitelist it in QZ Tray on each workstation.
-
-To generate a self-signed keypair:
+Generate a self-signed QZ certificate for development or a private deployment:
 
 ```bash
-# Generate private key
-openssl genrsa -out storage/app/private/qz-private-key.pem 2048
-
-# Generate public certificate (adjust CN to match your domain)
-openssl req -x509 -new -key storage/app/private/qz-private-key.pem \
-  -out public/qz-certificate.pem -days 3650 \
-  -subj "/CN=your-app.test"
+php artisan app:generate-qz-cert shipping.example.com
 ```
 
-The private key (`storage/app/private/qz-private-key.pem`) is gitignored and must be generated on each deployment. The public certificate (`public/qz-certificate.pem`) is served to the browser and can be committed.
+The private key must stay secret. Each workstation must trust the matching public
+certificate before silent printing will work. See
+[QZ Tray provisioning](docs/qz-tray-provisioning.md) for the complete setup.
 
-The app signs print requests server-side via `POST /qz/sign` — the browser sends unsigned data, the backend signs it with the private key, and QZ Tray validates the signature against the public certificate.
+### USB scales
 
-### USB Scale (Dual Backend)
+Chrome and Edge use WebHID when available. QZ Tray provides the fallback backend.
+WebHID requires HTTPS or localhost; a paired scale reconnects on later visits.
 
-Scales are supported through two backends, auto-detected based on browser capabilities:
+## Supported deployment
 
-| Backend | Browser Support | How It Works |
-|---|---|---|
-| **WebHID** | Chrome, Edge | Browser-native USB HID API, event-driven, no external dependencies |
-| **QZ Tray** | Any (with QZ Tray installed) | Polling via WebSocket, fallback when WebHID is unavailable |
+The supported self-hosted deployment is a standalone Docker stack with its own
+MySQL 8.4, Redis, and Gotenberg containers.
 
-Once a scale is paired, it auto-reconnects on subsequent visits. The backend can be overridden in Device Settings (Auto / WebHID / QZ Tray).
-
-### Device Settings
-
-Each workstation configures its own hardware through the **Device Settings** page (`/device-settings`). All settings are stored in the browser's `localStorage` — no server-side configuration required.
-
-- **Label Printer** — Select from printers detected by QZ Tray (4x6 shipping labels)
-- **Report Printer** — Separate printer for packing slips and customs forms
-- **Label Format** — PDF or ZPL thermal
-- **Label DPI** — 203 or 300
-- **Scale Backend** — Auto / WebHID / QZ Tray with context-appropriate pairing UI
-
-## Deployment
-
-`scripts/install-onprem.sh` installs a single-tenant instance with its own MySQL and
-Redis containers, which is the supported self-host path. See
-[`docs/self-hosting.md`](docs/self-hosting.md) for running PolyBag without any service we
-operate.
-
-Tooling for our own hosted deployment — server provisioning, backups, secret rotation,
-TLS, and monitoring — lives in a separate private repository. Its absence here is
-deliberate, not an omission: none of it is needed to run PolyBag, and all of it is
-specific to infrastructure we operate.
-
-## Requirements
-
-- PHP 8.2+
-- MySQL
-- Node.js & npm
-- [Composer](https://getcomposer.org/)
-- [QZ Tray](https://qz.io/download/) (for label printing)
-- Chrome or Edge (recommended, required for WebHID scale support)
-
-## Setup
+Requirements: Docker Engine, the Docker Compose plugin, and a Linux host.
 
 ```bash
-# Clone the repo
-git clone <repo-url>
+git clone https://github.com/niolson/polybag.git
 cd polybag
+./scripts/install-onprem.sh
+```
 
-# Install dependencies, generate key, migrate, and build assets
+After installation, create the first administrator:
+
+```bash
+docker compose --profile standalone \
+  -f docker-compose.yml -f docker-compose.onprem.yml \
+  exec -it app php artisan app:create-user
+```
+
+Open the URL reported by the installer. The first administrator is sent through
+the Setup Wizard to configure the warehouse, carriers, box sizes, shipping methods,
+and an optional import source.
+
+PolyBag can run without any service operated by POLYBAG.APP LLC. Self-hosters bring
+their own carrier, marketplace, mail, address-validation, and SSO credentials. See
+[Self-hosting](docs/self-hosting.md) for the credential and callback-URL map.
+
+After pulling updates, rebuild and restart the stack so image changes take effect:
+
+```bash
+docker compose --profile standalone \
+  -f docker-compose.yml -f docker-compose.onprem.yml \
+  up -d --build
+```
+
+The app exposes `/up` for liveness and `/api/health` for MySQL and Redis readiness.
+Restrict the readiness endpoint to your monitoring system at the reverse proxy.
+
+## Local development
+
+Requirements: PHP 8.4, Composer, Node.js 22.12+, MySQL 8.4, and Redis.
+
+Create a database, copy `.env.example` to `.env`, and set the local database and
+Redis connection values. Then run:
+
+```bash
 composer run setup
-```
-
-After setup, log in and configure **App Settings** (`/settings`) with your company address and carrier API credentials.
-
-## Development
-
-```bash
-# Run server, queue worker, and Vite dev server concurrently
+php artisan app:sync-reference-data
+php artisan app:create-user
 composer run dev
-
-# Or run individual services
-php artisan serve          # Laravel dev server
-php artisan queue:listen   # Queue worker
-npm run dev                # Vite HMR
 ```
 
-## Testing
+`composer run dev` starts the Laravel server, default queue worker, dedicated import
+worker, scheduler, and Vite development server.
 
-Tests use the [Pest](https://pestphp.com/) framework.
+For local end-to-end work without carrier credentials or billable API requests, set:
 
-```bash
-# Run full test suite
-composer run test
-
-# Run a specific test file
-php artisan test tests/Feature/AuthorizationTest.php
-
-# Filter by test name
-php artisan test --filter="manager role access"
+```env
+FAKE_CARRIERS=true
 ```
 
-Browser tests live in `tests/Browser/` and use Pest 4 browser testing, which drives
-Playwright. They are **not** in the default suite — `phpunit.xml` defines only `Unit` and
-`Feature` — so run them explicitly. They need a Chromium binary and `FAKE_CARRIERS=true`
-in `.env` so no carrier API is called.
-
-```bash
-npx playwright install chromium   # once
-php artisan test tests/Browser/
-```
-
-## Code Style
-
-```bash
-# Auto-fix formatting with Laravel Pint
-vendor/bin/pint
-
-# Run Rector, PHPStan, and Pint together
-composer run format
-```
+The fake adapters cover rating, labels, and address validation.
 
 ## Configuration
 
-> **Self-hosting?** Several `.env` keys and UI actions refer to services POLYBAG.APP LLC
-> operates — the OAuth broker at `connect.polybag.app` above all. You cannot use those,
-> and you do not need to. [`docs/self-hosting.md`](docs/self-hosting.md) lists what to
-> register with each carrier and vendor, where each credential goes, and how to get to a
-> working rate quote using only your own accounts.
+Infrastructure and base URLs live in `.env`; operational configuration lives in
+the application database.
 
-### Environment Variables (`.env`)
+| Configuration | Location |
+|---|---|
+| Company, warehouse, feature flags, authentication, retention | App Settings |
+| USPS, FedEx, and UPS credentials and routing scopes | Carrier Accounts |
+| Database, Shopify, and Amazon credentials and schedules | Data Sources |
+| Per-client return address, branding, and export override | Clients |
+| Printer, label format, DPI, and scale | Device Settings in each browser |
+| Database, Redis, mail, SSO, Google validation, Gotenberg | `.env` |
 
-Copy `.env.example` to `.env` and configure. Most settings only need the database connection — carrier API credentials, company address, and feature flags are managed through the App Settings UI.
+Secrets on Carrier Account and Data Source records are encrypted. Never commit
+`.env`, carrier credentials, OAuth tokens, database connection strings, or QZ private
+keys.
 
-```env
-# Core (required)
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_DATABASE=shipping
-DB_USERNAME=root
-DB_PASSWORD=
-```
+## Operations
 
-The `.env` file also supports shipment import source configuration (database connection, Shopify, Amazon) and carrier API base URLs. See `.env.example` for the full list.
+Run `php artisan list` to discover all commands. Self-hosters should know these:
 
-### App Settings (Database)
+| Command | Purpose |
+|---|---|
+| `app:reencrypt-secrets` | Complete an `APP_KEY` rotation; see note below |
+| `data:purge` | Apply audit-log, rate-quote, and notification retention |
+| `shipments:purge-pii` | Apply recipient PII retention, with a dry-run option |
+| `db:encrypt-tables` | Enable or verify MySQL table encryption |
+| `app:generate-ssh-key` | Create keys for database import tunnels |
 
-Most operational configuration is managed through the **App Settings** page (`/settings`), accessible to admins:
+When rotating `APP_KEY`, keep the old key in `APP_PREVIOUS_KEYS`. Remove it only
+after `app:reencrypt-secrets` succeeds without undecryptable values.
 
-- **Company info** — Company name and ship-from address (used on labels)
-- **Feature flags** — Picking, packing validation, transparency codes, batch shipping, manual shipping, multi-location, multi-client
-- **Sandbox mode** — Use carrier test endpoints with optional print suppression
-- **Carrier API timeout** — Configurable request timeout (5–60 seconds)
-
-Carrier API credentials are managed under **Carrier Accounts** (Shipping Config nav group) — each account stores its own OAuth tokens and credentials, and can be scoped to specific locations and/or clients via account scopes.
-
-Import source credentials (Shopify, Amazon, database connection strings) are managed under **Data Sources** (Integrations nav group) — each source stores encrypted secrets and can be assigned to a client with its own schedule.
-
-## Artisan Commands
+## Development commands
 
 ```bash
-# Shipment import from external sources
-php artisan shipments:import                # Import from configured source
-php artisan shipments:import --dry-run      # Preview without changes
-php artisan shipments:import --validate-only # Test connection and config
-
-# Address validation
-php artisan shipments:validate              # Validate all unchecked US shipments
-php artisan shipments:validate --limit=100  # Validate in batches
-php artisan shipments:validate --dry-run    # Preview without updating
-
-# Package export
-php artisan packages:export                 # Export shipped packages to external destinations
-php artisan packages:export --dry-run       # Preview without exporting
-
-# Dashboard stats
-php artisan stats:aggregate                 # Rebuild daily shipping stats cache
-php artisan stats:aggregate --today         # Rebuild today only
-
-# Test data
-php artisan app:generate-test-data              # Generate 75k test shipments
-php artisan app:generate-test-data --count=500  # Custom count
-php artisan app:generate-test-data --cleanup    # Remove all test data (TD- prefix)
+composer run dev              # App, queues, scheduler, and Vite
+composer run test             # Unit and feature tests
+composer run test:external    # Explicit live carrier/reference tests
+npm run build                 # Production frontend assets
+composer run format           # Rector, PHPStan, and Pint
 ```
 
-## Shipment Import
+Browser tests use Pest 4 and Playwright. They are not part of the default suite:
 
-Shipments are imported from external data sources using a pluggable source system defined by `DataSourceInterface`. Sources are configured as **Data Source** records in the database (Integrations nav group) with encrypted credentials and per-source schedules.
+```bash
+npx playwright install chromium
+php artisan test tests/Browser/
+```
 
-**Supported drivers:**
+## Domain language
 
-| Driver | Description |
-|---|---|
-| **Database** | Custom SQL queries against MySQL, SQL Server, or PostgreSQL |
-| **Shopify** | Native integration via Shopify Admin API |
-| **Amazon** | Native integration via Amazon SP-API |
+A **Shipment** is an order to fulfil. A **Package** is the physical parcel produced
+from it. A **Package Draft** is the mutable preparation state before label purchase.
+These terms are intentionally distinct.
 
-Each import source can be assigned to a **Client**, so in a 3PL setup each brand's orders import under the correct client automatically.
+The main scopes are **Location** for a warehouse and **Client** for a 3PL brand or
+retailer. **Carrier Account Scopes** select credentials from the Location and Client.
 
-During import:
-- Fields are mapped from external to internal names
-- Channels and shipping methods are resolved through alias tables (configure in the UI under Map Shipping References / Map Channel References); aliases are per-client when multi-client is enabled
-- Phone numbers are parsed and extensions extracted automatically
-- Products are auto-created from imported SKU data (if enabled)
-- Records can optionally be marked as exported in the source database
+See [CONTEXT.md](CONTEXT.md) for the glossary and
+[architecture decisions](docs/adr/) for structural context.
 
-## Address Validation
+## Licence
 
-US shipping addresses are validated against the USPS Address API, either in bulk via the artisan command, or per-shipment through the Shipments table bulk action.
+PolyBag is source-available, not open source. It is licensed under the
+[Business Source License 1.1](LICENSE).
 
-Each shipment receives a deliverability status based on USPS DPV (Delivery Point Validation) confirmation:
+The licence permits reading, modifying, redistributing, and running the code for
+personal, educational, non-commercial, internal evaluation, and development use. It
+does not permit production use intended to generate revenue or commercial advantage.
 
-| Status | Meaning |
-|---|---|
-| **Yes** | Address confirmed deliverable |
-| **Maybe** | Partial match — e.g., missing apartment number, or secondary address not confirmed |
-| **No** | Address not found, not deliverable, or DPV confirmation unavailable |
-| **Not Checked** | No validator available for this country, or not yet validated |
+On March 11, 2030—or four years after a particular version was first published,
+whichever comes first—that version converts to Apache License 2.0. The PolyBag name,
+logo, and `polybag.app` branding remain unlicensed trademarks after conversion.
 
-The USPS-corrected address is stored alongside the original so operators can compare and accept corrections in the UI. Non-US addresses are marked as Not Checked.
+For commercial terms, contact `license@polybag.app`.
 
-## Domain Model
+## Contributing and security
 
-| Model | Description |
-|---|---|
-| **Shipment** | Order to be shipped (address, items, validation status) |
-| **ShipmentItem** | Line items in a shipment |
-| **Package** | Physical package with tracking, label, and dimensions |
-| **PackageItem** | Items packed in a package (with transparency codes) |
-| **ShippingMethod** | Available shipping options |
-| **ShippingRule** | Conditions that pre-select or exclude carrier services per method |
-| **Carrier** / **CarrierService** | Carriers (USPS, FedEx, UPS) and their service tiers |
-| **BoxSize** | Predefined box dimensions (scanned by code during packing) |
-| **Channel** | Sales channel source (Shopify, Amazon, manual, etc.) |
-| **Product** | Product catalog with SKU, barcode, and weight |
-| **LabelBatch** / **LabelBatchItem** | Batch label generation jobs and their per-shipment results |
-| **Manifest** | End-of-day carrier manifests with stored images |
-| **CarrierAccount** | Per-carrier API credentials; supports multiple accounts per carrier |
-| **CarrierAccountScope** | Routes a `CarrierAccount` to a specific location and/or client, with priority-based resolution |
-| **DataSource** | Configurable shipment import/export source (Database/Shopify/Amazon) with encrypted credentials and per-source scheduling |
-| **Location** | Warehouse / fulfillment center with address, timezone, and carrier associations |
-| **Client** | 3PL brand/retailer; scopes shipments, products, import sources, and shipping rules; stores return address and pack slip branding |
-| **Setting** | Encrypted key-value store for app configuration |
-
-## Authorization
-
-Three roles with hierarchical permissions:
-
-| Area | User | Manager | Admin |
-|---|---|---|---|
-| Pack / Ship / Device Settings / Update Weight | Y | Y | Y |
-| Shipments (view) | Y | Y | Y |
-| Shipments (create/edit) | — | Y | Y |
-| Shipments (delete) | — | — | Y |
-| Validate Addresses (bulk action) | Y | Y | Y |
-| End of Day (manifests) | — | Y | Y |
-| Unmapped References | — | Y | Y |
-| Box Sizes, Products, Shipping Methods | — | CRUD | CRUD |
-| Batch Shipping | — | — | Y |
-| Users, Carriers, Carrier Services, Channels | — | — | CRUD |
-| Carrier Accounts, Data Sources | — | — | CRUD |
-| Clients, Locations | — | — | CRUD |
-| App Settings | — | — | Y |
-
-## License
-
-PolyBag is **source-available, not open source**. It is licensed under the
-[Business Source License 1.1](LICENSE), with POLYBAG.APP LLC as licensor. BSL 1.1 is not
-OSI-approved and GitHub will not surface it as a recognised licence, so read the grant
-rather than assuming anything MIT-shaped.
-
-The Additional Use Grant **permits** reading, modifying, and redistributing the source,
-and running it for personal, educational, internal evaluation, and development use.
-
-It **does not permit** any use intended to generate revenue or commercial advantage — in
-particular, running PolyBag in production for a commercial entity. Shipping real customer
-parcels through it as a business is the case the licence is written to exclude, whether
-you self-host it or offer it to others.
-
-**Change date.** On **March 11, 2030** — or four years after a given version was first
-published, whichever comes first — that version's licence converts to the
-[Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0) and the commercial
-restriction falls away. The conversion is written into `LICENSE`, not a promise held
-separately from it.
-
-For commercial terms before then, contact `license@polybag.app`.
-
-### Trademark and branding
-
-The licence covers the code. It does not license the **PolyBag** name, the logo, or the
-`polybag.app` branding — and neither will the Apache-2.0 conversion, which grants
-copyright and patent rights but no trademark rights. This note holds after the change
-date as well as before it.
-
-Fork PolyBag within the terms above if you like. If you distribute or operate a fork,
-give it your own name and branding, and do not present it as PolyBag or imply that
-POLYBAG.APP LLC endorses it. Factual references — "based on PolyBag", "a fork of
-PolyBag" — are fine.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the development loop and the contributor
-agreement, and [SECURITY.md](SECURITY.md) to report a vulnerability privately.
-Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development loop and contributor
+agreement. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
