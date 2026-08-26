@@ -86,9 +86,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
-      - name: Get week number for cache rotation
+      - name: Get cache rotation keys
         id: date
-        run: echo "week=$(date +%Y-%U)" >> $GITHUB_OUTPUT
+        run: |
+          echo "week=$(date +%Y-%U)" >> $GITHUB_OUTPUT
+          echo "day=$(date +%Y-%m-%d)" >> $GITHUB_OUTPUT
 
       - name: Build app image
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
@@ -98,6 +100,12 @@ jobs:
           tags: polybag-app:ci
           load: true
           push: false
+          # Rotates daily so the cached apt-get update/upgrade layer cannot go
+          # stale for a whole week. Without it the CVE scan below fails on
+          # Debian security patches published mid-week that a fresh build
+          # would already have picked up.
+          build-args: |
+            APT_CACHE_BUST=${{ steps.date.outputs.day }}
           cache-from: type=gha,scope=app-${{ steps.date.outputs.week }}
           cache-to: type=gha,scope=app-${{ steps.date.outputs.week }},mode=max
 
