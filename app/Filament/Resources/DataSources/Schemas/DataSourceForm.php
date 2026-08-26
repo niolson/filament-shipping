@@ -13,6 +13,7 @@ use App\Models\Location;
 use App\Models\ShippingMethod;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
+use App\Services\ShipmentImport\ImportConnectionConfig;
 use App\Services\ShipmentImport\RawSqlGuard;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
@@ -30,6 +31,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\DB;
@@ -285,37 +287,65 @@ class DataSourceForm
                 ->schema([
                     Select::make('settings.db_driver')
                         ->label('Driver')
-                        ->options([
-                            'mysql' => 'MySQL / MariaDB',
-                            'pgsql' => 'PostgreSQL',
-                            'sqlsrv' => 'SQL Server',
-                            'sqlite' => 'SQLite',
-                        ])
+                        ->options(ImportConnectionConfig::DRIVERS)
                         ->default('mysql')
-                        ->required(),
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(fn (Set $set, ?string $state) => $set(
+                            'settings.db_port',
+                            ImportConnectionConfig::defaultPort($state),
+                        )),
 
                     TextInput::make('settings.db_host')
                         ->label('Host')
-                        ->required()
+                        ->required(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('settings.db_driver')))
+                        ->visible(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('settings.db_driver')))
                         ->maxLength(255),
 
                     TextInput::make('settings.db_port')
                         ->label('Port')
                         ->numeric()
-                        ->default(3306),
+                        ->default(3306)
+                        ->visible(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('settings.db_driver'))),
+
+                    TextInput::make('settings.db_schema')
+                        ->label('Schema')
+                        ->placeholder('public')
+                        ->nullable()
+                        ->maxLength(255)
+                        ->helperText('Sets the connection search_path. Leave blank for "public".')
+                        ->visible(fn (Get $get): bool => $get('settings.db_driver') === 'pgsql'),
+
+                    Toggle::make('settings.db_encrypt')
+                        ->label('Encrypt Connection')
+                        ->default(true)
+                        // A record saved before this field existed has no stored
+                        // value; treat that as on, so editing it cannot silently
+                        // downgrade the connection to plaintext.
+                        ->afterStateHydrated(fn (Toggle $component, $state) => $component->state($state ?? true))
+                        ->helperText('ODBC Driver 18 encrypts by default. Turn this off only for a server that cannot do TLS.')
+                        ->visible(fn (Get $get): bool => $get('settings.db_driver') === 'sqlsrv'),
+
+                    Toggle::make('settings.db_trust_server_certificate')
+                        ->label('Trust Server Certificate')
+                        ->default(false)
+                        ->helperText('Required for a server using a self-signed certificate, which is common on-premise. Skips certificate validation.')
+                        ->visible(fn (Get $get): bool => $get('settings.db_driver') === 'sqlsrv'),
 
                     TextInput::make('settings.db_database')
-                        ->label('Database')
+                        ->label(fn (Get $get): string => $get('settings.db_driver') === 'sqlite' ? 'Database File Path' : 'Database')
                         ->required()
                         ->maxLength(255),
 
                     TextInput::make('settings.db_username')
                         ->label('Username')
-                        ->required()
+                        ->required(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('settings.db_driver')))
+                        ->visible(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('settings.db_driver')))
                         ->maxLength(255),
 
                     TextInput::make('settings.db_password')
                         ->label('Password')
+                        ->visible(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('settings.db_driver')))
                         ->password()
                         ->placeholder(fn (?DataSource $record) => filled($record?->secret('db_password')) ? 'Configured (leave empty to keep)' : 'Not configured')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
@@ -669,21 +699,25 @@ class DataSourceForm
             ? $get('settings.db_password')
             : $record?->secret('db_password');
 
+        $settings = [
+            'db_driver' => $get('settings.db_driver') ?? 'mysql',
+            'db_host' => $get('settings.db_host') ?? '127.0.0.1',
+            'db_port' => $get('settings.db_port'),
+            'db_database' => $get('settings.db_database'),
+            'db_username' => $get('settings.db_username'),
+            'db_schema' => $get('settings.db_schema'),
+            'db_encrypt' => $get('settings.db_encrypt') ?? true,
+            'db_trust_server_certificate' => $get('settings.db_trust_server_certificate') ?? false,
+        ];
+
         config([
-            "database.connections.{$connName}.driver" => $get('settings.db_driver') ?? 'mysql',
-            "database.connections.{$connName}.host" => $get('settings.db_host') ?? '127.0.0.1',
-            "database.connections.{$connName}.port" => (int) ($get('settings.db_port') ?? 3306),
-            "database.connections.{$connName}.database" => $get('settings.db_database') ?? null,
-            "database.connections.{$connName}.username" => $get('settings.db_username') ?? null,
-            "database.connections.{$connName}.password" => $password,
-            "database.connections.{$connName}.charset" => 'utf8mb4',
-            "database.connections.{$connName}.collation" => 'utf8mb4_unicode_ci',
-            "database.connections.{$connName}.prefix" => '',
-            "database.connections.{$connName}.strict" => true,
-            // Keep this well under the reverse proxy's read timeout so a bad
-            // host/port fails with a catchable exception instead of hanging
-            // until the proxy itself returns a 504.
-            "database.connections.{$connName}.options" => [\PDO::ATTR_TIMEOUT => 10],
+            // Keep the connect timeout well under the reverse proxy's read timeout
+            // so a bad host/port fails with a catchable exception instead of
+            // hanging until the proxy itself returns a 504.
+            "database.connections.{$connName}" => ImportConnectionConfig::withConnectTimeout(
+                ImportConnectionConfig::build($settings, $password),
+                10,
+            ),
         ]);
         DB::purge($connName);
 
@@ -701,7 +735,8 @@ class DataSourceForm
                 'ssh_user' => $get('settings.ssh_user') ?? '',
                 'ssh_key' => $keyPath,
                 'remote_host' => $get('settings.ssh_remote_host') ?: ($get('settings.db_host') ?? '127.0.0.1'),
-                'remote_port' => (int) ($get('settings.ssh_remote_port') ?: ($get('settings.db_port') ?? 3306)),
+                'remote_port' => (int) ($get('settings.ssh_remote_port') ?: ($get('settings.db_port')
+                    ?: ImportConnectionConfig::defaultPort($get('settings.db_driver') ?? 'mysql'))),
                 'known_hosts_entry' => $get('settings.ssh_host_key') ?? '',
                 'known_hosts_file' => storage_path('app/private/ssh/import_known_hosts'),
             ]);
@@ -731,7 +766,7 @@ class DataSourceForm
 
     private static function assertHostReachable(?string $driver, ?string $host, mixed $port): void
     {
-        if ($driver === 'sqlite' || ! $host) {
+        if (! ImportConnectionConfig::usesHost($driver) || ! $host) {
             return;
         }
 
