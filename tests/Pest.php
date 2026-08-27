@@ -12,6 +12,9 @@ use App\Models\Setting;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use App\Services\ShopifyFulfillmentOrderActivationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use JsonSchema\Validator;
+use PHPUnit\Framework\Assert;
+use PHPUnit\Framework\AssertionFailedError;
 use Saloon\Http\Faking\MockResponse;
 use Tests\TestCase;
 
@@ -209,4 +212,64 @@ function shopifyAccessScopesResponse(?array $scopes = null): MockResponse
             'accessScopes' => array_map(fn (string $handle): array => ['handle' => $handle], $scopes),
         ]],
     ]);
+}
+
+/*
+|--------------------------------------------------------------------------
+| SP-API schema validation
+|--------------------------------------------------------------------------
+|
+| Asserting a request body against a hand-written golden array only proves the
+| body matches what we thought we were building. If we built the wrong shape and
+| froze that same wrong shape into the test, both agree and the live API 400s.
+| These helpers check the body against Amazon's published spec instead.
+|
+| Schemas are vendored under tests/Fixtures/Schemas — see the README there.
+|
+*/
+
+/**
+ * Validate a request body against a definition in a vendored SP-API schema.
+ *
+ * @param  array<string, mixed>  $body
+ * @param  string  $definition  A key under the document's "definitions", e.g. "ConfirmShipmentRequest"
+ *
+ * @throws AssertionFailedError
+ */
+function assertMatchesSpApiSchema(array $body, string $definition, string $document = 'ordersV0'): void
+{
+    $path = __DIR__.'/Fixtures/Schemas/'.$document.'.json';
+
+    if (! is_file($path)) {
+        Assert::fail("Vendored SP-API schema [{$document}.json] is missing from tests/Fixtures/Schemas.");
+    }
+
+    $validator = new Validator;
+
+    // The validator wants stdClass for "type": "object"; a PHP associative
+    // array decodes as an array and fails every object constraint. It also
+    // takes the value by reference, so it has to be a variable.
+    $decoded = json_decode(json_encode($body));
+
+    $validator->validate(
+        $decoded,
+        (object) ['$ref' => 'file://'.$path.'#/definitions/'.$definition],
+    );
+
+    if (! $validator->isValid()) {
+        $failures = array_map(
+            fn (array $error): string => '  - '.($error['property'] !== '' ? $error['property'].': ' : '').$error['message'],
+            $validator->getErrors(),
+        );
+
+        Assert::fail(
+            "Request body does not conform to {$document}#/definitions/{$definition}:\n"
+            .implode("\n", $failures)
+            ."\n\nBody sent:\n".json_encode($body, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+        );
+    }
+
+    // Record the pass, so a test whose only check is this helper isn't reported
+    // as risky for performing no assertions.
+    Assert::assertTrue($validator->isValid());
 }
