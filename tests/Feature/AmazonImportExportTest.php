@@ -370,6 +370,8 @@ it('exports package to amazon as shipment confirmation', function (): void {
     Saloon::assertSent(function (ConfirmShipment $request) use ($package) {
         $body = $request->body()->all();
 
+        assertMatchesSpApiSchema($body, 'ConfirmShipmentRequest');
+
         return $request->resolveEndpoint() === '/orders/v0/orders/111-2222222-3333333/shipmentConfirmation'
             && $body === [
                 'marketplaceId' => 'ATVPDKIKX0DER',
@@ -406,6 +408,8 @@ it('exports package to amazon as shipment confirmation', function (): void {
 
     expect($secondResult->success)->toBeTrue();
     Saloon::assertSent(function (ConfirmShipment $request) use ($secondPackage): bool {
+        assertMatchesSpApiSchema($request->body()->all(), 'ConfirmShipmentRequest');
+
         $packageDetail = $request->body()->all()['packageDetail'] ?? [];
 
         return ($packageDetail['packageReferenceId'] ?? null) === (string) $secondPackage->id
@@ -775,6 +779,8 @@ it('omits zero quantity package rows from amazon shipment confirmation', functio
 
     expect($result->success)->toBeTrue();
     Saloon::assertSent(function (ConfirmShipment $request): bool {
+        assertMatchesSpApiSchema($request->body()->all(), 'ConfirmShipmentRequest');
+
         return ($request->body()->all()['packageDetail']['orderItems'] ?? []) === [[
             'orderItemId' => 'PACKED-LINE',
             'quantity' => 1,
