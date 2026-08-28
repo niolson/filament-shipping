@@ -143,7 +143,10 @@ function createUpsAccount(array $secrets = [], array $credentials = []): Carrier
         'client_id' => 'test_client_id',
         'client_secret' => 'test_client_secret',
     ], $secrets), array_merge([
-        'account_number' => 'test_account',
+        // UPS account numbers are exactly six alphanumeric characters
+        // (Shipping.yaml pins ShipperNumber to minLength/maxLength 6), so a
+        // longer placeholder builds label requests UPS would reject.
+        'account_number' => 'A1B2C3',
     ], $credentials));
 }
 
@@ -216,32 +219,49 @@ function shopifyAccessScopesResponse(?array $scopes = null): MockResponse
 
 /*
 |--------------------------------------------------------------------------
-| SP-API schema validation
+| Carrier / marketplace request schema validation
 |--------------------------------------------------------------------------
 |
 | Asserting a request body against a hand-written golden array only proves the
 | body matches what we thought we were building. If we built the wrong shape and
 | froze that same wrong shape into the test, both agree and the live API 400s.
-| These helpers check the body against Amazon's published spec instead.
+| These helpers check the body against the carrier's published spec instead.
 |
-| Schemas are vendored under tests/Fixtures/Schemas — see the README there.
+| Schemas are vendored under tests/Fixtures/Schemas — see the README there for
+| provenance, licensing, and how to refresh them.
 |
 */
 
 /**
- * Validate a request body against a definition in a vendored SP-API schema.
+ * Validate a request body against a named schema in a vendored API document.
+ *
+ * Handles both Swagger 2.0 documents, which hold schemas under "definitions"
+ * (Amazon SP-API), and OpenAPI 3 documents, which hold them under
+ * "components/schemas" (UPS). The caller passes the schema name; which pointer
+ * to build is worked out from the document.
  *
  * @param  array<string, mixed>  $body
- * @param  string  $definition  A key under the document's "definitions", e.g. "ConfirmShipmentRequest"
+ * @param  string  $schema  A schema name, e.g. "ConfirmShipmentRequest" or "RATERequestWrapper"
+ * @param  string  $document  Basename of a file in tests/Fixtures/Schemas
  *
  * @throws AssertionFailedError
  */
-function assertMatchesSpApiSchema(array $body, string $definition, string $document = 'ordersV0'): void
+function assertMatchesApiSchema(array $body, string $schema, string $document): void
 {
     $path = __DIR__.'/Fixtures/Schemas/'.$document.'.json';
 
     if (! is_file($path)) {
-        Assert::fail("Vendored SP-API schema [{$document}.json] is missing from tests/Fixtures/Schemas.");
+        Assert::fail("Vendored schema [{$document}.json] is missing from tests/Fixtures/Schemas.");
+    }
+
+    $document_ = json_decode((string) file_get_contents($path), true);
+
+    if (isset($document_['definitions'][$schema])) {
+        $pointer = '#/definitions/'.$schema;
+    } elseif (isset($document_['components']['schemas'][$schema])) {
+        $pointer = '#/components/schemas/'.$schema;
+    } else {
+        Assert::fail("Schema [{$schema}] is not defined in {$document}.json.");
     }
 
     $validator = new Validator;
@@ -251,10 +271,7 @@ function assertMatchesSpApiSchema(array $body, string $definition, string $docum
     // takes the value by reference, so it has to be a variable.
     $decoded = json_decode(json_encode($body));
 
-    $validator->validate(
-        $decoded,
-        (object) ['$ref' => 'file://'.$path.'#/definitions/'.$definition],
-    );
+    $validator->validate($decoded, (object) ['$ref' => 'file://'.$path.$pointer]);
 
     if (! $validator->isValid()) {
         $failures = array_map(
@@ -263,7 +280,7 @@ function assertMatchesSpApiSchema(array $body, string $definition, string $docum
         );
 
         Assert::fail(
-            "Request body does not conform to {$document}#/definitions/{$definition}:\n"
+            "Request body does not conform to {$document}{$pointer}:\n"
             .implode("\n", $failures)
             ."\n\nBody sent:\n".json_encode($body, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
         );
@@ -272,4 +289,24 @@ function assertMatchesSpApiSchema(array $body, string $definition, string $docum
     // Record the pass, so a test whose only check is this helper isn't reported
     // as risky for performing no assertions.
     Assert::assertTrue($validator->isValid());
+}
+
+/**
+ * Validate a body against Amazon's Orders API schema.
+ *
+ * @param  array<string, mixed>  $body
+ */
+function assertMatchesSpApiSchema(array $body, string $schema, string $document = 'ordersV0'): void
+{
+    assertMatchesApiSchema($body, $schema, $document);
+}
+
+/**
+ * Validate a body against a UPS API schema.
+ *
+ * @param  array<string, mixed>  $body
+ */
+function assertMatchesUpsSchema(array $body, string $schema, string $document): void
+{
+    assertMatchesApiSchema($body, $schema, $document);
 }
