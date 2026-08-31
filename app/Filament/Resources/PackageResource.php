@@ -12,6 +12,7 @@ use App\Filament\Support\CarrierLogoColumn;
 use App\Models\Client;
 use App\Models\Location;
 use App\Models\Package;
+use App\Services\Carriers\ShopifyAdapter;
 use App\Services\SettingsService;
 use App\Services\TrackingService;
 use BackedEnum;
@@ -197,7 +198,14 @@ class PackageResource extends Resource
                     ->copyable()
                     ->placeholder('—'),
                 CarrierLogoColumn::make('carrier')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    // "Shopify" is the account the postage was bought on, not
+                    // the carrier that carries the parcel — which Shopify may
+                    // pick itself, and which may be one PolyBag has no account
+                    // with at all.
+                    ->description(fn (Package $record): ?string => $record->isShopifyShipped()
+                        ? 'via '.($record->metadata['shopify_tracking_company'] ?? 'Shopify Shipping')
+                        : null),
                 Tables\Columns\TextColumn::make('service')
                     ->placeholder('—'),
                 Tables\Columns\TextColumn::make('weight')
@@ -252,6 +260,7 @@ class PackageResource extends Resource
                         'USPS' => 'USPS',
                         'FedEx' => 'FedEx',
                         'UPS' => 'UPS',
+                        ShopifyAdapter::CARRIER_NAME => 'Shopify Shipping',
                     ]),
                 Tables\Filters\TernaryFilter::make('exported')
                     ->label('Exported')
@@ -356,6 +365,12 @@ class PackageResource extends Resource
                     ->modalHeading('Void Label')
                     ->modalDescription('This will cancel the label with the carrier. The package will be kept with its dimensions so it can be re-shipped.')
                     ->visible(fn (Package $record) => $record->status === PackageStatus::Shipped && $record->tracking_number && $record->carrier)
+                    // Shopify's API has no void operation at all, so offering a
+                    // live button here would only ever produce a failure.
+                    ->disabled(fn (Package $record): bool => $record->isShopifyShipped())
+                    ->tooltip(fn (Package $record): ?string => $record->isShopifyShipped()
+                        ? 'Bought through Shopify Shipping — void and refund it in the Shopify admin. PolyBag un-ships the package once Shopify reports the label voided.'
+                        : null)
                     ->action(function (Package $record): void {
                         $result = app(PackageLabelWorkflow::class)->voidLabel($record);
 

@@ -8,6 +8,7 @@ use App\Enums\SpecialServiceSource;
 use App\Enums\TrackingStatus;
 use App\Events\PackageCancelled;
 use App\Events\PackageShipped;
+use App\Services\Carriers\ShopifyAdapter;
 use App\Services\SpecialServiceResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -186,6 +187,19 @@ class Package extends Model
     }
 
     /**
+     * Whether this package's postage was bought through Shopify Shipping.
+     *
+     * Shopify labels are billed to the merchant's Shopify account and can only
+     * be voided or refunded in the Shopify admin, so several parts of the UI
+     * have to treat them differently from a label bought on our own carrier
+     * account.
+     */
+    public function isShopifyShipped(): bool
+    {
+        return $this->carrier === ShopifyAdapter::CARRIER_NAME;
+    }
+
+    /**
      * Compute whether there's a weight mismatch (>10% discrepancy)
      * between the actual package weight and the expected weight
      * based on the packed products.
@@ -215,11 +229,30 @@ class Package extends Model
     public function markShipped(ShipResponse $response, ?int $shippedByUserId = null): void
     {
         DB::transaction(function () use ($response, $shippedByUserId): void {
+            // Carriers that record facts of their own (Shopify reports which
+            // carrier it picked, and its own label ID) merge into whatever the
+            // package already carries rather than replacing it.
+            //
+            // Merged onto the stored row, not this instance: shipping can write
+            // metadata mid-flight — Shopify records an in-flight purchase so it
+            // can be resumed — and merging a copy loaded before that would
+            // resurrect keys the carrier had deliberately cleared.
+            $metadata = [];
+
+            if ($response->metadata !== []) {
+                $stored = json_decode(
+                    (string) DB::table('packages')->where('id', $this->id)->value('metadata'),
+                    true,
+                ) ?: [];
+
+                $metadata = ['metadata' => json_encode(array_merge($stored, $response->metadata))];
+            }
+
             // Optimistic locking - ensure package hasn't been shipped already
             $updated = DB::table('packages')
                 ->where('id', $this->id)
                 ->where('status', PackageStatus::Unshipped->value)
-                ->update([
+                ->update($metadata + [
                     'tracking_number' => $response->trackingNumber,
                     'carrier_account_id' => $response->carrierAccountId,
                     'cost' => $response->cost,

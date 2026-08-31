@@ -30,6 +30,7 @@ readonly class ShipRequest
         public ?CarbonImmutable $shipDate = null,
         public array $specialServiceConfig = [],
         public array $references = [],
+        public ?int $packageId = null,
     ) {}
 
     public function hasSpecialService(string $code): bool
@@ -71,6 +72,7 @@ readonly class ShipRequest
             shipDate: $this->shipDate,
             specialServiceConfig: $this->specialServiceConfig,
             references: $this->references,
+            packageId: $this->packageId,
         );
     }
 
@@ -118,6 +120,7 @@ readonly class ShipRequest
             shipDate: $this->shipDate,
             specialServiceConfig: $this->specialServiceConfig,
             references: $this->references,
+            packageId: $this->packageId,
         );
     }
 
@@ -160,6 +163,7 @@ readonly class ShipRequest
             shipDate: $shipDate,
             specialServiceConfig: $resolver->configForPackage($package, $specialServiceCodes),
             references: app(LabelReferenceResolver::class)->forPackage($package),
+            packageId: $package->id,
         );
     }
 }

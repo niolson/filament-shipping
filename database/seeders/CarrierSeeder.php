@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\Carrier;
+use App\Services\Carriers\ShopifyAdapter;
 use Illuminate\Database\Seeder;
 
 class CarrierSeeder extends Seeder
@@ -99,5 +100,28 @@ class CarrierSeeder extends Seeder
                 ],
             );
         }
+
+        // Shopify Shipping buys postage on the merchant's Shopify account
+        // instead of a carrier account of ours, which is how a shop without an
+        // NSA reaches USPS Connect eCommerce rates. Its service codes are the
+        // `carrier:service` pairs Shopify's preferredRateSelection takes, or
+        // `auto` to let Shopify choose the rate the way its admin would.
+        //
+        // Only `auto` is seeded: Shopify publishes no list of service codes and
+        // has no API to enumerate them, so every explicit pair has to be
+        // confirmed against a real purchase before it is worth cataloguing.
+        // Add confirmed ones under Carrier Services.
+        $shopify = Carrier::firstOrCreate(['name' => ShopifyAdapter::CARRIER_NAME]);
+        $shopify->carrierServices()->firstOrCreate(
+            ['service_code' => ShopifyAdapter::AUTO_SERVICE_CODE],
+            [
+                'name' => "Shopify's choice",
+                // Shopify picks the carrier itself, and only USPS reaches a PO
+                // Box or an APO/FPO, so its choice for those destinations is
+                // constrained the same way ours would be.
+                'can_ship_to_po_boxes' => true,
+                'can_ship_to_military_addresses' => true,
+            ],
+        );
     }
 }

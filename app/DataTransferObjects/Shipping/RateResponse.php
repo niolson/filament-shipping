@@ -15,12 +15,13 @@ readonly class RateResponse
         public ?string $deliveryDate = null,
         public ?string $transitTime = null,
         public array $metadata = [],
+        public bool $priceUnknown = false,
     ) {}
 
     /**
      * Convert to array format for Livewire serialization.
      *
-     * @return array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata: array<string, mixed>}
+     * @return array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata: array<string, mixed>, priceUnknown: bool}
      */
     public function toArray(): array
     {
@@ -33,13 +34,14 @@ readonly class RateResponse
             'deliveryDate' => $this->deliveryDate,
             'transitTime' => $this->transitTime,
             'metadata' => $this->metadata,
+            'priceUnknown' => $this->priceUnknown,
         ];
     }
 
     /**
      * Create a RateResponse from an array (lossless round-trip from toArray).
      *
-     * @param  array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata: array<string, mixed>}  $data
+     * @param  array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata?: array<string, mixed>, priceUnknown?: bool}  $data
      */
     public static function fromArray(array $data): self
     {
@@ -52,6 +54,7 @@ readonly class RateResponse
             deliveryDate: $data['deliveryDate'] ?? null,
             transitTime: $data['transitTime'] ?? null,
             metadata: $data['metadata'] ?? [],
+            priceUnknown: (bool) ($data['priceUnknown'] ?? false),
         );
     }
 
@@ -75,6 +78,14 @@ readonly class RateResponse
 
     public function formDescription(): string
     {
+        // Carriers that expose no rate API (Shopify Shipping) price the label at
+        // purchase time; showing "$0.00" would read as a free label.
+        if ($this->priceUnknown) {
+            $detail = $this->deliveryCommitment ?? $this->transitTime;
+
+            return 'Price set at purchase'.($detail ? " — {$detail}" : '');
+        }
+
         $price = number_format($this->price, 2);
 
         // Show actual delivery date when available

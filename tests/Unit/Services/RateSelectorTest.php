@@ -114,3 +114,34 @@ it('selectBest returns cheapest when no deadline', function (): void {
 
     expect($best->price)->toBe(5.00);
 });
+
+it('sorts a rate priced only at purchase behind every quoted rate', function (): void {
+    $rates = collect([
+        makeUnpricedRate(),
+        makeRate(10.00),
+        makeRate(5.00),
+    ]);
+
+    $classified = app(RateSelector::class)->classify($rates, null);
+
+    expect($classified->pluck('rate.price')->all())->toBe([5.00, 10.00, 0.0])
+        ->and($classified->last()->rate->priceUnknown)->toBeTrue();
+});
+
+it('selectBest picks a rate priced at purchase only when nothing else is offered', function (): void {
+    $best = app(RateSelector::class)->selectBest(collect([makeUnpricedRate()]), null);
+
+    expect($best->priceUnknown)->toBeTrue()
+        ->and(app(RateSelector::class)->selectBest(collect([makeUnpricedRate(), makeRate(9.00)]), null)->price)->toBe(9.00);
+});
+
+function makeUnpricedRate(): RateResponse
+{
+    return new RateResponse(
+        carrier: 'Shopify',
+        serviceCode: 'auto',
+        serviceName: "Shopify's choice",
+        price: 0.0,
+        priceUnknown: true,
+    );
+}

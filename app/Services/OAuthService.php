@@ -302,7 +302,15 @@ class OAuthService
 
             return array_filter([
                 'shop' => $shopDomain,
-                'scope' => implode(',', ShopifyFulfillmentOrderActivationService::REQUIRED_SCOPES),
+                // Ask for the label-purchase scopes at connect time too, so a
+                // source that later enables Shopify Shipping does not need a
+                // second trip through consent. Shopify ignores this parameter
+                // for apps with declared scopes — see ShopifyLocationSynchronizer
+                // — so the Dev Dashboard remains the authority either way.
+                'scope' => implode(',', array_unique([
+                    ...ShopifyFulfillmentOrderActivationService::REQUIRED_SCOPES,
+                    ...ShopifyShippingLabelService::REQUIRED_SCOPES,
+                ])),
             ]);
         }
 

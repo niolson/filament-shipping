@@ -8,6 +8,7 @@ readonly class ShipResponse
 {
     /**
      * @param  array<string>  $appliedServices  Carrier-agnostic service codes actually sent to the carrier (e.g. 'saturday_delivery')
+     * @param  array<string, mixed>  $metadata  Carrier-specific facts worth keeping on the package (e.g. what Shopify chose)
      */
     public function __construct(
         public bool $success,
@@ -23,6 +24,7 @@ readonly class ShipResponse
         public ?string $errorMessage = null,
         public array $appliedServices = [],
         public ?int $carrierAccountId = null,
+        public array $metadata = [],
     ) {}
 
     /**
