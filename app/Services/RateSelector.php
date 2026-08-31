@@ -15,6 +15,10 @@ class RateSelector
      * Unknown delivery date with a deadline counts as late.
      * No deadline = all rates classified as on-time.
      *
+     * Rates whose price is only known at purchase time (Shopify Shipping) sort
+     * after every priced rate in their group, so an unpriced option is never
+     * mistaken for the cheapest one — it only wins when nothing else is offered.
+     *
      * @param  Collection<int, RateResponse>  $rates
      * @return Collection<int, ClassifiedRate>
      */
@@ -29,11 +33,11 @@ class RateSelector
 
         $onTime = $classified
             ->filter(fn (ClassifiedRate $cr) => $cr->isOnTime)
-            ->sortBy(fn (ClassifiedRate $cr) => $cr->rate->price);
+            ->sortBy(fn (ClassifiedRate $cr) => $this->sortKey($cr->rate));
 
         $late = $classified
             ->filter(fn (ClassifiedRate $cr) => ! $cr->isOnTime)
-            ->sortBy(fn (ClassifiedRate $cr) => $cr->rate->price);
+            ->sortBy(fn (ClassifiedRate $cr) => $this->sortKey($cr->rate));
 
         return $onTime->merge($late)->values();
     }
@@ -46,6 +50,14 @@ class RateSelector
     public function selectBest(Collection $rates, ?Carbon $deadline): RateResponse
     {
         return $this->classify($rates, $deadline)->first()->rate;
+    }
+
+    /**
+     * @return array{0: int, 1: float}
+     */
+    private function sortKey(RateResponse $rate): array
+    {
+        return [$rate->priceUnknown ? 1 : 0, $rate->price];
     }
 
     private function isOnTime(RateResponse $rate, ?Carbon $deadline): bool

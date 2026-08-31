@@ -9,6 +9,7 @@ use App\Filament\Concerns\PrintsLabels;
 use App\Filament\Resources\PackageResource;
 use App\Filament\Resources\ShipmentResource;
 use App\Models\Location;
+use App\Models\Package;
 use App\Services\SettingsService;
 use Filament\Actions\Action;
 use Filament\Infolists\Components\RepeatableEntry;
@@ -52,6 +53,12 @@ class ViewPackage extends ViewRecord
                 ->modalHeading('Void Label')
                 ->modalDescription('This will cancel the label with the carrier. The package will be kept with its dimensions so it can be re-shipped.')
                 ->visible(fn () => $this->record->status === PackageStatus::Shipped && $this->record->tracking_number && $this->record->carrier)
+                // Shopify exposes no void operation, so this can only ever fail
+                // for a label bought through Shopify Shipping.
+                ->disabled(fn (): bool => $this->shopifyShipped())
+                ->tooltip(fn (): ?string => $this->shopifyShipped()
+                    ? 'Void and refund this label in the Shopify admin.'
+                    : null)
                 ->action(function (): void {
                     $result = app(PackageLabelWorkflow::class)->voidLabel($this->record);
 
@@ -77,6 +84,11 @@ class ViewPackage extends ViewRecord
         return view('components.legal-disclaimers', ['show' => ['fedex']]);
     }
 
+    private function shopifyShipped(): bool
+    {
+        return $this->record instanceof Package && $this->record->isShopifyShipped();
+    }
+
     public function infolist(Schema $infolist): Schema
     {
         return $infolist
@@ -99,9 +111,22 @@ class ViewPackage extends ViewRecord
                             ->iconPosition('after')
                             ->copyable(),
                         TextEntry::make('carrier'),
-                        TextEntry::make('service'),
+                        TextEntry::make('service')
+                            ->label(fn ($record): string => $record->isShopifyShipped() ? 'Carrier (chosen by Shopify)' : 'Service'),
                         TextEntry::make('cost')
-                            ->money('USD'),
+                            ->money('USD')
+                            // Shopify never reports what a label cost, so an
+                            // empty cost here is the API's silence, not a $0 label.
+                            ->placeholder(fn ($record): string => $record->isShopifyShipped()
+                                ? 'Billed by Shopify — not reported through the API'
+                                : '—'),
+                        TextEntry::make('shopify_shipping_notice')
+                            ->hiddenLabel()
+                            ->columnSpanFull()
+                            ->visible(fn ($record): bool => $record->isShopifyShipped())
+                            ->badge()
+                            ->color('warning')
+                            ->state('Bought through Shopify Shipping — void and refund it in the Shopify admin, not here. PolyBag returns this package to unshipped once Shopify reports the label voided.'),
                         Components\Fieldset::make('Dimensions')->columns(3)->schema([
                             TextEntry::make('length')
                                 ->suffix(' in'),

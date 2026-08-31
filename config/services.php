@@ -57,6 +57,17 @@ return [
 
     'shopify' => [
         'api_version' => '2026-07',
+        // Shopify buys shipping labels asynchronously, so a purchase is polled
+        // until it settles. The product of these two is how long a packer waits
+        // at the Ship page before the purchase is reported as still running.
+        'label_poll_attempts' => env('SHOPIFY_LABEL_POLL_ATTEMPTS', 20),
+        'label_poll_interval_ms' => env('SHOPIFY_LABEL_POLL_INTERVAL_MS', 1500),
+        // How far back to keep asking Shopify whether a label was voided.
+        // Carriers stop accepting voids well inside this window, and PolyBag
+        // never learns these packages were delivered — Shopify Shipping labels
+        // carry no tracking updates — so without a bound the poll would grow to
+        // cover every Shopify label ever bought.
+        'label_void_check_days' => env('SHOPIFY_LABEL_VOID_CHECK_DAYS', 30),
     ],
 
     'oauth' => [

@@ -30,6 +30,7 @@ readonly class RateRequest
         public ?string $originCity = null,
         public ?string $originStateOrProvince = null,
         public ?float $contentsValue = null,
+        public ?int $packageId = null,
     ) {}
 
     public static function fromPackage(Package $package): self
@@ -65,6 +66,7 @@ readonly class RateRequest
             originCity: $origin->city,
             originStateOrProvince: $origin->stateOrProvince,
             contentsValue: $shipment->value !== null ? (float) $shipment->value : null,
+            packageId: $package->id,
         );
     }
 
@@ -110,6 +112,7 @@ readonly class RateRequest
             originCity: $this->originCity,
             originStateOrProvince: $this->originStateOrProvince,
             contentsValue: $this->contentsValue,
+            packageId: $this->packageId,
         );
     }
 
@@ -132,6 +135,7 @@ readonly class RateRequest
             originCity: $this->originCity,
             originStateOrProvince: $this->originStateOrProvince,
             contentsValue: $this->contentsValue,
+            packageId: $this->packageId,
         );
     }
 }
