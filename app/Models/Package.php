@@ -335,12 +335,6 @@ class Package extends Model
      */
     private function assertProvenanceIsConsistent(PostageSource $postageSource, ShipResponse $response): void
     {
-        if ($postageSource === PostageSource::LegacyUnknown) {
-            throw new \InvalidArgumentException(
-                'legacy_unknown records provenance lost before it was ever recorded and belongs only to the backfill; a new purchase knows where its postage came from.'
-            );
-        }
-
         if ($postageSource === PostageSource::CarrierAccount && $response->postageDataSourceId !== null) {
             throw new \InvalidArgumentException(
                 'A carrier_account purchase cannot also point at a postage data source.'

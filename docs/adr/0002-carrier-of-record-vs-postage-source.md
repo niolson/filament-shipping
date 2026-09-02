@@ -2,7 +2,17 @@
 
 ## Status
 
-Accepted — 2026-09-01
+Accepted — 2026-09-01. Amended 2026-09-02: the discriminator takes **two** values, not three.
+
+`legacy_unknown` was specified below for packages shipped before the split, on the
+assumption that some of them had unrecoverable provenance. None do. Shopify Shipping bought
+no label before the discriminator landed — in development or in any tenant — so every
+package predating it was bought directly, and the backfill records `carrier_account`, which
+is what is true of them. The value was also never behaviorally distinct: decision 3 routes
+`legacy_unknown` and `carrier_account` to carrier dispatch alike. A shipped package with no
+recorded postage source is now impossible rather than merely unexpected, and a null
+`postage_source` means only that the package has not shipped. The table and the sentence
+below are left as written, as the reasoning at the time.
 
 ## Context
 

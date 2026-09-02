@@ -10,9 +10,9 @@ return new class extends Migration
      * Record where a package's postage was bought, separately from the carrier
      * of record it has always shared a column with. See ADR-0002.
      *
-     * Both columns land nullable and no existing row is touched: packages
-     * shipped before this migration have provenance that is genuinely unknown,
-     * and a backfill — not a column default — is what says so.
+     * Both columns land nullable and no existing row is touched. A backfill,
+     * not a column default, is what fills them in — a default would claim a
+     * provenance for rows nobody has looked at yet.
      */
     public function up(): void
     {

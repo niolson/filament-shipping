@@ -119,10 +119,6 @@ it('refuses to ship with a postage source its pointers contradict', function (Po
             postageDataSourceId: DataSource::factory()->create()->id,
         ),
     ],
-    'legacy_unknown, which only the backfill may write' => fn (): array => [
-        PostageSource::LegacyUnknown,
-        new ShipResponse(success: true, trackingNumber: 'T4', carrier: 'USPS'),
-    ],
 ]);
 
 it('gives a voided package its provenance back to nothing', function (): void {

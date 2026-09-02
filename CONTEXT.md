@@ -55,7 +55,7 @@ _Avoid_: Rate, quote
 - A shipped **Package** has exactly one **postage source**, recorded explicitly rather than inferred from which pointer is set.
 - A **carrier of record** and a **postage source** are independent: postage bought from one can move on a parcel carried by any carrier.
 - When the postage source is Shopify, the **carrier of record** is not known until after purchase — so nothing that has to be decided before purchase can depend on it.
-- A postage source of `legacy_unknown` means the provenance is genuinely unrecoverable, not that there is none.
+- A **Package** with no **postage source** recorded has not been shipped; there is no state for a shipped Package whose postage source is unknown.
 - A **service class** is satisfied by one or more concrete carrier services; a **blind purchase** satisfies none, because no service is offered.
 - An **observed service** is normalized onto an existing `CarrierService`, or promoted by authoring one. Nothing promotes itself.
 - A **blind purchase** is not an **Offer** — with no price it can never win a comparison, so it never enters one.
