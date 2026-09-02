@@ -6,6 +6,8 @@ use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageExportStatus;
 use App\Enums\PostageSource;
 use App\Exceptions\PermanentExportException;
+use App\Models\Carrier;
+use App\Models\CarrierAlias;
 use App\Models\Channel;
 use App\Models\Client;
 use App\Models\DataSource;
@@ -160,6 +162,28 @@ it('exports package data using configured field mapping', function (): void {
         'ref' => 'REF-001',
         'weight' => '5.50',
     ]);
+});
+
+it('exports the normalized carrier of record rather than the source spelling', function (): void {
+    $usps = Carrier::factory()->usps()->create();
+    CarrierAlias::factory()->for($usps)->create(['alias' => 'US Postal Service']);
+    $driverClass = fakeExportSource();
+    $importSource = fakeDataSource($driverClass, ['carrier' => 'carrier']);
+    $package = createShippedPackage(importSource: $importSource);
+    $package->update(['carrier' => 'US Postal Service', 'normalized_carrier_id' => $usps->id]);
+
+    expect((new PackageExportService)->exportPackage($package)->success)->toBeTrue()
+        ->and($driverClass::$exportedData[0])->toBe(['carrier' => 'USPS']);
+});
+
+it('exports the raw carrier name when it normalized to nothing', function (): void {
+    $driverClass = fakeExportSource();
+    $importSource = fakeDataSource($driverClass, ['carrier' => 'carrier']);
+    $package = createShippedPackage(importSource: $importSource);
+    $package->update(['carrier' => 'Poste Italiane', 'normalized_carrier_id' => null]);
+
+    expect((new PackageExportService)->exportPackage($package)->success)->toBeTrue()
+        ->and($driverClass::$exportedData[0])->toBe(['carrier' => 'Poste Italiane']);
 });
 
 it('skips export when shipment has no import source', function (): void {

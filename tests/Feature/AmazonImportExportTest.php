@@ -1,11 +1,16 @@
 <?php
 
+use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageExportStatus;
+use App\Enums\PostageSource;
 use App\Enums\ShipmentStatus;
+use App\Events\PackageShipped;
 use App\Http\Integrations\Amazon\AmazonSpApiConnector;
 use App\Http\Integrations\Amazon\Requests\ConfirmShipment;
 use App\Http\Integrations\Amazon\Requests\SearchCatalogItems;
 use App\Http\Integrations\Amazon\Requests\SearchOrders;
+use App\Models\Carrier;
+use App\Models\CarrierAlias;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
 use App\Models\DataSource;
@@ -24,6 +29,7 @@ use App\Services\ShipmentImport\PackageExportService;
 use App\Services\ShipmentImport\ShipmentImportService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Sleep;
@@ -62,6 +68,68 @@ function amazonSourceForTest(array $overrides = []): AmazonSource
 function amazonConfirmShipmentResponse(): MockResponse
 {
     return MockResponse::make([], 204);
+}
+
+function amazonExportDestination(): DataSource
+{
+    return DataSource::factory()->create([
+        'source_type' => AmazonSource::class,
+        'name' => 'Amazon Export',
+        'settings' => [
+            'channel_name' => 'Amazon',
+            'marketplace_id' => 'ATVPDKIKX0DER',
+            'export_enabled' => true,
+            'export_field_mapping' => [
+                'tracking_number' => 'tracking_number',
+                'carrier' => 'carrier',
+                'shipment_reference' => 'shipment_reference',
+                'amazon_order_id' => 'amazon_order_id',
+            ],
+        ],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+            'refresh_token' => 'test-refresh-token',
+        ],
+    ]);
+}
+
+/**
+ * An Amazon-order shipment with one packed, confirmable line, ready to export
+ * through $exportSource.
+ *
+ * @param  array<string, mixed>  $packageAttributes
+ */
+function amazonExportPackage(DataSource $exportSource, array $packageAttributes = []): Package
+{
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource->id,
+        'shipment_reference' => '111-2222222-3333333',
+        'metadata' => ['amazon_order_id' => '111-2222222-3333333'],
+    ]);
+
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'TRACK123',
+        'exported' => false,
+        'shipped_at' => '2026-08-07 15:30:00',
+        ...$packageAttributes,
+    ]);
+
+    $product = Product::factory()->create();
+    $shipmentItem = $shipment->shipmentItems()->create([
+        'product_id' => $product->id,
+        'source_item_id' => 'AMAZON-ITEM-123',
+        'quantity' => 1,
+    ]);
+    PackageItem::factory()->create([
+        'package_id' => $package->id,
+        'shipment_item_id' => $shipmentItem->id,
+        'product_id' => $product->id,
+        'quantity' => 1,
+    ]);
+
+    return $package;
 }
 
 function amazonCatalogResponse(array $items = [], array $headers = []): MockResponse
@@ -416,6 +484,68 @@ it('exports package to amazon as shipment confirmation', function (): void {
             && ($packageDetail['trackingNumber'] ?? null) === 'TRACK456';
     });
     Saloon::assertSentCount(2);
+});
+
+it('confirms a Shopify-bought label under the carrier that carries it', function (): void {
+    $usps = Carrier::factory()->usps()->create();
+    CarrierAlias::factory()->for($usps)->create(['alias' => 'United States Postal Service']);
+
+    $exportSource = amazonExportDestination();
+    $shopifySource = DataSource::factory()->shopify()->create();
+    $package = amazonExportPackage($exportSource, [
+        // Shipped below instead, so the purchase writes the carrier of record.
+        'status' => 'unshipped',
+        'tracking_number' => null,
+    ]);
+
+    // Export explicitly below rather than through the ship-time listener.
+    Event::fake([PackageShipped::class]);
+
+    // Shopify picks the carrier itself and reports it in its own spelling.
+    $package->markShipped(new ShipResponse(
+        success: true,
+        trackingNumber: 'TRACK123',
+        carrier: 'United States Postal Service',
+        service: 'Standard',
+        postageSource: PostageSource::PostageDataSource,
+        postageDataSourceId: $shopifySource->id,
+    ), PostageSource::PostageDataSource);
+
+    Saloon::fake([ConfirmShipment::class => amazonConfirmShipmentResponse()]);
+
+    expect((new PackageExportService)->exportPackage($package)->success)->toBeTrue();
+
+    Saloon::assertSent(function (ConfirmShipment $request): bool {
+        $body = $request->body()->all();
+        $packageDetail = $body['packageDetail'] ?? [];
+
+        assertMatchesSpApiSchema($body, 'ConfirmShipmentRequest');
+
+        return ($packageDetail['carrierCode'] ?? null) === 'USPS'
+            && ! array_key_exists('carrierName', $packageDetail)
+            && ($packageDetail['trackingNumber'] ?? null) === 'TRACK123';
+    });
+});
+
+it('confirms an unmapped carrier of record as Other under its own name', function (): void {
+    $package = amazonExportPackage(amazonExportDestination(), [
+        'carrier' => 'Poste Italiane',
+        'normalized_carrier_id' => null,
+    ]);
+
+    Saloon::fake([ConfirmShipment::class => amazonConfirmShipmentResponse()]);
+
+    expect((new PackageExportService)->exportPackage($package)->success)->toBeTrue();
+
+    Saloon::assertSent(function (ConfirmShipment $request): bool {
+        $body = $request->body()->all();
+        $packageDetail = $body['packageDetail'] ?? [];
+
+        assertMatchesSpApiSchema($body, 'ConfirmShipmentRequest');
+
+        return ($packageDetail['carrierCode'] ?? null) === 'Other'
+            && ($packageDetail['carrierName'] ?? null) === 'Poste Italiane';
+    });
 });
 
 it('retries amazon shipment confirmation authentication failures', function (int $status): void {

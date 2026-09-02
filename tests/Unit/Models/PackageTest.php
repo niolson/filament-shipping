@@ -84,6 +84,22 @@ it('ships with a null normalized identity when the raw carrier is unrecognized',
         ->and($package->normalized_carrier_id)->toBeNull();
 });
 
+it('names the carrier of record by its normalized identity, falling back to the raw value', function (): void {
+    $usps = Carrier::factory()->usps()->create();
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'US Postal Service',
+        'normalized_carrier_id' => $usps->id,
+    ]);
+    $unmapped = Package::factory()->shipped()->create([
+        'carrier' => 'Poste Italiane',
+        'normalized_carrier_id' => null,
+    ]);
+
+    expect($package->carrierOfRecordName())->toBe('USPS')
+        ->and($unmapped->carrierOfRecordName())->toBe('Poste Italiane')
+        ->and(Package::factory()->create()->carrierOfRecordName())->toBeNull();
+});
+
 it('records a direct purchase as bought on the carrier account', function (): void {
     $package = Package::factory()->create();
     $carrierAccount = CarrierAccount::factory()->create();
