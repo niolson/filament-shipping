@@ -78,7 +78,7 @@ it('buys a label and reports the format Shopify chose', function (string $shopif
         ->and($response->trackingNumber)->toBe('9400111899223197428490')
         ->and($response->labelFormat)->toBe($expectedFormat)
         ->and(base64_decode($response->labelData))->toBe('LABEL-BYTES')
-        ->and($response->carrier)->toBe('Shopify');
+        ->and($response->carrier)->toBe('USPS');
 })->with([
     'PDF' => ['PDF', 'pdf'],
     'ZPL' => ['ZPL', 'zpl'],
@@ -239,17 +239,48 @@ it('records the carrier Shopify actually picked, not the one that was asked for'
 
     $response = $this->adapter->createShipment(shopifyShipRequest($package, 'usps:usps_ground_advantage'));
 
-    expect($response->carrier)->toBe('Shopify')
-        ->and($response->service)->toBe('DHL eCommerce')
+    expect($response->carrier)->toBe('DHL eCommerce')
+        ->and($response->service)->toBe('USPS Ground Advantage')
         ->and($response->metadata['shopify_tracking_company'])->toBe('DHL eCommerce')
         ->and($response->metadata['shopify_requested_service_code'])->toBe('usps:usps_ground_advantage');
 
     $package->markShipped($response, $response->postageSource);
     $package->refresh();
 
-    expect($package->service)->toBe('DHL eCommerce')
+    expect($package->carrier)->toBe('DHL eCommerce')
+        ->and($package->service)->toBe('USPS Ground Advantage')
         ->and($package->isShopifyShipped())->toBeTrue()
         ->and($package->metadata['shopify_shipping_label_id'])->toBe('gid://shopify/ShippingLabel/1');
+});
+
+it('uses the requested carrier code when Shopify omits the tracking company', function (): void {
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+
+    Saloon::fake([
+        MockResponse::make(purchaseAccepted()),
+        MockResponse::make(purchasePurchased('PDF', null)),
+    ]);
+    Http::fake(['*' => Http::response('LABEL-BYTES')]);
+
+    $response = $this->adapter->createShipment(shopifyShipRequest($package, 'usps:usps_ground_advantage'));
+
+    expect($response->carrier)->toBe('USPS');
+});
+
+it('leaves the carrier unknown when Shopify omits it for an automatic purchase', function (): void {
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+
+    Saloon::fake([
+        MockResponse::make(purchaseAccepted()),
+        MockResponse::make(purchasePurchased('PDF', null)),
+    ]);
+    Http::fake(['*' => Http::response('LABEL-BYTES')]);
+
+    $response = $this->adapter->createShipment(shopifyShipRequest($package));
+
+    expect($response->carrier)->toBeNull();
 });
 
 it('keeps the metadata a package already carried when recording a Shopify label', function (): void {
@@ -459,7 +490,7 @@ function purchaseAccepted(): array
 }
 
 /** @return array<string, mixed> */
-function purchasePurchased(string $format = 'PDF', string $company = 'USPS'): array
+function purchasePurchased(string $format = 'PDF', ?string $company = 'USPS'): array
 {
     return [
         'data' => [

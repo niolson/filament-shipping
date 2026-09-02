@@ -59,7 +59,8 @@ it('excludes USPS packages bought through Shopify from the unmanifested count', 
         ->assertSet('carrierSummary', function ($value) {
             $usps = collect($value)->firstWhere('carrier', 'USPS');
 
-            return $usps['unmanifested_count'] === 0;
+            return $usps['package_count'] === 0
+                && $usps['unmanifested_count'] === 0;
         });
 });
 

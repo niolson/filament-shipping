@@ -19,6 +19,7 @@ use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use App\Services\ShopifyShippingLabelService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Saloon\Http\Response;
 
 /**
@@ -155,12 +156,12 @@ class ShopifyAdapter implements CarrierAdapterInterface
             success: true,
             trackingNumber: $label->trackingNumber,
             cost: null,
-            carrier: self::CARRIER_NAME,
             // What Shopify actually did, not what was asked for. Shopify may
             // ignore preferredRateSelection outright, and it can pick a carrier
             // PolyBag has no account with at all — DHL eCommerce, Canada Post —
             // so the carrier it reports is the only trustworthy record.
-            service: $label->trackingCompany ?? $request->selectedRate->serviceName,
+            carrier: $label->trackingCompany ?? ($carrierCode === null ? null : Str::upper($carrierCode)),
+            service: $request->selectedRate->serviceName,
             labelData: $label->labelData,
             labelOrientation: 'portrait',
             labelFormat: $label->labelFormat,

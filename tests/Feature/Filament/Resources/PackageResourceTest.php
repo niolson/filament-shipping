@@ -9,6 +9,7 @@ use App\DataTransferObjects\Shipping\ShipRequest;
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\DataTransferObjects\Tracking\TrackShipmentResponse;
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Enums\Role;
 use App\Enums\ServiceCapability;
 use App\Filament\Resources\PackageResource\Pages\ListPackages;
@@ -44,6 +45,32 @@ it('hides void action for unshipped packages', function (): void {
 
     Livewire::test(ListPackages::class)
         ->assertActionHidden(TestAction::make('void')->table($package));
+});
+
+it('keeps the Shopify void guidance visible when Shopify reports no carrier', function (): void {
+    $package = Package::factory()->shipped()->create([
+        'carrier' => null,
+        'postage_source' => PostageSource::PostageDataSource,
+        'postage_data_source_id' => createShopifyDataSource()->id,
+    ]);
+
+    Livewire::test(ListPackages::class)
+        ->assertActionVisible(TestAction::make('void')->table($package))
+        ->assertActionDisabled(TestAction::make('void')->table($package));
+});
+
+it('filters Shopify Shipping packages by postage source rather than carrier text', function (): void {
+    $shopifyPackage = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'postage_source' => PostageSource::PostageDataSource,
+        'postage_data_source_id' => createShopifyDataSource()->id,
+    ]);
+    $directPackage = Package::factory()->usps()->create();
+
+    Livewire::test(ListPackages::class)
+        ->filterTable('carrier', 'shopify_shipping')
+        ->assertCanSeeTableRecords([$shopifyPackage])
+        ->assertCanNotSeeTableRecords([$directPackage]);
 });
 
 it('voids a label and clears shipping fields', function (): void {

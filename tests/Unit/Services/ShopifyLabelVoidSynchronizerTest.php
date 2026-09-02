@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Models\AuditLog;
 use App\Models\Package;
 use App\Models\Shipment;
@@ -148,8 +149,10 @@ function shippedShopifyPackage(array $attributes = []): Package
 
     return Package::factory()->create(array_merge([
         'shipment_id' => $shipment->id,
-        'carrier' => 'Shopify',
-        'service' => 'USPS',
+        'carrier' => 'USPS',
+        'service' => 'Ground Advantage',
+        'postage_source' => PostageSource::PostageDataSource,
+        'postage_data_source_id' => $source->id,
         'tracking_number' => '9400111899223197428490',
         'status' => PackageStatus::Shipped,
         'shipped_at' => now(),

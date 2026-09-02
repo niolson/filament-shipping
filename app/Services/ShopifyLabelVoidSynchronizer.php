@@ -4,9 +4,10 @@ namespace App\Services;
 
 use App\Enums\AuditAction;
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Models\AuditLog;
 use App\Models\Package;
-use App\Services\Carriers\ShopifyAdapter;
+use App\Services\ShipmentImport\Sources\ShopifySource;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
@@ -73,7 +74,11 @@ class ShopifyLabelVoidSynchronizer
         $days = (int) config('services.shopify.label_void_check_days', 30);
 
         return Package::query()
-            ->where('carrier', ShopifyAdapter::CARRIER_NAME)
+            ->where('postage_source', PostageSource::PostageDataSource)
+            ->whereHas(
+                'postageDataSource',
+                fn (Builder $query): Builder => $query->where('source_type', ShopifySource::class),
+            )
             ->where('status', PackageStatus::Shipped)
             ->whereNotNull('tracking_number')
             ->where('shipped_at', '>=', now()->subDays($days))

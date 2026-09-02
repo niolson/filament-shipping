@@ -9,6 +9,7 @@ use App\Enums\SpecialServiceSource;
 use App\Enums\TrackingStatus;
 use App\Events\PackageCancelled;
 use App\Events\PackageShipped;
+use App\Services\CarrierNormalizer;
 use App\Services\SpecialServiceResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -32,6 +33,7 @@ class Package extends Model
         'box_size_id',
         'tracking_number',
         'carrier',
+        'normalized_carrier_id',
         'service',
         'metadata',
         'carrier_request_payload',
@@ -130,6 +132,16 @@ class Package extends Model
     public function carrierAccount(): BelongsTo
     {
         return $this->belongsTo(CarrierAccount::class);
+    }
+
+    /**
+     * The carrier identity resolved when this package shipped.
+     *
+     * @return BelongsTo<Carrier, $this>
+     */
+    public function normalizedCarrier(): BelongsTo
+    {
+        return $this->belongsTo(Carrier::class, 'normalized_carrier_id');
     }
 
     /**
@@ -252,6 +264,8 @@ class Package extends Model
         $this->assertProvenanceIsConsistent($postageSource, $response);
 
         DB::transaction(function () use ($response, $postageSource, $shippedByUserId): void {
+            $normalizedCarrierId = app(CarrierNormalizer::class)->resolve($response->carrier)?->id;
+
             // Carriers that record facts of their own (Shopify reports which
             // carrier it picked, and its own label ID) merge into whatever the
             // package already carries rather than replacing it.
@@ -282,6 +296,7 @@ class Package extends Model
                     'postage_source' => $postageSource->value,
                     'cost' => $response->cost,
                     'carrier' => $response->carrier,
+                    'normalized_carrier_id' => $normalizedCarrierId,
                     'service' => $response->service,
                     'label_data' => $response->labelData,
                     'label_orientation' => $response->labelOrientation ?? 'portrait',
@@ -427,6 +442,7 @@ class Package extends Model
                     'postage_data_source_id' => null,
                     'postage_source' => null,
                     'carrier' => null,
+                    'normalized_carrier_id' => null,
                     'service' => null,
                     'cost' => null,
                     'label_data' => null,

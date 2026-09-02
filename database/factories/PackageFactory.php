@@ -26,6 +26,7 @@ class PackageFactory extends Factory
             'box_size_id' => fake()->optional()->randomElement([BoxSize::factory(), null]),
             'tracking_number' => null,
             'carrier' => null,
+            'normalized_carrier_id' => null,
             'service' => null,
             'metadata' => null,
             'label_data' => null,

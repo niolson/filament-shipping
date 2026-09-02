@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Carriers;
 use App\Filament\Resources\Carriers\Pages\CreateCarrier;
 use App\Filament\Resources\Carriers\Pages\EditCarrier;
 use App\Filament\Resources\Carriers\Pages\ListCarriers;
+use App\Filament\Resources\Carriers\RelationManagers\CarrierAliasesRelationManager;
 use App\Filament\Resources\Carriers\Schemas\CarrierForm;
 use App\Filament\Resources\Carriers\Tables\CarriersTable;
 use App\Models\Carrier;
@@ -36,7 +37,7 @@ class CarrierResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            CarrierAliasesRelationManager::class,
         ];
     }
 
