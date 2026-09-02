@@ -99,8 +99,11 @@ Browser tests — Pest 4 browser testing, which drives Playwright under the hood
 
 ```bash
 npx playwright install chromium   # once
-php artisan test tests/Browser/   # requires FAKE_CARRIERS=true
+php artisan test tests/Browser/
 ```
+
+Browser tests register their own fake carrier adapters per test, so they need no
+`FAKE_CARRIERS` setting — CI runs them straight from `.env.example`.
 
 `tests/External/` is excluded from the default suite on purpose — those tests hit real
 carrier sandboxes and need real credentials. Do not add to them unless you have an
