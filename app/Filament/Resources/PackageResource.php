@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Contracts\PackageLabelWorkflow;
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Enums\TrackingStatus;
 use App\Filament\Concerns\InteractsWithScoutSearch;
 use App\Filament\Resources\PackageResource\Pages;
@@ -12,8 +13,8 @@ use App\Filament\Support\CarrierLogoColumn;
 use App\Models\Client;
 use App\Models\Location;
 use App\Models\Package;
-use App\Services\Carriers\ShopifyAdapter;
 use App\Services\SettingsService;
+use App\Services\ShipmentImport\Sources\ShopifySource;
 use App\Services\TrackingService;
 use BackedEnum;
 use Filament\Actions;
@@ -199,12 +200,8 @@ class PackageResource extends Resource
                     ->placeholder('—'),
                 CarrierLogoColumn::make('carrier')
                     ->placeholder('—')
-                    // "Shopify" is the account the postage was bought on, not
-                    // the carrier that carries the parcel — which Shopify may
-                    // pick itself, and which may be one PolyBag has no account
-                    // with at all.
                     ->description(fn (Package $record): ?string => $record->isShopifyShipped()
-                        ? 'via '.($record->metadata['shopify_tracking_company'] ?? 'Shopify Shipping')
+                        ? 'via Shopify Shipping'
                         : null),
                 Tables\Columns\TextColumn::make('service')
                     ->placeholder('—'),
@@ -260,8 +257,22 @@ class PackageResource extends Resource
                         'USPS' => 'USPS',
                         'FedEx' => 'FedEx',
                         'UPS' => 'UPS',
-                        ShopifyAdapter::CARRIER_NAME => 'Shopify Shipping',
-                    ]),
+                        'shopify_shipping' => 'Shopify Shipping',
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $value = $data['value'] ?? null;
+
+                        if ($value === 'shopify_shipping') {
+                            return $query
+                                ->where('postage_source', PostageSource::PostageDataSource)
+                                ->whereHas(
+                                    'postageDataSource',
+                                    fn (Builder $query): Builder => $query->where('source_type', ShopifySource::class),
+                                );
+                        }
+
+                        return $query->when($value, fn (Builder $query, string $value): Builder => $query->where('carrier', $value));
+                    }),
                 Tables\Filters\TernaryFilter::make('exported')
                     ->label('Exported')
                     ->trueLabel('Exported')
@@ -364,7 +375,9 @@ class PackageResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Void Label')
                     ->modalDescription('This will cancel the label with the carrier. The package will be kept with its dimensions so it can be re-shipped.')
-                    ->visible(fn (Package $record) => $record->status === PackageStatus::Shipped && $record->tracking_number && $record->carrier)
+                    ->visible(fn (Package $record) => $record->status === PackageStatus::Shipped
+                        && $record->tracking_number
+                        && ($record->carrier || $record->isShopifyShipped()))
                     // Shopify's API has no void operation at all, so offering a
                     // live button here would only ever produce a failure.
                     ->disabled(fn (Package $record): bool => $record->isShopifyShipped())

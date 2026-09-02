@@ -5,7 +5,9 @@ use App\Enums\PackageStatus;
 use App\Enums\PostageSource;
 use App\Enums\ShipmentStatus;
 use App\Enums\SpecialServiceSource;
+use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\CarrierAlias;
 use App\Models\DataSource;
 use App\Models\Package;
 use App\Models\PackageItem;
@@ -43,6 +45,43 @@ it('marks a package as shipped from ShipResponse', function (): void {
         ->and($package->status)->toBe(PackageStatus::Shipped)
         ->and($package->shipped_at)->not->toBeNull()
         ->and($package->shipment->fresh()->status)->toBe(ShipmentStatus::Shipped);
+});
+
+it('preserves the raw carrier and snapshots its normalized identity at ship time', function (): void {
+    $usps = Carrier::factory()->usps()->create();
+    $alias = CarrierAlias::factory()->for($usps)->create(['alias' => 'US Postal Service']);
+    $package = Package::factory()->create();
+
+    $package->markShipped(ShipResponse::success(
+        trackingNumber: '9400111899223456789012',
+        cost: 8.50,
+        carrier: 'US Postal Service',
+        service: 'Ground Advantage',
+    ), PostageSource::CarrierAccount);
+
+    expect($package->carrier)->toBe('US Postal Service')
+        ->and($package->normalized_carrier_id)->toBe($usps->id)
+        ->and($package->normalizedCarrier->is($usps))->toBeTrue();
+
+    $alias->update(['alias' => 'Postal Service']);
+
+    expect($package->refresh()->carrier)->toBe('US Postal Service')
+        ->and($package->normalized_carrier_id)->toBe($usps->id);
+});
+
+it('ships with a null normalized identity when the raw carrier is unrecognized', function (): void {
+    $package = Package::factory()->create();
+
+    $package->markShipped(ShipResponse::success(
+        trackingNumber: 'TRACKING-1',
+        cost: 8.50,
+        carrier: 'Uncatalogued Carrier',
+        service: 'Ground',
+    ), PostageSource::CarrierAccount);
+
+    expect($package->status)->toBe(PackageStatus::Shipped)
+        ->and($package->carrier)->toBe('Uncatalogued Carrier')
+        ->and($package->normalized_carrier_id)->toBeNull();
 });
 
 it('records a direct purchase as bought on the carrier account', function (): void {
@@ -149,7 +188,8 @@ it('gives a voided package its provenance back to nothing', function (): void {
     $package->clearShipping();
 
     expect($package->refresh()->postage_source)->toBeNull()
-        ->and($package->postage_data_source_id)->toBeNull();
+        ->and($package->postage_data_source_id)->toBeNull()
+        ->and($package->normalized_carrier_id)->toBeNull();
 });
 
 it('clears all shipping fields', function (): void {

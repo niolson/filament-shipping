@@ -74,6 +74,7 @@ class EndOfDay extends Page
                 $packageCount = Package::query()
                     ->where('carrier', $carrier->name)
                     ->where('status', PackageStatus::Shipped)
+                    ->where('postage_source', PostageSource::CarrierAccount)
                     ->whereNotNull('tracking_number')
                     ->whereDate('ship_date', $shipDate)
                     ->when($multiLocation && $locationId, fn ($q) => $q->where('location_id', $locationId))

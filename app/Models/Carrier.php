@@ -49,6 +49,26 @@ class Carrier extends Model
     }
 
     /**
+     * Raw carrier names that normalize to this carrier identity.
+     *
+     * @return HasMany<CarrierAlias, $this>
+     */
+    public function carrierAliases(): HasMany
+    {
+        return $this->hasMany(CarrierAlias::class);
+    }
+
+    /**
+     * Packages that permanently snapshot this carrier identity.
+     *
+     * @return HasMany<Package, $this>
+     */
+    public function normalizedPackages(): HasMany
+    {
+        return $this->hasMany(Package::class, 'normalized_carrier_id');
+    }
+
+    /**
      * @return BelongsToMany<Location, $this>
      */
     public function locations(): BelongsToMany

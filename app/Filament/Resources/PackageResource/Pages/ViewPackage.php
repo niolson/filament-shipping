@@ -52,7 +52,9 @@ class ViewPackage extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Void Label')
                 ->modalDescription('This will cancel the label with the carrier. The package will be kept with its dimensions so it can be re-shipped.')
-                ->visible(fn () => $this->record->status === PackageStatus::Shipped && $this->record->tracking_number && $this->record->carrier)
+                ->visible(fn () => $this->record->status === PackageStatus::Shipped
+                    && $this->record->tracking_number
+                    && ($this->record->carrier || $this->shopifyShipped()))
                 // Shopify exposes no void operation, so this can only ever fail
                 // for a label bought through Shopify Shipping.
                 ->disabled(fn (): bool => $this->shopifyShipped())
@@ -110,9 +112,9 @@ class ViewPackage extends ViewRecord
                             ->icon('heroicon-o-clipboard')
                             ->iconPosition('after')
                             ->copyable(),
-                        TextEntry::make('carrier'),
-                        TextEntry::make('service')
-                            ->label(fn ($record): string => $record->isShopifyShipped() ? 'Carrier (chosen by Shopify)' : 'Service'),
+                        TextEntry::make('carrier')
+                            ->label(fn ($record): string => $record->isShopifyShipped() ? 'Carrier (chosen by Shopify)' : 'Carrier'),
+                        TextEntry::make('service'),
                         TextEntry::make('cost')
                             ->money('USD')
                             // Shopify never reports what a label cost, so an
