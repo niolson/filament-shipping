@@ -126,7 +126,7 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
                 return PackageShippingResult::failed('Shipping Error', $response->errorMessage ?? 'Failed to create shipment.');
             }
 
-            $package->markShipped($response, $request->userId);
+            $package->markShipped($response, $response->postageSource, $request->userId);
 
             return PackageShippingResult::shipped($response, $request->selectedRate, $package);
         } catch (MissingDeclaredValueException $e) {

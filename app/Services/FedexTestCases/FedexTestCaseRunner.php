@@ -4,6 +4,7 @@ namespace App\Services\FedexTestCases;
 
 use App\DataTransferObjects\FedexTestCases\FedexTestCaseData;
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Http\Integrations\Fedex\FedexConnector;
 use App\Http\Integrations\Fedex\Requests\CreateFreightShipment;
 use App\Http\Integrations\Fedex\Requests\CreateShipment;
@@ -150,6 +151,7 @@ class FedexTestCaseRunner
             $package = Package::create([
                 'shipment_id' => $shipment->id,
                 'status' => PackageStatus::Shipped,
+                'postage_source' => PostageSource::CarrierAccount,
                 'carrier' => 'FedEx',
                 'service' => data_get($body, 'output.transactionShipments.0.serviceType', $testCase->description),
                 'tracking_number' => $trackingNumber,

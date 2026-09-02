@@ -2,9 +2,11 @@
 
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Enums\ShipmentStatus;
 use App\Enums\SpecialServiceSource;
 use App\Models\CarrierAccount;
+use App\Models\DataSource;
 use App\Models\Package;
 use App\Models\PackageItem;
 use App\Models\PackageSpecialService;
@@ -28,7 +30,7 @@ it('marks a package as shipped from ShipResponse', function (): void {
         carrierAccountId: $carrierAccount->id,
     );
 
-    $package->markShipped($response);
+    $package->markShipped($response, PostageSource::CarrierAccount);
     $package->refresh();
 
     expect($package->tracking_number)->toBe('9400111899223456789012')
@@ -41,6 +43,97 @@ it('marks a package as shipped from ShipResponse', function (): void {
         ->and($package->status)->toBe(PackageStatus::Shipped)
         ->and($package->shipped_at)->not->toBeNull()
         ->and($package->shipment->fresh()->status)->toBe(ShipmentStatus::Shipped);
+});
+
+it('records a direct purchase as bought on the carrier account', function (): void {
+    $package = Package::factory()->create();
+    $carrierAccount = CarrierAccount::factory()->create();
+
+    $package->markShipped(ShipResponse::success(
+        trackingNumber: '9400111899223456789012',
+        cost: 8.50,
+        carrier: 'USPS',
+        service: 'USPS_GROUND_ADVANTAGE',
+        carrierAccountId: $carrierAccount->id,
+    ), PostageSource::CarrierAccount);
+
+    $package->refresh();
+
+    expect($package->postage_source)->toBe(PostageSource::CarrierAccount)
+        ->and($package->carrier_account_id)->toBe($carrierAccount->id)
+        ->and($package->postage_data_source_id)->toBeNull();
+});
+
+it('records a sales-channel purchase against the data source that sold the postage', function (): void {
+    $package = Package::factory()->create();
+    $dataSource = DataSource::factory()->create();
+
+    $package->markShipped(new ShipResponse(
+        success: true,
+        trackingNumber: '9400111899223456789012',
+        carrier: 'Shopify',
+        service: 'USPS',
+        postageSource: PostageSource::PostageDataSource,
+        postageDataSourceId: $dataSource->id,
+    ), PostageSource::PostageDataSource);
+
+    $package->refresh();
+
+    expect($package->postage_source)->toBe(PostageSource::PostageDataSource)
+        ->and($package->postage_data_source_id)->toBe($dataSource->id)
+        ->and($package->postageDataSource->is($dataSource))->toBeTrue()
+        ->and($package->carrier_account_id)->toBeNull();
+});
+
+it('refuses to ship with a postage source its pointers contradict', function (PostageSource $postageSource, ShipResponse $response): void {
+    $package = Package::factory()->create();
+
+    expect(fn () => $package->markShipped($response, $postageSource))
+        ->toThrow(InvalidArgumentException::class);
+
+    // Nothing half-written: the package is still waiting to be shipped.
+    expect($package->refresh()->status)->toBe(PackageStatus::Unshipped)
+        ->and($package->postage_source)->toBeNull()
+        ->and($package->tracking_number)->toBeNull();
+})->with([
+    'carrier account claimed alongside a data source pointer' => fn (): array => [
+        PostageSource::CarrierAccount,
+        new ShipResponse(
+            success: true,
+            trackingNumber: 'T1',
+            carrier: 'USPS',
+            postageDataSourceId: DataSource::factory()->create()->id,
+        ),
+    ],
+    'data source claimed with no data source named' => fn (): array => [
+        PostageSource::PostageDataSource,
+        new ShipResponse(success: true, trackingNumber: 'T2', carrier: 'USPS'),
+    ],
+    'data source claimed alongside a carrier account pointer' => fn (): array => [
+        PostageSource::PostageDataSource,
+        new ShipResponse(
+            success: true,
+            trackingNumber: 'T3',
+            carrier: 'USPS',
+            carrierAccountId: CarrierAccount::factory()->create()->id,
+            postageDataSourceId: DataSource::factory()->create()->id,
+        ),
+    ],
+    'legacy_unknown, which only the backfill may write' => fn (): array => [
+        PostageSource::LegacyUnknown,
+        new ShipResponse(success: true, trackingNumber: 'T4', carrier: 'USPS'),
+    ],
+]);
+
+it('gives a voided package its provenance back to nothing', function (): void {
+    $package = Package::factory()->shipped()->create([
+        'carrier_account_id' => CarrierAccount::factory(),
+    ]);
+
+    $package->clearShipping();
+
+    expect($package->refresh()->postage_source)->toBeNull()
+        ->and($package->postage_data_source_id)->toBeNull();
 });
 
 it('clears all shipping fields', function (): void {
@@ -79,7 +172,7 @@ it('sets shipped_by_user_id when provided', function (): void {
         labelOrientation: 'portrait',
     );
 
-    $package->markShipped($response, $user->id);
+    $package->markShipped($response, PostageSource::CarrierAccount, $user->id);
     $package->refresh();
 
     expect($package->shipped_by_user_id)->toBe($user->id)
@@ -125,7 +218,7 @@ it('records product-required special services with Product source', function ():
         service: 'FEDEX_GROUND',
         labelData: base64_encode('PDF content'),
         appliedServices: ['alcohol'],
-    ));
+    ), PostageSource::CarrierAccount);
 
     $applied = PackageSpecialService::where('package_id', $package->id)
         ->where('special_service_id', $alcohol->id)
@@ -159,7 +252,7 @@ it('records applied services from inactive-compliance packages with System sourc
         service: 'FEDEX_GROUND',
         labelData: base64_encode('PDF content'),
         appliedServices: ['alcohol'],
-    ));
+    ), PostageSource::CarrierAccount);
 
     $applied = PackageSpecialService::where('package_id', $package->id)
         ->where('special_service_id', $alcohol->id)

@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Enums\ShipmentStatus;
 use App\Models\BoxSize;
 use App\Models\Channel;
@@ -414,6 +415,7 @@ class DemoReset extends Command
             'length' => round(mt_rand(600, 1800) / 100, 2),
             'cost' => round(mt_rand((int) ($service['costMin'] * 100), (int) ($service['costMax'] * 100)) / 100, 2),
             'status' => PackageStatus::Shipped->value,
+            'postage_source' => PostageSource::CarrierAccount->value,
             'ship_date' => $shipDate,
             'shipped_at' => $shippedAt->format('Y-m-d H:i:s'),
             'shipped_by_user_id' => $userIds === [] ? null : $userIds[array_rand($userIds)],

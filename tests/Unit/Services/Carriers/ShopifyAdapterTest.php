@@ -3,6 +3,7 @@
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
+use App\Enums\PostageSource;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Models\Carrier;
 use App\Models\Package;
@@ -97,9 +98,33 @@ it('records no cost, because Shopify never reports what a label cost', function 
 
     expect($response->cost)->toBeNull();
 
-    $package->markShipped($response);
+    $package->markShipped($response, $response->postageSource);
 
     expect($package->refresh()->cost)->toBeNull();
+});
+
+it('records the postage as bought through the shipment\'s Shopify data source', function (): void {
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+
+    Saloon::fake([
+        MockResponse::make(purchaseAccepted()),
+        MockResponse::make(purchasePurchased()),
+    ]);
+    Http::fake(['*' => Http::response('LABEL-BYTES')]);
+
+    $response = $this->adapter->createShipment(shopifyShipRequest($package));
+
+    expect($response->postageSource)->toBe(PostageSource::PostageDataSource)
+        ->and($response->postageDataSourceId)->toBe($package->shipment->data_source_id)
+        ->and($response->carrierAccountId)->toBeNull();
+
+    $package->markShipped($response, $response->postageSource);
+    $package->refresh();
+
+    expect($package->postage_source)->toBe(PostageSource::PostageDataSource)
+        ->and($package->postage_data_source_id)->toBe($package->shipment->data_source_id)
+        ->and($package->carrier_account_id)->toBeNull();
 });
 
 it('sends the chosen carrier and service as a preferred rate selection', function (): void {
@@ -219,7 +244,7 @@ it('records the carrier Shopify actually picked, not the one that was asked for'
         ->and($response->metadata['shopify_tracking_company'])->toBe('DHL eCommerce')
         ->and($response->metadata['shopify_requested_service_code'])->toBe('usps:usps_ground_advantage');
 
-    $package->markShipped($response);
+    $package->markShipped($response, $response->postageSource);
     $package->refresh();
 
     expect($package->service)->toBe('DHL eCommerce')
@@ -238,7 +263,8 @@ it('keeps the metadata a package already carried when recording a Shopify label'
     ]);
     Http::fake(['*' => Http::response('LABEL-BYTES')]);
 
-    $package->markShipped($this->adapter->createShipment(shopifyShipRequest($package)));
+    $response = $this->adapter->createShipment(shopifyShipRequest($package));
+    $package->markShipped($response, $response->postageSource);
 
     expect($package->refresh()->metadata)
         ->toHaveKey('packed_by_station', 'bench-3')

@@ -4,6 +4,7 @@ use App\Contracts\DataSourceInterface;
 use App\Contracts\ExportDestinationInterface;
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageExportStatus;
+use App\Enums\PostageSource;
 use App\Exceptions\PermanentExportException;
 use App\Models\Channel;
 use App\Models\Client;
@@ -280,7 +281,7 @@ it('invalidates export state when a package is voided and exports new tracking a
         cost: 9.99,
         carrier: 'USPS',
         service: 'Priority Mail',
-    ));
+    ), PostageSource::CarrierAccount);
     $result = $service->exportPackage($package);
 
     expect($result->success)->toBeTrue()

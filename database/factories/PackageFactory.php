@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\PostageSource;
 use App\Models\BoxSize;
 use App\Models\Location;
 use App\Models\Manifest;
@@ -55,6 +56,9 @@ class PackageFactory extends Factory
             'label_data' => base64_encode('mock-label-pdf'),
             'label_orientation' => 'portrait',
             'status' => 'shipped',
+            // A shipped package always knows where its postage came from; a
+            // fixture is not a domain exception (ADR-0002).
+            'postage_source' => PostageSource::CarrierAccount,
             'shipped_at' => now(),
             'ship_date' => today(),
             'shipped_by_user_id' => User::factory(),
