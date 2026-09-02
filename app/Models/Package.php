@@ -227,6 +227,26 @@ class Package extends Model
     }
 
     /**
+     * The carrier of record as an outside system should be told it.
+     *
+     * The canonical name of the identity resolved when the package shipped, so
+     * that a source's spelling — "US Postal Service", or whatever Shopify put
+     * in `trackingCompany` — reaches a sales channel as the carrier it maps to.
+     * Falls back to the raw value: an unmapped carrier is still the carrier
+     * carrying the parcel, and reporting it verbatim beats reporting nothing.
+     */
+    public function carrierOfRecordName(): ?string
+    {
+        if ($this->normalized_carrier_id === null) {
+            return $this->carrier;
+        }
+
+        $this->loadMissing('normalizedCarrier');
+
+        return $this->normalizedCarrier->name;
+    }
+
+    /**
      * Compute whether there's a weight mismatch (>10% discrepancy)
      * between the actual package weight and the expected weight
      * based on the packed products.

@@ -2,6 +2,8 @@
 
 use App\Enums\PackageExportStatus;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
+use App\Models\Carrier;
+use App\Models\CarrierAlias;
 use App\Models\Channel;
 use App\Models\ChannelAlias;
 use App\Models\DataSource;
@@ -311,6 +313,53 @@ it('exports package to the singular fulfillment order', function (): void {
         return ($fulfillment['trackingInfo']['number'] ?? '') === 'TRACK123'
             && ($fulfillment['trackingInfo']['company'] ?? '') === 'USPS'
             && ($fulfillment['lineItemsByFulfillmentOrder'][0]['fulfillmentOrderId'] ?? '') === 'gid://shopify/FulfillmentOrder/9002';
+    });
+});
+
+it('fulfills with the normalized carrier of record rather than the source spelling', function (): void {
+    $usps = Carrier::factory()->usps()->create();
+    CarrierAlias::factory()->for($usps)->create(['alias' => 'US Postal Service']);
+
+    $exportSource = DataSource::factory()->create([
+        'source_type' => ShopifySource::class,
+        'name' => 'Shopify Export',
+        'settings' => [
+            'channel_name' => 'Shopify',
+            'shop_domain' => 'test-shop.myshopify.com',
+            'export_enabled' => true,
+            'export_field_mapping' => [
+                'tracking_number' => 'tracking_number',
+                'carrier' => 'carrier',
+                'fulfillment_order_id' => 'fulfillment_order_id',
+            ],
+        ],
+        'secret_settings' => [
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+        ],
+    ]);
+
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $exportSource->id,
+        'metadata' => ['shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/9002'],
+    ]);
+
+    $package = Package::factory()->shipped()->create([
+        'shipment_id' => $shipment->id,
+        'tracking_number' => 'TRACK123',
+        'carrier' => 'US Postal Service',
+        'normalized_carrier_id' => $usps->id,
+        'exported' => false,
+    ]);
+
+    Saloon::fake([GraphQL::class => fulfillmentSuccessResponse()]);
+
+    expect((new PackageExportService)->exportPackage($package)->success)->toBeTrue();
+
+    Saloon::assertSent(function (GraphQL $request): bool {
+        $fulfillment = $request->body()->all()['variables']['fulfillment'] ?? [];
+
+        return ($fulfillment['trackingInfo']['company'] ?? '') === 'USPS';
     });
 });
 

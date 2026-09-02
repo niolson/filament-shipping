@@ -39,7 +39,7 @@ class PackageExportService
             return new ExportResult(success: true);
         }
 
-        $package->loadMissing('shipment.dataSource', 'packageItems.shipmentItem');
+        $package->loadMissing('shipment.dataSource', 'packageItems.shipmentItem', 'normalizedCarrier');
         $shipment = $package->shipment;
 
         $primary = $shipment?->dataSource;
@@ -182,7 +182,7 @@ class PackageExportService
 
         $packages = Package::query()
             ->whereIn('id', $packageIds)
-            ->with('shipment.dataSource', 'packageItems.shipmentItem')
+            ->with('shipment.dataSource', 'packageItems.shipmentItem', 'normalizedCarrier')
             ->orderByDesc('id')
             ->get();
 
@@ -416,7 +416,7 @@ class PackageExportService
             'width' => $package->width,
             'length' => $package->length,
             'cost' => $package->cost,
-            'carrier' => $package->carrier,
+            'carrier' => $package->carrierOfRecordName(),
             'service' => $package->service,
             'shipment_reference' => $package->shipment?->shipment_reference,
             'fulfillment_order_id' => $package->shipment?->metadata['shopify_fulfillment_order_id']
