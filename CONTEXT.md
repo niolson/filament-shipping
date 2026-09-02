@@ -14,6 +14,36 @@ A physical parcel prepared from a Shipment and measured before label purchase.
 An unshipped Package that was prepared but has not yet completed label purchase.
 _Avoid_: Orphan package, temporary package
 
+**Carrier of record**:
+The physical carrier that will actually move the parcel. Free text deliberately — it may
+name a carrier we hold no `Carrier` row for and never will.
+_Avoid_: Shipping provider, shipper
+
+**Postage source**:
+Where the label was bought: a `CarrierAccount` (bought directly) or a `DataSource`
+(sales-channel postage). Not the Shipment's import source, which may be a different thing
+entirely.
+_Avoid_: Carrier, channel
+
+**Service class**:
+What a `ShippingMethod` is — a speed/price tier that several concrete carrier services can
+satisfy. "Ground" is a service class; `USPS_GROUND_ADVANTAGE` is one service that satisfies it.
+_Avoid_: Service, shipping service
+
+**Offer**:
+One ephemeral, package-specific quote: price, promise, purchase token, expiry. Discarded once
+it expires or is spent.
+
+**Observed service**:
+A durable service identity seen in a postage source's response, not part of the catalog. It
+becomes a `CarrierService` only when a human authors one; discovery never creates one.
+_Avoid_: Discovered service, carrier service
+
+**Blind purchase**:
+Buying postage where the price and service are not known until after the fact — and, for
+Shopify, never. It is not something we can compare or rank.
+_Avoid_: Rate, quote
+
 ## Relationships
 
 - A **Shipment** can produce one or more **Packages**.
@@ -22,6 +52,13 @@ _Avoid_: Orphan package, temporary package
 - For now, a **Shipment** should have at most one active **Package Draft** in the packing workflow.
 - When a **Package Draft** exists, the packing workflow resumes from the draft as source of truth.
 - `PackageCreated` means the **Package Draft** was first persisted as a Package row, not that it is ready for label purchase.
+- A shipped **Package** has exactly one **postage source**, recorded explicitly rather than inferred from which pointer is set.
+- A **carrier of record** and a **postage source** are independent: postage bought from one can move on a parcel carried by any carrier.
+- When the postage source is Shopify, the **carrier of record** is not known until after purchase — so nothing that has to be decided before purchase can depend on it.
+- A postage source of `legacy_unknown` means the provenance is genuinely unrecoverable, not that there is none.
+- A **service class** is satisfied by one or more concrete carrier services; a **blind purchase** satisfies none, because no service is offered.
+- An **observed service** is normalized onto an existing `CarrierService`, or promoted by authoring one. Nothing promotes itself.
+- A **blind purchase** is not an **Offer** — with no price it can never win a comparison, so it never enters one.
 
 ## Example dialogue
 
@@ -37,6 +74,20 @@ _Avoid_: Orphan package, temporary package
 > **Dev:** "Should PackageCreated fire when the draft is ready to ship?"
 > **Domain expert:** "No — fire it when the Package row is created in the database."
 
+> **Dev:** "We bought a label through Shopify and it came back USPS. What goes in the carrier column?"
+> **Domain expert:** "USPS. That is the carrier of record — who is carrying the parcel. Shopify is the postage source, which is a separate thing we record separately."
+>
+> **Dev:** "So can it go on the USPS end-of-day manifest with the rest?"
+> **Domain expert:** "No. Manifesting follows the postage source, not the carrier — we did not buy that label, so we cannot manifest it."
+>
+> **Dev:** "The Shopify option in the rate list has no price. What should we sort it as?"
+> **Domain expert:** "Don't sort it at all. It is a blind purchase, not an offer — there is nothing to compare it against, and the price is unknown until after we have bought it."
+>
+> **Dev:** "Amazon quoted us OnTrac and we have no OnTrac in the catalog. Do we add it?"
+> **Domain expert:** "Not automatically. It is an observed service, and a packer can still pick it. A carrier row only appears when someone decides to author one."
+
 ## Flagged ambiguities
 
 - "orphan package" was used for an unshipped Package left by an interrupted workflow — resolved: this is a **Package Draft**, not something to silently delete.
+- "carrier" was used for both who carries the parcel and who sold us the postage, and `packages.carrier` was written as `Shopify` — resolved: those are the **carrier of record** and the **postage source**, recorded separately. Shopify is never a carrier of record.
+- "service" was used for a service class, an offer, an observed service, and the confirmed service on a bought label — resolved: those are four terms, and `packages.service` holds only the last of them.
