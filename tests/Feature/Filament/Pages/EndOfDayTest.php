@@ -1,8 +1,10 @@
 <?php
 
+use App\Enums\PostageSource;
 use App\Enums\Role;
 use App\Filament\Pages\EndOfDay;
 use App\Models\Carrier;
+use App\Models\DataSource;
 use App\Models\Manifest;
 use App\Models\Package;
 use App\Models\User;
@@ -40,6 +42,24 @@ it('shows unmanifested count for USPS packages shipped today', function (): void
             $usps = collect($value)->firstWhere('carrier', 'USPS');
 
             return $usps['unmanifested_count'] === 2;
+        });
+});
+
+it('excludes USPS packages bought through Shopify from the unmanifested count', function (): void {
+    Carrier::factory()->create(['name' => 'USPS', 'active' => true]);
+
+    Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'carrier_account_id' => null,
+        'postage_source' => PostageSource::PostageDataSource,
+        'postage_data_source_id' => DataSource::factory(),
+    ]);
+
+    Livewire::test(EndOfDay::class)
+        ->assertSet('carrierSummary', function ($value) {
+            $usps = collect($value)->firstWhere('carrier', 'USPS');
+
+            return $usps['unmanifested_count'] === 0;
         });
 });
 

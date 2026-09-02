@@ -9,7 +9,6 @@ use App\Enums\SpecialServiceSource;
 use App\Enums\TrackingStatus;
 use App\Events\PackageCancelled;
 use App\Events\PackageShipped;
-use App\Services\Carriers\ShopifyAdapter;
 use App\Services\SpecialServiceResolver;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -212,7 +211,7 @@ class Package extends Model
      */
     public function isShopifyShipped(): bool
     {
-        return $this->carrier === ShopifyAdapter::CARRIER_NAME;
+        return $this->postage_source === PostageSource::PostageDataSource;
     }
 
     /**

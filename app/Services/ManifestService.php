@@ -5,6 +5,7 @@ namespace App\Services;
 use App\DataTransferObjects\Shipping\AddressData;
 use App\DataTransferObjects\Shipping\ManifestResponse;
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Events\ManifestCreated as ManifestCreatedEvent;
 use App\Http\Integrations\USPS\Requests\ScanForm;
 use App\Http\Integrations\USPS\USPSConnector;
@@ -33,6 +34,7 @@ class ManifestService
         return Package::query()
             ->whereNull('manifest_id')
             ->where('status', PackageStatus::Shipped)
+            ->where('postage_source', PostageSource::CarrierAccount)
             ->whereNotNull('tracking_number')
             ->when($locationId, fn ($q) => $q->where('location_id', $locationId))
             ->with('shipment')
