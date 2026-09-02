@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Http\Integrations\Fedex\FedexConnector;
 use App\Http\Integrations\Fedex\Requests\CreateShipment;
 use App\Http\Integrations\Fedex\Requests\UploadEtdDocument;
@@ -352,6 +353,7 @@ class FedexRunEtdTestCase extends Command
             $package = Package::create([
                 'shipment_id' => $shipment->id,
                 'status' => PackageStatus::Shipped,
+                'postage_source' => PostageSource::CarrierAccount,
                 'carrier' => 'FedEx',
                 'service' => data_get($shipResponse, 'output.transactionShipments.0.serviceType', 'IntegratorUS09'),
                 'tracking_number' => $trackingNumber,

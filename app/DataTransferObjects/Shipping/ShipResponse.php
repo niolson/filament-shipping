@@ -2,6 +2,7 @@
 
 namespace App\DataTransferObjects\Shipping;
 
+use App\Enums\PostageSource;
 use Carbon\CarbonImmutable;
 
 readonly class ShipResponse
@@ -9,6 +10,8 @@ readonly class ShipResponse
     /**
      * @param  array<string>  $appliedServices  Carrier-agnostic service codes actually sent to the carrier (e.g. 'saturday_delivery')
      * @param  array<string, mixed>  $metadata  Carrier-specific facts worth keeping on the package (e.g. what Shopify chose)
+     * @param  PostageSource  $postageSource  Where the postage was bought. Defaults to the direct-carrier case; sales-channel postage must say so.
+     * @param  int|null  $postageDataSourceId  The data source the postage was bought through, required when $postageSource is PostageDataSource
      */
     public function __construct(
         public bool $success,
@@ -25,6 +28,8 @@ readonly class ShipResponse
         public array $appliedServices = [],
         public ?int $carrierAccountId = null,
         public array $metadata = [],
+        public PostageSource $postageSource = PostageSource::CarrierAccount,
+        public ?int $postageDataSourceId = null,
     ) {}
 
     /**

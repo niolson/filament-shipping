@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Enums\SpecialServiceSource;
 use App\Enums\TrackingStatus;
 use App\Events\PackageCancelled;
@@ -27,6 +28,8 @@ class Package extends Model
         'shipment_id',
         'location_id',
         'carrier_account_id',
+        'postage_data_source_id',
+        'postage_source',
         'box_size_id',
         'tracking_number',
         'carrier',
@@ -68,6 +71,7 @@ class Package extends Model
         'weight_mismatch' => 'boolean',
         'label_printed_at' => 'datetime',
         'status' => PackageStatus::class,
+        'postage_source' => PostageSource::class,
         'shipped_at' => 'datetime',
         'ship_date' => 'date',
         'exported' => 'boolean',
@@ -127,6 +131,18 @@ class Package extends Model
     public function carrierAccount(): BelongsTo
     {
         return $this->belongsTo(CarrierAccount::class);
+    }
+
+    /**
+     * The data source the postage was bought through, when it was not bought
+     * on a carrier account of ours. Not the shipment's import source — see
+     * ADR-0002.
+     *
+     * @return BelongsTo<DataSource, $this>
+     */
+    public function postageDataSource(): BelongsTo
+    {
+        return $this->belongsTo(DataSource::class, 'postage_data_source_id');
     }
 
     /**
@@ -224,11 +240,19 @@ class Package extends Model
     /**
      * Mark this package as shipped with the given response data.
      *
+     * Every new transition to Shipped has to say where its postage was bought,
+     * so the caller passes the discriminator rather than letting it be inferred
+     * from whichever pointer happens to be set. See ADR-0002.
+     *
+     * @throws \InvalidArgumentException If the postage source and the response's pointers disagree
      * @throws \RuntimeException If the package state changed (optimistic locking)
      */
-    public function markShipped(ShipResponse $response, ?int $shippedByUserId = null): void
+    public function markShipped(ShipResponse $response, PostageSource $postageSource, ?int $shippedByUserId = null): void
     {
-        DB::transaction(function () use ($response, $shippedByUserId): void {
+        // Before the transaction, so a rejected provenance writes nothing at all.
+        $this->assertProvenanceIsConsistent($postageSource, $response);
+
+        DB::transaction(function () use ($response, $postageSource, $shippedByUserId): void {
             // Carriers that record facts of their own (Shopify reports which
             // carrier it picked, and its own label ID) merge into whatever the
             // package already carries rather than replacing it.
@@ -255,6 +279,8 @@ class Package extends Model
                 ->update($metadata + [
                     'tracking_number' => $response->trackingNumber,
                     'carrier_account_id' => $response->carrierAccountId,
+                    'postage_data_source_id' => $response->postageDataSourceId,
+                    'postage_source' => $postageSource->value,
                     'cost' => $response->cost,
                     'carrier' => $response->carrier,
                     'service' => $response->service,
@@ -290,6 +316,50 @@ class Package extends Model
         $this->shipment->updateShippedStatus();
 
         PackageShipped::dispatch($this, $this->shipment);
+    }
+
+    /**
+     * Reject a ship that would record provenance disagreeing with its pointers.
+     *
+     * Enforced here rather than in a model observer or a saving hook: markShipped()
+     * writes through the query builder for optimistic locking, so model events
+     * never fire for it.
+     *
+     * A `carrier_account` purchase may legitimately name no account — the fake
+     * adapters ship without one, and a real adapter records `$account?->id` — so
+     * only the foreign pointer is forbidden there. Sales-channel postage is
+     * different: a source we cannot name is a source we cannot void, track or
+     * manifest against, so its pointer is required.
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function assertProvenanceIsConsistent(PostageSource $postageSource, ShipResponse $response): void
+    {
+        if ($postageSource === PostageSource::LegacyUnknown) {
+            throw new \InvalidArgumentException(
+                'legacy_unknown records provenance lost before it was ever recorded and belongs only to the backfill; a new purchase knows where its postage came from.'
+            );
+        }
+
+        if ($postageSource === PostageSource::CarrierAccount && $response->postageDataSourceId !== null) {
+            throw new \InvalidArgumentException(
+                'A carrier_account purchase cannot also point at a postage data source.'
+            );
+        }
+
+        if ($postageSource === PostageSource::PostageDataSource) {
+            if ($response->postageDataSourceId === null) {
+                throw new \InvalidArgumentException(
+                    'A postage_data_source purchase must name the data source the postage was bought through.'
+                );
+            }
+
+            if ($response->carrierAccountId !== null) {
+                throw new \InvalidArgumentException(
+                    'A postage_data_source purchase cannot also point at a carrier account.'
+                );
+            }
+        }
     }
 
     /**
@@ -361,6 +431,8 @@ class Package extends Model
                 ->update([
                     'tracking_number' => null,
                     'carrier_account_id' => null,
+                    'postage_data_source_id' => null,
+                    'postage_source' => null,
                     'carrier' => null,
                     'service' => null,
                     'cost' => null,

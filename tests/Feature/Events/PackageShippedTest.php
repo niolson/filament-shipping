@@ -1,6 +1,7 @@
 <?php
 
 use App\DataTransferObjects\Shipping\ShipResponse;
+use App\Enums\PostageSource;
 use App\Events\PackageShipped;
 use App\Models\Package;
 use App\Models\Shipment;
@@ -22,7 +23,7 @@ it('dispatches PackageShipped when markShipped is called', function (): void {
         labelData: base64_encode('PDF content'),
     );
 
-    $package->markShipped($response);
+    $package->markShipped($response, PostageSource::CarrierAccount);
 
     Event::assertDispatched(PackageShipped::class, function (PackageShipped $event) use ($package, $shipment): bool {
         return $event->package->id === $package->id

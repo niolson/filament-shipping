@@ -10,6 +10,7 @@ use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\DataTransferObjects\Tracking\TrackShipmentResponse;
+use App\Enums\PostageSource;
 use App\Exceptions\Carriers\ShopifyLabelPurchaseException;
 use App\Models\CarrierService;
 use App\Models\DataSource;
@@ -129,8 +130,10 @@ class ShopifyAdapter implements CarrierAdapterInterface
 
         [$carrierCode, $serviceCode] = $this->splitServiceCode($request->selectedRate->serviceCode);
 
+        $labelService = app(ShopifyShippingLabelService::class);
+
         try {
-            $label = app(ShopifyShippingLabelService::class)->purchase($package, $request, $carrierCode, $serviceCode);
+            $label = $labelService->purchase($package, $request, $carrierCode, $serviceCode);
         } catch (ShopifyLabelPurchaseException $e) {
             logger()->error('Shopify label purchase failed', [
                 'package_id' => $package->id,
@@ -163,6 +166,11 @@ class ShopifyAdapter implements CarrierAdapterInterface
             labelFormat: $label->labelFormat,
             labelDpi: $request->labelDpi,
             shipDate: $request->shipDate,
+            // The postage was bought on the merchant's Shopify account, not on
+            // one of ours — so the provenance is the data source the shipment
+            // came from, which purchasing has just proved resolves.
+            postageSource: PostageSource::PostageDataSource,
+            postageDataSourceId: $labelService->dataSourceFor($package)?->id,
             metadata: array_filter([
                 'shopify_shipping_label_id' => $label->shippingLabelId,
                 'shopify_tracking_company' => $label->trackingCompany,
