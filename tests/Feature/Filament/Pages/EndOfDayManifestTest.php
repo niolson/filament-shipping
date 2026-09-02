@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\PostageSource;
 use App\Filament\Pages\EndOfDay;
 use App\Http\Integrations\USPS\Requests\ScanForm;
+use App\Models\DataSource;
 use App\Models\Package;
 use App\Models\Setting;
 use App\Models\User;
@@ -86,6 +88,24 @@ it('generateManifest shows warning when no packages for carrier', function (): v
         ->call('generateManifest', 'USPS')
         ->assertNotDispatched('print-report')
         ->assertNotified();
+});
+
+it('does not manifest a USPS package bought through Shopify', function (): void {
+    Saloon::fake([]);
+
+    Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'carrier_account_id' => null,
+        'postage_source' => PostageSource::PostageDataSource,
+        'postage_data_source_id' => DataSource::factory(),
+    ]);
+
+    Livewire::test(EndOfDay::class)
+        ->call('generateManifest', 'USPS')
+        ->assertNotDispatched('print-report')
+        ->assertNotified();
+
+    Saloon::assertNothingSent();
 });
 
 it('generateManifest suppresses printing when suppress_printing setting is true', function (): void {

@@ -85,6 +85,26 @@ it('records a sales-channel purchase against the data source that sold the posta
         ->and($package->carrier_account_id)->toBeNull();
 });
 
+it('identifies Shopify-bought postage by its source rather than its carrier', function (): void {
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'carrier_account_id' => null,
+        'postage_source' => PostageSource::PostageDataSource,
+        'postage_data_source_id' => DataSource::factory(),
+    ]);
+
+    expect($package->isShopifyShipped())->toBeTrue();
+});
+
+it('does not identify a direct purchase as Shopify-bought from its legacy carrier value', function (): void {
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'Shopify',
+        'postage_source' => PostageSource::CarrierAccount,
+    ]);
+
+    expect($package->isShopifyShipped())->toBeFalse();
+});
+
 it('refuses to ship with a postage source its pointers contradict', function (PostageSource $postageSource, ShipResponse $response): void {
     $package = Package::factory()->create();
 

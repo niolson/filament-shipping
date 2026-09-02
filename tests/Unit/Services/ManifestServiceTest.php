@@ -1,9 +1,11 @@
 <?php
 
 use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Http\Integrations\USPS\Requests\ScanForm;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
+use App\Models\DataSource;
 use App\Models\Manifest;
 use App\Models\Package;
 use App\Services\ManifestService;
@@ -55,6 +57,21 @@ it('returns unmanifested packages grouped by carrier', function (): void {
         ->and($grouped)->toHaveKey('FedEx')
         ->and($grouped['USPS'])->toHaveCount(2)
         ->and($grouped['FedEx'])->toHaveCount(1);
+});
+
+it('excludes a USPS package whose postage was bought through Shopify', function (): void {
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_number' => '9400111',
+        'carrier_account_id' => null,
+        'postage_source' => PostageSource::PostageDataSource,
+        'postage_data_source_id' => DataSource::factory(),
+    ]);
+
+    $grouped = app(ManifestService::class)->getUnmanifestedPackages();
+
+    expect($grouped)->toBeEmpty()
+        ->and($package->carrier)->toBe('USPS');
 });
 
 it('excludes already manifested packages', function (): void {
