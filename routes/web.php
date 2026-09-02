@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\Api\HealthController;
-use App\Http\Controllers\Api\TestPackageController;
 use App\Http\Controllers\Auth\AzureController;
 use App\Http\Controllers\Auth\GoogleController;
 use App\Http\Controllers\Auth\SsoCallbackController;
@@ -91,10 +90,3 @@ if (app()->environment(['local', 'testing'])) {
         ->name('csp.report')
         ->withoutMiddleware([PreventRequestForgery::class]);
 }
-
-Route::prefix('api')->group(function (): void {
-    if (app()->environment(['local', 'testing'])) {
-        Route::post('/test/create-package', TestPackageController::class)
-            ->withoutMiddleware([PreventRequestForgery::class]);
-    }
-});

@@ -1147,30 +1147,6 @@ parameters:
 			path: app/Filament/Widgets/DatabaseHealthWidget.php
 
 		-
-			message: '#^Parameter \#1 \$boolean of function abort_unless expects bool, App\\Models\\ShippingMethod\|null given\.$#'
-			identifier: argument.type
-			count: 1
-			path: app/Http/Controllers/Api/TestPackageController.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>height" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Http/Controllers/Api/TestPackageController.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>length" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Http/Controllers/Api/TestPackageController.php
-
-		-
-			message: '#^Using nullsafe property access "\?\-\>width" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Http/Controllers/Api/TestPackageController.php
-
-		-
 			message: '#^Method App\\Http\\Controllers\\Auth\\AzureController\:\:redirect\(\) should return Illuminate\\Http\\RedirectResponse but returns Symfony\\Component\\HttpFoundation\\RedirectResponse\.$#'
 			identifier: return.type
 			count: 1

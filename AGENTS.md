@@ -231,7 +231,11 @@ Pest 4 on PHPUnit 12. Test files use a `*Test.php` suffix.
 `phpunit.xml` defines only the `Unit` and `Feature` suites, so a bare `php artisan test`
 runs neither `tests/External` nor `tests/Browser`. Both must be named explicitly.
 
-Set `FAKE_CARRIERS=true` in `.env` to use fake carrier adapters and address validator for end-to-end testing without hitting carrier APIs.
+Set `FAKE_CARRIERS=true` in `.env` to run the app itself against fake carrier adapters and
+a fake address validator — for local work without carrier credentials, not for the test
+suite. Neither the Pest suites nor `tests/Browser` need it: `ShippingFlowTest` registers
+its own fakes into `CarrierRegistry` per test, and CI runs everything from `.env.example`,
+where the flag is `false`.
 
 ## Contributing
 
