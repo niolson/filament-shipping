@@ -25,6 +25,11 @@ class CarrierFactory extends Factory
         return $this->state(fn () => ['name' => 'USPS', 'pickup_cutoff_hour' => 20]);
     }
 
+    public function shopify(): static
+    {
+        return $this->state(fn () => ['name' => 'Shopify', 'pickup_cutoff_hour' => 20]);
+    }
+
     public function fedex(): static
     {
         return $this->state(fn () => ['name' => 'FedEx']);

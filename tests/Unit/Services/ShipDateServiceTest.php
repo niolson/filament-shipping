@@ -7,6 +7,7 @@ use App\Services\Carriers\ShopifyAdapter;
 use App\Services\ShipDateService;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use Database\Seeders\CarrierSeeder;
 
 afterEach(function (): void {
     Carbon::setTestNow();
@@ -133,12 +134,12 @@ it('keeps the cutoff with the carrier identity when the carrier is renamed', fun
     expect($shipDate->toDateString())->toBe('2026-04-02');
 });
 
-it('applies the interim blind-postage cutoff to Shopify, which cannot know its carrier at purchase time', function (): void {
+it('applies the Shopify cutoff, which cannot be derived from a carrier known only after purchase', function (): void {
     Carbon::setTestNow(Carbon::parse('2026-04-01 20:30:00', 'America/New_York'));
     CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 20:30:00', 'America/New_York'));
 
     $location = Location::getDefault();
-    $carrier = Carrier::factory()->create(['name' => ShopifyAdapter::CARRIER_NAME]);
+    $carrier = Carrier::factory()->shopify()->create();
     $carrier->locations()->attach($location->id, ['pickup_days' => json_encode([1, 2, 3, 4, 5])]);
 
     $shipDate = app(ShipDateService::class)->getShipDate(ShopifyAdapter::CARRIER_NAME);
@@ -146,17 +147,31 @@ it('applies the interim blind-postage cutoff to Shopify, which cannot know its c
     expect($shipDate->toDateString())->toBe('2026-04-02');
 });
 
-it('applies the interim Shopify cutoff even with no Shopify carrier row to normalize to', function (): void {
+it('takes the Shopify cutoff from the seeded carrier row, not from a branch in the service', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-04-01 20:30:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 20:30:00', 'America/New_York'));
+
+    Location::getDefault();
+    (new CarrierSeeder)->run();
+
+    expect(Carrier::query()->where('name', ShopifyAdapter::CARRIER_NAME)->value('pickup_cutoff_hour'))->toBe(20)
+        ->and(app(ShipDateService::class)->getShipDate(ShopifyAdapter::CARRIER_NAME)->toDateString())->toBe('2026-04-02');
+});
+
+it('gives Shopify no cutoff when no Shopify carrier row exists, which is also when no label can be bought', function (): void {
     Carbon::setTestNow(Carbon::parse('2026-04-01 20:30:00', 'America/New_York'));
     CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 20:30:00', 'America/New_York'));
 
     Location::getDefault();
 
+    // ShopifyAdapter::getRates() only advertises services hanging off this row, so
+    // a missing row means no Shopify rate is offered and no Shopify label is bought.
+    // The date it would have produced is therefore unreachable rather than wrong.
     expect(Carrier::query()->where('name', ShopifyAdapter::CARRIER_NAME)->exists())->toBeFalse();
 
     $shipDate = app(ShipDateService::class)->getShipDate(ShopifyAdapter::CARRIER_NAME);
 
-    expect($shipDate->toDateString())->toBe('2026-04-02');
+    expect($shipDate->toDateString())->toBe('2026-04-01');
 });
 
 it('leaves a carrier that normalizes to nothing on the current pickup day', function (): void {

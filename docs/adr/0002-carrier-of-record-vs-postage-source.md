@@ -14,6 +14,46 @@ recorded postage source is now impossible rather than merely unexpected, and a n
 `postage_source` means only that the package has not shipped. The table and the sentence
 below are left as written, as the reasoning at the time.
 
+Amended 2026-09-03: decision 3's Shopify ship-date policy is settled — **8 PM local, held as
+`pickup_cutoff_hour` on the Shopify carrier row**.
+
+The original wording called for "the earliest relevant cutoff across the carriers it might
+pick." Two things were wrong with it once the candidates were actually enumerated.
+
+*The candidate set was already known and did not need a live purchase to bound it.* Schema
+introspection had established Shopify's carrier codes as `usps`, `ups_shipping`,
+`dhl_express` and `canada_post`, recorded in `ShopifyShippingLabelService::CARRIER_CODES`.
+What a first live purchase adds is how often Shopify overrides `preferredRateSelection` —
+evidence for tuning a value, not for choosing a policy.
+
+*Conservatism was assumed to be free, and is not.* The two failure directions cost very
+different amounts. Assuming a cutoff later than the carrier Shopify actually picked mis-dates
+one label by a day. Assuming an earlier one — low enough to cover DHL Express — re-dates
+**every** Shopify package packed after that hour, including the USPS ones that are the entire
+reason the integration exists, in the heaviest packing window of the day. Being conservative
+by construction is cheap when the pessimistic case is rare; here it is the common case. So
+the policy matches the carrier we ask for and expect, and treats an override as the tolerated
+exception.
+
+Deriving the hour from other carriers' cutoffs is rejected for a second reason: it would make
+Shopify's ship dates a function of which unrelated carriers happen to have a cutoff
+configured. Today only USPS does, so it would yield 20 anyway — and would silently move the
+day someone configured UPS.
+
+The hour lives on the carrier row rather than in `ShipDateService`, so the policy is data in
+one place and reaches Shopify the same way every other carrier's does; the service now holds
+no Shopify branch at all. Note that the hour survives into the Shopify request only as a
+binary, since `getShipDate()` returns a date at midnight: before the cutoff
+`ShopifyShippingLabelService` sends `now() + 5 minutes`, after it, tomorrow at 00:00.
+
+Two consequences are deliberately left out of scope. **Pickup days are not decided here** —
+nothing seeds a `carrier_location` row for Shopify, so it takes the Mon–Fri default and a
+Saturday-packed package is dated Monday regardless of any cutoff; that is tracked separately.
+And no per-package alert is raised when Shopify picks a carrier whose real cutoff differs:
+the ship date is fixed by the time `trackingCompany` comes back, `metadata.shopify_tracking_company`
+already records what was picked, and an operator who knows the pickup has gone can already
+advance the date with End Shipping Day.
+
 ## Context
 
 `packages.carrier` is a denormalized string, not a foreign key to `carriers`. It does two
@@ -100,9 +140,9 @@ invariant like anything else.
 - Ship-date cutoffs, channel export, and reporting → **carrier**, *except for Shopify*, which
   cannot participate: `shippingDatetime` has to be sent in the purchase mutation, before
   Shopify reveals which carrier it picked. Learning afterwards that it chose USPS cannot
-  retroactively change the label's ship date. Shopify needs a conservative source-level
-  policy — the earliest relevant cutoff across the carriers it might pick — not a
-  carrier-derived one.
+  retroactively change the label's ship date. Shopify needs a source-level policy, not a
+  carrier-derived one; **that policy is an 8 PM cutoff carried on the Shopify carrier row**,
+  settled in the 2026-09-03 amendment under Status.
 - Tracking → **by postage source, not as a fallback chain.** The entitlement to tracking data
   follows whoever bought the label, not whoever carries the parcel. An Amazon Buy Shipping
   label tracks through Amazon's `getTracking`. A Shopify-bought label is **terminally
