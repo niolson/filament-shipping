@@ -11,37 +11,32 @@ use App\Exceptions\Carriers\CarrierUnavailableException;
 use App\Models\Package;
 use App\Models\User;
 use App\Notifications\TrackingExceptionDetected;
-use App\Services\Carriers\CarrierRegistry;
+use App\Services\PostageSources\PostageSourceDispatcher;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class TrackingService
 {
     public function __construct(
-        private readonly CarrierRegistry $carrierRegistry,
+        private readonly PostageSourceDispatcher $dispatcher,
     ) {}
 
+    /**
+     * Ask whoever bought this label where the parcel is.
+     *
+     * The question goes to the postage source, not the carrier: after USPS
+     * changed tracking entitlement in April 2026, the right to a parcel's
+     * tracking data follows the account that bought the postage. See ADR-0002.
+     */
     public function refreshPackage(Package $package): TrackShipmentResponse
     {
         if ($package->status !== PackageStatus::Shipped || ! $package->tracking_number || ! $package->carrier) {
             return TrackShipmentResponse::failure('Package is not eligible for tracking.');
         }
 
-        if (! $this->carrierRegistry->has($package->carrier)) {
-            return TrackShipmentResponse::failure("Unknown carrier: {$package->carrier}");
-        }
-
-        $adapter = $this->carrierRegistry->get($package->carrier);
-
-        if (! $adapter->supportsTracking()) {
-            $response = TrackShipmentResponse::unsupported();
-            $this->persistResult($package, $response);
-
-            return $response;
-        }
-
         try {
-            $response = $adapter->trackShipment($package);
+            $response = $this->dispatcher->trackShipment($package);
         } catch (CarrierUnavailableException $e) {
             // A configuration state (e.g. sandbox mode with an OAuth account), not a
             // failure worth a stack trace — record it on the package and move on.
@@ -52,14 +47,37 @@ class TrackingService
             ]);
 
             $response = TrackShipmentResponse::failure($e->getMessage());
+        } catch (Throwable $e) {
+            // A tracking check is a status read, and a failed read is a fact to
+            // record rather than an error to propagate. Sources reach the
+            // network here — a throttled Shopify reply, a dropped connection —
+            // and letting that escape would 500 the Filament action a packer
+            // clicked and fail the queued refresh job instead of writing down
+            // that the check did not land.
+            Log::error('Tracking check failed', [
+                'package_id' => $package->id,
+                'carrier' => $package->carrier,
+                'exception' => $e::class,
+                'reason' => $e->getMessage(),
+            ]);
+
+            $response = TrackShipmentResponse::failure('Could not reach the source that sold this label.');
         }
 
-        $this->persistResult($package, $response);
+        $this->record($package, $response);
 
         return $response;
     }
 
-    private function persistResult(Package $package, TrackShipmentResponse $response): void
+    /**
+     * Write a tracking answer onto the package.
+     *
+     * Public because a caller that already holds the answer should not make the
+     * request again to store it: the Shopify fulfillment poll reads the void
+     * state and the delivery state out of one response, and records the second
+     * here.
+     */
+    public function record(Package $package, TrackShipmentResponse $response): void
     {
         $previousStatus = $package->tracking_status;
         $details = $package->tracking_details ?? [];

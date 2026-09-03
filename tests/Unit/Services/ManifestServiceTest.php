@@ -74,6 +74,28 @@ it('excludes a USPS package whose postage was bought through Shopify', function 
         ->and($package->carrier)->toBe('USPS');
 });
 
+it('refuses to manifest a Shopify-bought package handed to it directly', function (): void {
+    // The queries that feed createManifest() filter on provenance, but the
+    // guard is what protects the USPS request itself from a caller that
+    // assembled its own collection.
+    Saloon::fake([]);
+
+    $package = Package::factory()->shipped()->create([
+        'carrier' => 'USPS',
+        'tracking_number' => '9400111',
+        'carrier_account_id' => null,
+        'postage_source' => PostageSource::PostageDataSource,
+        'postage_data_source_id' => DataSource::factory(),
+    ]);
+
+    $response = app(ManifestService::class)->createManifest('USPS', collect([$package]));
+
+    expect($response->success)->toBeFalse()
+        ->and($response->errorMessage)->toContain('not bought on a carrier account of ours');
+
+    Saloon::assertNothingSent();
+});
+
 it('excludes already manifested packages', function (): void {
     $manifest = Manifest::factory()->create();
     Package::factory()->shipped()->create([

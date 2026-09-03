@@ -34,7 +34,7 @@ class ManifestService
         return Package::query()
             ->whereNull('manifest_id')
             ->where('status', PackageStatus::Shipped)
-            ->where('postage_source', PostageSource::CarrierAccount)
+            ->boughtOnCarrierAccount()
             ->whereNotNull('tracking_number')
             ->when($locationId, fn ($q) => $q->where('location_id', $locationId))
             ->with('shipment')
@@ -44,9 +44,20 @@ class ManifestService
 
     /**
      * Create a manifest for the given carrier and packages.
+     *
+     * Eligibility is a question for the postage source, not the carrier. The
+     * queries that feed this already filter on provenance; the guard is here
+     * because the rule protects a request to USPS, and a caller assembling its
+     * own collection must not be able to route around it.
      */
     public function createManifest(string $carrier, Collection $packages, ?CarbonImmutable $shipDate = null, ?int $locationId = null): ManifestResponse
     {
+        if ($packages->contains(fn (Package $package): bool => $package->postage_source !== PostageSource::CarrierAccount)) {
+            return ManifestResponse::failure(
+                'One or more packages were not bought on a carrier account of ours, so they cannot go on a manifest we create.'
+            );
+        }
+
         return match ($carrier) {
             'USPS' => $this->createUspsManifest($packages, $shipDate, $locationId),
             'FedEx' => $this->createFedexManifest(),

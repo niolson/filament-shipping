@@ -37,11 +37,12 @@ Schedule::command('packages:export --scheduled')
     ->runInBackground()
     ->appendOutputTo(storage_path('logs/export-'.now()->format('Y-m-d').'.log'));
 
-// A Shopify Shipping label can only be voided in the Shopify admin, so the
-// only way PolyBag learns a packer did that is by asking. Fifteen minutes keeps
-// a dead label from sitting in the shipped queue for long without polling
+// A Shopify Shipping label can only be voided in the Shopify admin, and a
+// Shopify-bought parcel can only be tracked through Shopify, so the only way
+// PolyBag learns either is by asking. One poll answers both. Fifteen minutes
+// keeps a dead label from sitting in the shipped queue for long without polling
 // Shopify hard enough to matter.
-Schedule::command('packages:sync-shopify-voids')
+Schedule::command('packages:sync-shopify-fulfillments')
     ->everyFifteenMinutes()
     ->withoutOverlapping()
     ->runInBackground();

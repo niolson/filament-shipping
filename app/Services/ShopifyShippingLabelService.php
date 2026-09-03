@@ -5,6 +5,7 @@ namespace App\Services;
 use App\DataTransferObjects\Shipping\AddressData;
 use App\DataTransferObjects\Shipping\ShipRequest;
 use App\DataTransferObjects\Shipping\ShopifyPurchasedLabel;
+use App\Enums\PostageSource;
 use App\Exceptions\Carriers\ShopifyLabelPurchaseException;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Http\Integrations\Shopify\ShopifyConnector;
@@ -88,10 +89,21 @@ class ShopifyShippingLabelService
         GRAPHQL;
 
     /**
-     * Shopify has no "was this label voided" query, so the answer comes from
-     * the fulfillment the purchase created: voiding a label in the admin moves
-     * its fulfillment to a LABEL_VOIDED display status, and cancelling the
-     * fulfillment outright sets its status to CANCELLED.
+     * Everything Shopify will tell us about a label after it was bought.
+     *
+     * Two questions, one request. Shopify has no "was this label voided" query,
+     * so the void answer comes from the fulfillment the purchase created:
+     * voiding a label in the admin moves it to a LABEL_VOIDED display status,
+     * and cancelling the fulfillment outright sets its status to CANCELLED. The
+     * same `displayStatus` carries the delivery lifecycle once the parcel moves,
+     * which is the only tracking we are entitled to for postage bought on
+     * Shopify's account (ADR-0002).
+     *
+     * `events` is asked for on the chance Shopify populates it. The documented
+     * way events are created is `fulfillmentEventCreate`, called by apps and
+     * fulfillment services, so it may always come back empty here — costing one
+     * field on a request already being made. It is not worth a second query and
+     * its absence is not an error.
      */
     private const FULFILLMENT_STATE_QUERY = <<<'GRAPHQL'
         query ShopifyFulfillmentState($id: ID!) {
@@ -103,7 +115,22 @@ class ShopifyShippingLabelService
                 id
                 status
                 displayStatus
-                trackingInfo { number }
+                inTransitAt
+                deliveredAt
+                estimatedDeliveryAt
+                trackingInfo { number company url }
+                events(first: 50) {
+                  nodes {
+                    id
+                    status
+                    happenedAt
+                    message
+                    city
+                    province
+                    zip
+                    country
+                  }
+                }
               }
             }
           }
@@ -198,22 +225,28 @@ class ShopifyShippingLabelService
     }
 
     /**
-     * Whether the label PolyBag holds for this package has been voided or
-     * cancelled on Shopify's side.
+     * The fulfillment Shopify holds for this package's label, or null when
+     * there is no answer to be had.
      *
-     * Returns false whenever the answer can't be established — an unmatched
-     * fulfillment, a shipment that never came from Shopify — so that an
-     * ambiguous reply never un-ships a package that is genuinely in transit.
+     * Null covers three different unknowns deliberately: a shipment that never
+     * came from Shopify, a fulfillment order Shopify no longer returns (deleted,
+     * or moved to another location), and — the one that matters — an order
+     * fulfilled in several shipments, whose other fulfillments belong to other
+     * packages. Reading one of those as ours would un-ship a parcel in transit
+     * or record another package's delivery against this one, so every caller
+     * treats null as "don't know", never as a state.
+     *
+     * @return array<string, mixed>|null
      *
      * @throws ShopifyLabelPurchaseException
      */
-    public function isVoidedInShopify(Package $package): bool
+    public function fulfillmentFor(Package $package): ?array
     {
-        $dataSource = $this->dataSourceFor($package);
+        $dataSource = $this->postageSourceFor($package);
         $fulfillmentOrderId = $this->fulfillmentOrderId($package);
 
-        if (! $dataSource || ! $fulfillmentOrderId) {
-            return false;
+        if (! $dataSource || ! $fulfillmentOrderId || ! $package->tracking_number) {
+            return null;
         }
 
         $connector = ShopifyConnector::fromSettings(
@@ -226,26 +259,79 @@ class ShopifyShippingLabelService
 
         $fulfillments = $json['data']['fulfillmentOrder']['fulfillments']['nodes'] ?? null;
 
-        // A fulfillment order Shopify no longer returns says nothing about the
-        // label — the order may have been deleted or moved to another location.
         if ($fulfillments === null) {
-            return false;
+            return null;
         }
 
-        $ours = collect($fulfillments)->first(
+        return collect($fulfillments)->first(
             fn (array $fulfillment): bool => ($fulfillment['trackingInfo'][0]['number'] ?? null) === $package->tracking_number
         );
+    }
 
-        // No fulfillment carrying our tracking number is an unknown, not a
-        // void: an order fulfilled in several shipments has fulfillments that
-        // belong to other packages, and reading those as ours would un-ship a
-        // package that is genuinely in transit. LABEL_VOIDED is the signal.
-        if (! $ours) {
+    /**
+     * Whether the label PolyBag holds for this package has been voided or
+     * cancelled on Shopify's side.
+     *
+     * Returns false whenever the answer can't be established, so that an
+     * ambiguous reply never un-ships a package that is genuinely in transit.
+     *
+     * @throws ShopifyLabelPurchaseException
+     */
+    public function isVoidedInShopify(Package $package): bool
+    {
+        return $this->isVoided($this->fulfillmentFor($package));
+    }
+
+    /**
+     * Whether an already-fetched fulfillment reports the label as gone.
+     *
+     * Takes the fulfillment rather than the package so one poll can answer both
+     * "was it voided?" and "how far along is it?" — LABEL_VOIDED is the signal
+     * for the first and disqualifies the second.
+     *
+     * @param  array<string, mixed>|null  $fulfillment
+     */
+    public function isVoided(?array $fulfillment): bool
+    {
+        if ($fulfillment === null) {
             return false;
         }
 
-        return in_array($ours['displayStatus'] ?? '', self::VOIDED_STATES, true)
-            || in_array($ours['status'] ?? '', self::VOIDED_STATES, true);
+        return in_array($fulfillment['displayStatus'] ?? '', self::VOIDED_STATES, true)
+            || in_array($fulfillment['status'] ?? '', self::VOIDED_STATES, true);
+    }
+
+    /**
+     * The Shopify data source that bought this package's postage.
+     *
+     * Once a package records channel postage, this is the recorded source or it
+     * is nothing. There is deliberately no fallback to the shipment's import
+     * source: those are the same record at purchase time, but a shipment can be
+     * re-pointed afterwards, and reading a label bought on source A through
+     * source B's credentials is exactly the drift the provenance column exists
+     * to prevent. Answering "don't know" costs one skipped poll; answering with
+     * the wrong shop's fulfillments could un-ship a parcel in transit.
+     *
+     * An inactive or non-Shopify recorded source is likewise no answer rather
+     * than a reason to look elsewhere.
+     *
+     * Before a package ships there is no provenance to honour, so the purchase
+     * path still resolves through the shipment's import source — which is where
+     * the fulfillment order it will buy against lives.
+     */
+    public function postageSourceFor(Package $package): ?DataSource
+    {
+        if ($package->postage_source !== PostageSource::PostageDataSource) {
+            return $this->dataSourceFor($package);
+        }
+
+        $package->loadMissing('postageDataSource');
+
+        $source = $package->postageDataSource;
+
+        return ($source && $source->active && $source->source_type === ShopifySource::class)
+            ? $source
+            : null;
     }
 
     /**

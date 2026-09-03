@@ -214,6 +214,22 @@ class Package extends Model
     }
 
     /**
+     * Packages whose postage we bought ourselves.
+     *
+     * The eligibility rule behind every manifest query: a SCAN form asserts
+     * that we tendered these parcels on our own account, which is false for
+     * channel-bought postage no matter which carrier is carrying it. Written as
+     * a scope so the four queries that need it cannot drift apart.
+     *
+     * @param  Builder<Package>  $query
+     * @return Builder<Package>
+     */
+    public function scopeBoughtOnCarrierAccount(Builder $query): Builder
+    {
+        return $query->where('postage_source', PostageSource::CarrierAccount);
+    }
+
+    /**
      * Whether this package's postage was bought through Shopify Shipping.
      *
      * Shopify labels are billed to the merchant's Shopify account and can only

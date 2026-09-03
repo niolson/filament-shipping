@@ -1,16 +1,16 @@
 <?php
 
 use App\Enums\PackageStatus;
-use App\Enums\PostageSource;
+use App\Enums\TrackingStatus;
 use App\Models\AuditLog;
 use App\Models\Package;
 use App\Models\Shipment;
-use App\Services\ShopifyLabelVoidSynchronizer;
+use App\Services\ShopifyFulfillmentSynchronizer;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
 
 beforeEach(function (): void {
-    $this->synchronizer = app(ShopifyLabelVoidSynchronizer::class);
+    $this->synchronizer = app(ShopifyFulfillmentSynchronizer::class);
 });
 
 it('un-ships a package whose label was voided in the Shopify admin', function (): void {
@@ -22,7 +22,7 @@ it('un-ships a package whose label was voided in the Shopify admin', function ()
 
     $package->refresh();
 
-    expect($result)->toBe(['checked' => 1, 'voided' => 1, 'failed' => 0])
+    expect($result)->toBe(['checked' => 1, 'voided' => 1, 'tracked' => 0, 'failed' => 0])
         ->and($package->status)->toBe(PackageStatus::Unshipped)
         ->and($package->tracking_number)->toBeNull()
         ->and($package->carrier)->toBeNull()
@@ -97,8 +97,87 @@ it('counts a failed check without touching the package', function (): void {
 
     $result = $this->synchronizer->sync();
 
-    expect($result)->toBe(['checked' => 1, 'voided' => 0, 'failed' => 1])
+    expect($result)->toBe(['checked' => 1, 'voided' => 0, 'tracked' => 0, 'failed' => 1])
         ->and($package->refresh()->status)->toBe(PackageStatus::Shipped);
+});
+
+it('records tracking from the same poll that checks for a void', function (): void {
+    $package = shippedShopifyPackage();
+
+    Saloon::fake([MockResponse::make(fulfillmentState('IN_TRANSIT', fulfillment: [
+        'estimatedDeliveryAt' => '2026-09-05T17:00:00Z',
+        'events' => ['nodes' => [[
+            'id' => 'gid://shopify/FulfillmentEvent/1',
+            'status' => 'IN_TRANSIT',
+            'happenedAt' => '2026-09-03T14:02:00Z',
+            'message' => 'Arrived at USPS regional facility',
+            'city' => 'Des Moines',
+            'province' => 'IA',
+            'zip' => '50313',
+            'country' => 'US',
+        ]]],
+    ]))]);
+
+    $result = $this->synchronizer->sync();
+
+    $package->refresh();
+
+    expect($result)->toBe(['checked' => 1, 'voided' => 0, 'tracked' => 1, 'failed' => 0])
+        ->and($package->status)->toBe(PackageStatus::Shipped)
+        ->and($package->tracking_status)->toBe(TrackingStatus::InTransit)
+        ->and($package->tracking_checked_at)->not->toBeNull()
+        ->and($package->tracking_details['status_label'])->toBe('In transit')
+        ->and($package->tracking_details['events'][0]['description'])->toBe('Arrived at USPS regional facility')
+        ->and($package->tracking_details['events'][0]['location'])->toBe('Des Moines, IA, 50313, US');
+
+    // One poll, not two: the void check and the tracking read share the request.
+    Saloon::assertSentCount(1);
+});
+
+it('drops a delivered package out of the poll it was keeping alive', function (): void {
+    $package = shippedShopifyPackage();
+
+    Saloon::fake([MockResponse::make(fulfillmentState('DELIVERED', fulfillment: [
+        'deliveredAt' => '2026-09-04T16:31:00Z',
+    ]))]);
+
+    $this->synchronizer->sync();
+
+    $package->refresh();
+
+    expect($package->tracking_status)->toBe(TrackingStatus::Delivered)
+        ->and($package->delivered_at->toIso8601String())->toBe('2026-09-04T16:31:00+00:00')
+        ->and($this->synchronizer->candidates())->toBeEmpty();
+});
+
+it('stops polling a package Shopify reported delivered without a timestamp', function (): void {
+    // `deliveredAt` is nullable on a DELIVERED fulfillment, so the timestamp
+    // alone cannot end the poll — the status has to.
+    $package = shippedShopifyPackage();
+
+    Saloon::fake([MockResponse::make(fulfillmentState('DELIVERED'))]);
+
+    $this->synchronizer->sync();
+
+    $package->refresh();
+
+    expect($package->tracking_status)->toBe(TrackingStatus::Delivered)
+        ->and($package->delivered_at)->toBeNull()
+        ->and($this->synchronizer->candidates())->toBeEmpty();
+});
+
+it('records no status from a fulfillment belonging to another package', function (): void {
+    $package = shippedShopifyPackage();
+
+    Saloon::fake([MockResponse::make(fulfillmentState('DELIVERED', '9999999999999999999999'))]);
+
+    $result = $this->synchronizer->sync();
+
+    $package->refresh();
+
+    expect($result)->toBe(['checked' => 1, 'voided' => 0, 'tracked' => 0, 'failed' => 0])
+        ->and($package->tracking_status)->toBeNull()
+        ->and($package->delivered_at)->toBeNull();
 });
 
 it('never checks packages that were not shipped through Shopify', function (): void {
@@ -137,47 +216,3 @@ it('honours a configured void-check window', function (): void {
 
     expect($this->synchronizer->candidates())->toBeEmpty();
 });
-
-function shippedShopifyPackage(array $attributes = []): Package
-{
-    $source = createShopifyDataSource([], ['oauth_access_token' => 'shpat_test_token']);
-
-    $shipment = Shipment::factory()->create([
-        'data_source_id' => $source->id,
-        'metadata' => ['shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/12345'],
-    ]);
-
-    return Package::factory()->create(array_merge([
-        'shipment_id' => $shipment->id,
-        'carrier' => 'USPS',
-        'service' => 'Ground Advantage',
-        'postage_source' => PostageSource::PostageDataSource,
-        'postage_data_source_id' => $source->id,
-        'tracking_number' => '9400111899223197428490',
-        'status' => PackageStatus::Shipped,
-        'shipped_at' => now(),
-        'label_data' => base64_encode('LABEL-BYTES'),
-        'metadata' => ['shopify_shipping_label_id' => 'gid://shopify/ShippingLabel/1'],
-    ], $attributes));
-}
-
-/** @return array<string, mixed> */
-function fulfillmentState(string $displayStatus, string $trackingNumber = '9400111899223197428490'): array
-{
-    return [
-        'data' => [
-            'fulfillmentOrder' => [
-                'id' => 'gid://shopify/FulfillmentOrder/12345',
-                'status' => 'CLOSED',
-                'fulfillments' => [
-                    'nodes' => [[
-                        'id' => 'gid://shopify/Fulfillment/1',
-                        'status' => 'SUCCESS',
-                        'displayStatus' => $displayStatus,
-                        'trackingInfo' => [['number' => $trackingNumber]],
-                    ]],
-                ],
-            ],
-        ],
-    ];
-}

@@ -3,7 +3,6 @@
 namespace App\Filament\Pages;
 
 use App\Enums\PackageStatus;
-use App\Enums\PostageSource;
 use App\Enums\Role;
 use App\Filament\Concerns\NotifiesUser;
 use App\Models\Carrier;
@@ -74,7 +73,7 @@ class EndOfDay extends Page
                 $packageCount = Package::query()
                     ->where('carrier', $carrier->name)
                     ->where('status', PackageStatus::Shipped)
-                    ->where('postage_source', PostageSource::CarrierAccount)
+                    ->boughtOnCarrierAccount()
                     ->whereNotNull('tracking_number')
                     ->whereDate('ship_date', $shipDate)
                     ->when($multiLocation && $locationId, fn ($q) => $q->where('location_id', $locationId))
@@ -85,7 +84,7 @@ class EndOfDay extends Page
                     $unmanifestedCount = Package::query()
                         ->where('carrier', $carrier->name)
                         ->where('status', PackageStatus::Shipped)
-                        ->where('postage_source', PostageSource::CarrierAccount)
+                        ->boughtOnCarrierAccount()
                         ->whereNotNull('tracking_number')
                         ->whereNull('manifest_id')
                         ->whereDate('ship_date', $shipDate)
@@ -145,7 +144,7 @@ class EndOfDay extends Page
         $packages = Package::query()
             ->where('carrier', $carrier)
             ->where('status', PackageStatus::Shipped)
-            ->where('postage_source', PostageSource::CarrierAccount)
+            ->boughtOnCarrierAccount()
             ->whereNotNull('tracking_number')
             ->whereNull('manifest_id')
             ->whereDate('ship_date', $shipDate)
