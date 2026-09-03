@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Models\Carrier;
+use App\Models\CarrierAlias;
 use App\Models\Location;
+use App\Services\Carriers\ShopifyAdapter;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -11,15 +13,25 @@ class ShipDateService
 {
     private const DEFAULT_PICKUP_DAYS = [1, 2, 3, 4, 5]; // Mon-Fri
 
-    /** USPS SCAN form cutoff — packages shipped after this hour go on the next day's form. */
-    private const USPS_CUTOFF_HOUR = 20; // 8 PM local time
+    /**
+     * Interim cutoff for postage bought where the carrier is not known until
+     * after purchase. Deliberately a fixed hour and deliberately not derived
+     * from the carriers' own cutoffs: ADR-0002 decision 3 calls for a
+     * conservative source-level policy, and choosing between the earliest cutoff
+     * among candidate carriers, a fixed hour, and an operator-controlled setting
+     * needs a judgment about which carriers Shopify can actually pick. Fixed
+     * here so that adding a carrier cutoff cannot quietly move Shopify's ship
+     * dates before that judgment is made.
+     */
+    private const BLIND_POSTAGE_INTERIM_CUTOFF_HOUR = 20;
 
     public function getShipDate(string $carrierName, ?int $locationId = null): CarbonImmutable
     {
+        $carrier = $this->normalize($carrierName);
         $location = $this->resolveLocation($locationId);
         $tz = $location?->timezone ?? 'America/New_York';
-        $pivot = $this->getPivot($carrierName, $locationId);
-        $pickupDays = ($pivot && $pivot->pickup_days) ? json_decode($pivot->pickup_days, true) : self::DEFAULT_PICKUP_DAYS;
+        $pivot = $this->getPivot($carrier, $locationId);
+        $pickupDays = $this->pickupDaysFor($pivot);
         $lastEndOfDay = $pivot?->last_end_of_day_at ? CarbonImmutable::parse($pivot->last_end_of_day_at) : null;
         $now = CarbonImmutable::now($tz);
         $today = $now->startOfDay();
@@ -29,8 +41,9 @@ class ShipDateService
             return $this->getNextPickupDay($pickupDays, $today);
         }
 
-        // USPS: after 8 PM local time, advance to next pickup day
-        if ($carrierName === 'USPS' && $now->hour >= self::USPS_CUTOFF_HOUR) {
+        $cutoffHour = $this->cutoffHourFor($carrierName, $carrier);
+
+        if ($cutoffHour !== null && $now->hour >= $cutoffHour) {
             return $this->getNextPickupDay($pickupDays, $today);
         }
 
@@ -53,8 +66,7 @@ class ShipDateService
             $location = $this->resolveLocation($locationId);
             $tz = $location?->timezone ?? 'America/New_York';
             $afterDate = $after ?? CarbonImmutable::today($tz);
-            $pivot = $this->getPivot($carrierName, $locationId);
-            $pickupDays = ($pivot && $pivot->pickup_days) ? json_decode($pivot->pickup_days, true) : self::DEFAULT_PICKUP_DAYS;
+            $pickupDays = $this->pickupDaysFor($this->getPivot($this->normalize($carrierName), $locationId));
         } else {
             $pickupDays = $pickupDaysOrCarrier;
             $afterDate = $afterOrLocationId instanceof CarbonImmutable ? $afterOrLocationId : CarbonImmutable::today();
@@ -81,7 +93,7 @@ class ShipDateService
             return;
         }
 
-        $carrier = Carrier::where('name', $carrierName)->first();
+        $carrier = $this->normalize($carrierName);
 
         if (! $carrier) {
             return;
@@ -111,11 +123,69 @@ class ShipDateService
         }
     }
 
+    /**
+     * @return array<int, int>
+     */
     public function getPickupDays(string $carrierName, ?int $locationId = null): array
     {
-        $pivot = $this->getPivot($carrierName, $locationId);
+        return $this->pickupDaysFor($this->getPivot($this->normalize($carrierName), $locationId));
+    }
 
-        return $pivot ? json_decode($pivot->pickup_days, true) : self::DEFAULT_PICKUP_DAYS;
+    /**
+     * Resolve the carrier identity a policy lookup should be keyed on. Runs before
+     * every pivot and cutoff lookup so that a source's spelling — `US Postal
+     * Service`, whatever Amazon returns in `carrierName` — cannot decide whether a
+     * carrier rule applies. Resolving to nothing is a valid terminal state: an
+     * unmapped carrier simply has no policy of ours.
+     */
+    private function normalize(string $carrierName): ?Carrier
+    {
+        return app(CarrierNormalizer::class)->resolve($carrierName);
+    }
+
+    /**
+     * The local hour after which a parcel misses the day's pickup, or null when
+     * the carrier imposes none.
+     *
+     * The cutoff is a property of the carrier row itself, so it survives an
+     * operator renaming that carrier: the normalized identity is what carries
+     * the policy, not the display name it happens to have today.
+     */
+    private function cutoffHourFor(string $rawCarrierName, ?Carrier $carrier): ?int
+    {
+        // Shopify Shipping cannot take a carrier-derived cutoff at all:
+        // `shippingDatetime` goes out in the purchase mutation, before Shopify
+        // reveals which carrier it picked. Give it an explicit interim hour
+        // rather than letting a non-carrier fall through to no cutoff.
+        if ($this->isBlindPostageSource($rawCarrierName, $carrier)) {
+            return self::BLIND_POSTAGE_INTERIM_CUTOFF_HOUR;
+        }
+
+        return $carrier?->pickup_cutoff_hour;
+    }
+
+    /**
+     * Whether the name identifies postage bought where the carrier is not known
+     * until after purchase, rather than a physical carrier.
+     */
+    private function isBlindPostageSource(string $rawCarrierName, ?Carrier $carrier): bool
+    {
+        $shopifyKey = CarrierAlias::lookupKey(ShopifyAdapter::CARRIER_NAME);
+
+        return CarrierAlias::lookupKey($rawCarrierName) === $shopifyKey
+            || ($carrier !== null && CarrierAlias::lookupKey($carrier->name) === $shopifyKey);
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function pickupDaysFor(?object $pivot): array
+    {
+        if (! $pivot || ! $pivot->pickup_days) {
+            return self::DEFAULT_PICKUP_DAYS;
+        }
+
+        return json_decode($pivot->pickup_days, true) ?? self::DEFAULT_PICKUP_DAYS;
     }
 
     private function resolveLocation(?int $locationId = null): ?Location
@@ -127,19 +197,17 @@ class ShipDateService
         return Location::getDefault();
     }
 
-    private function getPivot(string $carrierName, ?int $locationId = null): ?object
+    private function getPivot(?Carrier $carrier, ?int $locationId = null): ?object
     {
         $locationId = $locationId ?? $this->resolveLocation()?->id;
 
-        if (! $locationId) {
+        if (! $carrier || ! $locationId) {
             return null;
         }
 
         return DB::table('carrier_location')
-            ->join('carriers', 'carriers.id', '=', 'carrier_location.carrier_id')
-            ->where('carriers.name', $carrierName)
-            ->where('carrier_location.location_id', $locationId)
-            ->select('carrier_location.*')
+            ->where('carrier_id', $carrier->id)
+            ->where('location_id', $locationId)
             ->first();
     }
 }

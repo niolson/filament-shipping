@@ -1,7 +1,9 @@
 <?php
 
 use App\Models\Carrier;
+use App\Models\CarrierAlias;
 use App\Models\Location;
+use App\Services\Carriers\ShopifyAdapter;
 use App\Services\ShipDateService;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
@@ -16,7 +18,7 @@ it('advances USPS shipments to the next pickup day after the cutoff hour', funct
     CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 20:30:00', 'America/New_York'));
 
     $location = Location::getDefault();
-    $carrier = Carrier::factory()->create(['name' => 'USPS']);
+    $carrier = Carrier::factory()->usps()->create();
     $carrier->locations()->attach($location->id, ['pickup_days' => json_encode([1, 2, 3, 4, 5])]);
 
     $shipDate = app(ShipDateService::class)->getShipDate('USPS');
@@ -42,7 +44,7 @@ it('advances to the next pickup day after end of day has already been run', func
     CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 10:00:00', 'America/New_York'));
 
     $location = Location::getDefault();
-    $carrier = Carrier::factory()->create(['name' => 'USPS']);
+    $carrier = Carrier::factory()->usps()->create();
     $carrier->locations()->attach($location->id, [
         'pickup_days' => json_encode([1, 2, 3, 4, 5]),
         'last_end_of_day_at' => Carbon::now('America/New_York'),
@@ -69,4 +71,101 @@ it('creates a carrier-location end-of-day record when one does not exist', funct
 
     expect($pivotRecord->last_end_of_day_at)->not->toBeNull()
         ->and(Carbon::parse($pivotRecord->last_end_of_day_at)->setTimezone('America/New_York')->toDateTimeString())->toBe('2026-04-01 16:15:00');
+});
+
+it('applies the USPS cutoff to a carrier name that only normalizes to USPS', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-04-01 20:30:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 20:30:00', 'America/New_York'));
+
+    $location = Location::getDefault();
+    $carrier = Carrier::factory()->usps()->create();
+    $carrier->locations()->attach($location->id, ['pickup_days' => json_encode([1, 2, 3, 4, 5])]);
+    CarrierAlias::create(['carrier_id' => $carrier->id, 'alias' => 'US Postal Service']);
+
+    $shipDate = app(ShipDateService::class)->getShipDate('US Postal Service');
+
+    expect($shipDate->toDateString())->toBe('2026-04-02');
+});
+
+it('reads pickup days through the normalized carrier identity', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-04-01 10:00:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 10:00:00', 'America/New_York'));
+
+    $location = Location::getDefault();
+    $carrier = Carrier::factory()->create(['name' => 'UPS']);
+    // Wednesday (3) is deliberately not a pickup day for this carrier.
+    $carrier->locations()->attach($location->id, ['pickup_days' => json_encode([1, 2, 4, 5])]);
+    CarrierAlias::create(['carrier_id' => $carrier->id, 'alias' => 'United Parcel Service']);
+
+    $shipDate = app(ShipDateService::class)->getShipDate('United Parcel Service');
+
+    expect($shipDate->toDateString())->toBe('2026-04-02')
+        ->and(app(ShipDateService::class)->getPickupDays('United Parcel Service'))->toBe([1, 2, 4, 5]);
+});
+
+it('ends the shipping day for a carrier named by an alias', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-04-01 16:15:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 16:15:00', 'America/New_York'));
+
+    $location = Location::getDefault();
+    $carrier = Carrier::factory()->create(['name' => 'FedEx']);
+    CarrierAlias::create(['carrier_id' => $carrier->id, 'alias' => 'Federal Express']);
+
+    app(ShipDateService::class)->endShippingDay('Federal Express', $location->id);
+
+    expect(app(ShipDateService::class)->getShipDate('FedEx', $location->id)->toDateString())->toBe('2026-04-02');
+});
+
+it('keeps the cutoff with the carrier identity when the carrier is renamed', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-04-01 20:30:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 20:30:00', 'America/New_York'));
+
+    $location = Location::getDefault();
+    $carrier = Carrier::factory()->usps()->create();
+    $carrier->locations()->attach($location->id, ['pickup_days' => json_encode([1, 2, 3, 4, 5])]);
+
+    // An operator retitles the carrier in the admin. The row — and so the
+    // normalized identity a shipped package points at — is unchanged.
+    $carrier->update(['name' => 'United States Postal Service']);
+
+    $shipDate = app(ShipDateService::class)->getShipDate('United States Postal Service');
+
+    expect($shipDate->toDateString())->toBe('2026-04-02');
+});
+
+it('applies the interim blind-postage cutoff to Shopify, which cannot know its carrier at purchase time', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-04-01 20:30:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 20:30:00', 'America/New_York'));
+
+    $location = Location::getDefault();
+    $carrier = Carrier::factory()->create(['name' => ShopifyAdapter::CARRIER_NAME]);
+    $carrier->locations()->attach($location->id, ['pickup_days' => json_encode([1, 2, 3, 4, 5])]);
+
+    $shipDate = app(ShipDateService::class)->getShipDate(ShopifyAdapter::CARRIER_NAME);
+
+    expect($shipDate->toDateString())->toBe('2026-04-02');
+});
+
+it('applies the interim Shopify cutoff even with no Shopify carrier row to normalize to', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-04-01 20:30:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 20:30:00', 'America/New_York'));
+
+    Location::getDefault();
+
+    expect(Carrier::query()->where('name', ShopifyAdapter::CARRIER_NAME)->exists())->toBeFalse();
+
+    $shipDate = app(ShipDateService::class)->getShipDate(ShopifyAdapter::CARRIER_NAME);
+
+    expect($shipDate->toDateString())->toBe('2026-04-02');
+});
+
+it('leaves a carrier that normalizes to nothing on the current pickup day', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-04-01 20:30:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-01 20:30:00', 'America/New_York'));
+
+    Location::getDefault();
+
+    $shipDate = app(ShipDateService::class)->getShipDate('Poste Italiane');
+
+    expect($shipDate->toDateString())->toBe('2026-04-01');
 });

@@ -13,7 +13,9 @@ class CarrierSeeder extends Seeder
      */
     public function run(): void
     {
-        $usps = Carrier::firstOrCreate(['name' => 'USPS']);
+        // The cutoff hangs off the carrier row rather than a name-keyed table in
+        // code, so renaming a carrier cannot silently drop its pickup policy.
+        $usps = Carrier::firstOrCreate(['name' => 'USPS'], ['pickup_cutoff_hour' => 20]);
         foreach ([
             ['name' => 'Ground Advantage', 'service_code' => 'USPS_GROUND_ADVANTAGE'],
             ['name' => 'Priority Mail', 'service_code' => 'PRIORITY_MAIL'],
