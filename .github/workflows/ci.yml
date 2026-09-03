@@ -35,29 +35,16 @@ jobs:
           cp .env.example .env
           php artisan key:generate
 
-      - name: Check code style
-        run: vendor/bin/pint --test
-
-      - name: Run static analysis
-        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
-
       - name: Install npm dependencies
         run: npm ci
 
       - name: Build assets
         run: npm run build
 
-      - name: Audit PHP dependencies
-        run: composer audit
-
-      - name: Audit npm dependencies
-        run: npm audit
-
-      - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
-
+      # Paratest, one process per core. See the "Testing" section of AGENTS.md
+      # for why workers must not share state.
       - name: Run tests
-        run: php artisan test --coverage --coverage-clover=coverage.xml
+        run: composer run test:ci
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: ':memory:'
@@ -70,6 +57,81 @@ jobs:
           path: coverage.xml
           if-no-files-found: warn
 
+  static:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # No coverage driver: pcov costs startup time and nothing here measures
+      # coverage.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, zip, gd, intl, bcmath, pcntl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      # Larastan boots the application container, so it needs an APP_KEY.
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Check code style
+        run: vendor/bin/pint --test
+
+      # Dependency advisories are deliberately not gated here. The
+      # security-audit workflow runs composer and npm audit on every push and
+      # pull request across all branches, at the same --audit-level=high the
+      # pre-push hook uses. Duplicating them in the merge gate meant an
+      # overnight upstream advisory could block an unrelated branch.
+      - name: Run static analysis
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+  browser:
+    name: Browser Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, zip, gd, intl, bcmath, pcntl
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build assets
+        run: npm run build
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # Not parallelised: the browser suite is a handful of tests and each one
+      # drives a real Chromium.
       - name: Run browser tests
         run: php artisan test tests/Browser/
         env:

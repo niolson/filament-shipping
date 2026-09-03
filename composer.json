@@ -67,6 +67,13 @@
         ],
         "test": [
             "@php artisan config:clear --ansi",
+            "@php artisan test --parallel --processes=auto --max-processes=16 --passthru-php=\"'-d' 'opcache.enable_cli=1'\""
+        ],
+        "test:ci": [
+            "@php artisan test --parallel --processes=auto --max-processes=16 --passthru-php=\"'-d' 'opcache.enable_cli=1'\" --coverage --coverage-clover=coverage.xml"
+        ],
+        "test:serial": [
+            "@php artisan config:clear --ansi",
             "@php artisan test"
         ],
         "test:external": [

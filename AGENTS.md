@@ -149,7 +149,8 @@ npm run dev              # Vite dev server only
 npm run build            # Production build
 
 # Testing
-composer run test                    # Pest suite (clears config first)
+composer run test                    # Pest suite in parallel (clears config first)
+composer run test:serial             # Same suite, one process — for debugging order-dependent failures
 php artisan test --compact --filter=TestName
 composer run test:external           # External carrier/reference tests (tests/External)
 composer run test:fedex-reference    # Narrow that to the FedEx reference cases
@@ -230,6 +231,12 @@ Pest 4 on PHPUnit 12. Test files use a `*Test.php` suffix.
 
 `phpunit.xml` defines only the `Unit` and `Feature` suites, so a bare `php artisan test`
 runs neither `tests/External` nor `tests/Browser`. Both must be named explicitly.
+
+`composer run test` runs the suite through Paratest, capped at 16 processes, with opcache
+enabled in the workers — roughly 20 seconds against four minutes serial. Each worker gets
+its own in-memory SQLite database and runs its own migrations, so tests must not depend on
+running in the same process as another test file. `composer run test:serial` is the
+one-process fallback when a failure looks order-dependent.
 
 Set `FAKE_CARRIERS=true` in `.env` to run the app itself against fake carrier adapters and
 a fake address validator — for local work without carrier credentials, not for the test
