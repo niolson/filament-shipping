@@ -2,7 +2,7 @@
 
 namespace App\Services\Carriers;
 
-use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\DirectCarrierAdapter;
 use App\DataTransferObjects\Shipping\CancelResponse;
 use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
@@ -12,12 +12,14 @@ use App\DataTransferObjects\Shipping\ShipResponse;
 use App\DataTransferObjects\Tracking\TrackShipmentResponse;
 use App\Enums\ServiceCapability;
 use App\Models\Package;
+use App\Services\Carriers\Concerns\ConsultsCarrierPolicyForOffers;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use Illuminate\Support\Collection;
 use Saloon\Http\Response;
 
-class FakeCarrierAdapter implements CarrierAdapterInterface
+class FakeCarrierAdapter implements DirectCarrierAdapter
 {
+    use ConsultsCarrierPolicyForOffers;
     use HasDefaultServiceCapabilities;
 
     // In test/fake mode, report everything as Supported so capability checks don't filter rates.
@@ -133,7 +135,7 @@ class FakeCarrierAdapter implements CarrierAdapterInterface
         return false;
     }
 
-    public function supportsManifest(): bool
+    public function supportsCarrierManifest(): bool
     {
         return false;
     }

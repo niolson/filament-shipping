@@ -2,7 +2,7 @@
 
 namespace App\Services\Carriers;
 
-use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\DirectCarrierAdapter;
 use App\DataTransferObjects\Shipping\AddressData;
 use App\DataTransferObjects\Shipping\CancelResponse;
 use App\DataTransferObjects\Shipping\PreparedRateRequest;
@@ -25,6 +25,7 @@ use App\Models\CarrierAccount;
 use App\Models\Location;
 use App\Models\Package;
 use App\Services\Carriers\Concerns\BuildsCustomerReferences;
+use App\Services\Carriers\Concerns\ConsultsCarrierPolicyForOffers;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
 use App\Services\Carriers\Concerns\HasSaturdayDelivery;
 use App\Services\Carriers\Concerns\ResolvesCarrierAccount;
@@ -36,9 +37,10 @@ use Illuminate\Support\Facades\Log;
 use Saloon\Exceptions\Request\RequestException;
 use Saloon\Http\Response;
 
-class FedexAdapter implements CarrierAdapterInterface
+class FedexAdapter implements DirectCarrierAdapter
 {
     use BuildsCustomerReferences;
+    use ConsultsCarrierPolicyForOffers;
     use HasDefaultServiceCapabilities;
     use HasSaturdayDelivery;
     use ResolvesCarrierAccount;
@@ -978,7 +980,7 @@ class FedexAdapter implements CarrierAdapterInterface
         return true;
     }
 
-    public function supportsManifest(): bool
+    public function supportsCarrierManifest(): bool
     {
         return false;
     }

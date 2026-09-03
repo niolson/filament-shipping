@@ -1,6 +1,6 @@
 <?php
 
-use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\DirectCarrierAdapter;
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageStatus;
 use App\Filament\Pages\Ship;
@@ -57,7 +57,7 @@ function createShippablePackageForErrorTest(): Package
 
 function registerMockAdapterForErrorTest(ShipResponse $response): void
 {
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('getCarrierName')->andReturn('USPS');
     $adapter->shouldReceive('isConfigured')->andReturn(true);
     $adapter->shouldReceive('prepareRateRequest')->andReturnNull();
@@ -69,7 +69,7 @@ function registerMockAdapterForErrorTest(ShipResponse $response): void
 
 function registerThrowingAdapterForErrorTest(Throwable $exception): void
 {
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('getCarrierName')->andReturn('USPS');
     $adapter->shouldReceive('isConfigured')->andReturn(true);
     $adapter->shouldReceive('prepareRateRequest')->andReturnNull();
@@ -179,7 +179,7 @@ it('ship disables ship action when no rates available', function (): void {
     $package = createShippablePackageForErrorTest();
 
     // Register an adapter that returns no rates to simulate a carrier returning nothing
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('getCarrierName')->andReturn('USPS');
     $adapter->shouldReceive('isConfigured')->andReturn(true);
     $adapter->shouldReceive('prepareRateRequest')->andReturnNull();

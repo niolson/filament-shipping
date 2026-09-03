@@ -1,6 +1,7 @@
 <?php
 
 use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\DirectCarrierAdapter;
 use App\Contracts\PackageShippingWorkflow;
 use App\DataTransferObjects\PackageShipping\PackageAutoShippingRequest;
 use App\DataTransferObjects\PackageShipping\PackageShippingRequest;
@@ -79,7 +80,7 @@ function createWorkflowPackage(): Package
 it('prepares sorted rate options for a package', function (): void {
     $package = createWorkflowPackage();
 
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('isConfigured')->once()->andReturnTrue();
     $adapter->shouldReceive('prepareRateRequest')->once()->andReturnNull();
     $adapter->shouldReceive('getRates')->once()->andReturn(collect([

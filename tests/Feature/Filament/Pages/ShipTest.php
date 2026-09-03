@@ -1,6 +1,6 @@
 <?php
 
-use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\DirectCarrierAdapter;
 use App\Contracts\PackageShippingWorkflow;
 use App\DataTransferObjects\PackageShipping\PackageAutoShippingRequest;
 use App\DataTransferObjects\PackageShipping\PackageShippingOptions;
@@ -60,7 +60,7 @@ function createShippablePackage(): Package
 
 function registerMockAdapter(ShipResponse $response): void
 {
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('getCarrierName')->andReturn('USPS');
     $adapter->shouldReceive('isConfigured')->andReturn(true);
     $adapter->shouldReceive('prepareRateRequest')->andReturnNull();

@@ -3,6 +3,8 @@
 namespace App\Services\Carriers;
 
 use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\CarrierPolicy;
+use App\Contracts\DirectCarrierAdapter;
 use InvalidArgumentException;
 
 class CarrierRegistry
@@ -44,6 +46,54 @@ class CarrierRegistry
         }
 
         return $this->instances[$carrierName];
+    }
+
+    /**
+     * The carrier-policy view of a registered adapter, or null when the name is
+     * unknown or belongs to something that is not a carrier.
+     *
+     * Shopify is registered here for the offers it sells and answers nothing
+     * about carriers, so callers asking a carrier question — can this be
+     * manifested? what will it insure? — get null rather than a no-op.
+     */
+    public function policyFor(?string $carrierName): ?CarrierPolicy
+    {
+        $adapter = $this->adapterOrNull($carrierName);
+
+        return $adapter instanceof CarrierPolicy ? $adapter : null;
+    }
+
+    /**
+     * A registered adapter that is also the carrier itself, so it can void and
+     * track the labels it sold us. Null for an unknown name or a resale channel.
+     */
+    public function directAdapterFor(?string $carrierName): ?DirectCarrierAdapter
+    {
+        $adapter = $this->adapterOrNull($carrierName);
+
+        return $adapter instanceof DirectCarrierAdapter ? $adapter : null;
+    }
+
+    /**
+     * Same, but for the paths where no carrier is a broken package rather than
+     * a recoverable answer — voiding a directly-bought label has nowhere else to
+     * go.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function directAdapterOrFail(string $carrierName): DirectCarrierAdapter
+    {
+        return $this->directAdapterFor($carrierName)
+            ?? throw new InvalidArgumentException("Unknown carrier: {$carrierName}");
+    }
+
+    private function adapterOrNull(?string $carrierName): ?CarrierAdapterInterface
+    {
+        if (! $carrierName || ! $this->has($carrierName)) {
+            return null;
+        }
+
+        return $this->get($carrierName);
     }
 
     /**

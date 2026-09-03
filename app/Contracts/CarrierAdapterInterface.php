@@ -2,43 +2,63 @@
 
 namespace App\Contracts;
 
-use App\DataTransferObjects\Shipping\CancelResponse;
-use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
 use App\DataTransferObjects\Shipping\ShipResponse;
-use App\DataTransferObjects\Tracking\TrackShipmentResponse;
 use App\Enums\ServiceCapability;
 use App\Models\Package;
 use Illuminate\Support\Collection;
-use Saloon\Http\Response;
 
+/**
+ * What can put an offer in front of a packer and sell it.
+ *
+ * Reduced by ADR-0002 decision 7 to just that. Voiding, tracking and manifest
+ * eligibility moved to {@see PostageSourceOperations}; what a carrier is and
+ * will carry moved to {@see CarrierPolicy}. A direct carrier is all three at
+ * once — see {@see DirectCarrierAdapter} — but Shopify Shipping is only this
+ * one, and used to have to answer the rest with no-ops.
+ *
+ * `CarrierRegistry` still keys this by carrier name, which is right for quoting
+ * and buying and wrong for everything else (decision 6).
+ */
 interface CarrierAdapterInterface
 {
     /**
-     * Get the carrier name (e.g., 'USPS', 'FedEx', 'UPS').
+     * The name this offer is filed under in `CarrierRegistry`.
      */
     public function getCarrierName(): string;
 
     /**
-     * Return this carrier's capability for a given special service code.
-     *
-     * - Supported: adapter sends it to the carrier API
-     * - Prohibited: carrier policy/legal restriction; carrier is excluded from rates
-     * - NotImplemented: not coded yet; service is silently skipped
+     * Whether this adapter is configured well enough to be asked for offers.
      */
-    public function serviceCapability(string $serviceCode): ServiceCapability;
+    public function isConfigured(): bool;
 
     /**
-     * Maximum declared value this carrier accepts per package, or null when
-     * unlimited/not applicable. Rate shopping excludes the carrier (visibly)
-     * when the package's declared value exceeds this — never clamps silently.
+     * Whether an offer from here can honour a special service code.
+     *
+     * The offer seam, not carrier policy (ADR-0002 decision 8). A direct carrier
+     * consults {@see CarrierPolicy::serviceCapability()} and nothing else
+     * changes. A resale channel answers for itself: Shopify picks the carrier
+     * and the rate after purchase, so it can guarantee nothing and reports
+     * {@see ServiceCapability::Unguaranteed} — excluded, visibly, whenever the
+     * shipment hard-requires the service, and skipped when it is only a default.
      */
-    public function declaredValueCap(): ?float;
+    public function offerCapability(string $serviceCode): ServiceCapability;
+
+    /**
+     * Maximum declared value an offer from here can carry, or null when
+     * unlimited/not applicable. Rate shopping excludes the offer (visibly) when
+     * the package's declared value exceeds this — never clamps silently.
+     */
+    public function offerDeclaredValueCap(): ?float;
 
     /**
      * Get shipping rates for the given request (synchronous).
+     *
+     * The only quoting method every offer source has. One with a rate API
+     * implements {@see AsyncRateQuoting} as well and is normally quoted through
+     * that instead, off the packer's critical path.
      *
      * @param  array<string>  $serviceCodes  Filter to these service codes only
      * @return Collection<int, RateResponse>
@@ -46,57 +66,9 @@ interface CarrierAdapterInterface
     public function getRates(RateRequest $request, array $serviceCodes): Collection;
 
     /**
-     * Prepare a rate API request for async sending.
-     *
-     * Returns a PreparedRateRequest containing a PendingRequest ready to send,
-     * or null if no API call is needed (e.g., mock rates, not configured).
-     *
-     * @param  array<string>  $serviceCodes
-     */
-    public function prepareRateRequest(RateRequest $request, array $serviceCodes): ?PreparedRateRequest;
-
-    /**
-     * Parse a rate API response into rate options.
-     *
-     * @param  array<string>  $serviceCodes
-     * @return Collection<int, RateResponse>
-     */
-    public function parseRateResponse(Response $response, RateRequest $request, array $serviceCodes): Collection;
-
-    /**
-     * Create a shipment and return the result with tracking/label info.
+     * Buy the label and return the result with tracking/label info.
      */
     public function createShipment(ShipRequest $request): ShipResponse;
-
-    /**
-     * Check if this carrier adapter is properly configured.
-     */
-    public function isConfigured(): bool;
-
-    /**
-     * Cancel/void a shipment label.
-     */
-    public function cancelShipment(string $trackingNumber, Package $package): CancelResponse;
-
-    /**
-     * Check if this carrier supports tracking.
-     */
-    public function supportsTracking(): bool;
-
-    /**
-     * Fetch the latest tracking data for a package.
-     */
-    public function trackShipment(Package $package): TrackShipmentResponse;
-
-    /**
-     * Check if this carrier supports multi-package shipments.
-     */
-    public function supportsMultiPackage(): bool;
-
-    /**
-     * Check if this carrier supports end-of-day manifests (scan forms).
-     */
-    public function supportsManifest(): bool;
 
     /**
      * Resolve a rule-pre-selected rate into a fully-qualified rate with metadata.

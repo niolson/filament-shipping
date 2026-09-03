@@ -1,6 +1,6 @@
 <?php
 
-use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\DirectCarrierAdapter;
 use App\Contracts\PackageLabelWorkflow;
 use App\DataTransferObjects\Shipping\CancelResponse;
 use App\Enums\AuditAction;
@@ -28,7 +28,7 @@ it('voids a shipped package label and clears shipping data', function (): void {
         'label_data' => 'base64-label',
     ]);
 
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('cancelShipment')
         ->once()
         ->with('9400111899223456789012', Mockery::on(fn (Package $argument): bool => $argument->is($package)))
@@ -51,7 +51,7 @@ it('returns a failure result when carrier label voiding fails', function (): voi
         'tracking_number' => '9400111899223456789012',
     ]);
 
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('cancelShipment')
         ->once()
         ->andReturn(CancelResponse::failure('Already voided.'));
@@ -96,7 +96,7 @@ it('reports a state change when voiding hits a runtime exception', function (): 
         'tracking_number' => '9400111899223456789012',
     ]);
 
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('cancelShipment')
         ->once()
         ->andThrow(new RuntimeException('Package was modified by another user.'));
@@ -116,7 +116,7 @@ it('reports a carrier error when voiding hits a request exception', function ():
         'tracking_number' => '9400111899223456789012',
     ]);
 
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('cancelShipment')
         ->once()
         ->andThrow(new RequestTimeOutException(Mockery::mock(Response::class), 'timed out'));
@@ -135,7 +135,7 @@ it('reports a generic error when voiding hits an unexpected exception', function
         'tracking_number' => '9400111899223456789012',
     ]);
 
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('cancelShipment')
         ->once()
         ->andThrow(new Exception('boom'));
@@ -260,7 +260,7 @@ it('clears the printed timestamp when a label is voided', function (): void {
         'label_printed_at' => now(),
     ]);
 
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('cancelShipment')
         ->once()
         ->andReturn(CancelResponse::success('Label voided successfully.'));

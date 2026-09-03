@@ -2,12 +2,11 @@
 
 namespace App\Services\PostageSources;
 
-use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\PostageSourceOperations;
 use App\DataTransferObjects\Shipping\CancelResponse;
 use App\DataTransferObjects\Tracking\TrackShipmentResponse;
 use App\Enums\PostageSource;
 use App\Models\Package;
-use App\Services\Carriers\CarrierRegistry;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 
 /**
@@ -20,6 +19,12 @@ use App\Services\ShipmentImport\Sources\ShopifySource;
  * bought it. Voiding, manifesting and tracking follow the postage source
  * instead.
  *
+ * Resolution is the whole job. Every method below picks one
+ * {@see PostageSourceOperations} from the `postage_source` discriminator and
+ * asks it — there is no per-operation branching left, and adding a source means
+ * adding an implementation and an arm here, not a case in three `match`
+ * expressions.
+ *
  * Tracking is **not** a fallback chain. When the postage source cannot answer,
  * that is the answer — trying the carrier next would be a request we hold no
  * entitlement to make.
@@ -27,8 +32,9 @@ use App\Services\ShipmentImport\Sources\ShopifySource;
 class PostageSourceDispatcher
 {
     public function __construct(
-        private readonly CarrierRegistry $carrierRegistry,
+        private readonly CarrierAccountPostageSource $carrierAccount,
         private readonly ShopifyPostageSource $shopify,
+        private readonly UnrecognizedPostageSource $unrecognized,
     ) {}
 
     /**
@@ -36,34 +42,12 @@ class PostageSourceDispatcher
      */
     public function voidLabel(Package $package): CancelResponse
     {
-        if ($package->postage_source === PostageSource::PostageDataSource) {
-            return $this->isShopify($package)
-                ? $this->shopify->voidLabel($package)
-                : CancelResponse::failure('This label was bought through a sales channel PolyBag cannot void through.');
-        }
-
-        return $this->carrierRegistry
-            ->get((string) $package->carrier)
-            ->cancelShipment((string) $package->tracking_number, $package);
+        return $this->resolve($package)->voidLabel($package);
     }
 
     public function trackShipment(Package $package): TrackShipmentResponse
     {
-        if ($package->postage_source === PostageSource::PostageDataSource) {
-            return $this->isShopify($package)
-                ? $this->shopify->trackShipment($package)
-                : TrackShipmentResponse::unsupported('Tracking is not supported for this postage source.');
-        }
-
-        $adapter = $this->carrierAdapter($package);
-
-        if (! $adapter) {
-            return TrackShipmentResponse::failure("Unknown carrier: {$package->carrier}");
-        }
-
-        return $adapter->supportsTracking()
-            ? $adapter->trackShipment($package)
-            : TrackShipmentResponse::unsupported();
+        return $this->resolve($package)->trackShipment($package);
     }
 
     /**
@@ -71,30 +55,28 @@ class PostageSourceDispatcher
      *
      * Postage source first: a SCAN form is a claim that we tendered these
      * parcels on our own account, which is false for channel-bought postage
-     * whatever carrier is carrying it.
+     * whatever carrier is carrying it. The carrier-level question — does this
+     * carrier manifest at all? — is `CarrierPolicy::supportsCarrierManifest()`,
+     * and only the direct arm goes on to ask it.
      */
-    public function supportsManifest(Package $package): bool
+    public function supportsPackageManifest(Package $package): bool
     {
-        if ($package->postage_source !== PostageSource::CarrierAccount) {
-            return false;
-        }
-
-        return $this->carrierAdapter($package)?->supportsManifest() ?? false;
+        return $this->resolve($package)->supportsPackageManifest($package);
     }
 
-    private function carrierAdapter(Package $package): ?CarrierAdapterInterface
+    /**
+     * The one place the discriminator is read.
+     */
+    private function resolve(Package $package): PostageSourceOperations
     {
-        if (! $package->carrier || ! $this->carrierRegistry->has($package->carrier)) {
-            return null;
+        if ($package->postage_source !== PostageSource::PostageDataSource) {
+            return $this->carrierAccount;
         }
 
-        return $this->carrierRegistry->get($package->carrier);
-    }
-
-    private function isShopify(Package $package): bool
-    {
         $package->loadMissing('postageDataSource');
 
-        return $package->postageDataSource?->source_type === ShopifySource::class;
+        return $package->postageDataSource?->source_type === ShopifySource::class
+            ? $this->shopify
+            : $this->unrecognized;
     }
 }
