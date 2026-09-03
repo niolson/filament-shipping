@@ -3,27 +3,13 @@
 namespace App\Services;
 
 use App\Models\Carrier;
-use App\Models\CarrierAlias;
 use App\Models\Location;
-use App\Services\Carriers\ShopifyAdapter;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 class ShipDateService
 {
     private const DEFAULT_PICKUP_DAYS = [1, 2, 3, 4, 5]; // Mon-Fri
-
-    /**
-     * Interim cutoff for postage bought where the carrier is not known until
-     * after purchase. Deliberately a fixed hour and deliberately not derived
-     * from the carriers' own cutoffs: ADR-0002 decision 3 calls for a
-     * conservative source-level policy, and choosing between the earliest cutoff
-     * among candidate carriers, a fixed hour, and an operator-controlled setting
-     * needs a judgment about which carriers Shopify can actually pick. Fixed
-     * here so that adding a carrier cutoff cannot quietly move Shopify's ship
-     * dates before that judgment is made.
-     */
-    private const BLIND_POSTAGE_INTERIM_CUTOFF_HOUR = 20;
 
     public function getShipDate(string $carrierName, ?int $locationId = null): CarbonImmutable
     {
@@ -41,7 +27,11 @@ class ShipDateService
             return $this->getNextPickupDay($pickupDays, $today);
         }
 
-        $cutoffHour = $this->cutoffHourFor($carrierName, $carrier);
+        // The cutoff is a property of the carrier row, so it survives an operator
+        // renaming that carrier: the normalized identity carries the policy, not
+        // the display name it happens to have today. A carrier that normalizes to
+        // nothing, or one with no cutoff configured, simply has no cutoff.
+        $cutoffHour = $carrier?->pickup_cutoff_hour;
 
         if ($cutoffHour !== null && $now->hour >= $cutoffHour) {
             return $this->getNextPickupDay($pickupDays, $today);
@@ -141,39 +131,6 @@ class ShipDateService
     private function normalize(string $carrierName): ?Carrier
     {
         return app(CarrierNormalizer::class)->resolve($carrierName);
-    }
-
-    /**
-     * The local hour after which a parcel misses the day's pickup, or null when
-     * the carrier imposes none.
-     *
-     * The cutoff is a property of the carrier row itself, so it survives an
-     * operator renaming that carrier: the normalized identity is what carries
-     * the policy, not the display name it happens to have today.
-     */
-    private function cutoffHourFor(string $rawCarrierName, ?Carrier $carrier): ?int
-    {
-        // Shopify Shipping cannot take a carrier-derived cutoff at all:
-        // `shippingDatetime` goes out in the purchase mutation, before Shopify
-        // reveals which carrier it picked. Give it an explicit interim hour
-        // rather than letting a non-carrier fall through to no cutoff.
-        if ($this->isBlindPostageSource($rawCarrierName, $carrier)) {
-            return self::BLIND_POSTAGE_INTERIM_CUTOFF_HOUR;
-        }
-
-        return $carrier?->pickup_cutoff_hour;
-    }
-
-    /**
-     * Whether the name identifies postage bought where the carrier is not known
-     * until after purchase, rather than a physical carrier.
-     */
-    private function isBlindPostageSource(string $rawCarrierName, ?Carrier $carrier): bool
-    {
-        $shopifyKey = CarrierAlias::lookupKey(ShopifyAdapter::CARRIER_NAME);
-
-        return CarrierAlias::lookupKey($rawCarrierName) === $shopifyKey
-            || ($carrier !== null && CarrierAlias::lookupKey($carrier->name) === $shopifyKey);
     }
 
     /**

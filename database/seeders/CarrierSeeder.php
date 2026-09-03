@@ -113,7 +113,15 @@ class CarrierSeeder extends Seeder
         // has no API to enumerate them, so every explicit pair has to be
         // confirmed against a real purchase before it is worth cataloguing.
         // Add confirmed ones under Carrier Services.
-        $shopify = Carrier::firstOrCreate(['name' => ShopifyAdapter::CARRIER_NAME]);
+        // 8 PM, matching USPS. Shopify does not reveal which carrier it picked
+        // until after purchase, and `shippingDatetime` goes out *in* the purchase
+        // mutation, so no carrier-derived cutoff can apply — see ADR-0002. The
+        // cutoff lives on the row like every other carrier's rather than as a
+        // special case in ShipDateService.
+        $shopify = Carrier::firstOrCreate(
+            ['name' => ShopifyAdapter::CARRIER_NAME],
+            ['pickup_cutoff_hour' => 20],
+        );
         $shopify->carrierServices()->firstOrCreate(
             ['service_code' => ShopifyAdapter::AUTO_SERVICE_CODE],
             [
