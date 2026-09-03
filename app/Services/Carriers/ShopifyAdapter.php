@@ -3,39 +3,40 @@
 namespace App\Services\Carriers;
 
 use App\Contracts\CarrierAdapterInterface;
-use App\DataTransferObjects\Shipping\CancelResponse;
-use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
 use App\DataTransferObjects\Shipping\ShipResponse;
-use App\DataTransferObjects\Tracking\TrackShipmentResponse;
 use App\Enums\PostageSource;
+use App\Enums\ServiceCapability;
 use App\Exceptions\Carriers\ShopifyLabelPurchaseException;
 use App\Models\CarrierService;
 use App\Models\DataSource;
 use App\Models\Package;
-use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
-use App\Services\PostageSources\ShopifyPostageSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use App\Services\ShopifyShippingLabelService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
-use Saloon\Http\Response;
 
 /**
  * Buys postage through Shopify Shipping rather than through a carrier account
  * of our own — the way to reach USPS Connect eCommerce rates without an NSA.
  *
- * This carrier is unlike the others by necessity. Shopify's Admin API has no
- * rate-quote operation, exposes no price on a purchased label, and offers no
- * way to void one, so:
+ * Shopify is not a carrier, and since ADR-0002 decision 7 this no longer has to
+ * pretend otherwise: it implements the offer seam only. Voiding, tracking and
+ * manifest eligibility follow the postage source and live on
+ * `ShopifyPostageSource`; carrier policy belongs to whichever carrier Shopify
+ * picks, which is not known until the purchase comes back.
+ *
+ * What remains is unlike the other adapters by necessity. Shopify's Admin API
+ * has no rate-quote operation and exposes no price on a purchased label, so:
  *
  * - rates are advertised, not quoted (`priceUnknown`), and the cost recorded on
  *   the package is left null rather than invented;
+ * - there is no rate API at all, so this implements none of `AsyncRateQuoting`
+ *   and is quoted synchronously through `getRates()`;
  * - only shipments imported from an active Shopify data source are eligible,
- *   since a purchase is keyed to a Shopify fulfillment order;
- * - voiding has to happen in the Shopify admin.
+ *   since a purchase is keyed to a Shopify fulfillment order.
  *
  * Service codes are `carrier:service` pairs for Shopify's
  * `preferredRateSelection` (`usps:usps_ground_advantage`), or the bare code
@@ -43,8 +44,6 @@ use Saloon\Http\Response;
  */
 class ShopifyAdapter implements CarrierAdapterInterface
 {
-    use HasDefaultServiceCapabilities;
-
     public const CARRIER_NAME = 'Shopify';
 
     /** Service code that leaves rate selection to Shopify. */
@@ -69,9 +68,28 @@ class ShopifyAdapter implements CarrierAdapterInterface
     }
 
     /**
-     * Shopify has no rate API, so there is never a request to send.
+     * Nothing bought here can be promised a special service.
+     *
+     * Not modesty about what USPS or UPS would do — the point is that Shopify
+     * chooses the carrier and the rate itself, after the purchase, so any
+     * promise made at quote time is one we have no way to keep. ADR-0002
+     * decision 8 puts this judgement on the offer for exactly that reason:
+     * asked as carrier policy it has no honest answer, because there is no
+     * carrier yet.
+     *
+     * A shipment that hard-requires the service drops this offer, visibly. One
+     * that merely prefers it keeps the offer and goes without.
      */
-    public function prepareRateRequest(RateRequest $request, array $serviceCodes): ?PreparedRateRequest
+    public function offerCapability(string $serviceCode): ServiceCapability
+    {
+        return ServiceCapability::Unguaranteed;
+    }
+
+    /**
+     * No cap to report for the same reason: the carrier that would insure the
+     * parcel is not known until Shopify has bought the label.
+     */
+    public function offerDeclaredValueCap(): ?float
     {
         return null;
     }
@@ -111,15 +129,6 @@ class ShopifyAdapter implements CarrierAdapterInterface
                 priceUnknown: true,
             ))
             ->values();
-    }
-
-    /**
-     * @param  array<string>  $serviceCodes
-     * @return Collection<int, RateResponse>
-     */
-    public function parseRateResponse(Response $response, RateRequest $request, array $serviceCodes): Collection
-    {
-        return collect();
     }
 
     public function createShipment(ShipRequest $request): ShipResponse
@@ -199,34 +208,6 @@ class ShopifyAdapter implements CarrierAdapterInterface
         [$carrierCode, $service] = explode(':', $serviceCode, 2);
 
         return filled($carrierCode) && filled($service) ? [$carrierCode, $service] : [null, null];
-    }
-
-    public function cancelShipment(string $trackingNumber, Package $package): CancelResponse
-    {
-        return CancelResponse::failure(ShopifyPostageSource::VOID_MESSAGE);
-    }
-
-    public function supportsTracking(): bool
-    {
-        return false;
-    }
-
-    public function trackShipment(Package $package): TrackShipmentResponse
-    {
-        return TrackShipmentResponse::unsupported();
-    }
-
-    /**
-     * A Shopify purchase covers one fulfillment order with one label.
-     */
-    public function supportsMultiPackage(): bool
-    {
-        return false;
-    }
-
-    public function supportsManifest(): bool
-    {
-        return false;
     }
 
     /**

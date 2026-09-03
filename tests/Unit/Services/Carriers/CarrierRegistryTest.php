@@ -1,6 +1,6 @@
 <?php
 
-use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\DirectCarrierAdapter;
 use App\DataTransferObjects\Shipping\CancelResponse;
 use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
@@ -11,6 +11,7 @@ use App\DataTransferObjects\Tracking\TrackShipmentResponse;
 use App\Enums\ServiceCapability;
 use App\Models\Package;
 use App\Services\Carriers\CarrierRegistry;
+use App\Services\Carriers\Concerns\ConsultsCarrierPolicyForOffers;
 use App\Services\Carriers\FedexAdapter;
 use App\Services\Carriers\UpsAdapter;
 use App\Services\Carriers\UspsAdapter;
@@ -25,7 +26,7 @@ it('returns USPS adapter for USPS carrier', function (): void {
     $adapter = app(CarrierRegistry::class)->get('USPS');
 
     expect($adapter)->toBeInstanceOf(UspsAdapter::class)
-        ->and($adapter)->toBeInstanceOf(CarrierAdapterInterface::class)
+        ->and($adapter)->toBeInstanceOf(DirectCarrierAdapter::class)
         ->and($adapter->getCarrierName())->toBe('USPS');
 });
 
@@ -33,7 +34,7 @@ it('returns FedEx adapter for FedEx carrier', function (): void {
     $adapter = app(CarrierRegistry::class)->get('FedEx');
 
     expect($adapter)->toBeInstanceOf(FedexAdapter::class)
-        ->and($adapter)->toBeInstanceOf(CarrierAdapterInterface::class)
+        ->and($adapter)->toBeInstanceOf(DirectCarrierAdapter::class)
         ->and($adapter->getCarrierName())->toBe('FedEx');
 });
 
@@ -41,7 +42,7 @@ it('returns UPS adapter for UPS carrier', function (): void {
     $adapter = app(CarrierRegistry::class)->get('UPS');
 
     expect($adapter)->toBeInstanceOf(UpsAdapter::class)
-        ->and($adapter)->toBeInstanceOf(CarrierAdapterInterface::class)
+        ->and($adapter)->toBeInstanceOf(DirectCarrierAdapter::class)
         ->and($adapter->getCarrierName())->toBe('UPS');
 });
 
@@ -73,8 +74,10 @@ it('caches adapter instances', function (): void {
 });
 
 it('allows registering custom adapters', function (): void {
-    $mockAdapter = new class implements CarrierAdapterInterface
+    $mockAdapter = new class implements DirectCarrierAdapter
     {
+        use ConsultsCarrierPolicyForOffers;
+
         public function getCarrierName(): string
         {
             return 'CustomCarrier';
@@ -125,7 +128,7 @@ it('allows registering custom adapters', function (): void {
             return false;
         }
 
-        public function supportsManifest(): bool
+        public function supportsCarrierManifest(): bool
         {
             return false;
         }

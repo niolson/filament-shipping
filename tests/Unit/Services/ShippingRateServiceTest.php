@@ -1,8 +1,15 @@
 <?php
 
+use App\Contracts\AsyncRateQuoting;
 use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\DirectCarrierAdapter;
 use App\DataTransferObjects\Shipping\PackageData;
+use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
+use App\DataTransferObjects\Shipping\RateResponse;
+use App\DataTransferObjects\Shipping\ShipRequest;
+use App\DataTransferObjects\Shipping\ShipResponse;
+use App\Enums\ServiceCapability;
 use App\Exceptions\Carriers\CarrierRateFetchException;
 use App\Exceptions\MissingDeclaredValueException;
 use App\Exceptions\NoActiveCarrierServicesException;
@@ -23,9 +30,18 @@ use App\Services\Carriers\CarrierRegistry;
 use App\Services\Carriers\UspsAdapter;
 use App\Services\SettingsService;
 use App\Services\ShippingRateService;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Promise\PromiseInterface;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Saloon\Enums\Method;
+use Saloon\Http\Connector;
 use Saloon\Http\Faking\MockResponse;
+use Saloon\Http\PendingRequest;
+use Saloon\Http\Request;
+use Saloon\Http\Response;
+use Saloon\Http\Senders\GuzzleSender;
 use Saloon\Laravel\Facades\Saloon;
 
 beforeEach(function (): void {
@@ -721,7 +737,7 @@ it('continues when carrier rate fetch exception has no previous exception', func
     app(CarrierRegistry::class)->reset();
 
     $upsCarrier = Carrier::factory()->ups()->create();
-    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter = Mockery::mock(DirectCarrierAdapter::class);
     $adapter->shouldReceive('isConfigured')->once()->andReturnTrue();
     $adapter->shouldReceive('prepareRateRequest')->once()->andReturnNull();
     $adapter->shouldReceive('getRates')->once()->andThrow(new CarrierRateFetchException('UPS'));
@@ -1348,4 +1364,228 @@ it('ignores product compliance flags while their special service is inactive', f
     expect($rates)->toHaveCount(1)
         ->and($rates[0]->carrier)->toBe('USPS')
         ->and($service->getExclusions())->toBeEmpty();
+});
+
+/**
+ * ADR-0002 decision 8: hard-required special services are judged at the offer,
+ * not purely as carrier policy. Shopify is the case that forces the move — it
+ * picks the carrier and the rate after the purchase, so there is no carrier to
+ * ask at quote time and no promise it can keep.
+ */
+it('excludes a Shopify offer, visibly, when the shipment hard-requires a special service', function (): void {
+    createShopifyDataSource([], ['oauth_access_token' => 'shpat_test_token']);
+
+    $signature = createScopedSpecialService('signature_required', 'Signature Required');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($signature->id, ['mode' => 'required']);
+
+    $shopifyCarrier = Carrier::factory()->shopify()->create();
+    $shopifyService = CarrierService::factory()->for($shopifyCarrier)->create([
+        'name' => 'USPS Ground Advantage',
+        'service_code' => 'usps:usps_ground_advantage',
+    ]);
+    $shippingMethod->carrierServices()->attach($shopifyService->id);
+
+    $shipment = Shipment::factory()->for($shippingMethod)->create([
+        'postal_code' => '90210',
+        'metadata' => ['shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/12345'],
+    ]);
+    $package = Package::factory()->for($shipment)->create();
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    // "Does not support" would send an operator looking for a carrier setting to
+    // change. The reason has to say that nobody has picked a carrier yet.
+    expect($rates)->toBeEmpty()
+        ->and($service->getExclusions())->toHaveCount(1)
+        ->and($service->getExclusions()[0]['carrier'])->toBe('Shopify')
+        ->and($service->getExclusions()[0]['reason'])->toContain('cannot guarantee Signature Required')
+        ->and($service->getExclusions()[0]['reason'])->toContain('after the label is bought');
+});
+
+it('keeps a Shopify offer when the special service is only a default', function (): void {
+    $source = createShopifyDataSource([], ['oauth_access_token' => 'shpat_test_token']);
+
+    $signature = createScopedSpecialService('signature_required', 'Signature Required');
+
+    $shippingMethod = ShippingMethod::factory()->create();
+    $shippingMethod->specialServices()->attach($signature->id, ['mode' => 'default']);
+
+    $shopifyCarrier = Carrier::factory()->shopify()->create();
+    $shopifyService = CarrierService::factory()->for($shopifyCarrier)->create([
+        'name' => 'USPS Ground Advantage',
+        'service_code' => 'usps:usps_ground_advantage',
+    ]);
+    $shippingMethod->carrierServices()->attach($shopifyService->id);
+
+    // Shopify only offers on a shipment it can buy against: its own data source
+    // plus the fulfillment order the purchase is keyed to.
+    $shipment = Shipment::factory()->for($shippingMethod)->create([
+        'postal_code' => '90210',
+        'data_source_id' => $source->id,
+        'metadata' => ['shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/12345'],
+    ]);
+    $package = Package::factory()->for($shipment)->create();
+
+    $service = app(ShippingRateService::class);
+    $rates = $service->getShippingRates($package->id);
+
+    // A default is a preference. An offer that cannot express it goes without,
+    // the same as a code we simply have not wired up.
+    expect($rates)->toHaveCount(1)
+        ->and($rates[0]->carrier)->toBe('Shopify')
+        ->and($rates[0]->priceUnknown)->toBeTrue()
+        ->and($service->getExclusions())->toBeEmpty();
+});
+
+it('answers the offer seam from carrier policy for a carrier we buy from directly', function (): void {
+    // The direct-carrier view is the one that holds carrier policy at all —
+    // ->get() hands back the offer seam, which by design cannot answer this.
+    $adapter = app(CarrierRegistry::class)->directAdapterFor('USPS');
+
+    expect($adapter)->not->toBeNull()
+        ->and($adapter->offerCapability('saturday_delivery'))
+        ->toBe($adapter->serviceCapability('saturday_delivery'))
+        ->and($adapter->offerDeclaredValueCap())->toBe($adapter->declaredValueCap());
+});
+
+/**
+ * A postage source with a real rate API that is not a carrier — the shape
+ * Amazon Buy Shipping will take. It quotes asynchronously like USPS or FedEx,
+ * but answers nothing about carriers, so it implements `AsyncRateQuoting` and
+ * the offer seam and deliberately not `DirectCarrierAdapter`.
+ *
+ * It exists to hold the concurrent path open for that shape. Gating quoting on
+ * `DirectCarrierAdapter` — as an earlier cut of the split did — would send this
+ * source down the synchronous branch and silently drop the response nobody
+ * parsed, which is invisible in a suite where every async adapter is a carrier.
+ */
+class AsyncOfferSourceStub implements AsyncRateQuoting, CarrierAdapterInterface
+{
+    public function __construct(
+        private readonly string $carrierName,
+        private readonly bool $configured = true,
+    ) {}
+
+    public function getCarrierName(): string
+    {
+        return $this->carrierName;
+    }
+
+    public function isConfigured(): bool
+    {
+        return $this->configured;
+    }
+
+    public function offerCapability(string $serviceCode): ServiceCapability
+    {
+        return ServiceCapability::Supported;
+    }
+
+    public function offerDeclaredValueCap(): ?float
+    {
+        return null;
+    }
+
+    /** The marker for the synchronous branch: this rate means the async path was skipped. */
+    public function getRates(RateRequest $request, array $serviceCodes): Collection
+    {
+        return collect([new RateResponse(
+            carrier: $this->carrierName,
+            serviceCode: 'SYNC_FALLBACK',
+            serviceName: 'Synchronous fallback',
+            price: 1.00,
+        )]);
+    }
+
+    public function prepareRateRequest(RateRequest $request, array $serviceCodes): ?PreparedRateRequest
+    {
+        return new PreparedRateRequest(
+            (new StubRateConnector)->createPendingRequest(new StubRateRequest),
+            $this->carrierName,
+        );
+    }
+
+    /** The marker for the async path: only reachable by parsing a sent response. */
+    public function parseRateResponse(Response $response, RateRequest $request, array $serviceCodes): Collection
+    {
+        return collect([new RateResponse(
+            carrier: $this->carrierName,
+            serviceCode: 'ASYNC_PARSED',
+            serviceName: 'Parsed from the concurrent send',
+            price: (float) ($response->json('price') ?? 0),
+        )]);
+    }
+
+    public function createShipment(ShipRequest $request): ShipResponse
+    {
+        return ShipResponse::failure('Not part of this test');
+    }
+
+    public function resolvePreSelectedRate(RateResponse $rate, Package $package): RateResponse
+    {
+        return $rate;
+    }
+}
+
+class StubRateConnector extends Connector
+{
+    public function resolveBaseUrl(): string
+    {
+        return 'https://rates.example.test';
+    }
+}
+
+class StubRateRequest extends Request
+{
+    protected Method $method = Method::GET;
+
+    public function resolveEndpoint(): string
+    {
+        return '/rates';
+    }
+}
+
+/**
+ * Answers every concurrent send with the same canned body. Saloon's own faking
+ * cannot be used here: `fetchRatesConcurrently()` treats a faked request as a
+ * reason to fall back to synchronous sends, which is the branch under test.
+ */
+class CannedGuzzleSender extends GuzzleSender
+{
+    public function sendAsync(PendingRequest $pendingRequest): PromiseInterface
+    {
+        return Create::promiseFor(Response::fromPsrResponse(
+            new Psr7Response(200, ['Content-Type' => 'application/json'], json_encode(['price' => 12.75])),
+            $pendingRequest,
+            $pendingRequest->createPsrRequest(),
+        ));
+    }
+}
+
+it('parses concurrent rate responses from an async source that is not a carrier', function (): void {
+    $registry = app(CarrierRegistry::class);
+
+    // Two configured sources, so the service takes the concurrent path rather
+    // than the single-request shortcut. Neither is a DirectCarrierAdapter.
+    $registry->registerInstance('USPS', new AsyncOfferSourceStub('USPS'));
+    $registry->registerInstance('FedEx', new AsyncOfferSourceStub('FedEx'));
+    $registry->registerInstance('UPS', new AsyncOfferSourceStub('UPS', configured: false));
+    $registry->registerInstance('Shopify', new AsyncOfferSourceStub('Shopify', configured: false));
+
+    app()->instance(GuzzleSender::class, new CannedGuzzleSender);
+
+    $shipment = Shipment::factory()->create(['shipping_method_id' => null, 'postal_code' => '90210']);
+    $package = Package::factory()->for($shipment)->create();
+
+    $rates = app(ShippingRateService::class)->getShippingRates($package->id);
+
+    // Both came back through parseRateResponse. A SYNC_FALLBACK here would mean
+    // the source was refused the async path for not being a carrier.
+    expect($rates)->toHaveCount(2)
+        ->and($rates->pluck('serviceCode')->all())->each->toBe('ASYNC_PARSED')
+        ->and($rates->pluck('carrier')->sort()->values()->all())->toBe(['FedEx', 'USPS'])
+        ->and($rates[0]->price)->toBe(12.75);
 });

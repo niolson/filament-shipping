@@ -2,6 +2,7 @@
 
 namespace App\Services\PostageSources;
 
+use App\Contracts\PostageSourceOperations;
 use App\DataTransferObjects\Shipping\CancelResponse;
 use App\DataTransferObjects\Tracking\TrackingEventData;
 use App\DataTransferObjects\Tracking\TrackShipmentResponse;
@@ -26,7 +27,7 @@ use Illuminate\Support\Str;
  * populated — and that is accepted rather than worked around. The alternative
  * is not a better feed; it is no feed.
  */
-class ShopifyPostageSource
+class ShopifyPostageSource implements PostageSourceOperations
 {
     /**
      * Shopify has no void mutation, so the only way out is the admin. Held here
@@ -78,8 +79,12 @@ class ShopifyPostageSource
     /**
      * Shopify manifests its own postage; a SCAN form we create covers labels we
      * bought, and USPS has never confirmed it would accept somebody else's.
+     *
+     * Answered per package because that is the shape of the question at this
+     * seam, not because the answer could vary — no Shopify-bought parcel is
+     * ever eligible.
      */
-    public function supportsManifest(): bool
+    public function supportsPackageManifest(Package $package): bool
     {
         return false;
     }

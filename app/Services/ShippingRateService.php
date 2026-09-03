@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\AsyncRateQuoting;
 use App\Contracts\CarrierAdapterInterface;
 use App\DataTransferObjects\Shipping\AddressData;
 use App\DataTransferObjects\Shipping\PreparedRateRequest;
@@ -207,18 +208,22 @@ class ShippingRateService
                     ->withShipDate($shipDate)
                     ->withSpecialServiceCodes($task['specialServiceCodes']);
 
-                $prepared = $adapter->prepareRateRequest($carrierRateRequest, $serviceCodes);
+                if ($adapter instanceof AsyncRateQuoting) {
+                    $prepared = $adapter->prepareRateRequest($carrierRateRequest, $serviceCodes);
 
-                if (! $prepared) {
-                    // No API call needed — fall back to synchronous getRates (e.g., mock rates)
-                    $rates = $adapter->getRates($carrierRateRequest, $serviceCodes);
-                    $rateOptions->push(...$rates);
+                    if ($prepared) {
+                        $preparedRequests[$carrierName] = $prepared;
+                        $taskMeta[$carrierName] = ['adapter' => $adapter, 'serviceCodes' => $serviceCodes, 'rateRequest' => $carrierRateRequest];
 
-                    continue;
+                        continue;
+                    }
                 }
 
-                $preparedRequests[$carrierName] = $prepared;
-                $taskMeta[$carrierName] = ['adapter' => $adapter, 'serviceCodes' => $serviceCodes, 'rateRequest' => $carrierRateRequest];
+                // Nothing to send: mock rates, or a source with no rate API that
+                // advertises rather than quotes. Ask it synchronously instead.
+                // Only sources that got this far can reach the parse phase below,
+                // which is why the two halves of AsyncRateQuoting travel together.
+                $rateOptions->push(...$adapter->getRates($carrierRateRequest, $serviceCodes));
             } catch (CarrierRateFetchException $e) {
                 $loggedException = $e->getPrevious() ?? $e;
 
@@ -264,8 +269,11 @@ class ShippingRateService
             return $rateOptions;
         }
 
-        // Phase 2: Send all requests concurrently through a shared Guzzle sender
-        $sharedSender = new GuzzleSender;
+        // Phase 2: Send all requests concurrently through a shared Guzzle sender.
+        // Resolved from the container, like every other collaborator here, so a
+        // test can drive the concurrent path — the fake-response check above
+        // routes anything Saloon has faked down the synchronous branch instead.
+        $sharedSender = app(GuzzleSender::class);
         $promises = [];
 
         foreach ($preparedRequests as $carrierName => $prepared) {
@@ -343,10 +351,17 @@ class ShippingRateService
         $adapter = $registry->has($carrierName) ? $registry->get($carrierName) : null;
 
         foreach ($requiredCodes as $code) {
-            if ($adapter && $adapter->serviceCapability($code) !== ServiceCapability::Supported) {
-                // Prohibited and NotImplemented both exclude: a hard-required
-                // service the carrier can't actually apply must not be skipped.
-                $this->exclusions[$carrierName] = $carrierName.' does not support '.$serviceNames->get($code, $code).'.';
+            $capability = $adapter?->offerCapability($code);
+
+            if ($capability !== null && $capability !== ServiceCapability::Supported) {
+                // Prohibited, Unguaranteed and NotImplemented all exclude: a
+                // hard-required service the offer can't actually apply must not
+                // be skipped.
+                $this->exclusions[$carrierName] = $this->requiredServiceExclusion(
+                    $capability,
+                    $carrierName,
+                    $serviceNames->get($code, $code),
+                );
 
                 return null;
             }
@@ -376,7 +391,7 @@ class ShippingRateService
 
         foreach ($defaultCodes as $code) {
             if ($adapter) {
-                $capability = $adapter->serviceCapability($code);
+                $capability = $adapter->offerCapability($code);
 
                 if ($capability === ServiceCapability::Prohibited) {
                     $this->exclusions[$carrierName] = $carrierName.' does not support '.$serviceNames->get($code, $code).'.';
@@ -384,7 +399,9 @@ class ShippingRateService
                     return null;
                 }
 
-                if ($capability === ServiceCapability::NotImplemented) {
+                // A preference this offer cannot express is dropped, not fatal —
+                // the same treatment as a code we have not wired up.
+                if ($capability === ServiceCapability::NotImplemented || $capability === ServiceCapability::Unguaranteed) {
                     continue;
                 }
             }
@@ -418,6 +435,22 @@ class ShippingRateService
     }
 
     /**
+     * Why a hard-required special service dropped this offer.
+     *
+     * Unguaranteed reads differently on purpose: the carrier behind a Shopify
+     * offer may well support the service, and telling an operator that "Shopify
+     * does not support Signature Required" would send them looking for a
+     * carrier setting to change. The problem is that nobody has picked the
+     * carrier yet.
+     */
+    private function requiredServiceExclusion(ServiceCapability $capability, string $carrierName, string $serviceName): string
+    {
+        return $capability === ServiceCapability::Unguaranteed
+            ? $carrierName.' cannot guarantee '.$serviceName.' — it picks the carrier and service after the label is bought.'
+            : $carrierName.' does not support '.$serviceName.'.';
+    }
+
+    /**
      * Exclusion reason when the package's declared value exceeds the carrier's
      * cap, or null when the code isn't declared_value / no cap applies.
      */
@@ -431,7 +464,7 @@ class ShippingRateService
             return null;
         }
 
-        $cap = $adapter->declaredValueCap();
+        $cap = $adapter->offerDeclaredValueCap();
         $amount = $rateRequest->specialServiceConfig('declared_value')['amount'] ?? null;
 
         if ($cap === null || $amount === null || $amount <= $cap) {

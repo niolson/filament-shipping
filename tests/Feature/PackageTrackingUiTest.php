@@ -1,6 +1,6 @@
 <?php
 
-use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\DirectCarrierAdapter;
 use App\DataTransferObjects\Shipping\CancelResponse;
 use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
@@ -21,6 +21,7 @@ use App\Models\Package;
 use App\Models\Shipment;
 use App\Models\User;
 use App\Services\Carriers\CarrierRegistry;
+use App\Services\Carriers\Concerns\ConsultsCarrierPolicyForOffers;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Testing\TestAction;
 use Illuminate\Support\Collection;
@@ -31,10 +32,12 @@ beforeEach(function (): void {
     $this->actingAs(User::factory()->create(['role' => Role::Admin]));
 });
 
-function trackingAdapter(): CarrierAdapterInterface
+function trackingAdapter(): DirectCarrierAdapter
 {
-    return new class implements CarrierAdapterInterface
+    return new class implements DirectCarrierAdapter
     {
+        use ConsultsCarrierPolicyForOffers;
+
         public function getCarrierName(): string
         {
             return 'FedEx';
@@ -97,7 +100,7 @@ function trackingAdapter(): CarrierAdapterInterface
             return false;
         }
 
-        public function supportsManifest(): bool
+        public function supportsCarrierManifest(): bool
         {
             return false;
         }

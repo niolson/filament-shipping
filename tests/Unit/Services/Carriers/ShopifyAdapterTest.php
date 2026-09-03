@@ -421,21 +421,6 @@ it('refuses to buy again when a bought label can no longer be read', function ()
         ->and($response->errorMessage)->toContain('Check the order in Shopify');
 });
 
-it('sends voids to the Shopify admin, which is the only place they can happen', function (): void {
-    $package = shopifyPackage();
-
-    $result = $this->adapter->cancelShipment('9400111899223197428490', $package);
-
-    expect($result->success)->toBeFalse()
-        ->and($result->message)->toContain('Shopify admin');
-});
-
-it('does not offer tracking, manifests, or multi-package shipments', function (): void {
-    expect($this->adapter->supportsTracking())->toBeFalse()
-        ->and($this->adapter->supportsManifest())->toBeFalse()
-        ->and($this->adapter->supportsMultiPackage())->toBeFalse();
-});
-
 function seedShopifyCarrierServices(): void
 {
     $carrier = Carrier::firstOrCreate(['name' => 'Shopify']);

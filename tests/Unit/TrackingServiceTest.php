@@ -1,6 +1,6 @@
 <?php
 
-use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\DirectCarrierAdapter;
 use App\DataTransferObjects\Shipping\CancelResponse;
 use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
@@ -18,6 +18,7 @@ use App\Models\Package;
 use App\Models\User;
 use App\Notifications\TrackingExceptionDetected;
 use App\Services\Carriers\CarrierRegistry;
+use App\Services\Carriers\Concerns\ConsultsCarrierPolicyForOffers;
 use App\Services\Carriers\FakeCarrierAdapter;
 use App\Services\TrackingService;
 use Carbon\CarbonImmutable;
@@ -34,8 +35,10 @@ it('refreshes a package tracking snapshot and dispatches a status change event',
         'tracking_details' => null,
     ]);
 
-    $adapter = new class implements CarrierAdapterInterface
+    $adapter = new class implements DirectCarrierAdapter
     {
+        use ConsultsCarrierPolicyForOffers;
+
         public function getCarrierName(): string
         {
             return 'FedEx';
@@ -100,7 +103,7 @@ it('refreshes a package tracking snapshot and dispatches a status change event',
             return false;
         }
 
-        public function supportsManifest(): bool
+        public function supportsCarrierManifest(): bool
         {
             return false;
         }
@@ -147,8 +150,10 @@ it('returns unsupported tracking safely without changing status unexpectedly', f
         'tracking_status' => TrackingStatus::PreTransit,
     ]);
 
-    $adapter = new class implements CarrierAdapterInterface
+    $adapter = new class implements DirectCarrierAdapter
     {
+        use ConsultsCarrierPolicyForOffers;
+
         public function getCarrierName(): string
         {
             return 'UPS';
@@ -199,7 +204,7 @@ it('returns unsupported tracking safely without changing status unexpectedly', f
             return false;
         }
 
-        public function supportsManifest(): bool
+        public function supportsCarrierManifest(): bool
         {
             return false;
         }
@@ -244,8 +249,10 @@ it('notifies operational users when a package enters exception or is stuck in pr
         'tracking_details' => [],
     ]);
 
-    $adapter = new class implements CarrierAdapterInterface
+    $adapter = new class implements DirectCarrierAdapter
     {
+        use ConsultsCarrierPolicyForOffers;
+
         public function getCarrierName(): string
         {
             return 'FedEx';
@@ -300,7 +307,7 @@ it('notifies operational users when a package enters exception or is stuck in pr
             return false;
         }
 
-        public function supportsManifest(): bool
+        public function supportsCarrierManifest(): bool
         {
             return false;
         }
