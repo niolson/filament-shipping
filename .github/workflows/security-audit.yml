@@ -1,7 +1,11 @@
 name: Security Audit
 
+# Scoped so a branch with an open pull request does not run this workflow
+# twice. Unfiltered `push` and `pull_request` both fire on such a push, and
+# every job here reported to the PR twice.
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
