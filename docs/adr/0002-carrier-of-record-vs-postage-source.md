@@ -54,6 +54,32 @@ the ship date is fixed by the time `trackingCompany` comes back, `metadata.shopi
 already records what was picked, and an operator who knows the pickup has gone can already
 advance the date with End Shipping Day.
 
+Amended 2026-09-03: a Shopify-bought label is **not** terminally untrackable. Unlike the two
+amendments above, this one rewrites what it supersedes — decision 3 and the entitlement note
+below now describe tracking through the fulfillment, and the sentence they used to carry
+("A Shopify-bought label is **terminally untrackable**") survives only in this paragraph,
+because leaving a wrong instruction in place next to the right one is how a reader ends up
+following the wrong one.
+
+The entitlement note is right that we may never call the USPS Tracking API for a label
+carrying Shopify's MID. It then slid from "we cannot call USPS" to "no tracking data exists",
+which does not follow. Shopify holds the entitlement, pays for it, and reports the result back
+as the merchant's own order data. `Fulfillment.displayStatus` carries the whole delivery
+lifecycle — `CARRIER_PICKED_UP`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`, `ATTEMPTED_DELIVERY`,
+`DELAYED`, `DELIVERED`, `NOT_DELIVERED` — beside `inTransitAt`, `deliveredAt` and
+`estimatedDeliveryAt`, and Shopify populates it itself for every tracking company on its
+supported-carriers list, which covers all four carrier codes it will sell postage from.
+
+We were already reading that field. `ShopifyShippingLabelService::isVoidedInShopify()` selects
+`displayStatus` on the fulfillment it matches by tracking number, then discards every value
+except `LABEL_VOIDED` and `CANCELED`. The tracking answer has been arriving in the void-sync
+response since the integration landed.
+
+Neither the axis nor the prohibition changes: tracking still dispatches on the postage source,
+and there is still no fallback chain — "try the carrier next" remains a request we are not
+entitled to make, whatever Shopify answers. Only the terminal state changes. A Shopify-bought
+label tracks through Shopify, exactly as an Amazon-bought one tracks through Amazon.
+
 ## Context
 
 `packages.carrier` is a denormalized string, not a foreign key to `carriers`. It does two
@@ -145,10 +171,18 @@ invariant like anything else.
   settled in the 2026-09-03 amendment under Status.
 - Tracking → **by postage source, not as a fallback chain.** The entitlement to tracking data
   follows whoever bought the label, not whoever carries the parcel. An Amazon Buy Shipping
-  label tracks through Amazon's `getTracking`. A Shopify-bought label is **terminally
-  untrackable** — not "try the carrier next," since we hold no USPS entitlement for it. Carrier
-  dispatch applies only to direct provenance and to explicitly-marked legacy packages. See the
-  entitlement note.
+  label tracks through Amazon's `getTracking`. A Shopify-bought label tracks through the
+  fulfillment its purchase created — `displayStatus`, `inTransitAt`, `deliveredAt` — matched to
+  the package by tracking number the way the void sync already matches it. There is still no
+  fallback: "try the carrier next" would be a USPS request we are not entitled to make,
+  whatever the source answered. Carrier dispatch applies only to direct provenance and to
+  explicitly-marked legacy packages. See the entitlement note and the 2026-09-03 amendment.
+
+  Source-reported tracking is coarser than a carrier feed, and that is accepted rather than
+  worked around: stage-level statuses with no scan locations, a timeline moving on the
+  source's polling cadence rather than the carrier's, and nothing that maps to
+  `TrackingStatus::Returned`. An unmatched fulfillment is *no answer*, never a status — the
+  same rule that stops it reading as a void.
 
 **4. A selectable rate carries an opaque purchase context, not just a description.** Every
 rate must carry:
@@ -307,6 +341,11 @@ labels are unaffected — our own MID, free, exactly as today.
 This is why tracking dispatches on the postage source rather than the carrier. USPS's own API
 now keys on who bought the label, which is the same distinction this ADR draws, enforced from
 the carrier side. USPS PTR2 tracking semantics are documented separately; this note covers entitlement only.
+
+What this note does **not** establish is that those parcels are untrackable. It answers one
+question — whether we may call the carrier's API for them — and the answer is no. Reading the
+parcel's status from the source that bought the label is untouched by any of the above: that
+is the merchant's own order data, not a carrier feed. See the 2026-09-03 amendment.
 
 ## Migration hazard
 

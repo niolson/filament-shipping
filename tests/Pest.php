@@ -2,13 +2,17 @@
 
 use App\DataTransferObjects\Shipping\PackageData;
 use App\DataTransferObjects\Shipping\RateRequest;
+use App\Enums\PackageStatus;
+use App\Enums\PostageSource;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierAccountScope;
 use App\Models\Client;
 use App\Models\DataSource;
 use App\Models\Location;
+use App\Models\Package;
 use App\Models\Setting;
+use App\Models\Shipment;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use App\Services\ShopifyFulfillmentOrderActivationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -195,6 +199,60 @@ function createShopifyDataSource(array $settings = [], array $secrets = []): Dat
             'client_secret' => 'test-client-secret',
         ], $secrets),
     ]);
+}
+
+/**
+ * A package shipped on a Shopify Shipping label: carrier of record USPS, postage
+ * provenance pointing at the Shopify data source that bought it.
+ */
+function shippedShopifyPackage(array $attributes = []): Package
+{
+    $source = createShopifyDataSource([], ['oauth_access_token' => 'shpat_test_token']);
+
+    $shipment = Shipment::factory()->create([
+        'data_source_id' => $source->id,
+        'metadata' => ['shopify_fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/12345'],
+    ]);
+
+    return Package::factory()->create(array_merge([
+        'shipment_id' => $shipment->id,
+        'carrier' => 'USPS',
+        'service' => 'Ground Advantage',
+        'postage_source' => PostageSource::PostageDataSource,
+        'postage_data_source_id' => $source->id,
+        'tracking_number' => '9400111899223197428490',
+        'status' => PackageStatus::Shipped,
+        'shipped_at' => now(),
+        'label_data' => base64_encode('LABEL-BYTES'),
+        'metadata' => ['shopify_shipping_label_id' => 'gid://shopify/ShippingLabel/1'],
+    ], $attributes));
+}
+
+/**
+ * @param  array<string, mixed>  $fulfillment  extra fields on the fulfillment node
+ * @return array<string, mixed>
+ */
+function fulfillmentState(
+    string $displayStatus,
+    string $trackingNumber = '9400111899223197428490',
+    array $fulfillment = [],
+): array {
+    return [
+        'data' => [
+            'fulfillmentOrder' => [
+                'id' => 'gid://shopify/FulfillmentOrder/12345',
+                'status' => 'CLOSED',
+                'fulfillments' => [
+                    'nodes' => [array_merge([
+                        'id' => 'gid://shopify/Fulfillment/1',
+                        'status' => 'SUCCESS',
+                        'displayStatus' => $displayStatus,
+                        'trackingInfo' => [['number' => $trackingNumber]],
+                    ], $fulfillment)],
+                ],
+            ],
+        ],
+    ];
 }
 
 /**

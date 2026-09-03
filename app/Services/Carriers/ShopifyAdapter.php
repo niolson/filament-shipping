@@ -16,6 +16,7 @@ use App\Models\CarrierService;
 use App\Models\DataSource;
 use App\Models\Package;
 use App\Services\Carriers\Concerns\HasDefaultServiceCapabilities;
+use App\Services\PostageSources\ShopifyPostageSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use App\Services\ShopifyShippingLabelService;
 use Illuminate\Support\Collection;
@@ -202,9 +203,7 @@ class ShopifyAdapter implements CarrierAdapterInterface
 
     public function cancelShipment(string $trackingNumber, Package $package): CancelResponse
     {
-        return CancelResponse::failure(
-            'Shopify Shipping labels cannot be voided through the API. Cancel this label in the Shopify admin, then void it here.'
-        );
+        return CancelResponse::failure(ShopifyPostageSource::VOID_MESSAGE);
     }
 
     public function supportsTracking(): bool

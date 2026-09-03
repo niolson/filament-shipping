@@ -11,13 +11,13 @@ use App\Enums\PackageStatus;
 use App\Models\AuditLog;
 use App\Models\Package;
 use App\Models\User;
-use App\Services\Carriers\CarrierRegistry;
+use App\Services\PostageSources\PostageSourceDispatcher;
 use Saloon\Exceptions\Request\RequestException;
 
 class EloquentPackageLabelWorkflow implements PackageLabelWorkflow
 {
     public function __construct(
-        private readonly CarrierRegistry $carrierRegistry,
+        private readonly PostageSourceDispatcher $dispatcher,
     ) {}
 
     public function voidLabel(Package $package): LabelVoidResult
@@ -31,8 +31,11 @@ class EloquentPackageLabelWorkflow implements PackageLabelWorkflow
         }
 
         try {
-            $adapter = $this->carrierRegistry->get($package->carrier);
-            $response = $adapter->cancelShipment($package->tracking_number, $package);
+            // Whoever bought the label voids it. Asking the carrier instead would
+            // send a Shopify-bought USPS parcel to our own USPS account, which
+            // never bought it — the account is no longer implied by the carrier
+            // name now that the carrier of record is recorded honestly.
+            $response = $this->dispatcher->voidLabel($package);
 
             if (! $response->success) {
                 return LabelVoidResult::failure('Void failed', $response->message ?? 'Failed to cancel the label.');
