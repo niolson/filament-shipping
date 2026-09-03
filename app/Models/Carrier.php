@@ -22,12 +22,14 @@ class Carrier extends Model
 
     protected $fillable = [
         'name',
+        'pickup_cutoff_hour',
         'active',
     ];
 
     protected function casts(): array
     {
         return [
+            'pickup_cutoff_hour' => 'integer',
             'active' => 'boolean',
         ];
     }
