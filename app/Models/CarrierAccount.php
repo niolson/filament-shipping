@@ -40,6 +40,10 @@ class CarrierAccount extends Model
     protected static function booted(): void
     {
         static::saved(function (CarrierAccount $account): void {
+            if ($account->wasChanged('carrier_id')) {
+                $account->restampScopes();
+            }
+
             if ($account->wasChanged(['credentials', 'secret_credentials'])) {
                 $account->clearTokenCaches();
             }
@@ -206,6 +210,65 @@ class CarrierAccount extends Model
         }
 
         return $result;
+    }
+
+    /**
+     * Move this account's scopes to the carrier it now belongs to.
+     *
+     * `carrier_id` is denormalized onto `carrier_account_scopes` so the unique
+     * index can enforce one account per (carrier, location, client), and the
+     * scope derives it in its own `saving` hook — which cannot see the *account*
+     * changing carriers. Left alone, the scope keeps pointing at the old
+     * carrier, and `resolveForShipment()` then hands a FedEx account to a USPS
+     * shipment and finds nothing at all for a FedEx one.
+     *
+     * A scope whose new tuple is already taken is deleted rather than moved: the
+     * index would reject it, and a row naming a carrier this account no longer
+     * belongs to can only resolve wrongly. The account is left visibly unscoped
+     * for the operator to place deliberately, which is the honest state — they
+     * moved it onto a carrier whose default was already spoken for.
+     */
+    private function restampScopes(): void
+    {
+        $stale = $this->scopes()->where('carrier_id', '!=', $this->carrier_id)->get();
+
+        foreach ($stale as $scope) {
+            if ($this->tupleTaken($scope)) {
+                logger()->warning('Dropped a carrier account scope whose slot was taken on the new carrier', [
+                    'carrier_account_id' => $this->id,
+                    'carrier_account_scope_id' => $scope->id,
+                    'from_carrier_id' => $scope->carrier_id,
+                    'to_carrier_id' => $this->carrier_id,
+                ]);
+
+                $scope->delete();
+
+                continue;
+            }
+
+            $scope->carrier_id = $this->carrier_id;
+            $scope->save();
+        }
+    }
+
+    /**
+     * Whether another scope already holds this one's (location, client) slot on
+     * the carrier this account moved to. Compared with `whereNull` rather than
+     * `where(..., null)`, since a global scope's columns are null and SQL will
+     * not match those with an equality test.
+     */
+    private function tupleTaken(CarrierAccountScope $scope): bool
+    {
+        return CarrierAccountScope::query()
+            ->where('carrier_id', $this->carrier_id)
+            ->where(fn (Builder $query) => $scope->location_id === null
+                ? $query->whereNull('location_id')
+                : $query->where('location_id', $scope->location_id))
+            ->where(fn (Builder $query) => $scope->client_id === null
+                ? $query->whereNull('client_id')
+                : $query->where('client_id', $scope->client_id))
+            ->whereKeyNot($scope->getKey())
+            ->exists();
     }
 
     private function clearTokenCaches(): void

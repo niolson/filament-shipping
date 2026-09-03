@@ -33,6 +33,16 @@ class CarrierAccountForm
                             ->label('Carrier')
                             ->options(fn () => Carrier::active()->pluck('name', 'id'))
                             ->required()
+                            // Fixed once saved. The credentials below are issued
+                            // by this carrier and mean nothing to another one, so
+                            // moving an account across carriers leaves it unable
+                            // to authenticate — and silently re-points the scopes
+                            // that route shipments to it. Delete the account and
+                            // create the right one instead.
+                            ->disabled(fn (string $operation): bool => $operation === 'edit')
+                            ->helperText(fn (string $operation): ?string => $operation === 'edit'
+                                ? 'The carrier cannot be changed after an account is created. Create a new account for a different carrier.'
+                                : null)
                             ->live()
                             ->afterStateUpdated(function (?string $state, Set $set, Get $get): void {
                                 if (! $state || filled($get('name'))) {
