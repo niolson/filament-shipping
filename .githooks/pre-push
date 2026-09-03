@@ -21,16 +21,49 @@ fi
 
 echo "Running security audits before push (advisory only)..."
 
+# Both audits reach the network and neither imposes a deadline of its own, so a
+# registry that accepts the connection and then never answers hangs them
+# forever. `npm audit` did exactly that on 2026-09-03: its advisory endpoint
+# stopped responding while the rest of the registry served normally, and every
+# push on this machine stalled until the hook was skipped by hand. A check that
+# can only ever warn must never be able to block a push, so give each one a
+# deadline. SIGKILL follows SIGTERM because the hung npm audit outlived a
+# TERM'd parent and kept running as an orphan.
+audit_timeout=60
+
+if command -v timeout >/dev/null 2>&1; then
+  bounded="timeout -k 5 $audit_timeout"
+else
+  # macOS has no coreutils timeout by default. Losing the deadline is better
+  # than losing the audit, and CI runs both regardless.
+  bounded=""
+fi
+
 audit_findings=0
 
-if ! composer audit --no-interaction 2>&1; then
+$bounded composer audit --no-interaction 2>&1
+composer_status=$?
+
+if [ "$composer_status" -eq 124 ]; then
+  echo ""
+  echo "WARNING: composer audit timed out after ${audit_timeout}s and was skipped."
+  audit_findings=1
+elif [ "$composer_status" -ne 0 ]; then
   echo ""
   echo "WARNING: composer audit found vulnerabilities."
   echo "Run 'composer audit' to review, or 'composer update' to fix."
   audit_findings=1
 fi
 
-if ! npm audit --audit-level=high 2>&1; then
+$bounded npm audit --audit-level=high 2>&1
+npm_status=$?
+
+if [ "$npm_status" -eq 124 ]; then
+  echo ""
+  echo "WARNING: npm audit timed out after ${audit_timeout}s and was skipped."
+  echo "The registry's advisory endpoint may be down. CI will report advisories."
+  audit_findings=1
+elif [ "$npm_status" -ne 0 ]; then
   echo ""
   echo "WARNING: npm audit found high/critical vulnerabilities."
   echo "Run 'npm audit fix' to fix, or 'npm audit' to review."
