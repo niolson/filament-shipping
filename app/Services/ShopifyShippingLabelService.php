@@ -11,6 +11,7 @@ use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Http\Integrations\Shopify\ShopifyConnector;
 use App\Models\DataSource;
 use App\Models\Package;
+use App\Services\PostageSources\PostageSourceResolver;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use Illuminate\Support\Facades\Http;
 
@@ -45,6 +46,10 @@ class ShopifyShippingLabelService
      * not an OAuth scope and cannot be checked through the API.
      */
     public const REQUIRED_SCOPES = ['write_orders', 'write_merchant_managed_fulfillment_orders'];
+
+    public function __construct(
+        private readonly PostageSourceResolver $postageSourceResolver,
+    ) {}
 
     /**
      * Re-reads a label already bought, so a purchase that succeeded at Shopify
@@ -336,18 +341,18 @@ class ShopifyShippingLabelService
 
     /**
      * The active Shopify data source a package's shipment was imported from.
+     *
+     * The binding itself is not Shopify's rule but the general one for channel
+     * postage — ADR-0002 decision 9 — so it is asked of `PostageSourceResolver`
+     * rather than reimplemented here. All that remains particular to this
+     * service is that a source of another driver is no answer: an Amazon
+     * account sells postage too, and cannot sell it through this mutation.
      */
     public function dataSourceFor(Package $package): ?DataSource
     {
-        $package->loadMissing('shipment.dataSource');
+        $source = $this->postageSourceResolver->channelSourceFor($package);
 
-        $dataSource = $package->shipment?->dataSource;
-
-        if (! $dataSource || ! $dataSource->active || $dataSource->source_type !== ShopifySource::class) {
-            return null;
-        }
-
-        return $dataSource;
+        return $source?->source_type === ShopifySource::class ? $source : null;
     }
 
     public function fulfillmentOrderId(Package $package): ?string
