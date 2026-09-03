@@ -1,6 +1,13 @@
 <?php
 
+use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\CarrierPolicy;
+use App\DataTransferObjects\Shipping\RateRequest;
+use App\DataTransferObjects\Shipping\RateResponse;
+use App\DataTransferObjects\Shipping\ShipRequest;
+use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PostageSource;
+use App\Enums\ServiceCapability;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
 use App\Models\CarrierAccountScope;
@@ -9,11 +16,13 @@ use App\Models\DataSource;
 use App\Models\Location;
 use App\Models\Package;
 use App\Models\Shipment;
+use App\Services\Carriers\CarrierRegistry;
 use App\Services\Carriers\ShopifyAdapter;
 use App\Services\PostageSources\PostageSourceResolver;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use App\Services\ShopifyShippingLabelService;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Collection;
 
 /**
  * ADR-0002 decision 9: which postage source instance is asked, and how a tie
@@ -36,6 +45,79 @@ function scopeAccountTo(CarrierAccount $account, ?Location $location, ?Client $c
         'client_id' => $client?->id,
         'rate_shop' => $rateShop,
     ]);
+}
+
+/**
+ * A carrier of record we hold policy for and buy nothing from.
+ *
+ * ADR-0002 option D leaves this open on purpose: Shopify may pick a courier we
+ * have no account with, and its cutoffs and manifest behavior still have to come
+ * out right. Being able to answer those questions is not being able to sell a
+ * label, which is the distinction `policyFor()` cannot draw.
+ */
+class PolicyOnlyCarrierAdapter implements CarrierAdapterInterface, CarrierPolicy
+{
+    public const CARRIER_NAME = 'DHL Express';
+
+    public function getCarrierName(): string
+    {
+        return self::CARRIER_NAME;
+    }
+
+    public function isConfigured(): bool
+    {
+        return true;
+    }
+
+    public function offerCapability(string $serviceCode): ServiceCapability
+    {
+        return ServiceCapability::NotImplemented;
+    }
+
+    public function offerDeclaredValueCap(): ?float
+    {
+        return null;
+    }
+
+    public function getRates(RateRequest $request, array $serviceCodes): Collection
+    {
+        return collect();
+    }
+
+    public function createShipment(ShipRequest $request): ShipResponse
+    {
+        return ShipResponse::failure('We hold no account with this carrier.');
+    }
+
+    public function resolvePreSelectedRate(RateResponse $rate, Package $package): RateResponse
+    {
+        return $rate;
+    }
+
+    public function serviceCapability(string $serviceCode): ServiceCapability
+    {
+        return ServiceCapability::NotImplemented;
+    }
+
+    public function declaredValueCap(): ?float
+    {
+        return null;
+    }
+
+    public function supportsMultiPackage(): bool
+    {
+        return false;
+    }
+
+    public function supportsCarrierManifest(): bool
+    {
+        return false;
+    }
+
+    public function supportsTracking(): bool
+    {
+        return false;
+    }
 }
 
 describe('channel binding', function (): void {
@@ -237,7 +319,7 @@ describe('unresolvable ties', function (): void {
         expect($resolution->forCarrier(ShopifyAdapter::CARRIER_NAME))->toBeEmpty()
             ->and($resolution->hasConflicts())->toBeTrue()
             ->and($resolution->conflicts[0]['carrier'])->toBe(ShopifyAdapter::CARRIER_NAME)
-            ->and($resolution->conflicts[0]['reason'])->toContain('not a carrier we hold an account with')
+            ->and($resolution->conflicts[0]['reason'])->toContain('buys postage from')
             // The channel source is still the answer for that package; only the
             // account masquerading as a carrier is refused.
             ->and($resolution->channel()?->postageDataSourceId)->toBe($source->id);
@@ -258,6 +340,34 @@ describe('unresolvable ties', function (): void {
 
         expect($resolution->conflicts)->toHaveCount(1)
             ->and($resolution->forCarrier('USPS')->first()?->carrierAccountId)->toBe($usps->id);
+    });
+
+    it('refuses an account scoped to a carrier we hold policy for but no account with', function (): void {
+        // The finding this guards: DirectCarrierAdapter extends CarrierPolicy,
+        // so policyFor() would wave this through on the strength of knowing DHL
+        // Express's cutoffs — and CarrierAccountPostageSource would then throw
+        // from directAdapterOrFail() the first time somebody voided the label.
+        app(CarrierRegistry::class)->register(
+            PolicyOnlyCarrierAdapter::CARRIER_NAME,
+            PolicyOnlyCarrierAdapter::class,
+        );
+
+        $registry = app(CarrierRegistry::class);
+        $carrier = Carrier::firstOrCreate(['name' => PolicyOnlyCarrierAdapter::CARRIER_NAME]);
+
+        scopeAccountTo(CarrierAccount::create([
+            'carrier_id' => $carrier->id,
+            'name' => 'DHL Express account',
+            'active' => true,
+        ]), null, null);
+
+        $resolution = app(PostageSourceResolver::class)
+            ->resolve(packageFrom(), [PolicyOnlyCarrierAdapter::CARRIER_NAME]);
+
+        expect($registry->policyFor(PolicyOnlyCarrierAdapter::CARRIER_NAME))->not->toBeNull()
+            ->and($registry->directAdapterFor(PolicyOnlyCarrierAdapter::CARRIER_NAME))->toBeNull()
+            ->and($resolution->forCarrier(PolicyOnlyCarrierAdapter::CARRIER_NAME))->toBeEmpty()
+            ->and($resolution->conflicts[0]['reason'])->toContain('buys postage from');
     });
 
     it('cannot be given two accounts at one precedence to arbitrate between', function (): void {

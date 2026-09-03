@@ -132,16 +132,29 @@ class PostageSourceResolver
                 continue;
             }
 
-            // A resale channel holds a `Carrier` row so its offers have services
-            // to hang off, and that row is what makes this reachable: an account
-            // scoped to it claims we buy postage from a storefront the way we
-            // buy it from USPS. We do not — its postage comes from the data
-            // source above, on the merchant's own account — so two sources would
-            // now claim one carrier and neither may be picked over the other.
-            if (! $this->carrierRegistry->policyFor($carrierName)) {
+            // Asked as `directAdapterFor()` and not `policyFor()`, because the
+            // candidate about to be emitted is a claim that we can *buy* here,
+            // and holding a carrier's policy is not holding an account with it.
+            // The two coincide for every adapter registered today, so this is
+            // the weaker predicate only by luck; the pairing that has to hold is
+            // with `CarrierAccountPostageSource`, which resolves the same
+            // package through `directAdapterOrFail()` when the time comes to
+            // void or track it. Resolving on the looser question would promise a
+            // packer an offer that throws on the way back out.
+            //
+            // Two kinds of carrier row fail it. A resale channel holds one so
+            // its offers have services to hang off — an account scoped there
+            // claims we buy postage from a storefront the way we buy it from
+            // USPS, when its postage comes from the data source above, on the
+            // merchant's own account. A policy-only carrier holds one so the
+            // cutoffs and manifest behavior of a courier Shopify picked come out
+            // right (ADR-0002 option D), and we buy nothing from it at all.
+            // Either way two sources would claim one carrier, and neither may be
+            // picked over the other.
+            if (! $this->carrierRegistry->directAdapterFor($carrierName)) {
                 $conflicts[] = [
                     'carrier' => $carrierName,
-                    'reason' => "{$carrierName} is a postage source, not a carrier we hold an account with, so the carrier account scoped to it cannot be used to buy a label. Remove it in Carrier Accounts; postage bought through {$carrierName} resolves to the data source the shipment came from.",
+                    'reason' => "No account of ours buys postage from {$carrierName}, so the carrier account scoped to it cannot sell this label. Remove it in Carrier Accounts — a carrier row also exists for carriers we only hold policy for, and for resale channels like Shopify, whose postage resolves to the data source the shipment came from instead.",
                 ];
 
                 continue;
