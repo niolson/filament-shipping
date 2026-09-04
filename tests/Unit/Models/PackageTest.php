@@ -3,6 +3,7 @@
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageStatus;
 use App\Enums\PostageSource;
+use App\Enums\ServiceEvidence;
 use App\Enums\ShipmentStatus;
 use App\Enums\SpecialServiceSource;
 use App\Models\Carrier;
@@ -195,6 +196,150 @@ it('refuses to ship with a postage source its pointers contradict', function (Po
         ),
     ],
 ]);
+
+it('records a direct carrier purchase as a confirmed service', function (): void {
+    $package = Package::factory()->create();
+
+    $package->markShipped(ShipResponse::success(
+        trackingNumber: '9400111899223456789012',
+        cost: 8.45,
+        carrier: 'USPS',
+        service: 'USPS_GROUND_ADVANTAGE',
+    ), PostageSource::CarrierAccount);
+
+    $package->refresh();
+
+    expect($package->service_evidence)->toBe(ServiceEvidence::Confirmed)
+        ->and($package->confirmedService())->toBe('USPS_GROUND_ADVANTAGE')
+        ->and($package->requested_service)->toBeNull()
+        ->and($package->service_inference_method)->toBeNull()
+        ->and($package->service_ruleset_version)->toBeNull();
+});
+
+it('keeps what was asked for on a package whose service stays unknown', function (): void {
+    $package = Package::factory()->create();
+    $dataSource = DataSource::factory()->create();
+
+    $package->markShipped(new ShipResponse(
+        success: true,
+        trackingNumber: '9400111899223456789012',
+        carrier: 'DHL eCommerce',
+        service: null,
+        postageSource: PostageSource::PostageDataSource,
+        postageDataSourceId: $dataSource->id,
+        requestedService: 'USPS Ground Advantage',
+        serviceEvidence: ServiceEvidence::Unknown,
+    ), PostageSource::PostageDataSource);
+
+    $package->refresh();
+
+    expect($package->service)->toBeNull()
+        ->and($package->service_evidence)->toBe(ServiceEvidence::Unknown)
+        ->and($package->requested_service)->toBe('USPS Ground Advantage')
+        // The preference is audit metadata. It never becomes the service value.
+        ->and($package->confirmedService())->toBeNull();
+});
+
+it('records how an inferred service was derived', function (): void {
+    $package = Package::factory()->create();
+
+    $package->markShipped(new ShipResponse(
+        success: true,
+        trackingNumber: '9400111899223456789012',
+        carrier: 'USPS',
+        service: 'USPS_GROUND_ADVANTAGE',
+        serviceEvidence: ServiceEvidence::Inferred,
+        serviceInferenceMethod: 'tracking_number_prefix',
+        serviceRulesetVersion: '2026.09.1',
+    ), PostageSource::CarrierAccount);
+
+    $package->refresh();
+
+    expect($package->service)->toBe('USPS_GROUND_ADVANTAGE')
+        ->and($package->service_evidence)->toBe(ServiceEvidence::Inferred)
+        ->and($package->service_inference_method)->toBe('tracking_number_prefix')
+        ->and($package->service_ruleset_version)->toBe('2026.09.1')
+        // Ours, not the carrier's — so nothing outward-facing may carry it.
+        ->and($package->confirmedService())->toBeNull();
+});
+
+it('refuses to ship with service evidence its service value contradicts', function (ShipResponse $response): void {
+    $package = Package::factory()->create();
+
+    expect(fn () => $package->markShipped($response, PostageSource::CarrierAccount))
+        ->toThrow(InvalidArgumentException::class);
+
+    // Nothing half-written: the package is still waiting to be shipped.
+    expect($package->refresh()->status)->toBe(PackageStatus::Unshipped)
+        ->and($package->service)->toBeNull()
+        ->and($package->service_evidence)->toBe(ServiceEvidence::Unknown)
+        ->and($package->tracking_number)->toBeNull();
+})->with([
+    'confirmed with nothing to confirm' => fn (): ShipResponse => new ShipResponse(
+        success: true,
+        trackingNumber: 'E1',
+        carrier: 'USPS',
+        service: null,
+        serviceEvidence: ServiceEvidence::Confirmed,
+    ),
+    'unknown recorded as a service value anyway' => fn (): ShipResponse => new ShipResponse(
+        success: true,
+        trackingNumber: 'E2',
+        carrier: 'USPS',
+        service: 'USPS_GROUND_ADVANTAGE',
+        serviceEvidence: ServiceEvidence::Unknown,
+    ),
+    'inferred with nothing inferred' => fn (): ShipResponse => new ShipResponse(
+        success: true,
+        trackingNumber: 'E3',
+        carrier: 'USPS',
+        service: null,
+        serviceEvidence: ServiceEvidence::Inferred,
+        serviceInferenceMethod: 'tracking_number_prefix',
+        serviceRulesetVersion: '2026.09.1',
+    ),
+    'inferred without a reproducible method' => fn (): ShipResponse => new ShipResponse(
+        success: true,
+        trackingNumber: 'E4',
+        carrier: 'USPS',
+        service: 'USPS_GROUND_ADVANTAGE',
+        serviceEvidence: ServiceEvidence::Inferred,
+        serviceRulesetVersion: '2026.09.1',
+    ),
+    'inferred without the ruleset that produced it' => fn (): ShipResponse => new ShipResponse(
+        success: true,
+        trackingNumber: 'E5',
+        carrier: 'USPS',
+        service: 'USPS_GROUND_ADVANTAGE',
+        serviceEvidence: ServiceEvidence::Inferred,
+        serviceInferenceMethod: 'tracking_number_prefix',
+    ),
+    'inference detail on a service nobody inferred' => fn (): ShipResponse => new ShipResponse(
+        success: true,
+        trackingNumber: 'E6',
+        carrier: 'USPS',
+        service: 'USPS_GROUND_ADVANTAGE',
+        serviceEvidence: ServiceEvidence::Confirmed,
+        serviceInferenceMethod: 'tracking_number_prefix',
+    ),
+]);
+
+it('gives a voided package its service evidence back to unknown', function (): void {
+    $package = Package::factory()->shipped()->create([
+        'requested_service' => 'USPS Ground Advantage',
+        'service_evidence' => ServiceEvidence::Inferred,
+        'service_inference_method' => 'tracking_number_prefix',
+        'service_ruleset_version' => '2026.09.1',
+    ]);
+
+    $package->clearShipping();
+
+    expect($package->refresh()->service)->toBeNull()
+        ->and($package->service_evidence)->toBe(ServiceEvidence::Unknown)
+        ->and($package->requested_service)->toBeNull()
+        ->and($package->service_inference_method)->toBeNull()
+        ->and($package->service_ruleset_version)->toBeNull();
+});
 
 it('gives a voided package its provenance back to nothing', function (): void {
     $package = Package::factory()->shipped()->create([

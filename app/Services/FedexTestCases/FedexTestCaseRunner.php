@@ -5,6 +5,7 @@ namespace App\Services\FedexTestCases;
 use App\DataTransferObjects\FedexTestCases\FedexTestCaseData;
 use App\Enums\PackageStatus;
 use App\Enums\PostageSource;
+use App\Enums\ServiceEvidence;
 use App\Http\Integrations\Fedex\FedexConnector;
 use App\Http\Integrations\Fedex\Requests\CreateFreightShipment;
 use App\Http\Integrations\Fedex\Requests\CreateShipment;
@@ -154,6 +155,8 @@ class FedexTestCaseRunner
                 'postage_source' => PostageSource::CarrierAccount,
                 'carrier' => 'FedEx',
                 'service' => data_get($body, 'output.transactionShipments.0.serviceType', $testCase->description),
+                // FedEx names the service it sold in its own ship response.
+                'service_evidence' => ServiceEvidence::Confirmed,
                 'tracking_number' => $trackingNumber,
                 'label_data' => $encodedLabel,
                 'label_format' => $labelFormat,

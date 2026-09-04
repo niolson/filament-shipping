@@ -417,7 +417,10 @@ class PackageExportService
             'length' => $package->length,
             'cost' => $package->cost,
             'carrier' => $package->carrierOfRecordName(),
-            'service' => $package->service,
+            // Only a confirmed service leaves the building. See ADR-0003
+            // decision 7 — a guess a channel receives becomes a fact we cannot
+            // retract, and every destination here reports to someone.
+            'service' => $package->confirmedService(),
             'shipment_reference' => $package->shipment?->shipment_reference,
             'fulfillment_order_id' => $package->shipment?->metadata['shopify_fulfillment_order_id']
                 ?? null,
@@ -467,7 +470,7 @@ class PackageExportService
         return [
             '_package_reference_id' => (string) $package->getKey(),
             '_shipped_at' => $package->shipped_at?->toIso8601String(),
-            '_shipping_method' => $package->service,
+            '_shipping_method' => $package->confirmedService(),
             '_order_items' => $orderItems,
         ];
     }

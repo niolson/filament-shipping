@@ -3,6 +3,7 @@
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageExportStatus;
 use App\Enums\PostageSource;
+use App\Enums\ServiceEvidence;
 use App\Enums\ShipmentStatus;
 use App\Events\PackageShipped;
 use App\Http\Integrations\Amazon\AmazonSpApiConnector;
@@ -501,14 +502,17 @@ it('confirms a Shopify-bought label under the carrier that carries it', function
     // Export explicitly below rather than through the ship-time listener.
     Event::fake([PackageShipped::class]);
 
-    // Shopify picks the carrier itself and reports it in its own spelling.
+    // Shopify picks the carrier itself and reports it in its own spelling. What
+    // it bought is never reported, so only the preference is on record.
     $package->markShipped(new ShipResponse(
         success: true,
         trackingNumber: 'TRACK123',
         carrier: 'United States Postal Service',
-        service: 'Standard',
+        service: null,
         postageSource: PostageSource::PostageDataSource,
         postageDataSourceId: $shopifySource->id,
+        requestedService: 'Standard',
+        serviceEvidence: ServiceEvidence::Unknown,
     ), PostageSource::PostageDataSource);
 
     Saloon::fake([ConfirmShipment::class => amazonConfirmShipmentResponse()]);
@@ -523,6 +527,9 @@ it('confirms a Shopify-bought label under the carrier that carries it', function
 
         return ($packageDetail['carrierCode'] ?? null) === 'USPS'
             && ! array_key_exists('carrierName', $packageDetail)
+            // A preference is not a purchase: Amazon is told the carrier and
+            // the tracking number, and nothing about the service.
+            && ! array_key_exists('shippingMethod', $packageDetail)
             && ($packageDetail['trackingNumber'] ?? null) === 'TRACK123';
     });
 });

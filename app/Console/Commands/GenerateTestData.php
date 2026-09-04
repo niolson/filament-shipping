@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\ServiceEvidence;
 use App\Models\Shipment;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -445,6 +446,7 @@ class GenerateTestData extends Command
                     'tracking_number' => $pkgShipped ? $this->generateTrackingNumber($carrier) : null,
                     'carrier' => $pkgShipped ? $carrier : null,
                     'service' => $pkgShipped ? $service['code'] : null,
+                    'service_evidence' => ($pkgShipped ? ServiceEvidence::Confirmed : ServiceEvidence::Unknown)->value,
                     'metadata' => null,
                     'label_data' => null,
                     'label_orientation' => 'portrait',

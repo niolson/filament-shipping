@@ -5,6 +5,7 @@ use App\Contracts\ExportDestinationInterface;
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageExportStatus;
 use App\Enums\PostageSource;
+use App\Enums\ServiceEvidence;
 use App\Exceptions\PermanentExportException;
 use App\Models\Carrier;
 use App\Models\CarrierAlias;
@@ -185,6 +186,40 @@ it('exports the raw carrier name when it normalized to nothing', function (): vo
     expect((new PackageExportService)->exportPackage($package)->success)->toBeTrue()
         ->and($driverClass::$exportedData[0])->toBe(['carrier' => 'Poste Italiane']);
 });
+
+it('exports a service the postage source confirmed', function (): void {
+    $driverClass = fakeExportSource();
+    $importSource = fakeDataSource($driverClass, ['service' => 'service']);
+    $package = createShippedPackage(importSource: $importSource);
+    $package->update(['service' => 'Priority Mail', 'service_evidence' => ServiceEvidence::Confirmed]);
+
+    expect((new PackageExportService)->exportPackage($package)->success)->toBeTrue()
+        ->and($driverClass::$exportedData[0])->toBe(['service' => 'Priority Mail']);
+});
+
+it('withholds a service nobody confirmed rather than publishing a guess', function (array $attributes): void {
+    $driverClass = fakeExportSource();
+    $importSource = fakeDataSource($driverClass, ['service' => 'service', 'tracking_number' => 'tracking']);
+    $package = createShippedPackage(importSource: $importSource);
+    $package->update($attributes);
+
+    // The export still goes out — omitting a field costs nothing, and the rest
+    // of the confirmation is fact. ADR-0003 decision 7.
+    expect((new PackageExportService)->exportPackage($package)->success)->toBeTrue()
+        ->and($driverClass::$exportedData[0])->toBe(['service' => null, 'tracking' => '1234567890']);
+})->with([
+    'inferred by us, not reported by the source' => [[
+        'service' => 'Priority Mail',
+        'service_evidence' => ServiceEvidence::Inferred,
+        'service_inference_method' => 'tracking_number_prefix',
+        'service_ruleset_version' => '2026.09.1',
+    ]],
+    'unknown, with only a preference on record' => [[
+        'service' => null,
+        'requested_service' => 'Priority Mail',
+        'service_evidence' => ServiceEvidence::Unknown,
+    ]],
+]);
 
 it('skips export when shipment has no import source', function (): void {
     $channel = Channel::factory()->create(['name' => 'UnlinkedChannel']);

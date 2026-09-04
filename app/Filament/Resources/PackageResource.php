@@ -204,7 +204,14 @@ class PackageResource extends Resource
                         ? 'via Shopify Shipping'
                         : null),
                 Tables\Columns\TextColumn::make('service')
-                    ->placeholder('—'),
+                    ->placeholder('—')
+                    // A blank service is a fact, not missing data: Shopify never
+                    // reports what it bought. Show what was asked for instead,
+                    // labelled as the request it was (ADR-0003 decision 7).
+                    ->description(fn (Package $record): ?string => $record->service === null
+                        && filled($record->requested_service)
+                            ? 'requested '.$record->requested_service
+                            : null),
                 Tables\Columns\TextColumn::make('weight')
                     ->numeric()
                     ->suffix(' lbs')

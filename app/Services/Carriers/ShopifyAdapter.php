@@ -9,6 +9,7 @@ use App\DataTransferObjects\Shipping\ShipRequest;
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PostageSource;
 use App\Enums\ServiceCapability;
+use App\Enums\ServiceEvidence;
 use App\Exceptions\Carriers\ShopifyLabelPurchaseException;
 use App\Models\CarrierService;
 use App\Models\DataSource;
@@ -33,6 +34,8 @@ use Illuminate\Support\Str;
  *
  * - rates are advertised, not quoted (`priceUnknown`), and the cost recorded on
  *   the package is left null rather than invented;
+ * - no purchased service is reported either, so the package records the service
+ *   as `unknown` and keeps what was asked for as a requested preference;
  * - there is no rate API at all, so this implements none of `AsyncRateQuoting`
  *   and is quoted synchronously through `getRates()`;
  * - only shipments imported from an active Shopify data source are eligible,
@@ -171,7 +174,13 @@ class ShopifyAdapter implements CarrierAdapterInterface
             // PolyBag has no account with at all — DHL eCommerce, Canada Post —
             // so the carrier it reports is the only trustworthy record.
             carrier: $label->trackingCompany ?? ($carrierCode === null ? null : Str::upper($carrierCode)),
-            service: $request->selectedRate->serviceName,
+            // Shopify reports no purchased service, before or after the buy —
+            // `ShippingLabel` has no service, service code, rate or price. What
+            // was asked for is kept as the requested preference, which is audit
+            // metadata and not the service value. ADR-0003 decisions 5 and 7.
+            service: null,
+            requestedService: $serviceCode === null ? null : $request->selectedRate->serviceName,
+            serviceEvidence: ServiceEvidence::Unknown,
             labelData: $label->labelData,
             labelOrientation: 'portrait',
             labelFormat: $label->labelFormat,
@@ -187,7 +196,8 @@ class ShopifyAdapter implements CarrierAdapterInterface
                 'shopify_tracking_company' => $label->trackingCompany,
                 'shopify_customs_form_url' => $label->customsFormUrl,
                 'shopify_label_document_url' => $label->labelDocumentUrl,
-                // Kept so a service Shopify silently overrode stays visible.
+                // The raw code beside the requested preference the package
+                // records, so a selection Shopify silently ignored stays visible.
                 'shopify_requested_service_code' => $request->selectedRate->serviceCode,
             ], fn (?string $value): bool => filled($value)),
         );
