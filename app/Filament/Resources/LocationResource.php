@@ -90,6 +90,7 @@ class LocationResource extends Resource
                                     ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
                                 Forms\Components\CheckboxList::make('pickup_days')
                                     ->label('Pickup Days')
+                                    ->helperText('Ship dates land only on these days. Removing a carrier from this list does not stop scheduling it — it returns that carrier to the Monday-Friday default.')
                                     ->options([
                                         0 => 'Sunday',
                                         1 => 'Monday',
@@ -100,13 +101,14 @@ class LocationResource extends Resource
                                         6 => 'Saturday',
                                     ])
                                     ->default([1, 2, 3, 4, 5])
+                                    ->minItems(1)
                                     ->columns(7),
                             ])
                             ->defaultItems(0)
                             ->addActionLabel('Add Carrier')
                             ->columnSpanFull(),
                     ])
-                    ->description('Configure pickup days per carrier for this location.')
+                    ->description('Which days each carrier collects from this location. A carrier you do not list here is picked up Monday-Friday.')
                     ->collapsible(),
                 Components\Section::make('Carrier Accounts')
                     ->schema([

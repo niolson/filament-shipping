@@ -184,3 +184,81 @@ it('leaves a carrier that normalizes to nothing on the current pickup day', func
 
     expect($shipDate->toDateString())->toBe('2026-04-01');
 });
+
+it('picks up Monday through Friday at a location nobody has configured', function (): void {
+    // Saturday. No `carrier_location` row exists for any carrier on a fresh
+    // install, so this is the policy every carrier actually runs on rather than
+    // an untaken branch — ADR-0002, 2026-09-04 amendment.
+    Carbon::setTestNow(Carbon::parse('2026-04-04 10:00:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-04 10:00:00', 'America/New_York'));
+
+    Carrier::factory()->usps()->create();
+
+    expect(app(ShipDateService::class)->getShipDate('USPS')->toDateString())->toBe('2026-04-06');
+});
+
+it('falls back to the default when a carrier is configured with no pickup days at all', function (): void {
+    // Saturday again. An empty set used to leave `getNextPickupDay()` no day to
+    // find, sending it to its tomorrow fallback and dating the label for Sunday.
+    Carbon::setTestNow(Carbon::parse('2026-04-04 10:00:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-04 10:00:00', 'America/New_York'));
+
+    $location = Location::getDefault();
+    $carrier = Carrier::factory()->usps()->create();
+    $carrier->locations()->attach($location->id, ['pickup_days' => json_encode([])]);
+
+    expect(app(ShipDateService::class)->getShipDate('USPS')->toDateString())->toBe('2026-04-06');
+});
+
+it('keeps a Saturday pickup an operator configured for this location', function (): void {
+    Carbon::setTestNow(Carbon::parse('2026-04-04 10:00:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-04 10:00:00', 'America/New_York'));
+
+    $location = Location::getDefault();
+    $carrier = Carrier::factory()->usps()->create();
+    $carrier->locations()->attach($location->id, ['pickup_days' => json_encode([1, 2, 3, 4, 5, 6])]);
+
+    expect(app(ShipDateService::class)->getShipDate('USPS')->toDateString())->toBe('2026-04-04');
+});
+
+it('gives Shopify the same Saturday treatment as any other carrier', function (): void {
+    // Shopify is not a special case here: it takes the default like everything
+    // else, and reaches Saturday through the same per-location config.
+    Carbon::setTestNow(Carbon::parse('2026-04-04 10:00:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-04 10:00:00', 'America/New_York'));
+
+    (new CarrierSeeder)->run();
+
+    $service = app(ShipDateService::class);
+
+    expect($service->getShipDate(ShopifyAdapter::CARRIER_NAME)->toDateString())->toBe('2026-04-06');
+
+    Carrier::query()
+        ->where('name', ShopifyAdapter::CARRIER_NAME)
+        ->first()
+        ->locations()
+        ->attach(Location::getDefault()->id, ['pickup_days' => json_encode([1, 2, 3, 4, 5, 6])]);
+
+    expect($service->getShipDate(ShopifyAdapter::CARRIER_NAME)->toDateString())->toBe('2026-04-04');
+});
+
+it('returns a carrier whose pickup days were removed to the default, not to no pickups at all', function (): void {
+    // Saturday. Deleting the row is not a way to say "this carrier never collects
+    // here" — there is no such state, because a package on that carrier still
+    // needs a ship date. Removal resets to the default, which is what the pickup
+    // days form tells the operator.
+    Carbon::setTestNow(Carbon::parse('2026-04-04 10:00:00', 'America/New_York'));
+    CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-04-04 10:00:00', 'America/New_York'));
+
+    $location = Location::getDefault();
+    $carrier = Carrier::factory()->usps()->create();
+    $carrier->locations()->attach($location->id, ['pickup_days' => json_encode([1, 2, 3, 4, 5, 6])]);
+
+    $service = app(ShipDateService::class);
+
+    expect($service->getShipDate('USPS')->toDateString())->toBe('2026-04-04');
+
+    $carrier->locations()->detach($location->id);
+
+    expect($service->getShipDate('USPS')->toDateString())->toBe('2026-04-06');
+});

@@ -603,3 +603,33 @@ it('allows disabling MFA when the only Amazon data source is inactive', function
 
     expect(app(SettingsService::class)->get('require_mfa'))->toBeFalse();
 });
+
+it('refuses to save a carrier with no pickup days rather than storing an empty set', function (): void {
+    // An empty set says nothing a carrier's absence from this list does not
+    // already say — both fall back to the Mon-Fri default — and storing one used
+    // to date labels for Sundays. Rejected rather than accepted and normalized,
+    // so the form never shows nothing ticked beside behaviour that is Mon-Fri.
+    $location = Location::factory()->create(['is_default' => true, 'country' => 'US', 'phone' => null]);
+    $carrier = Carrier::factory()->create(['name' => 'USPS', 'active' => true]);
+
+    Livewire::test(Settings::class)
+        ->fillForm([
+            'location.name' => $location->name,
+            'location.country' => 'US',
+            'location.first_name' => $location->first_name,
+            'location.last_name' => $location->last_name,
+            'location.address1' => $location->address1,
+            'location.city' => $location->city,
+            'location.state_or_province' => $location->state_or_province,
+            'location.postal_code' => $location->postal_code,
+            'location.timezone' => $location->timezone,
+            'location.phone' => null,
+            'location.carrierLocations' => [
+                ['carrier_id' => $carrier->id, 'pickup_days' => []],
+            ],
+        ])
+        ->call('save')
+        ->assertHasFormErrors();
+
+    expect($location->fresh()->carrierLocations)->toHaveCount(0);
+});
