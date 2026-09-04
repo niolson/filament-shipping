@@ -2,10 +2,12 @@
 
 namespace App\Http\Integrations\Amazon\Requests;
 
+use App\Enums\AmazonSpApiRegion;
+use App\Http\Integrations\Amazon\DeclaresSandboxRegion;
 use Saloon\Enums\Method;
 use Saloon\Http\Request;
 
-class SearchOrders extends Request
+class SearchOrders extends Request implements DeclaresSandboxRegion
 {
     protected Method $method = Method::GET;
 
@@ -21,5 +23,14 @@ class SearchOrders extends Request
     protected function defaultQuery(): array
     {
         return $this->queryParams;
+    }
+
+    /**
+     * The only Orders v2026-01-01 sandbox test case we can drive uses Amazon's JP
+     * marketplace, which resolves against the FE host alone.
+     */
+    public function sandboxRegion(): AmazonSpApiRegion
+    {
+        return AmazonSpApiRegion::FarEast;
     }
 }

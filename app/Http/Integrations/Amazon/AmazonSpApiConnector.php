@@ -2,12 +2,14 @@
 
 namespace App\Http\Integrations\Amazon;
 
+use App\Enums\AmazonSpApiRegion;
 use App\Services\OAuthService;
 use App\Services\SettingsService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Saloon\Http\Connector;
+use Saloon\Http\PendingRequest;
 
 class AmazonSpApiConnector extends Connector
 {
@@ -39,7 +41,7 @@ class AmazonSpApiConnector extends Connector
     {
         return new self(
             baseUrl: config('services.amazon.base_url') ?? 'https://sellingpartnerapi-na.amazon.com',
-            sandboxUrl: config('services.amazon.sandbox_url') ?? 'https://sandbox.sellingpartnerapi-na.amazon.com',
+            sandboxUrl: config('services.amazon.sandbox_url') ?? AmazonSpApiRegion::NorthAmerica->sandboxUrl(),
             clientId: (string) ($settings['client_id'] ?? ''),
             clientSecret: (string) ($settings['client_secret'] ?? ''),
             refreshToken: (string) ($settings['refresh_token'] ?? ''),
@@ -48,11 +50,37 @@ class AmazonSpApiConnector extends Connector
         );
     }
 
+    /**
+     * The host every request starts from. A request implementing
+     * {@see DeclaresSandboxRegion} moves off it in {@see self::boot()}; production is
+     * North America for every API we call, so nothing moves off it there.
+     */
     public function resolveBaseUrl(): string
     {
-        $sandbox = app(SettingsService::class)->get('sandbox_mode', false);
+        return $this->inSandbox() ? $this->sandboxUrl : $this->baseUrl;
+    }
 
-        return $sandbox ? $this->sandboxUrl : $this->baseUrl;
+    /**
+     * Amazon scopes sandbox test cases by region, so the host has to be resolved per
+     * API rather than once for the connector. Only a request that says which region
+     * its test cases live in gets moved, and only in sandbox.
+     */
+    public function boot(PendingRequest $pendingRequest): void
+    {
+        $request = $pendingRequest->getRequest();
+
+        if (! $request instanceof DeclaresSandboxRegion || ! $this->inSandbox()) {
+            return;
+        }
+
+        $pendingRequest->setUrl(
+            $request->sandboxRegion()->sandboxUrl().$request->resolveEndpoint()
+        );
+    }
+
+    private function inSandbox(): bool
+    {
+        return (bool) app(SettingsService::class)->get('sandbox_mode', false);
     }
 
     protected function defaultHeaders(): array

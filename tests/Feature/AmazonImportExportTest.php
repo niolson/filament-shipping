@@ -820,6 +820,47 @@ it('exports legacy amazon packages in sandbox without production item context', 
     Saloon::assertSent(ConfirmShipment::class);
 });
 
+// The sandbox import and the sandbox export are unrelated fixtures, not two halves of
+// one order: the import drives Amazon's JP Orders v2026 test case on the FE host, while
+// the export posts Amazon's US confirmShipment test case, which only the NA host serves.
+// Asserted on the URL the export actually sends, because the pairing reads the other way.
+it('sends a sandbox shipment confirmation to the North America host', function (): void {
+    app(SettingsService::class)->set('sandbox_mode', true, 'boolean');
+    $package = amazonExportPackage(amazonExportDestination());
+
+    Saloon::fake([ConfirmShipment::class => amazonConfirmShipmentResponse()]);
+
+    expect((new PackageExportService)->exportPackage($package)->success)->toBeTrue();
+
+    Saloon::assertSent(fn (ConfirmShipment $request, $response): bool => $response->getPendingRequest()->getUrl()
+        === 'https://sandbox.sellingpartnerapi-na.amazon.com/orders/v0/orders/902-1106328-1059050/shipmentConfirmation');
+});
+
+it('sends a sandbox order search to the Far East host', function (): void {
+    tap(Channel::factory()->create(['name' => 'Amazon']), fn ($c) => ChannelAlias::create(['reference' => 'Amazon', 'channel_id' => $c->id]));
+    app(SettingsService::class)->set('sandbox_mode', true, 'boolean');
+
+    Saloon::fake([SearchOrders::class => amazonOrdersResponse([sampleAmazonOrder()])]);
+
+    $source = new AmazonSource([
+        'source_type' => AmazonSource::class,
+        'enabled' => true,
+        'channel_name' => 'Amazon',
+        'client_id' => 'test-client-id',
+        'client_secret' => 'test-client-secret',
+        'refresh_token' => 'test-refresh-token',
+        'marketplace_id' => 'ATVPDKIKX0DER',
+        'shipping_method' => null,
+        'lookback_days' => 30,
+        'export' => ['enabled' => false, 'field_mapping' => []],
+    ]);
+
+    ShipmentImportService::forSource($source, $this->dataSource)->import();
+
+    Saloon::assertSent(fn (SearchOrders $request, $response): bool => $response->getPendingRequest()->getUrl()
+        === 'https://sandbox.sellingpartnerapi-fe.amazon.com/orders/2026-01-01/orders');
+});
+
 it('does not send a partial amazon shipment confirmation', function (): void {
     $exportSource = DataSource::factory()->create([
         'source_type' => AmazonSource::class,

@@ -1,6 +1,6 @@
 # Build the Amazon Buy Shipping adapter
 
-Status: needs-info
+Status: ready-for-agent
 
 Repo: `polybag`
 
@@ -9,13 +9,18 @@ Repo: `polybag`
 The adapter itself: quote through `getRates`, purchase through `purchaseShipment`, void
 through `cancelShipment`, track through `getTracking`.
 
-`needs-info` until `01` establishes what is actually on offer, and it should not start before
-the postage-source seam exists — building it against the old model means writing an adapter
-that discards Amazon's per-offer `carrierName`, which is the whole reason for the split.
+Both reasons this was `needs-info` are now discharged. `01` established what is on offer —
+three carriers eligible simultaneously against a 105-entry ineligible catalog — and
+`postage-source-split/08` shipped the seam, so an adapter written now keeps Amazon's per-offer
+`carrierName` instead of discarding it, which is the whole reason for the split.
+
+What remains is ordinary sequencing, not missing information: `02` owns the offer and
+observed-service stores this adapter reads and writes, so it stays blocked on `02` rather than
+on an unanswered question.
 
 ## What to build
 
-Notes that will not change whatever `01` returns:
+Notes that predate `01` and survived it unchanged:
 
 - **Credentials** come from the shipment's own Amazon `DataSource`, not a `CarrierAccount` —
   the order lives in that seller's account, and per-client sources are how 3PL scoping already
@@ -47,3 +52,14 @@ Notes that will not change whatever `01` returns:
 
 - `02-specify-observation-and-offer-stores`
 - `postage-source-split/08-split-carrier-adapter-interface`
+
+## Comments
+
+### 2026-09-04 — retriaged `needs-info` → `ready-for-agent`
+
+The `needs-info` state was stale. It was set pending `01`, which returned on 2026-09-02 with a
+GO, and pending the postage-source seam, which shipped as `postage-source-split/08`. Nothing
+here is waiting on information any more — only on `02`, which is already recorded under
+**Blocked by** and is the ordinary kind of dependency.
+
+Left as `ready-for-agent` rather than started, so the blocker is expressed in one place.
