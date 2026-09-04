@@ -68,3 +68,26 @@ updates:
       # deliberate decision rather than an image-tag bump.
       - dependency-name: "mysql"
         update-types: ["version-update:semver-major"]
+
+  # Workflow action pins. Dependabot rewrites the digest and the trailing
+  # `# vX.Y.Z` comment together, so the pin stays immutable and the comment
+  # stays accurate. Without this entry the action pins are the one ecosystem
+  # here that nothing watches, and they drifted three majors behind before
+  # anyone noticed — the node20 runtime deprecation is what surfaced it.
+  #
+  # Minor and patch bumps are grouped: six separate PRs a week for routine
+  # digest refreshes is how a Dependabot queue starts getting ignored. Majors
+  # stay ungrouped so each one arrives with its own CI run and its own release
+  # notes to read. Deliberately no `ignore` for majors — suppressing them is
+  # what let the node20 pins sit, and a major is the only way that particular
+  # fix was ever going to arrive.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      actions-minor:
+        update-types: ["minor", "patch"]
