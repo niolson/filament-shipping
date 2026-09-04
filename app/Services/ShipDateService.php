@@ -9,6 +9,20 @@ use Illuminate\Support\Facades\DB;
 
 class ShipDateService
 {
+    /**
+     * The pickup days a carrier has at a location nobody has configured one for.
+     *
+     * Mon–Fri is a deliberate policy rather than a placeholder, and it applies to
+     * every carrier: nothing seeds a `carrier_location` row, so this is what USPS,
+     * FedEx and Shopify alike run on until an operator says otherwise. Saturday
+     * pickup varies by warehouse, which is the case the per-location config exists
+     * to serve, so seeding Mon–Sat globally would assert something about every
+     * install that is only true of some. See ADR-0002.
+     *
+     * The direction matters: this default never dates a label for a pickup that
+     * does not happen. Its cost is a Saturday-packed parcel carrying Monday's date,
+     * which an operator fixes by adding the carrier here.
+     */
     private const DEFAULT_PICKUP_DAYS = [1, 2, 3, 4, 5]; // Mon-Fri
 
     public function getShipDate(string $carrierName, ?int $locationId = null): CarbonImmutable
@@ -142,7 +156,19 @@ class ShipDateService
             return self::DEFAULT_PICKUP_DAYS;
         }
 
-        return json_decode($pivot->pickup_days, true) ?? self::DEFAULT_PICKUP_DAYS;
+        // An empty set falls back rather than passing through. A row can hold one
+        // — `endShippingDay()` writes the pivot without pickup days, and a saved
+        // config with nothing ticked stores `[]` — and passing it through would
+        // leave `getNextPickupDay()` no day to find, sending it to its tomorrow
+        // fallback and dating labels for Sundays.
+        //
+        // Note that nothing here means "this carrier never collects at this
+        // location": an empty set and a deleted row both land on the default,
+        // because a package shipped on that carrier still needs a ship date and
+        // there is no honest one to give it otherwise. Keeping a carrier out of a
+        // location is what carrier account scoping does; these days only say when
+        // a carrier that does serve it collects.
+        return json_decode($pivot->pickup_days, true) ?: self::DEFAULT_PICKUP_DAYS;
     }
 
     private function resolveLocation(?int $locationId = null): ?Location

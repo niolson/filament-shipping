@@ -317,7 +317,7 @@ class Settings extends Page
                         ->columns(1),
 
                     Section::make('Carrier Pickup Schedule')
-                        ->description('Configure pickup days per carrier for your warehouse.')
+                        ->description('Which days each carrier collects from your warehouse. A carrier you do not list here is picked up Monday-Friday.')
                         ->visible(fn (): bool => ! (bool) app(SettingsService::class)->get('multi_location_enabled', false))
                         ->collapsible()
                         ->schema([
@@ -332,6 +332,7 @@ class Settings extends Page
                                         ->disableOptionsWhenSelectedInSiblingRepeaterItems(),
                                     CheckboxList::make('pickup_days')
                                         ->label('Pickup Days')
+                                        ->helperText('Ship dates land only on these days. Removing a carrier from this list does not stop scheduling it — it returns that carrier to the Monday-Friday default.')
                                         ->options([
                                             0 => 'Sunday',
                                             1 => 'Monday',
@@ -342,6 +343,7 @@ class Settings extends Page
                                             6 => 'Saturday',
                                         ])
                                         ->default([1, 2, 3, 4, 5])
+                                        ->minItems(1)
                                         ->columns(7),
                                 ])
                                 ->defaultItems(0)

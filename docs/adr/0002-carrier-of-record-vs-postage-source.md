@@ -49,6 +49,8 @@ binary, since `getShipDate()` returns a date at midnight: before the cutoff
 Two consequences are deliberately left out of scope. **Pickup days are not decided here** —
 nothing seeds a `carrier_location` row for Shopify, so it takes the Mon–Fri default and a
 Saturday-packed package is dated Monday regardless of any cutoff; that is tracked separately.
+(Settled by the 2026-09-04 amendment: Mon–Fri, and as an app-wide default rather than a
+Shopify one, because no carrier is seeded a pivot row.)
 And no per-package alert is raised when Shopify picks a carrier whose real cutoff differs:
 the ship date is fixed by the time `trackingCompany` comes back, `metadata.shopify_tracking_company`
 already records what was picked, and an operator who knows the pickup has gone can already
@@ -79,6 +81,45 @@ Neither the axis nor the prohibition changes: tracking still dispatches on the p
 and there is still no fallback chain — "try the carrier next" remains a request we are not
 entitled to make, whatever Shopify answers. Only the terminal state changes. A Shopify-bought
 label tracks through Shopify, exactly as an Amazon-bought one tracks through Amazon.
+
+Amended 2026-09-04: the pickup-day half of the ship-date policy, left out of scope by the
+cutoff amendment above, is settled — **Monday–Friday, as the default for every carrier,
+with Saturday left to the per-location config that already exists**.
+
+The question was framed as a Shopify one, on the grounds that `CarrierSeeder` seeds no
+`carrier_location` row for Shopify and so a Saturday-packed Shopify package is dated Monday
+regardless of any cutoff. That framing was wrong in a way worth recording: nothing seeds that
+pivot for *any* carrier. USPS, UPS and FedEx run on the same `DEFAULT_PICKUP_DAYS` fallback
+on a fresh install. There was never a Shopify-shaped gap to close, only an app-wide default
+nobody had written down, and closing it Shopify-only would have meant seeding a pivot row for
+one carrier purely to make the statement enforceable.
+
+So the value stays where it is, in `ShipDateService::DEFAULT_PICKUP_DAYS`, and is deliberate
+rather than incidental: Mon–Fri never dates a label for a pickup that does not happen, and its
+cost — a Saturday-packed parcel carrying Monday's date — falls on warehouses that do hand
+parcels over on Saturday, which is exactly the variation the per-carrier, per-location pickup
+days config exists to absorb. Seeding Mon–Sat globally would assert something about every
+install that is true of only some, and we do not have the Saturday packing volume that would
+settle it either way. Note the asymmetry does *not* run the way it did for the cutoff: there,
+conservatism was the expensive direction because the pessimistic case was the common one.
+
+Nothing is seeded, so no migration is needed to cover existing installs — they already run on
+this default and always have.
+
+Two consequences follow for the config that now carries the policy. It has to say what it is
+overriding, since both repeaters start empty and an operator wanting Saturday would otherwise
+see no row at all; both now state the Mon–Fri default in their section description. And an
+empty day set is no longer passed through to `getShipDate()`: it reached the tomorrow fallback
+in `getNextPickupDay()` and dated labels for Sundays, so it now falls back to the default, and
+the form requires at least one day.
+
+What that config deliberately cannot express is "this carrier never collects at this location".
+An empty set and a deleted row both land on the default, and should: a package shipped on that
+carrier still needs a ship date, and there is no honest one to give it if the carrier is held
+to collect on no day at all. Keeping a carrier out of a location is what carrier account
+scoping does. The pickup days say only when a carrier that does serve a location collects, and
+removing a row resets that carrier to the default rather than disabling it — which is what the
+form now tells the operator, because the opposite reading is the natural one.
 
 ## Context
 
