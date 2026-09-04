@@ -5,6 +5,7 @@ namespace App\Models;
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageStatus;
 use App\Enums\PostageSource;
+use App\Enums\ServiceEvidence;
 use App\Enums\SpecialServiceSource;
 use App\Enums\TrackingStatus;
 use App\Events\PackageCancelled;
@@ -35,6 +36,10 @@ class Package extends Model
         'carrier',
         'normalized_carrier_id',
         'service',
+        'requested_service',
+        'service_evidence',
+        'service_inference_method',
+        'service_ruleset_version',
         'metadata',
         'carrier_request_payload',
         'label_data',
@@ -73,6 +78,7 @@ class Package extends Model
         'label_printed_at' => 'datetime',
         'status' => PackageStatus::class,
         'postage_source' => PostageSource::class,
+        'service_evidence' => ServiceEvidence::class,
         'shipped_at' => 'datetime',
         'ship_date' => 'date',
         'exported' => 'boolean',
@@ -263,6 +269,20 @@ class Package extends Model
     }
 
     /**
+     * The service as a fact fit to report outward, or null.
+     *
+     * Only a `confirmed` service is one the postage source reported; an inferred
+     * one is ours, and a channel that receives it turns it into a buyer-facing
+     * promise we never made. Withholding it costs nothing — Amazon's
+     * `shipmentConfirmation` treats `shippingMethod` as optional. ADR-0003
+     * decision 7.
+     */
+    public function confirmedService(): ?string
+    {
+        return $this->service_evidence->isPublishable() ? $this->service : null;
+    }
+
+    /**
      * Compute whether there's a weight mismatch (>10% discrepancy)
      * between the actual package weight and the expected weight
      * based on the packed products.
@@ -291,13 +311,14 @@ class Package extends Model
      * so the caller passes the discriminator rather than letting it be inferred
      * from whichever pointer happens to be set. See ADR-0002.
      *
-     * @throws \InvalidArgumentException If the postage source and the response's pointers disagree
+     * @throws \InvalidArgumentException If the postage source and the response's pointers disagree, or the service evidence contradicts the service value
      * @throws \RuntimeException If the package state changed (optimistic locking)
      */
     public function markShipped(ShipResponse $response, PostageSource $postageSource, ?int $shippedByUserId = null): void
     {
         // Before the transaction, so a rejected provenance writes nothing at all.
         $this->assertProvenanceIsConsistent($postageSource, $response);
+        $this->assertServiceEvidenceIsConsistent($response);
 
         DB::transaction(function () use ($response, $postageSource, $shippedByUserId): void {
             $normalizedCarrierId = app(CarrierNormalizer::class)->resolve($response->carrier)?->id;
@@ -334,6 +355,10 @@ class Package extends Model
                     'carrier' => $response->carrier,
                     'normalized_carrier_id' => $normalizedCarrierId,
                     'service' => $response->service,
+                    'requested_service' => $response->requestedService,
+                    'service_evidence' => $response->serviceEvidence->value,
+                    'service_inference_method' => $response->serviceInferenceMethod,
+                    'service_ruleset_version' => $response->serviceRulesetVersion,
                     'label_data' => $response->labelData,
                     'label_orientation' => $response->labelOrientation ?? 'portrait',
                     'label_format' => $response->labelFormat ?? 'pdf',
@@ -403,6 +428,56 @@ class Package extends Model
                     'A postage_data_source purchase cannot also point at a carrier account.'
                 );
             }
+        }
+    }
+
+    /**
+     * Reject a ship whose evidence contradicts the service value it carries.
+     *
+     * Enforced beside the provenance check and for the same reason: markShipped()
+     * writes through the query builder, so model events never fire for it.
+     *
+     * The invariants are the ones ADR-0003 decision 7 depends on. `confirmed`
+     * with no service is a source that reported nothing being recorded as having
+     * reported something. `unknown` with a service is the guess the channel
+     * export exists to withhold. And an inference nobody can reproduce — no
+     * method, no ruleset version — cannot be reviewed when the rules change.
+     *
+     * @throws \InvalidArgumentException
+     */
+    private function assertServiceEvidenceIsConsistent(ShipResponse $response): void
+    {
+        $hasService = filled($response->service);
+        $hasInferenceDetail = filled($response->serviceInferenceMethod) || filled($response->serviceRulesetVersion);
+
+        if ($response->serviceEvidence === ServiceEvidence::Confirmed && ! $hasService) {
+            throw new \InvalidArgumentException(
+                'A confirmed service must name the service the postage source reported.'
+            );
+        }
+
+        if ($response->serviceEvidence === ServiceEvidence::Unknown && $hasService) {
+            throw new \InvalidArgumentException(
+                'A service nobody confirmed or inferred cannot be recorded as the service value.'
+            );
+        }
+
+        if ($response->serviceEvidence === ServiceEvidence::Inferred) {
+            if (! $hasService) {
+                throw new \InvalidArgumentException(
+                    'An inferred service must name the service that was inferred.'
+                );
+            }
+
+            if (blank($response->serviceInferenceMethod) || blank($response->serviceRulesetVersion)) {
+                throw new \InvalidArgumentException(
+                    'An inferred service must record the inference method and the ruleset version that produced it.'
+                );
+            }
+        } elseif ($hasInferenceDetail) {
+            throw new \InvalidArgumentException(
+                'Only an inferred service may record an inference method or ruleset version.'
+            );
         }
     }
 
@@ -480,6 +555,10 @@ class Package extends Model
                     'carrier' => null,
                     'normalized_carrier_id' => null,
                     'service' => null,
+                    'requested_service' => null,
+                    'service_evidence' => ServiceEvidence::Unknown->value,
+                    'service_inference_method' => null,
+                    'service_ruleset_version' => null,
                     'cost' => null,
                     'label_data' => null,
                     'label_orientation' => null,

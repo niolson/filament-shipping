@@ -4,6 +4,7 @@ use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
 use App\Enums\PostageSource;
+use App\Enums\ServiceEvidence;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Models\Carrier;
 use App\Models\Package;
@@ -240,7 +241,6 @@ it('records the carrier Shopify actually picked, not the one that was asked for'
     $response = $this->adapter->createShipment(shopifyShipRequest($package, 'usps:usps_ground_advantage'));
 
     expect($response->carrier)->toBe('DHL eCommerce')
-        ->and($response->service)->toBe('USPS Ground Advantage')
         ->and($response->metadata['shopify_tracking_company'])->toBe('DHL eCommerce')
         ->and($response->metadata['shopify_requested_service_code'])->toBe('usps:usps_ground_advantage');
 
@@ -248,9 +248,49 @@ it('records the carrier Shopify actually picked, not the one that was asked for'
     $package->refresh();
 
     expect($package->carrier)->toBe('DHL eCommerce')
-        ->and($package->service)->toBe('USPS Ground Advantage')
         ->and($package->isShopifyShipped())->toBeTrue()
         ->and($package->metadata['shopify_shipping_label_id'])->toBe('gid://shopify/ShippingLabel/1');
+});
+
+it('leaves the service unknown and keeps the selection as a requested preference', function (): void {
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+
+    Saloon::fake([
+        MockResponse::make(purchaseAccepted()),
+        MockResponse::make(purchasePurchased()),
+    ]);
+    Http::fake(['*' => Http::response('LABEL-BYTES')]);
+
+    $response = $this->adapter->createShipment(shopifyShipRequest($package, 'usps:usps_ground_advantage'));
+
+    expect($response->service)->toBeNull()
+        ->and($response->serviceEvidence)->toBe(ServiceEvidence::Unknown)
+        ->and($response->requestedService)->toBe('USPS Ground Advantage');
+
+    $package->markShipped($response, $response->postageSource);
+
+    expect($package->refresh()->service)->toBeNull()
+        ->and($package->service_evidence)->toBe(ServiceEvidence::Unknown)
+        ->and($package->requested_service)->toBe('USPS Ground Advantage')
+        // Nothing to publish outward: a preference is not a purchase.
+        ->and($package->confirmedService())->toBeNull();
+});
+
+it('records no requested preference when the rate was left to Shopify', function (): void {
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+
+    Saloon::fake([
+        MockResponse::make(purchaseAccepted()),
+        MockResponse::make(purchasePurchased()),
+    ]);
+    Http::fake(['*' => Http::response('LABEL-BYTES')]);
+
+    $response = $this->adapter->createShipment(shopifyShipRequest($package));
+
+    expect($response->requestedService)->toBeNull()
+        ->and($response->serviceEvidence)->toBe(ServiceEvidence::Unknown);
 });
 
 it('uses the requested carrier code when Shopify omits the tracking company', function (): void {

@@ -3,6 +3,7 @@
 namespace App\DataTransferObjects\Shipping;
 
 use App\Enums\PostageSource;
+use App\Enums\ServiceEvidence;
 use Carbon\CarbonImmutable;
 
 readonly class ShipResponse
@@ -12,6 +13,10 @@ readonly class ShipResponse
      * @param  array<string, mixed>  $metadata  Carrier-specific facts worth keeping on the package (e.g. what Shopify chose)
      * @param  PostageSource  $postageSource  Where the postage was bought. Defaults to the direct-carrier case; sales-channel postage must say so.
      * @param  int|null  $postageDataSourceId  The data source the postage was bought through, required when $postageSource is PostageDataSource
+     * @param  string|null  $requestedService  What the source was asked for. Audit metadata, never the service value — a source may ignore it.
+     * @param  ServiceEvidence  $serviceEvidence  How well $service is known. Defaults to the direct-carrier case, which reports what it sold.
+     * @param  string|null  $serviceInferenceMethod  How $service was derived, required when $serviceEvidence is Inferred
+     * @param  string|null  $serviceRulesetVersion  Which ruleset derived it, required when $serviceEvidence is Inferred
      */
     public function __construct(
         public bool $success,
@@ -30,6 +35,10 @@ readonly class ShipResponse
         public array $metadata = [],
         public PostageSource $postageSource = PostageSource::CarrierAccount,
         public ?int $postageDataSourceId = null,
+        public ?string $requestedService = null,
+        public ServiceEvidence $serviceEvidence = ServiceEvidence::Confirmed,
+        public ?string $serviceInferenceMethod = null,
+        public ?string $serviceRulesetVersion = null,
     ) {}
 
     /**

@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\PostageSource;
+use App\Enums\ServiceEvidence;
 use App\Models\BoxSize;
 use App\Models\Location;
 use App\Models\Manifest;
@@ -53,6 +54,9 @@ class PackageFactory extends Factory
             'tracking_number' => fake()->regexify('[0-9]{20}'),
             'carrier' => fake()->randomElement(['USPS', 'FedEx']),
             'service' => 'Ground',
+            // A direct carrier reports the service it sold, so the fixture says
+            // so rather than leaving a service with no evidence (ADR-0003).
+            'service_evidence' => ServiceEvidence::Confirmed,
             'cost' => fake()->randomFloat(2, 5, 50),
             'label_data' => base64_encode('mock-label-pdf'),
             'label_orientation' => 'portrait',

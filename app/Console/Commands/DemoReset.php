@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Enums\PackageStatus;
 use App\Enums\PostageSource;
+use App\Enums\ServiceEvidence;
 use App\Enums\ShipmentStatus;
 use App\Models\BoxSize;
 use App\Models\Channel;
@@ -406,6 +407,7 @@ class DemoReset extends Command
             'tracking_number' => $this->generateTrackingNumber($carrier),
             'carrier' => $carrier,
             'service' => $service['name'],
+            'service_evidence' => ServiceEvidence::Confirmed->value,
             'label_orientation' => 'portrait',
             'label_format' => 'pdf',
             'label_dpi' => 203,
