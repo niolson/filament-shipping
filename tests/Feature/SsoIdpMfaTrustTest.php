@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Auth;
  * fail-closed check: absence, wrong provider, or an untrusted tenant must leave
  * the app challenge in force.
  */
-const TRUSTED_TID = 'fc6cceae-6ffd-432e-97cb-ad02ed2367f7';
+const TRUSTED_TID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
 const MSA_TID = '9188040d-6c67-4c5b-b112-36a304b66dad';
 
 function trustIdpMfa(bool $enabled = true): void
