@@ -471,20 +471,25 @@ Testing setup:
 
 ### Issue tracker
 
-**GitHub Issues**, with the templates under `.github/ISSUE_TEMPLATE/`. There is no
-markdown issue tracker in this repo — the `docs/issues/` directory moved to a private
-repo in August 2026, because it held product planning and internal triage state written
-for us rather than for an outside audience.
+Two things, and they are not the same thing. **GitHub Issues** — templates under
+`.github/ISSUE_TEMPLATE/` — is the *front door*, where reports arrive from outside.
+**`docs/issues/`** is the *tracker of record*: planned work as markdown files, committed
+so triage state changes in the same PR as the code. Triage promotes a GitHub issue into a
+markdown file and closes the GitHub issue with a link. The two are never synced.
 
 So when a skill says "publish to the issue tracker" or "fetch the relevant ticket", it
-means `gh issue create` / `gh issue view`, not a file. `.scratch/` is gitignored scratch
-space and is not a tracker either.
+means a file under `docs/issues/<feature-slug>/`, not `gh issue create`. Start at
+`docs/issues/README.md` for what is open; full conventions, including what must not be
+written into a public repo, are in `docs/agents/issue-tracker.md`. `.scratch/` is
+gitignored scratch space and is not a tracker either.
 
 ### Triage labels
 
-`needs-triage`, `needs-info`, and `wontfix` exist as GitHub labels. The
-`ready-for-agent` / `ready-for-human` distinction is not defined here — it describes how
-maintainers schedule work rather than anything a reporter needs to see.
+`Status:` lines in the markdown issues, using the vocabulary in
+`docs/agents/triage-labels.md`. Three of them — `needs-triage`, `needs-info`, `wontfix` —
+also exist as real GitHub labels on the intake side. `ready-for-agent` /
+`ready-for-human` deliberately do not: they describe how maintainers schedule work rather
+than anything a reporter needs to see.
 
 ### Domain docs
 
