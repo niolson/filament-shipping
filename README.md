@@ -142,7 +142,7 @@ Run `php artisan list` to discover all commands. Self-hosters should know these:
 | Command | Purpose |
 |---|---|
 | `app:reencrypt-secrets` | Complete an `APP_KEY` rotation; see note below |
-| `data:purge` | Apply audit-log, rate-quote, and notification retention |
+| `data:purge` | Apply audit-log, rate-quote, shipping-offer, and notification retention |
 | `shipments:purge-pii` | Apply recipient PII retention, with a dry-run option |
 | `db:encrypt-tables` | Enable or verify MySQL table encryption |
 | `app:generate-ssh-key` | Create keys for database import tunnels |

@@ -2,10 +2,14 @@
 
 namespace App\DataTransferObjects\Shipping;
 
+use App\Models\ShippingOffer;
 use Carbon\Carbon;
 
 readonly class RateResponse
 {
+    /**
+     * @param  string|null  $offerId  The opaque identifier of the {@see ShippingOffer} backing this rate, when the source issued one. Everything that can actually buy the label — tokens, source instance, environment, expiry — stays in that row; this is the only part of it that may cross into browser state. ADR-0002 decision 4.
+     */
     public function __construct(
         public string $carrier,
         public string $serviceCode,
@@ -16,12 +20,13 @@ readonly class RateResponse
         public ?string $transitTime = null,
         public array $metadata = [],
         public bool $priceUnknown = false,
+        public ?string $offerId = null,
     ) {}
 
     /**
      * Convert to array format for Livewire serialization.
      *
-     * @return array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata: array<string, mixed>, priceUnknown: bool}
+     * @return array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata: array<string, mixed>, priceUnknown: bool, offerId: ?string}
      */
     public function toArray(): array
     {
@@ -35,13 +40,14 @@ readonly class RateResponse
             'transitTime' => $this->transitTime,
             'metadata' => $this->metadata,
             'priceUnknown' => $this->priceUnknown,
+            'offerId' => $this->offerId,
         ];
     }
 
     /**
      * Create a RateResponse from an array (lossless round-trip from toArray).
      *
-     * @param  array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata?: array<string, mixed>, priceUnknown?: bool}  $data
+     * @param  array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata?: array<string, mixed>, priceUnknown?: bool, offerId?: ?string}  $data
      */
     public static function fromArray(array $data): self
     {
@@ -55,6 +61,7 @@ readonly class RateResponse
             transitTime: $data['transitTime'] ?? null,
             metadata: $data['metadata'] ?? [],
             priceUnknown: (bool) ($data['priceUnknown'] ?? false),
+            offerId: $data['offerId'] ?? null,
         );
     }
 

@@ -169,4 +169,6 @@ renamed interface and a renamed method are not a rewrite, but they are not nothi
 ## Follow-on
 
 - `amazon-buy-shipping/02-specify-observation-and-offer-stores` — the offer store that unblocks
-  moving quote and purchase onto `PostageSourceOperations`
+  moving quote and purchase onto `PostageSourceOperations`. **Done 2026-09-04.** The store
+  exists and the ship path redeems against it; the two operations stay off the contract
+  until a source actually issues an offer, which is `amazon-buy-shipping/03`.

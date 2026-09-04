@@ -89,6 +89,7 @@ class Settings extends Page
             'address_validation_google_enabled' => $settings->get('address_validation_google_enabled', false),
             'audit_log_retention_days' => $settings->get('audit_log_retention_days', 365),
             'rate_quote_retention_days' => $settings->get('rate_quote_retention_days', 60),
+            'shipping_offer_retention_days' => $settings->get('shipping_offer_retention_days', 7),
             'pii_retention_days' => $settings->get('pii_retention_days', 90),
             'archiving_enabled' => $settings->get('archiving_enabled', false),
             'archive_retention_days' => $settings->get('archive_retention_days', 365),
@@ -538,6 +539,14 @@ class Settings extends Page
                                 ->maxValue(3650)
                                 ->default(60)
                                 ->suffix('days'),
+                            TextInput::make('shipping_offer_retention_days')
+                                ->label('Shipping Offer Retention')
+                                ->helperText('Purchase context behind a quoted rate is kept this long, then purged daily. Days rather than months: an offer is spent or abandoned within minutes. An offer that was spent without the carrier confirming a purchase is never purged, whatever this is set to. Set to 0 to disable.')
+                                ->numeric()
+                                ->minValue(0)
+                                ->maxValue(365)
+                                ->default(7)
+                                ->suffix('days'),
                             TextInput::make('pii_retention_days')
                                 ->label('PII Retention (default)')
                                 ->helperText('Days to keep recipient PII (name, address, phone, email) after shipping. Per-channel overrides can be set on each channel. Set to 0 to disable.')
@@ -619,6 +628,7 @@ class Settings extends Page
             'address_validation_google_enabled' => (bool) ($data['address_validation_google_enabled'] ?? false),
             'audit_log_retention_days' => (int) ($data['audit_log_retention_days'] ?? 365),
             'rate_quote_retention_days' => (int) ($data['rate_quote_retention_days'] ?? 60),
+            'shipping_offer_retention_days' => (int) ($data['shipping_offer_retention_days'] ?? 7),
             'pii_retention_days' => (int) ($data['pii_retention_days'] ?? 90),
             'archiving_enabled' => (bool) ($data['archiving_enabled'] ?? false),
             'archive_retention_days' => (int) ($data['archive_retention_days'] ?? 365),

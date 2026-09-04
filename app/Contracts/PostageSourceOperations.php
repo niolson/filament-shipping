@@ -5,6 +5,7 @@ namespace App\Contracts;
 use App\DataTransferObjects\Shipping\CancelResponse;
 use App\DataTransferObjects\Tracking\TrackShipmentResponse;
 use App\Models\Package;
+use App\Services\PostageSources\OfferStore;
 
 /**
  * The operations that belong to whoever *bought* a label.
@@ -21,10 +22,11 @@ use App\Models\Package;
  * Trying the carrier next would be a request we hold no entitlement to make.
  *
  * Quoting and purchasing are the two operations of this seam not declared here
- * yet. They cannot be until an offer carries the source instance it came from
- * (ADR-0002 decision 4's offer store), so they still dispatch by carrier name
- * through `CarrierRegistry`; declaring them now would add methods nothing could
- * route to.
+ * yet. They still dispatch by carrier name through `CarrierRegistry`. The offer
+ * store they were waiting on now exists ({@see OfferStore},
+ * ADR-0002 decision 4), but nothing issues an offer yet, so declaring them here
+ * would still add methods nothing could route to. The Amazon adapter is the
+ * first source that will.
  */
 interface PostageSourceOperations
 {

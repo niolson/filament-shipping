@@ -48,6 +48,7 @@ class DemoReset extends Command
         'package_items',
         'package_special_services',
         'rate_quotes',
+        'shipping_offers',
         'packages',
         'manifests',
         'label_batch_items',
