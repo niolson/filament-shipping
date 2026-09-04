@@ -121,6 +121,17 @@ scoping does. The pickup days say only when a carrier that does serve a location
 removing a row resets that carrier to the default rather than disabling it — which is what the
 form now tells the operator, because the opposite reading is the natural one.
 
+Reconciled 2026-09-04, after the last slice landed: three passages had been left standing that
+the amendments above had already contradicted. Decision 3 still routed "explicitly-marked
+legacy packages" to carrier dispatch, a branch the 2026-09-02 amendment removed; the
+trackability item under *To revisit* still enumerated two routes to Shopify tracking, when the
+2026-09-03 amendment found a third and shipped it; and the *Migration hazard* section still
+described a `metadata.shopify_tracking_company` recovery scheme that was deliberately never
+built. Each is now struck or corrected in place rather than deleted, on the same reasoning the
+2026-09-03 amendment gives for rewriting what it supersedes: a reader who finds the wrong
+instruction beside the right one may follow either. No decision changes here — this pass only
+makes the document say what was already true.
+
 ## Context
 
 `packages.carrier` is a denormalized string, not a foreign key to `carriers`. It does two
@@ -216,8 +227,10 @@ invariant like anything else.
   fulfillment its purchase created — `displayStatus`, `inTransitAt`, `deliveredAt` — matched to
   the package by tracking number the way the void sync already matches it. There is still no
   fallback: "try the carrier next" would be a USPS request we are not entitled to make,
-  whatever the source answered. Carrier dispatch applies only to direct provenance and to
-  explicitly-marked legacy packages. See the entitlement note and the 2026-09-03 amendment.
+  whatever the source answered. Carrier dispatch applies to direct provenance, and only to
+  that — the "explicitly-marked legacy packages" this bullet used to route alongside it are the
+  `legacy_unknown` value the 2026-09-02 amendment removed, and there is one branch here now,
+  not two. See the entitlement note and the 2026-09-03 amendment.
 
   Source-reported tracking is coarser than a carrier feed, and that is accepted rather than
   worked around: stage-level statuses with no scan locations, a timeline moving on the
@@ -361,9 +374,13 @@ Harder:
 
 To revisit:
 
-- Whether Shopify-bought labels ever become trackable. Only two routes exist: Shopify adds a
+- ~~Whether Shopify-bought labels ever become trackable. Only two routes exist: Shopify adds a
   tracking API, or the merchant obtains a USPS Merchant Access Token from Shopify. Neither is
-  in our control.
+  in our control.~~ **Resolved by the 2026-09-03 amendment.** Both named routes were routes to
+  a *carrier* feed, and the enumeration missed the one that did not need one: Shopify already
+  reports the delivery lifecycle back as the merchant's own order data, on the fulfillment, in
+  a field the void sync was already selecting. What remains open is how coarse that feed is in
+  practice, not whether it exists.
 - Whether `CarrierService` is the right selection primitive for channel postage at all.
 
 ## Note: tracking entitlement is not ours to grant
@@ -397,10 +414,26 @@ Rewriting those rows to `"USPS"` without simultaneously adding a postage-source 
 sweep labels we did not buy, and cannot manifest, into a USPS SCAN form. The query change
 must land in the same commit as the backfill, not after it.
 
-The backfill window is small and closing: Shopify Shipping shipped 2026-08-29, days before
+~~The backfill window is small and closing: Shopify Shipping shipped 2026-08-29, days before
 this ADR, so almost no affected rows exist yet. `carrier` is recoverable from
 `metadata.shopify_tracking_company`, falling back to `service`; `postage_data_source_id` from the
-shipment's data source. This is the cheapest this change will ever be.
+shipment's data source. This is the cheapest this change will ever be.~~
+
+**Superseded 2026-09-04.** The rule in the paragraph above stands and was honoured — the
+postage-source filter landed in the same commit as the backfill. The recovery scheme in this
+one was never built, and should not be read as describing what runs.
+
+The window was not small but **empty**: no Shopify Shipping label has ever been bought, in
+production or in development, before or during this work. So there is nothing to recover
+`carrier` *from*, and inferring one from `metadata.shopify_tracking_company` would have meant
+reconstructing a carrier of record by guesswork — the thing decision 1 exists to stop.
+`2026_09_02_193821_backfill_package_postage_source` therefore records the one provenance every
+pre-split row actually has, `carrier_account`, and **throws** on any row that looks
+Shopify-bought rather than rewriting it. Expected matches: zero, and zero is what it found.
+
+The general lesson is worth keeping even though the specific scheme is not: a backfill that
+would have to infer a fact should fail on the rows it cannot know rather than invent them, and
+a window this narrow is better closed with a guard than with a heuristic.
 
 ## Implementation
 
