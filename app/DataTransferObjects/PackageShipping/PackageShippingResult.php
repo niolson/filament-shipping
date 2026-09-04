@@ -47,6 +47,19 @@ readonly class PackageShippingResult
         );
     }
 
+    /**
+     * The offer behind the selected rate could not be spent.
+     *
+     * Fails closed and leaves the package alone: expiry and double-spend are
+     * both recoverable by quoting again, and a package deleted out from under
+     * an operator who only needs fresh rates is a worse outcome than the stale
+     * rate they clicked.
+     */
+    public static function offerUnavailable(string $title, string $message): self
+    {
+        return new self(success: false, title: $title, message: $message, leavePackageIntact: true);
+    }
+
     public static function stateConflict(string $message): self
     {
         return new self(success: false, title: 'Package State Changed', message: $message, leavePackageIntact: true);

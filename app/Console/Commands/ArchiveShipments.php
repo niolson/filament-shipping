@@ -88,6 +88,7 @@ class ArchiveShipments extends Command
                 if ($packageIds->isNotEmpty()) {
                     DB::table('package_items')->whereIn('package_id', $packageIds)->delete();
                     DB::table('rate_quotes')->whereIn('package_id', $packageIds)->delete();
+                    DB::table('shipping_offers')->whereIn('package_id', $packageIds)->delete();
                     DB::table('label_batch_items')->whereIn('package_id', $packageIds)->update(['package_id' => null]);
                     Package::whereIn('id', $packageIds)->delete();
                 }

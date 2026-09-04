@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\AuditLog;
 use App\Models\RateQuote;
+use App\Models\ShippingOffer;
 use App\Services\SettingsService;
 use Illuminate\Console\Command;
 use Illuminate\Notifications\DatabaseNotification;
@@ -13,12 +14,13 @@ class PurgeData extends Command
     protected $signature = 'data:purge
         {--days= : Override retention days for audit logs}';
 
-    protected $description = 'Purge old audit logs, rate quotes, and read notifications';
+    protected $description = 'Purge old audit logs, rate quotes, shipping offers, and read notifications';
 
     public function handle(SettingsService $settings): int
     {
         $this->purgeAuditLogs($settings);
         $this->purgeRateQuotes($settings);
+        $this->purgeShippingOffers($settings);
         $this->purgeNotifications();
 
         return self::SUCCESS;
@@ -66,6 +68,67 @@ class PurgeData extends Command
 
         if ($total > 0) {
             $this->info("Purged {$total} rate quotes older than {$days} days.");
+        }
+    }
+
+    /**
+     * Offers are ephemeral in a way rate quotes are not: one is spent or
+     * abandoned within minutes, so its retention is days rather than months.
+     * Deliberately a separate setting for that reason — the audit log of what
+     * was quoted and the authority to buy it answer different questions and
+     * should not be kept to the same clock.
+     *
+     * `observed_services` is the third case and is purged by nothing at all: a
+     * service identity is durable, and its mapping and first-seen date are
+     * worth more the older they get.
+     */
+    private function purgeShippingOffers(SettingsService $settings): void
+    {
+        $days = (int) $settings->get('shipping_offer_retention_days', 7);
+
+        if ($days === 0) {
+            $this->info('Shipping offer retention is set to 0 (keep forever). Skipping.');
+
+            return;
+        }
+
+        $cutoff = now()->subDays($days);
+
+        // An offer consumed without the source either confirming or declining
+        // is the only evidence that a label may exist which we never recorded.
+        // Deleting one destroys the answer to "was this parcel already paid
+        // for?", so age alone never removes it. A declined purchase is not one
+        // of these: it resolved, and it goes with the rest.
+        $unresolved = ShippingOffer::query()
+            ->where('created_at', '<', $cutoff)
+            ->whereNotNull('consumed_at')
+            ->whereNull('purchase_reference')
+            ->whereNull('purchase_failed_at')
+            ->count();
+
+        $total = 0;
+
+        do {
+            $deleted = ShippingOffer::query()
+                ->where('created_at', '<', $cutoff)
+                ->where(fn ($query) => $query
+                    ->whereNull('consumed_at')
+                    ->orWhereNotNull('purchase_reference')
+                    ->orWhereNotNull('purchase_failed_at'))
+                ->limit(1000)
+                ->delete();
+            $total += $deleted;
+        } while ($deleted > 0);
+
+        if ($total > 0) {
+            $this->info("Purged {$total} shipping offers older than {$days} days.");
+        }
+
+        if ($unresolved > 0) {
+            $this->warn(
+                "Kept {$unresolved} consumed shipping offer(s) with no confirmed purchase. "
+                .'Each one may correspond to a label bought at the source and never recorded here.'
+            );
         }
     }
 
