@@ -136,10 +136,9 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
                 // Test Case 1: Japan marketplace with all includedData values.
                 //
                 // A1VC38T7YXB528 is Amazon's JP marketplace ID, which only resolves
-                // against the FE sandbox host — hence services.amazon.sandbox_url
-                // pointing at sandbox.sellingpartnerapi-fe.amazon.com rather than NA.
-                // Sending this marketplace ID to the NA sandbox host 403s with "The
-                // marketplaces you provided are not valid for region"
+                // against the FE sandbox host — hence SearchOrders declaring the FE
+                // region. Sending this marketplace ID to the NA sandbox host 403s with
+                // "The marketplaces you provided are not valid for region"
                 // (see https://github.com/amzn/selling-partner-api-models/issues/5126).
                 $query = [
                     'marketplaceIds' => 'A1VC38T7YXB528',

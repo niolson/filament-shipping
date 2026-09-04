@@ -2,6 +2,8 @@
 
 namespace App\Http\Integrations\Amazon\Requests;
 
+use App\Enums\AmazonSpApiRegion;
+use App\Http\Integrations\Amazon\DeclaresSandboxRegion;
 use Saloon\Contracts\Body\HasBody;
 use Saloon\Enums\Method;
 use Saloon\Http\Request;
@@ -17,7 +19,7 @@ use Saloon\Traits\Body\HasJsonBody;
  *
  * `ineligibleRates` names services that exist but did not apply, with reason codes.
  */
-class GetShippingRates extends Request implements HasBody
+class GetShippingRates extends Request implements DeclaresSandboxRegion, HasBody
 {
     use HasJsonBody;
 
@@ -55,5 +57,14 @@ class GetShippingRates extends Request implements HasBody
     protected function defaultBody(): array
     {
         return $this->payload;
+    }
+
+    /**
+     * Shipping v2's sandbox test cases are NA. Declared rather than left to the
+     * connector default because this API is the reason the default cannot be FE.
+     */
+    public function sandboxRegion(): AmazonSpApiRegion
+    {
+        return AmazonSpApiRegion::NorthAmerica;
     }
 }
