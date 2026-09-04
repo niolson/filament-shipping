@@ -389,7 +389,7 @@ it('saves the Entra IdP-MFA trust settings from the form', function (): void {
     Livewire::test(Settings::class)
         ->fillForm([
             'trust_idp_mfa' => true,
-            'trusted_azure_tids' => ['fc6cceae-6ffd-432e-97cb-ad02ed2367f7'],
+            'trusted_azure_tids' => ['a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'],
         ])
         ->call('save')
         ->assertNotified()
@@ -398,7 +398,7 @@ it('saves the Entra IdP-MFA trust settings from the form', function (): void {
     $settings = app(SettingsService::class);
 
     expect($settings->get('trust_idp_mfa'))->toBeTrue()
-        ->and($settings->get('trusted_azure_tids'))->toBe(['fc6cceae-6ffd-432e-97cb-ad02ed2367f7']);
+        ->and($settings->get('trusted_azure_tids'))->toBe(['a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d']);
 });
 
 it('canonicalizes trusted tenant ids to lowercase and de-duplicates on save', function (): void {
@@ -406,8 +406,8 @@ it('canonicalizes trusted tenant ids to lowercase and de-duplicates on save', fu
         ->fillForm([
             'trust_idp_mfa' => true,
             'trusted_azure_tids' => [
-                'FC6CCEAE-6FFD-432E-97CB-AD02ED2367F7',
-                'fc6cceae-6ffd-432e-97cb-ad02ed2367f7',
+                'A1B2C3D4-E5F6-4A7B-8C9D-0E1F2A3B4C5D',
+                'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d',
             ],
         ])
         ->call('save')
@@ -415,7 +415,7 @@ it('canonicalizes trusted tenant ids to lowercase and de-duplicates on save', fu
         ->assertHasNoFormErrors();
 
     expect(app(SettingsService::class)->get('trusted_azure_tids'))
-        ->toBe(['fc6cceae-6ffd-432e-97cb-ad02ed2367f7']);
+        ->toBe(['a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d']);
 });
 
 it('rejects a non-UUID trusted tenant id', function (): void {
@@ -433,7 +433,7 @@ it('rejects a non-UUID trusted tenant id', function (): void {
 
 it('preserves the trusted-tid allowlist when the trust toggle is turned off', function (): void {
     app(SettingsService::class)->set('trust_idp_mfa', true, type: 'boolean');
-    app(SettingsService::class)->set('trusted_azure_tids', ['fc6cceae-6ffd-432e-97cb-ad02ed2367f7'], type: 'json');
+    app(SettingsService::class)->set('trusted_azure_tids', ['a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d'], type: 'json');
     app(SettingsService::class)->clearCache();
 
     Livewire::test(Settings::class)
@@ -444,7 +444,7 @@ it('preserves the trusted-tid allowlist when the trust toggle is turned off', fu
     $settings = app(SettingsService::class);
 
     expect($settings->get('trust_idp_mfa'))->toBeFalse()
-        ->and($settings->get('trusted_azure_tids'))->toBe(['fc6cceae-6ffd-432e-97cb-ad02ed2367f7']);
+        ->and($settings->get('trusted_azure_tids'))->toBe(['a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d']);
 });
 
 it('does not load client fields into settings form in multi-client mode', function (): void {
