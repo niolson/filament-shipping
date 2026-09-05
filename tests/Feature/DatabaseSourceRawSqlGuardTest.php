@@ -4,6 +4,7 @@ use App\Enums\AuditAction;
 use App\Models\AuditLog;
 use App\Services\ShipmentImport\Sources\DatabaseSource;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 
 uses(RefreshDatabase::class);
 
@@ -46,7 +47,7 @@ it('refuses a non-SELECT custom shipments query', function (): void {
         'shipments_query' => 'DELETE FROM shipments',
     ]);
 
-    expect(fn () => $source->fetchShipments())->toThrow(InvalidArgumentException::class);
+    expect(fn (): Collection => $source->fetchShipments())->toThrow(InvalidArgumentException::class);
 });
 
 it('refuses a CREATE TABLE export query (self-referential DDL)', function (): void {
@@ -93,7 +94,7 @@ it('rolls back and throws when a mark_exported UPDATE affects more than the cap'
         ],
     ]);
 
-    expect(fn () => $source->markExported('ref-1'))->toThrow(RuntimeException::class);
+    expect(fn (): bool => $source->markExported('ref-1'))->toThrow(RuntimeException::class);
 
     // Rolled back — no row was actually flipped.
     expect(DB::table('marks')->where('exported', 'y')->count())->toBe(0);

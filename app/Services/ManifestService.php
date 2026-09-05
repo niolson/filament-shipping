@@ -210,7 +210,7 @@ class ManifestService
                 ]);
 
                 $remainingPackages = $remainingPackages->reject(
-                    fn ($p) => in_array($p->tracking_number, $alreadyManifested)
+                    fn ($p): bool => in_array($p->tracking_number, $alreadyManifested)
                 )->values();
 
                 if ($remainingPackages->isEmpty()) {

@@ -98,7 +98,7 @@ class ImportReferenceResolver
                 'description' => $itemData['description'] ?? null,
                 'barcode' => $itemData['barcode'] ?? null,
                 'weight' => $itemData['weight'] ?? null,
-            ], fn ($value) => $value !== null);
+            ], fn ($value): bool => $value !== null);
 
             $product = Product::firstOrNew([
                 'client_id' => $client->id,

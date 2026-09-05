@@ -96,7 +96,7 @@ class ValidateShipmentsCommand extends Command
         $this->info('Dry-run mode - no changes will be made.');
         $this->newLine();
 
-        $sample = $shipments->take(10)->map(function ($s) {
+        $sample = $shipments->take(10)->map(function ($s): array {
             return [
                 $s->shipment_reference,
                 trim("{$s->first_name} {$s->last_name}"),

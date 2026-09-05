@@ -243,7 +243,7 @@ it('dispatches a bus batch with jobs', function (): void {
 
     $batch = $this->service->createBatch(collect([$shipment]), $boxSize, $user, 'zpl', 203);
 
-    Bus::assertBatched(function ($batch) {
+    Bus::assertBatched(function ($batch): bool {
         return $batch->jobs->count() === 1;
     });
 

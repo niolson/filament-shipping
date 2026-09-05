@@ -44,7 +44,7 @@ class ShippingRulesRelationManager extends RelationManager
                             fn ($carrier) => $carrier->whereIn('name', app(CarrierRegistry::class)->blindPurchaseSourceNames()),
                         ),
                     )
-                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->carrier->name} — {$record->name}")
+                    ->getOptionLabelFromRecordUsing(fn ($record): string => "{$record->carrier->name} — {$record->name}")
                     ->searchable()
                     ->preload()
                     ->required(),
@@ -79,11 +79,11 @@ class ShippingRulesRelationManager extends RelationManager
                     ->badge(),
                 Tables\Columns\TextColumn::make('carrierService.name')
                     ->label('Carrier Service')
-                    ->formatStateUsing(fn ($state, $record) => "{$record->carrierService->carrier->name} — {$state}"),
+                    ->formatStateUsing(fn ($state, $record): string => "{$record->carrierService->carrier->name} — {$state}"),
                 Tables\Columns\ToggleColumn::make('enabled'),
                 Tables\Columns\TextColumn::make('conditions_summary')
                     ->label('Conditions')
-                    ->getStateUsing(fn ($record) => self::summarizeConditions($record->conditions))
+                    ->getStateUsing(fn ($record): ?string => self::summarizeConditions($record->conditions))
                     ->placeholder('Always'),
             ])
             ->headerActions([
@@ -200,7 +200,7 @@ class ShippingRulesRelationManager extends RelationManager
                 Forms\Components\TextInput::make('max_value')
                     ->label('Max Weight (lbs)')
                     ->numeric()
-                    ->visible(fn (Get $get) => $get('operator') === 'between')
+                    ->visible(fn (Get $get): bool => $get('operator') === 'between')
                     ->requiredIf('operator', 'between'),
             ])
             ->columns(3);
@@ -234,7 +234,7 @@ class ShippingRulesRelationManager extends RelationManager
                 Forms\Components\TextInput::make('max_value')
                     ->label('Max Value ($)')
                     ->numeric()
-                    ->visible(fn (Get $get) => $get('operator') === 'between')
+                    ->visible(fn (Get $get): bool => $get('operator') === 'between')
                     ->requiredIf('operator', 'between'),
             ])
             ->columns(3);
@@ -268,7 +268,7 @@ class ShippingRulesRelationManager extends RelationManager
                 Forms\Components\TextInput::make('max_value')
                     ->label('Max Count')
                     ->numeric()
-                    ->visible(fn (Get $get) => $get('operator') === 'between')
+                    ->visible(fn (Get $get): bool => $get('operator') === 'between')
                     ->requiredIf('operator', 'between'),
             ])
             ->columns(3);

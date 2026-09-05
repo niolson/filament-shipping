@@ -10,7 +10,7 @@ it('redacts carrier validation channel logs by default via PiiRedactionProcessor
     $logger = Log::channel($channel)->getLogger();
 
     $hasRedactionProcessor = collect($logger->getProcessors())
-        ->contains(fn ($processor) => $processor instanceof PiiRedactionProcessor);
+        ->contains(fn ($processor): bool => $processor instanceof PiiRedactionProcessor);
 
     expect($hasRedactionProcessor)->toBeTrue();
 })->with(['fedex-validation', 'usps-validation', 'ups-validation']);

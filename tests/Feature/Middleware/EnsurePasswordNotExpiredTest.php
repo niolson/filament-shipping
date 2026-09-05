@@ -2,6 +2,7 @@
 
 use App\Filament\Pages\Auth\ChangePassword;
 use App\Http\Middleware\EnsurePasswordNotExpired;
+use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\Request;
 use Livewire\Livewire;
 
@@ -19,7 +20,7 @@ function requestWithExpiredFlag(string $uri, bool $expired = true): Request
 it('redirects to the change-password page when the password is expired', function (): void {
     $response = app(EnsurePasswordNotExpired::class)->handle(
         requestWithExpiredFlag('/'),
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     );
 
     expect($response->isRedirect())->toBeTrue()
@@ -29,7 +30,7 @@ it('redirects to the change-password page when the password is expired', functio
 it('redirects away from any other panel page while the password is expired', function (): void {
     $response = app(EnsurePasswordNotExpired::class)->handle(
         requestWithExpiredFlag('/ship/1'),
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     );
 
     expect($response->isRedirect())->toBeTrue()
@@ -39,7 +40,7 @@ it('redirects away from any other panel page while the password is expired', fun
 it('allows the change-password page itself through', function (): void {
     $response = app(EnsurePasswordNotExpired::class)->handle(
         requestWithExpiredFlag('/auth/change-password'),
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     );
 
     expect($response->getStatusCode())->toBe(200)
@@ -49,7 +50,7 @@ it('allows the change-password page itself through', function (): void {
 it('allows logout through so the user can sign out', function (): void {
     $response = app(EnsurePasswordNotExpired::class)->handle(
         requestWithExpiredFlag('/logout'),
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     );
 
     expect($response->getStatusCode())->toBe(200);
@@ -61,7 +62,7 @@ it('allows a livewire update replayed against the change-password page through',
     // that path is exempt, so its form submissions are allowed.
     $response = app(EnsurePasswordNotExpired::class)->handle(
         requestWithExpiredFlag('/auth/change-password'),
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     );
 
     expect($response->getStatusCode())->toBe(200);
@@ -72,7 +73,7 @@ it('redirects a livewire update replayed against any other page', function (): v
     // which is not exempt, so the action is redirected instead of executed.
     $response = app(EnsurePasswordNotExpired::class)->handle(
         requestWithExpiredFlag('/manual-ship'),
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     );
 
     expect($response->isRedirect())->toBeTrue()
@@ -86,7 +87,7 @@ it('is registered as Livewire persistent middleware so it replays on component u
 it('allows requests through when the password is not expired', function (): void {
     $response = app(EnsurePasswordNotExpired::class)->handle(
         requestWithExpiredFlag('/', expired: false),
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     );
 
     expect($response->getStatusCode())->toBe(200)

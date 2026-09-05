@@ -200,7 +200,7 @@ class CarrierAccount extends Model
 
         if ($bestScope->rate_shop && $locationId !== null) {
             $locationDefault = $sorted->first(
-                fn (CarrierAccountScope $s) => $priority($s) === 1
+                fn (CarrierAccountScope $s): bool => $priority($s) === 1
                     && $s->carrierAccount->isNot($bestScope->carrierAccount)
             );
 

@@ -182,8 +182,8 @@ class SetupWizard extends Page
                         Forms\Components\Select::make('location_timezone')
                             ->label('Timezone')
                             ->options(fn () => collect(timezone_identifiers_list())
-                                ->filter(fn ($tz) => str_starts_with($tz, 'America/') || str_starts_with($tz, 'Pacific/') || str_starts_with($tz, 'US/'))
-                                ->mapWithKeys(fn ($tz) => [$tz => str_replace('_', ' ', $tz)]))
+                                ->filter(fn ($tz): bool => str_starts_with($tz, 'America/') || str_starts_with($tz, 'Pacific/') || str_starts_with($tz, 'US/'))
+                                ->mapWithKeys(fn ($tz): array => [$tz => str_replace('_', ' ', $tz)]))
                             ->searchable()
                             ->default('America/New_York')
                             ->required(),
@@ -228,7 +228,7 @@ class SetupWizard extends Page
                 Forms\Components\Placeholder::make('existing_box_sizes')
                     ->label('Existing Box Sizes')
                     ->visible(fn () => BoxSize::exists())
-                    ->content(fn () => new HtmlString(
+                    ->content(fn (): HtmlString => new HtmlString(
                         view('filament.pages.setup-wizard.existing-box-sizes', [
                             'boxes' => BoxSize::all(),
                         ])->render()
@@ -306,7 +306,7 @@ class SetupWizard extends Page
                         Forms\Components\Placeholder::make('existing_channels')
                             ->label('Existing Channels')
                             ->visible(fn () => Channel::exists())
-                            ->content(fn () => new HtmlString(
+                            ->content(fn (): HtmlString => new HtmlString(
                                 view('filament.pages.setup-wizard.existing-channels', [
                                     'channels' => Channel::with('aliases')->get(),
                                 ])->render()
@@ -327,7 +327,7 @@ class SetupWizard extends Page
                                         'heroicon-o-pencil-square' => 'Manual',
                                         'heroicon-o-inbox-stack' => 'Inbox',
                                         'heroicon-o-truck' => 'Truck',
-                                    ])->mapWithKeys(fn (string $label, string $icon) => [
+                                    ])->mapWithKeys(fn (string $label, string $icon): array => [
                                         $icon => '<span class="flex items-center gap-2">'
                                             .svg($icon, 'w-5 h-5')->toHtml()
                                             ."<span>{$label}</span></span>",
@@ -356,7 +356,7 @@ class SetupWizard extends Page
                         Forms\Components\Placeholder::make('existing_methods')
                             ->label('Existing Shipping Methods')
                             ->visible(fn () => ShippingMethod::exists())
-                            ->content(fn () => new HtmlString(
+                            ->content(fn (): HtmlString => new HtmlString(
                                 view('filament.pages.setup-wizard.existing-methods', [
                                     'methods' => ShippingMethod::with(['aliases', 'carrierServices.carrier'])->get(),
                                 ])->render()
@@ -382,7 +382,7 @@ class SetupWizard extends Page
                                         ->get()
                                         ->groupBy(fn ($cs) => $cs->carrier->name)
                                         ->flatMap(fn ($services, $carrier) => $services->mapWithKeys(
-                                            fn ($cs) => [$cs->id => "{$carrier}: {$cs->name}"]
+                                            fn ($cs): array => [$cs->id => "{$carrier}: {$cs->name}"]
                                         ))
                                         ->toArray())
                                     ->columns(2)
@@ -424,7 +424,7 @@ class SetupWizard extends Page
 
                 // Database
                 Section::make('Database Connection')
-                    ->visible(fn (Get $get) => $get('import_source') === 'database')
+                    ->visible(fn (Get $get): bool => $get('import_source') === 'database')
                     ->schema([
                         Forms\Components\Select::make('db_driver')
                             ->label('Driver')
@@ -432,7 +432,7 @@ class SetupWizard extends Page
                             ->default('mysql')
                             ->required()
                             ->live()
-                            ->afterStateUpdated(fn (Set $set, ?string $state) => $set(
+                            ->afterStateUpdated(fn (Set $set, ?string $state): mixed => $set(
                                 'db_port',
                                 ImportConnectionConfig::defaultPort($state),
                             )),
@@ -463,40 +463,40 @@ class SetupWizard extends Page
                             ->live(),
                         Forms\Components\TextInput::make('db_ssh_host')
                             ->label('SSH Host')
-                            ->visible(fn (Get $get) => $get('db_ssh_enabled'))
-                            ->required(fn (Get $get) => $get('db_ssh_enabled')),
+                            ->visible(fn (Get $get): mixed => $get('db_ssh_enabled'))
+                            ->required(fn (Get $get): mixed => $get('db_ssh_enabled')),
                         Forms\Components\TextInput::make('db_ssh_port')
                             ->label('SSH Port')
                             ->default('22')
-                            ->visible(fn (Get $get) => $get('db_ssh_enabled')),
+                            ->visible(fn (Get $get): mixed => $get('db_ssh_enabled')),
                         Forms\Components\TextInput::make('db_ssh_user')
                             ->label('SSH User')
-                            ->visible(fn (Get $get) => $get('db_ssh_enabled'))
-                            ->required(fn (Get $get) => $get('db_ssh_enabled')),
+                            ->visible(fn (Get $get): mixed => $get('db_ssh_enabled'))
+                            ->required(fn (Get $get): mixed => $get('db_ssh_enabled')),
                         Forms\Components\TextInput::make('db_ssh_remote_host')
                             ->label('Remote Host')
                             ->helperText('DB host as seen from the SSH server. Leave blank to use the DB host above.')
-                            ->visible(fn (Get $get) => $get('db_ssh_enabled')),
+                            ->visible(fn (Get $get): mixed => $get('db_ssh_enabled')),
                         Forms\Components\TextInput::make('db_ssh_remote_port')
                             ->label('Remote Port')
                             ->helperText('DB port as seen from the SSH server. Leave blank to use the DB port above.')
-                            ->visible(fn (Get $get) => $get('db_ssh_enabled')),
+                            ->visible(fn (Get $get): mixed => $get('db_ssh_enabled')),
                         Forms\Components\Textarea::make('db_ssh_host_key')
                             ->label('SSH Server Host Key')
                             ->helperText('Paste the SSH server host key so PolyBag can verify it is connecting to the correct server. Example: bastion.example.com ssh-ed25519 AAAA...')
-                            ->visible(fn (Get $get) => $get('db_ssh_enabled'))
-                            ->required(fn (Get $get) => $get('db_ssh_enabled'))
+                            ->visible(fn (Get $get): mixed => $get('db_ssh_enabled'))
+                            ->required(fn (Get $get): mixed => $get('db_ssh_enabled'))
                             ->rows(3)
                             ->columnSpanFull(),
                         Forms\Components\TextInput::make('ssh_public_key')
                             ->label('SSH Public Key')
                             ->helperText('Add this to ~/.ssh/authorized_keys on the SSH host. Optionally append permitopen="host:port" to restrict forwarding to a specific server.')
-                            ->visible(fn (Get $get) => $get('db_ssh_enabled'))
+                            ->visible(fn (Get $get): mixed => $get('db_ssh_enabled'))
                             ->columnSpanFull()
                             ->readOnly()
                             ->copyable()
                             ->dehydrated(false)
-                            ->default(function () {
+                            ->default(function (): string {
                                 $pubKeyPath = storage_path('app/private/ssh/id_ed25519.pub');
                                 if (! file_exists($pubKeyPath)) {
                                     return 'SSH key not generated. Run: php artisan app:generate-ssh-key';
@@ -509,7 +509,7 @@ class SetupWizard extends Page
 
                 // Shopify
                 Section::make('Shopify')
-                    ->visible(fn (Get $get) => $get('import_source') === 'shopify')
+                    ->visible(fn (Get $get): bool => $get('import_source') === 'shopify')
                     ->schema([
                         Forms\Components\TextInput::make('shopify_shop_domain')
                             ->label('Shop Domain')
@@ -527,7 +527,7 @@ class SetupWizard extends Page
 
                 // Amazon
                 Section::make('Amazon')
-                    ->visible(fn (Get $get) => $get('import_source') === 'amazon')
+                    ->visible(fn (Get $get): bool => $get('import_source') === 'amazon')
                     ->schema([
                         Forms\Components\Select::make('amazon_marketplace_id')
                             ->label('Marketplace')
@@ -563,7 +563,7 @@ class SetupWizard extends Page
                     ->content(fn () => app(SettingsService::class)->get('company_name', '-')),
                 Forms\Components\Placeholder::make('summary_location')
                     ->label('Default Location')
-                    ->content(function () {
+                    ->content(function (): string {
                         $loc = Location::getDefault();
 
                         return $loc
@@ -575,10 +575,10 @@ class SetupWizard extends Page
                     ->content(fn () => Carrier::where('active', true)->pluck('name')->join(', ') ?: 'None'),
                 Forms\Components\Placeholder::make('summary_services')
                     ->label('Active Services')
-                    ->content(fn () => CarrierService::where('active', true)->count().' services enabled'),
+                    ->content(fn (): string => CarrierService::where('active', true)->count().' services enabled'),
                 Forms\Components\Placeholder::make('summary_box_sizes')
                     ->label('Box Sizes')
-                    ->content(fn () => BoxSize::count().' configured'),
+                    ->content(fn (): string => BoxSize::count().' configured'),
                 Forms\Components\Placeholder::make('summary_channels')
                     ->label('Channels')
                     ->content(fn () => Channel::where('active', true)->pluck('name')->join(', ') ?: 'None'),
@@ -609,7 +609,7 @@ class SetupWizard extends Page
                         $incomplete = CarrierAccount::with('carrier')
                             ->whereHas('carrier', fn ($q) => $q->where('active', true))
                             ->get()
-                            ->filter(fn (CarrierAccount $a) => $a->connectionStatus() === 'Needs Setup');
+                            ->filter(fn (CarrierAccount $a): bool => $a->connectionStatus() === 'Needs Setup');
 
                         $items = $incomplete->map(function (CarrierAccount $account): string {
                             $url = CarrierAccountResource::getUrl('edit', ['record' => $account->id]);
@@ -645,7 +645,7 @@ class SetupWizard extends Page
                     ->label('Services')
                     ->options(fn () => CarrierService::whereHas('carrier', fn ($q) => $q->where('name', $carrierName))
                         ->pluck('name', 'id'))
-                    ->visible(fn (Get $get) => $get("carrier_{$key}_active"))
+                    ->visible(fn (Get $get): mixed => $get("carrier_{$key}_active"))
                     ->columns(2),
             ]);
     }
@@ -948,7 +948,7 @@ class SetupWizard extends Page
         $hasIncomplete = CarrierAccount::with('carrier')
             ->whereHas('carrier', fn ($q) => $q->where('active', true))
             ->get()
-            ->contains(fn (CarrierAccount $a) => $a->connectionStatus() === 'Needs Setup');
+            ->contains(fn (CarrierAccount $a): bool => $a->connectionStatus() === 'Needs Setup');
 
         Notification::make()
             ->success()

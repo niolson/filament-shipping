@@ -112,17 +112,17 @@ class DataSourceForm
                     TextInput::make('settings.client_id')
                         ->label('App Client ID')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
+                        ->placeholder(fn (?DataSource $record): string => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
-                        ->dehydrated(fn ($state) => filled($state))
+                        ->dehydrated(fn ($state): bool => filled($state))
                         ->helperText('The Shopify app Client ID for this store. Required unless a hosted OAuth broker supplies it.'),
 
                     TextInput::make('settings.client_secret')
                         ->label('App Client Secret')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
+                        ->placeholder(fn (?DataSource $record): string => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
-                        ->dehydrated(fn ($state) => filled($state))
+                        ->dehydrated(fn ($state): bool => filled($state))
                         ->helperText('The Shopify app Client Secret for this store. Required unless a hosted OAuth broker supplies it.'),
                 ])
                 ->visible(fn (Get $get): bool => $get('source_type') === ShopifySource::class)
@@ -182,7 +182,7 @@ class DataSourceForm
                                 ->content(fn (Get $get): string => $get('is_active') ? 'Active' : 'Inactive — no new work will import'),
                             Select::make('mapping_target')
                                 ->label(fn (): string => self::multiLocationEnabled() ? 'PolyBag Location' : 'Handling')
-                                ->options(fn () => self::shopifyLocationOptions())
+                                ->options(fn (): array => self::shopifyLocationOptions())
                                 ->placeholder('Unmapped')
                                 ->formatStateUsing(fn (mixed $state, Get $get): ?string => match (true) {
                                     filled($get('ignored_at')) => 'ignore',
@@ -227,26 +227,26 @@ class DataSourceForm
                     TextInput::make('settings.refresh_token')
                         ->label('Refresh Token')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('refresh_token')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                        ->placeholder(fn (?DataSource $record): string => filled($record?->secret('refresh_token')) ? 'Configured (leave empty to keep)' : 'Not configured')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
-                        ->dehydrated(fn ($state) => filled($state))
+                        ->dehydrated(fn ($state): bool => filled($state))
                         ->required(fn (?DataSource $record): bool => ! $record?->exists && ! app(OAuthService::class)->isBrokerConfigured())
                         ->helperText('Required when no hosted OAuth broker is configured. Otherwise save the source and use Connect Amazon.'),
 
                     TextInput::make('settings.client_id')
                         ->label('App Client ID')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
+                        ->placeholder(fn (?DataSource $record): string => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
-                        ->dehydrated(fn ($state) => filled($state))
+                        ->dehydrated(fn ($state): bool => filled($state))
                         ->helperText('Your own SP-API application credentials. Required when no hosted OAuth broker is configured — see docs/self-hosting.md.'),
 
                     TextInput::make('settings.client_secret')
                         ->label('App Client Secret')
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
+                        ->placeholder(fn (?DataSource $record): string => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured — broker credentials used if available')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
-                        ->dehydrated(fn ($state) => filled($state))
+                        ->dehydrated(fn ($state): bool => filled($state))
                         ->helperText('Your own SP-API application credentials. Required when no hosted OAuth broker is configured — see docs/self-hosting.md.'),
                 ])
                 ->visible(fn (Get $get): bool => $get('source_type') === AmazonSource::class)
@@ -291,7 +291,7 @@ class DataSourceForm
                         ->default('mysql')
                         ->required()
                         ->live()
-                        ->afterStateUpdated(fn (Set $set, ?string $state) => $set(
+                        ->afterStateUpdated(fn (Set $set, ?string $state): mixed => $set(
                             'settings.db_port',
                             ImportConnectionConfig::defaultPort($state),
                         )),
@@ -322,7 +322,7 @@ class DataSourceForm
                         // A record saved before this field existed has no stored
                         // value; treat that as on, so editing it cannot silently
                         // downgrade the connection to plaintext.
-                        ->afterStateHydrated(fn (Toggle $component, $state) => $component->state($state ?? true))
+                        ->afterStateHydrated(fn (Toggle $component, $state): Toggle => $component->state($state ?? true))
                         ->helperText('ODBC Driver 18 encrypts by default. Turn this off only for a server that cannot do TLS.')
                         ->visible(fn (Get $get): bool => $get('settings.db_driver') === 'sqlsrv'),
 
@@ -347,9 +347,9 @@ class DataSourceForm
                         ->label('Password')
                         ->visible(fn (Get $get): bool => ImportConnectionConfig::usesHost($get('settings.db_driver')))
                         ->password()
-                        ->placeholder(fn (?DataSource $record) => filled($record?->secret('db_password')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                        ->placeholder(fn (?DataSource $record): string => filled($record?->secret('db_password')) ? 'Configured (leave empty to keep)' : 'Not configured')
                         ->afterStateHydrated(fn ($component) => $component->state(null))
-                        ->dehydrated(fn ($state) => filled($state)),
+                        ->dehydrated(fn ($state): bool => filled($state)),
                 ])
                 ->footerActions([
                     Action::make('test_db_connection')
@@ -491,7 +491,7 @@ class DataSourceForm
                                         ->send();
                                 } else {
                                     $body = implode("\n", array_map(
-                                        fn (string $label, string $msg) => "{$label}: {$msg}",
+                                        fn (string $label, string $msg): string => "{$label}: {$msg}",
                                         array_keys($errors),
                                         $errors,
                                     ));

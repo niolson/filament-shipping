@@ -151,7 +151,7 @@ class Ship extends Page
                 ->action(fn () => $this->ship())
                 ->icon('heroicon-o-printer')
                 ->keybindings(['f12'])
-                ->disabled(fn () => $this->selectedRateIndex === null && $this->selectedBlindOfferId === null),
+                ->disabled(fn (): bool => $this->selectedRateIndex === null && $this->selectedBlindOfferId === null),
             Action::make('Back')
                 ->action(fn () => $this->redirect($this->returnUrl))
                 ->icon('heroicon-o-arrow-left')

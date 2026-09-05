@@ -6,6 +6,7 @@ use App\Http\Middleware\EnsureSetupComplete;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\SettingsService;
+use Illuminate\Contracts\Routing\ResponseFactory;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
@@ -27,7 +28,7 @@ it('redirects admins to the setup wizard when setup is incomplete', function ():
 
     $response = app(EnsureSetupComplete::class)->handle(
         $request,
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     );
 
     expect($response->isRedirect())->toBeTrue()
@@ -42,7 +43,7 @@ it('returns 503 for non-admin users while setup is incomplete', function (): voi
 
     expect(fn () => app(EnsureSetupComplete::class)->handle(
         $request,
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     ))->toThrow(HttpException::class, 'Application setup is in progress');
 });
 
@@ -53,7 +54,7 @@ it('bypasses setup enforcement for exempt paths', function (): void {
 
     $response = app(EnsureSetupComplete::class)->handle(
         $request,
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     );
 
     expect($response->getStatusCode())->toBe(200)
@@ -68,7 +69,7 @@ it('allows requests through once setup is complete', function (): void {
 
     $response = app(EnsureSetupComplete::class)->handle(
         $request,
-        fn () => response('ok'),
+        fn (): ResponseFactory|\Illuminate\Http\Response => response('ok'),
     );
 
     expect($response->getStatusCode())->toBe(200)

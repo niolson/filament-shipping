@@ -79,7 +79,7 @@ it('createPackage creates a package and dispatches PackageCreated', function ():
         ->and((float) $package->weight)->toBe(2.5)
         ->and((float) $package->height)->toBe(10.0);
 
-    Event::assertDispatched(PackageCreated::class, fn ($e) => $e->package->id === $package->id);
+    Event::assertDispatched(PackageCreated::class, fn ($e): bool => $e->package->id === $package->id);
 });
 
 it('createPackage attaches packing items', function (): void {

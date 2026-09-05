@@ -18,12 +18,12 @@ class LabelBatchItemsRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
-            ->poll(fn () => $this->getOwnerRecord()->isComplete() ? null : '5s')
+            ->poll(fn (): ?string => $this->getOwnerRecord()->isComplete() ? null : '5s')
             ->modifyQueryUsing(fn ($query) => $query->with(['shipment', 'package']))
             ->columns([
                 Tables\Columns\TextColumn::make('shipment.shipment_reference')
                     ->label('Reference')
-                    ->url(fn ($record) => $record->shipment_id
+                    ->url(fn ($record): ?string => $record->shipment_id
                         ? ShipmentResource::getUrl('view', ['record' => $record->shipment_id])
                         : null),
                 Tables\Columns\TextColumn::make('status')

@@ -278,10 +278,10 @@ class DemoReset extends Command
             ->whereNotNull($column)
             ->distinct()
             ->pluck($column)
-            ->map(fn ($value) => (string) $value);
+            ->map(fn ($value): string => (string) $value);
 
         $known = ShippingMethod::pluck('id')
-            ->map(fn (int $id) => (string) $id)
+            ->map(fn (int $id): string => (string) $id)
             ->merge(ShippingMethodAlias::where('client_id', $client->id)->pluck('reference'));
 
         $unmapped = $values->diff($known);
@@ -394,7 +394,7 @@ class DemoReset extends Command
         $shipDate = $shippedAt->copy()->setTimezone($timezone)->toDateString();
 
         $weight = round($shipment->shipmentItems->sum(
-            fn ($item) => $item->quantity * (float) ($item->product?->weight ?? 0)
+            fn ($item): float => $item->quantity * (float) ($item->product?->weight ?? 0)
         ) + 0.25, 2);
 
         if ($weight <= 0.25) {
@@ -428,7 +428,7 @@ class DemoReset extends Command
             'updated_at' => $shippedAt->format('Y-m-d H:i:s'),
         ]);
 
-        $packageItemRows = $shipment->shipmentItems->map(fn ($item) => [
+        $packageItemRows = $shipment->shipmentItems->map(fn ($item): array => [
             'package_id' => $packageId,
             'shipment_item_id' => $item->id,
             'product_id' => $item->product_id,

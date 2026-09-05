@@ -29,7 +29,7 @@ class ExceptionsWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $counts = Cache::remember('widget:exceptions', 300, fn () => $this->queryCounts());
+        $counts = Cache::remember('widget:exceptions', 300, fn (): array => $this->queryCounts());
 
         return [
             Stat::make('Undeliverable Shipments', $counts['undeliverable'])

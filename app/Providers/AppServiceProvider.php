@@ -69,7 +69,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PackageLabelWorkflow::class, EloquentPackageLabelWorkflow::class);
         $this->app->singleton(PackageShippingWorkflow::class, EloquentPackageShippingWorkflow::class);
 
-        $this->app->singleton(AddressValidationService::class, function () {
+        $this->app->singleton(AddressValidationService::class, function (): AddressValidationService {
             $settings = $this->app->make(SettingsService::class);
 
             if (config('app.fake_carriers') || SettingsService::isDemoMode()) {

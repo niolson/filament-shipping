@@ -25,7 +25,7 @@ class CreateUser extends Command
 
         $email = text(
             label: 'Email',
-            validate: fn (string $value) => match (true) {
+            validate: fn (string $value): ?string => match (true) {
                 ! empty($value) && ! filter_var($value, FILTER_VALIDATE_EMAIL) => 'Invalid email address.',
                 ! empty($value) && User::where('email', $value)->exists() => 'Email already exists.',
                 default => null,
@@ -34,7 +34,7 @@ class CreateUser extends Command
 
         $username = text(
             label: 'Username (optional if email provided)',
-            validate: fn (string $value) => ! empty($value) && User::where('username', $value)->exists()
+            validate: fn (string $value): ?string => ! empty($value) && User::where('username', $value)->exists()
                 ? 'Username already exists.'
                 : null,
         );
@@ -51,7 +51,7 @@ class CreateUser extends Command
 
         $role = select(
             label: 'Role',
-            options: collect(Role::cases())->mapWithKeys(fn (Role $role) => [$role->value => $role->name]),
+            options: collect(Role::cases())->mapWithKeys(fn (Role $role): array => [$role->value => $role->name]),
             default: Role::User->value,
         );
 

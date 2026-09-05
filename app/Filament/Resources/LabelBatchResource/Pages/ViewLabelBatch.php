@@ -46,20 +46,20 @@ class ViewLabelBatch extends ViewRecord
     {
         return [
             Action::make('printUnprintedLabels')
-                ->label(fn () => 'Print Labels ('.$this->record->unprintedCount().')')
+                ->label(fn (): string => 'Print Labels ('.$this->record->unprintedCount().')')
                 ->icon('heroicon-o-printer')
                 ->color('primary')
-                ->visible(fn () => $this->record->isComplete() && $this->record->unprintedCount() > 0)
+                ->visible(fn (): bool => $this->record->isComplete() && $this->record->unprintedCount() > 0)
                 ->action(fn () => $this->dispatchBatchPrint(unprintedOnly: true)),
             Action::make('reprintAllLabels')
-                ->label(fn () => 'Reprint All ('.$this->record->printableItems()->count().')')
+                ->label(fn (): string => 'Reprint All ('.$this->record->printableItems()->count().')')
                 ->icon('heroicon-o-printer')
                 ->color('gray')
                 ->requiresConfirmation()
                 ->modalHeading('Reprint every label in this batch')
-                ->modalDescription(fn () => 'This reprints all '.$this->record->printableItems()->count()
+                ->modalDescription(fn (): string => 'This reprints all '.$this->record->printableItems()->count()
                     .' labels, including ones already printed.')
-                ->visible(fn () => $this->record->isComplete() && $this->record->printableItems()->count() > 0)
+                ->visible(fn (): bool => $this->record->isComplete() && $this->record->printableItems()->count() > 0)
                 ->action(fn () => $this->dispatchBatchPrint(unprintedOnly: false)),
             Action::make('backToShipments')
                 ->label('Back to Shipments')
@@ -82,7 +82,7 @@ class ViewLabelBatch extends ViewRecord
             : $this->record->printableItems()->with('package')->get();
 
         $labels = $items
-            ->map(fn ($item) => [
+            ->map(fn ($item): array => [
                 'label' => $item->package->label_data,
                 'orientation' => $item->package->label_orientation ?? 'portrait',
                 'format' => $item->package->label_format ?? $this->record->label_format,

@@ -88,7 +88,7 @@ class PackageResource extends Resource
                             ->relationship('shipment', 'shipment_reference')
                             ->searchable()
                             ->required()
-                            ->disabled(fn (string $operation) => $operation === 'edit'),
+                            ->disabled(fn (string $operation): bool => $operation === 'edit'),
                         TextInput::make('tracking_number')
                             ->maxLength(255),
                         TextInput::make('shipping_method')
@@ -129,7 +129,7 @@ class PackageResource extends Resource
                     ->schema([
                         Forms\Components\Placeholder::make('ship_to_name')
                             ->label('Name')
-                            ->content(fn (?Package $record) => $record ? trim("{$record->shipment->first_name} {$record->shipment->last_name}") : '—'),
+                            ->content(fn (?Package $record): string => $record ? trim("{$record->shipment->first_name} {$record->shipment->last_name}") : '—'),
                         Forms\Components\Placeholder::make('ship_to_company')
                             ->label('Company')
                             ->content(fn (?Package $record) => $record?->shipment->company ?: '—'),
@@ -370,10 +370,10 @@ class PackageResource extends Resource
                 Actions\ViewAction::make(),
                 static::makeTrackAction(),
                 Actions\Action::make('reprint')
-                    ->label(fn (Package $record) => $record->label_printed_at ? 'Reprint' : 'Print')
+                    ->label(fn (Package $record): string => $record->label_printed_at ? 'Reprint' : 'Print')
                     ->icon('heroicon-o-printer')
                     ->color('gray')
-                    ->visible(fn (Package $record) => $record->status === PackageStatus::Shipped && $record->label_data)
+                    ->visible(fn (Package $record): bool => $record->status === PackageStatus::Shipped && $record->label_data)
                     ->action(fn (Package $record, $livewire) => $livewire->printStoredPackageLabel($record->id)),
                 Actions\Action::make('void')
                     ->label('Void Label')
@@ -382,7 +382,7 @@ class PackageResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Void Label')
                     ->modalDescription('This will cancel the label with the carrier. The package will be kept with its dimensions so it can be re-shipped.')
-                    ->visible(fn (Package $record) => $record->status === PackageStatus::Shipped
+                    ->visible(fn (Package $record): bool => $record->status === PackageStatus::Shipped
                         && $record->tracking_number
                         && ($record->carrier || $record->isShopifyShipped()))
                     // Shopify's API has no void operation at all, so offering a
@@ -412,7 +412,7 @@ class PackageResource extends Resource
             ->label('Track')
             ->icon('heroicon-o-map')
             ->color('primary')
-            ->visible(fn (Package $record) => $record->status === PackageStatus::Shipped && filled($record->tracking_number) && filled($record->carrier))
+            ->visible(fn (Package $record): bool => $record->status === PackageStatus::Shipped && filled($record->tracking_number) && filled($record->carrier))
             ->slideOver()
             ->modalWidth('3xl')
             ->close(false)

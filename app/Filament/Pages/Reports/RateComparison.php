@@ -73,22 +73,22 @@ class RateComparison extends Page implements HasTable
                     ->sortable(),
                 Tables\Columns\TextColumn::make('selected_rate')
                     ->label('Selected Rate')
-                    ->state(fn (Package $record) => $record->selected_carrier
+                    ->state(fn (Package $record): string => $record->selected_carrier
                         ? "{$record->selected_carrier} — \${$record->selected_price}"
                         : '—'),
                 Tables\Columns\TextColumn::make('cheapest_rate')
                     ->label('Cheapest Rate')
-                    ->state(fn (Package $record) => $record->cheapest_carrier
+                    ->state(fn (Package $record): string => $record->cheapest_carrier
                         ? "{$record->cheapest_carrier} — \${$record->cheapest_price}"
                         : '—'),
                 Tables\Columns\TextColumn::make('savings')
                     ->label('Potential Savings')
-                    ->state(function (Package $record) {
+                    ->state(function (Package $record): string {
                         $savings = max(0, (float) $record->selected_price - (float) $record->cheapest_price);
 
                         return '$'.number_format($savings, 2);
                     })
-                    ->color(fn (Package $record) => (float) $record->selected_price > (float) $record->cheapest_price ? 'warning' : 'success'),
+                    ->color(fn (Package $record): string => (float) $record->selected_price > (float) $record->cheapest_price ? 'warning' : 'success'),
                 Tables\Columns\TextColumn::make('rate_quotes_count')
                     ->label('Quotes')
                     ->sortable(),

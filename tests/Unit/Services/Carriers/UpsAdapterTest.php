@@ -521,7 +521,7 @@ it('puts the label reference on the package, where UPS prints it for domestic sh
 
     expect($this->adapter->createShipment(upsSpecialServiceShipRequest([], [], ['ORD-10042']))->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -540,7 +540,7 @@ it('moves the label reference to the shipment for lanes UPS will not take it on 
 
     expect($this->adapter->createShipment(upsShipRequestTo(new AddressData(...$destination)))->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -605,7 +605,7 @@ it('keeps the label reference on the package for shipments inside Puerto Rico', 
 
     expect($this->adapter->createShipment($request)->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -656,7 +656,7 @@ it('sends the recipient phone and attention name on the label request', function
 
     expect($this->adapter->createShipment($request)->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -703,7 +703,7 @@ it('falls back to the company when an address names no person to ask for', funct
 
     expect($this->adapter->createShipment($request)->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -722,7 +722,7 @@ it('sends no reference number when the client prints none', function (): void {
 
     expect($this->adapter->createShipment(upsSpecialServiceShipRequest([]))->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -742,7 +742,7 @@ it('maps delivery confirmation and declared value into the ship request', functi
     expect($response->success)->toBeTrue()
         ->and($response->appliedServices)->toBe(['adult_signature_required', 'declared_value']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -768,7 +768,7 @@ it('uses DCIS type 2 for standard signature and sends no options for unwired cod
     expect($response->success)->toBeTrue()
         ->and($response->appliedServices)->toBe(['signature_required']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -798,7 +798,7 @@ it('sends a fully qualified origin on rate requests so international lanes resol
         originStateOrProvince: 'WA',
     ), ['07']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Rate) {
             return false;
         }
@@ -831,7 +831,7 @@ it('declares the contents value on rate requests that leave the origin country',
         destinationStateOrProvince: $destination['destinationStateOrProvince'] ?? null,
     ), ['03']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Rate) {
             return false;
         }
@@ -869,7 +869,7 @@ it('sends the shipment total weight on international rate requests', function ()
         contentsValue: 400.00,
     ), ['07']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Rate) {
             return false;
         }
@@ -893,7 +893,7 @@ it('leaves the shipment total weight off domestic rate requests', function (): v
         packages: [new PackageData(weight: 2.0, length: 10, width: 8, height: 4)],
     ), ['03']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Rate) {
             return false;
         }
@@ -916,7 +916,7 @@ it('leaves the contents value off domestic rate requests and off shipments with 
         contentsValue: $contentsValue,
     ), ['03']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Rate) {
             return false;
         }
@@ -941,7 +941,7 @@ it('omits origin fields the location does not have rather than sending blanks', 
         packages: [new PackageData(weight: 2.0, length: 10, width: 8, height: 4)],
     ), ['03']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Rate) {
             return false;
         }
@@ -969,7 +969,7 @@ it('includes package service options in the rating request', function (): void {
 
     $this->adapter->getRates($request, ['03']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Rate) {
             return false;
         }

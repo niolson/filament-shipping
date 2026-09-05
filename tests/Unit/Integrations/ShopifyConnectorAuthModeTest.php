@@ -18,7 +18,7 @@ function shopifyAuthConfig(array $overrides = []): array
 }
 
 it('rejects a shop domain that is not a *.myshopify.com host', function (string $domain): void {
-    expect(fn () => ShopifyConnector::fromSettings(shopifyAuthConfig(['shop_domain' => $domain])))
+    expect(fn (): ShopifyConnector => ShopifyConnector::fromSettings(shopifyAuthConfig(['shop_domain' => $domain])))
         ->toThrow(InvalidArgumentException::class);
 })->with([
     'arbitrary attacker host' => 'internal-metadata-service.attacker-controlled.invalid',

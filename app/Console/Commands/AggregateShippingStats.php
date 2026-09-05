@@ -127,7 +127,7 @@ class AggregateShippingStats extends Command
             ->get();
 
         $now = now();
-        $inserts = $rows->map(fn ($row) => [
+        $inserts = $rows->map(fn ($row): array => [
             'date' => $row->date,
             'carrier' => $row->carrier,
             'service' => $row->service,

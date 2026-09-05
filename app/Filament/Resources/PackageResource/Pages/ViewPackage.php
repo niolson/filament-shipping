@@ -36,13 +36,13 @@ class ViewPackage extends ViewRecord
                 ->label('Ship')
                 ->icon('heroicon-o-paper-airplane')
                 ->color('primary')
-                ->url(fn () => '/ship/'.$this->record->id)
-                ->disabled(fn () => $this->record->status === PackageStatus::Shipped),
+                ->url(fn (): string => '/ship/'.$this->record->id)
+                ->disabled(fn (): bool => $this->record->status === PackageStatus::Shipped),
             Action::make('reprint')
-                ->label(fn () => $this->record->label_printed_at ? 'Reprint Label' : 'Print Label')
+                ->label(fn (): string => $this->record->label_printed_at ? 'Reprint Label' : 'Print Label')
                 ->icon('heroicon-o-printer')
                 ->color('primary')
-                ->visible(fn () => $this->record->status === PackageStatus::Shipped && $this->record->label_data)
+                ->visible(fn (): bool => $this->record->status === PackageStatus::Shipped && $this->record->label_data)
                 ->action(fn () => $this->printStoredPackageLabel($this->record->id)),
             PackageResource::makeTrackAction(),
             Action::make('void')
@@ -52,7 +52,7 @@ class ViewPackage extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Void Label')
                 ->modalDescription('This will cancel the label with the carrier. The package will be kept with its dimensions so it can be re-shipped.')
-                ->visible(fn () => $this->record->status === PackageStatus::Shipped
+                ->visible(fn (): bool => $this->record->status === PackageStatus::Shipped
                     && $this->record->tracking_number
                     && ($this->record->carrier || $this->shopifyShipped()))
                 // Shopify exposes no void operation, so this can only ever fail
@@ -73,7 +73,7 @@ class ViewPackage extends ViewRecord
                         : $notification->danger()->send();
                 }),
             Action::make('edit')
-                ->url(fn () => PackageResource::getUrl('edit', ['record' => $this->record])),
+                ->url(fn (): string => PackageResource::getUrl('edit', ['record' => $this->record])),
         ];
     }
 
@@ -103,7 +103,7 @@ class ViewPackage extends ViewRecord
                             ->label('Package ID'),
                         TextEntry::make('shipment.shipment_reference')
                             ->label('Shipment Reference')
-                            ->url(fn ($record) => ShipmentResource::getUrl('view', ['record' => $record->shipment_id])),
+                            ->url(fn ($record): string => ShipmentResource::getUrl('view', ['record' => $record->shipment_id])),
                         TextEntry::make('shipment.client.name')
                             ->label('Client')
                             ->placeholder('—')
@@ -203,7 +203,7 @@ class ViewPackage extends ViewRecord
                                 TextEntry::make('source')
                                     ->label('Source')
                                     ->badge()
-                                    ->formatStateUsing(fn ($state) => ucwords(str_replace('_', ' ', $state instanceof \BackedEnum ? $state->value : $state)))
+                                    ->formatStateUsing(fn ($state): string => ucwords(str_replace('_', ' ', $state instanceof \BackedEnum ? $state->value : $state)))
                                     ->color(fn ($state): string => match ($state instanceof \BackedEnum ? $state->value : $state) {
                                         'shipping_method' => 'info',
                                         'product' => 'warning',

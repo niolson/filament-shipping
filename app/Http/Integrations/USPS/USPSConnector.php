@@ -154,7 +154,7 @@ class USPSConnector extends Connector
         $cached = Cache::get($cacheKey);
 
         if (! is_array($cached)) {
-            $cached = Cache::lock($cacheKey.':lock', 10)->block(5, function () use ($connector, $cacheKey) {
+            $cached = Cache::lock($cacheKey.':lock', 10)->block(5, function () use ($connector, $cacheKey): array {
                 $recached = Cache::get($cacheKey);
                 if (is_array($recached)) {
                     return $recached;

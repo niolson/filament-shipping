@@ -112,7 +112,7 @@ class PurgePiiCommand extends Command
         $shipmentIds = $query->pluck('id');
 
         $nullFields = collect(self::PII_FIELDS)
-            ->mapWithKeys(fn ($field) => [$field => null])
+            ->mapWithKeys(fn ($field): array => [$field => null])
             ->all();
 
         Shipment::whereIn('id', $shipmentIds)->update($nullFields);

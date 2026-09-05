@@ -43,7 +43,7 @@ class CacheService
     public function getBoxSizesForPacking(): array
     {
         return $this->getBoxSizes()
-            ->map(fn (BoxSize $box) => [
+            ->map(fn (BoxSize $box): array => [
                 'id' => $box->id,
                 'code' => $box->code,
                 'height' => (string) $box->height,

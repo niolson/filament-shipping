@@ -212,20 +212,20 @@ class PickBatchService
             }
         }
 
-        $rows = $rows->map(function (array $row) {
-            uksort($row['totes'], fn ($a, $b) => strnatcasecmp($a, $b));
+        $rows = $rows->map(function (array $row): array {
+            uksort($row['totes'], fn ($a, $b): int => strnatcasecmp($a, $b));
 
             return $row;
         });
 
-        $located = $rows->filter(fn ($r) => filled($r['bin_location']))->values();
-        $unlocated = $rows->filter(fn ($r) => blank($r['bin_location']))->values();
+        $located = $rows->filter(fn ($r): bool => filled($r['bin_location']))->values();
+        $unlocated = $rows->filter(fn ($r): bool => blank($r['bin_location']))->values();
 
         $locatedArray = $located->toArray();
-        usort($locatedArray, fn ($a, $b) => strnatcasecmp($a['bin_location'], $b['bin_location']));
+        usort($locatedArray, fn ($a, $b): int => strnatcasecmp($a['bin_location'], $b['bin_location']));
 
         $unlocatedArray = $unlocated->toArray();
-        usort($unlocatedArray, fn ($a, $b) => strcasecmp($a['product_name'], $b['product_name']));
+        usort($unlocatedArray, fn ($a, $b): int => strcasecmp($a['product_name'], $b['product_name']));
 
         return array_merge($locatedArray, $unlocatedArray);
     }

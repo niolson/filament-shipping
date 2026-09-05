@@ -19,7 +19,7 @@ class StatsOverview extends BaseWidget
 
     protected function getStats(): array
     {
-        $data = Cache::remember('widget:stats_overview', 60, function () {
+        $data = Cache::remember('widget:stats_overview', 60, function (): array {
             $tz = Location::timezone();
             $localToday = now($tz)->startOfDay();
             $thisWeekStart = now($tz)->startOfWeek();

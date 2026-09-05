@@ -216,11 +216,11 @@ trait HasFedexRegistration
     protected function fedexRegisterAction(): Action
     {
         return Action::make('fedex_register')
-            ->label(fn () => filled($this->record?->secret('child_key')) ? 'Reconnect FedEx Account' : 'Connect FedEx Account')
+            ->label(fn (): string => filled($this->record?->secret('child_key')) ? 'Reconnect FedEx Account' : 'Connect FedEx Account')
             ->icon('heroicon-o-link')
-            ->color(fn () => filled($this->record?->secret('child_key')) ? 'warning' : 'primary')
-            ->visible(fn () => $this->record?->carrier?->name === 'FedEx')
-            ->modalHeading(fn () => new HtmlString(
+            ->color(fn (): string => filled($this->record?->secret('child_key')) ? 'warning' : 'primary')
+            ->visible(fn (): bool => $this->record?->carrier?->name === 'FedEx')
+            ->modalHeading(fn (): HtmlString => new HtmlString(
                 '<span class="flex items-center gap-2"><img src="'.Carrier::logoUrlForName('FedEx').'" alt="FedEx" class="h-8 inline-block">'
                     .(filled($this->record?->secret('child_key')) ? 'Reconnect FedEx Account' : 'Connect FedEx Account')
                     .'</span>'
@@ -234,11 +234,11 @@ trait HasFedexRegistration
                 $this->resetFedexRegistrationState();
                 $schema?->fill();
             })
-            ->modifyWizardUsing(fn (Wizard $wizard) => $wizard
+            ->modifyWizardUsing(fn (Wizard $wizard): Wizard => $wizard
                 ->submitAction($this->renderFedexWizardSubmitAction())
-                ->nextAction(fn (Action $action) => $action->disabled(! $this->fedexEulaAccepted))
+                ->nextAction(fn (Action $action): Action => $action->disabled(! $this->fedexEulaAccepted))
                 ->previousAction(
-                    fn (Action $action) => $action
+                    fn (Action $action): Action => $action
                         ->hidden($this->fedexSupportFallbackActive && ! $this->hasAvailableFedexFactor2Methods())
                         ->disabled($this->fedexSupportFallbackActive && ! $this->hasAvailableFedexFactor2Methods())
                 ))
@@ -246,7 +246,7 @@ trait HasFedexRegistration
                 Step::make('Terms of Service')
                     ->description('Review and accept the FedEx EULA')
                     ->schema([
-                        Html::make(fn () => new HtmlString(
+                        Html::make(fn (): HtmlString => new HtmlString(
                             view('filament.pages.settings.fedex-eula')->render()
                         ))->columnSpanFull(),
                         Hidden::make('eula_accepted')->default(false),
@@ -351,7 +351,7 @@ trait HasFedexRegistration
 
                 Step::make('Verification Method')
                     ->description('Choose how to verify your identity')
-                    ->schema(fn () => [
+                    ->schema(fn (): array => [
                         Radio::make('fedex_factor2_method')
                             ->label('Verification Method')
                             ->options($this->getFedexAvailableVerificationOptions())
@@ -382,10 +382,10 @@ trait HasFedexRegistration
                     }),
 
                 Step::make('Enter Verification')
-                    ->description(fn () => $this->fedexSupportFallbackActive
+                    ->description(fn (): string => $this->fedexSupportFallbackActive
                         ? 'Contact customer service'
                         : ($this->fedexFactor2Method === 'INVOICE' ? 'Enter a recent FedEx invoice' : 'Enter the PIN sent to you'))
-                    ->schema(function () {
+                    ->schema(function (): array {
                         if ($this->fedexSupportFallbackActive) {
                             $body = $this->hasAvailableFedexFactor2Methods()
                                 ? 'We are unable to process this request. Please try again later or call FedEx Customer Service and ask for technical support. You may also go back and choose a different validation method.'
@@ -438,7 +438,7 @@ trait HasFedexRegistration
                                 ->length(6)
                                 ->numeric()
                                 ->columnSpanFull(),
-                            Html::make(fn () => new HtmlString(
+                            Html::make(fn (): HtmlString => new HtmlString(
                                 '<button type="button" wire:click="resendFedexPin" class="text-sm text-primary-600 hover:underline dark:text-primary-400">Resend PIN</button>'
                             ))->columnSpanFull(),
                         ];
@@ -494,7 +494,7 @@ trait HasFedexRegistration
             ->label('Disconnect FedEx')
             ->icon('heroicon-o-x-mark')
             ->color('danger')
-            ->visible(fn () => $this->record?->carrier?->name === 'FedEx' && filled($this->record?->secret('child_key')))
+            ->visible(fn (): bool => $this->record?->carrier?->name === 'FedEx' && filled($this->record?->secret('child_key')))
             ->requiresConfirmation()
             ->modalHeading('Disconnect FedEx Account')
             ->modalDescription('This will remove your FedEx child credentials. You can reconnect anytime.')

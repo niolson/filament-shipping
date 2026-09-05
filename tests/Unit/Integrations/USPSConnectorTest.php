@@ -39,7 +39,7 @@ it('builds correct shipping options request', function (): void {
 
     $connector->send($request);
 
-    Saloon::assertSent(function (ShippingOptions $request) {
+    Saloon::assertSent(function (ShippingOptions $request): bool {
         $body = $request->body()->all();
 
         return $body['originZIPCode'] === '98072'
@@ -178,7 +178,7 @@ it('builds payment authorization request with correct roles', function (): void 
 
     $connector->send($request);
 
-    Saloon::assertSent(function (PaymentAuthorization $request) {
+    Saloon::assertSent(function (PaymentAuthorization $request): bool {
         $body = $request->body()->all();
 
         return isset($body['roles'])
@@ -249,7 +249,7 @@ it('builds label request with address data', function (): void {
 
     $connector->send($request);
 
-    Saloon::assertSent(function (Label $request) {
+    Saloon::assertSent(function (Label $request): bool {
         $body = $request->body()->all();
         $headers = $request->headers()->all();
 
@@ -269,7 +269,7 @@ it('throws a carrier unavailable exception for OAuth accounts in sandbox mode', 
         'secret_credentials' => ['auth_mode' => 'authorization_code'],
     ]);
 
-    expect(fn () => USPSConnector::getAuthenticatedConnector($account))
+    expect(fn (): USPSConnector => USPSConnector::getAuthenticatedConnector($account))
         ->toThrow(CarrierUnavailableException::class);
 });
 

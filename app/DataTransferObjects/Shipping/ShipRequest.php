@@ -94,7 +94,7 @@ readonly class ShipRequest
             return $this;
         }
 
-        $totalCustomsWeight = collect($this->customsItems)->sum(fn ($item) => $item->weight * $item->quantity);
+        $totalCustomsWeight = collect($this->customsItems)->sum(fn ($item): float => $item->weight * $item->quantity);
         $packageWeight = $this->packageData->weight;
 
         if ($totalCustomsWeight <= $packageWeight || $totalCustomsWeight == 0) {
@@ -104,7 +104,7 @@ readonly class ShipRequest
         $scale = $packageWeight / $totalCustomsWeight;
 
         $scaledItems = array_map(
-            fn (CustomsItem $item) => new CustomsItem(
+            fn (CustomsItem $item): CustomsItem => new CustomsItem(
                 description: $item->description,
                 quantity: $item->quantity,
                 unitValue: $item->unitValue,

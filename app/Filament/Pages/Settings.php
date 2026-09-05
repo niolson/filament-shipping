@@ -149,7 +149,7 @@ class Settings extends Page
                     'country' => $location->country,
                     'phone' => $location->phone,
                     'carrierLocations' => $location->carrierLocations
-                        ->map(fn ($cl) => [
+                        ->map(fn ($cl): array => [
                             'carrier_id' => $cl->carrier_id,
                             'pickup_days' => $cl->pickup_days ?? [],
                         ])
@@ -306,8 +306,8 @@ class Settings extends Page
                                     Select::make('location.timezone')
                                         ->label('Timezone')
                                         ->options(fn () => collect(timezone_identifiers_list())
-                                            ->filter(fn ($tz) => str_starts_with($tz, 'America/') || str_starts_with($tz, 'Pacific/') || str_starts_with($tz, 'US/'))
-                                            ->mapWithKeys(fn ($tz) => [$tz => str_replace('_', ' ', $tz)]))
+                                            ->filter(fn ($tz): bool => str_starts_with($tz, 'America/') || str_starts_with($tz, 'Pacific/') || str_starts_with($tz, 'US/'))
+                                            ->mapWithKeys(fn ($tz): array => [$tz => str_replace('_', ' ', $tz)]))
                                         ->searchable()
                                         ->required(),
                                     Select::make('location.fedex_hub_id')

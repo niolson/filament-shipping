@@ -68,10 +68,10 @@ class AuditLogResource extends Resource
                     ->placeholder('System'),
                 Tables\Columns\TextColumn::make('action')
                     ->badge()
-                    ->formatStateUsing(fn (AuditAction $state) => $state->getLabel()),
+                    ->formatStateUsing(fn (AuditAction $state): string|\Illuminate\Contracts\Support\Htmlable|null => $state->getLabel()),
                 Tables\Columns\TextColumn::make('auditable_type')
                     ->label('Model')
-                    ->formatStateUsing(fn (?string $state) => $state ? class_basename($state) : '—')
+                    ->formatStateUsing(fn (?string $state): string => $state ? class_basename($state) : '—')
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('auditable_id')
                     ->label('ID')
@@ -94,7 +94,7 @@ class AuditLogResource extends Resource
                         ->whereNotNull('auditable_type')
                         ->distinct()
                         ->pluck('auditable_type')
-                        ->mapWithKeys(fn ($type) => [$type => class_basename($type)])
+                        ->mapWithKeys(fn ($type): array => [$type => class_basename($type)])
                         ->sort()
                         ->toArray()
                     ),
@@ -142,13 +142,13 @@ class AuditLogResource extends Resource
                             ->placeholder('System'),
                         TextEntry::make('action')
                             ->badge()
-                            ->formatStateUsing(fn (AuditAction $state) => $state->getLabel()),
+                            ->formatStateUsing(fn (AuditAction $state): string|\Illuminate\Contracts\Support\Htmlable|null => $state->getLabel()),
                         TextEntry::make('auditable_type')
                             ->label('Model')
-                            ->formatStateUsing(fn (?string $state) => $state ? class_basename($state) : '—'),
+                            ->formatStateUsing(fn (?string $state): string => $state ? class_basename($state) : '—'),
                         TextEntry::make('auditable_id')
                             ->label('Record ID')
-                            ->url(fn (AuditLog $record) => self::getAuditableUrl($record)),
+                            ->url(fn (AuditLog $record): ?string => self::getAuditableUrl($record)),
                         TextEntry::make('ip_address')
                             ->label('IP Address')
                             ->placeholder('—'),
@@ -157,15 +157,15 @@ class AuditLogResource extends Resource
                     ->schema([
                         TextEntry::make('old_values')
                             ->label('Old Values')
-                            ->getStateUsing(fn (AuditLog $record) => self::formatJson($record->old_values))
+                            ->getStateUsing(fn (AuditLog $record): string => self::formatJson($record->old_values))
                             ->fontFamily('mono'),
                         TextEntry::make('new_values')
                             ->label('New Values')
-                            ->getStateUsing(fn (AuditLog $record) => self::formatJson($record->new_values))
+                            ->getStateUsing(fn (AuditLog $record): string => self::formatJson($record->new_values))
                             ->fontFamily('mono'),
                         TextEntry::make('metadata')
                             ->label('Metadata')
-                            ->getStateUsing(fn (AuditLog $record) => self::formatJson($record->metadata))
+                            ->getStateUsing(fn (AuditLog $record): string => self::formatJson($record->metadata))
                             ->fontFamily('mono'),
                     ])->columns(3),
             ]);

@@ -155,7 +155,7 @@ class Shipment extends Model
             ->groupBy('shipment_item_id')
             ->pluck('total_packed', 'shipment_item_id');
 
-        $allItemsShipped = $this->shipmentItems->every(function (ShipmentItem $item) use ($packedQuantities) {
+        $allItemsShipped = $this->shipmentItems->every(function (ShipmentItem $item) use ($packedQuantities): bool {
             return ($packedQuantities[$item->id] ?? 0) >= $item->quantity;
         });
 
