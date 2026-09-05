@@ -1,6 +1,7 @@
 <?php
 
 use App\Contracts\BlindPurchaseSource;
+use App\Contracts\CarrierAdapterInterface;
 use App\Contracts\DirectCarrierAdapter;
 use App\Contracts\PackageShippingWorkflow;
 use App\DataTransferObjects\PackageShipping\PackageAutoShippingRequest;
@@ -25,8 +26,10 @@ use App\Models\ShippingRule;
 use App\Models\SpecialService;
 use App\Models\User;
 use App\Services\Carriers\CarrierRegistry;
+use App\Services\Carriers\ShopifyAdapter;
 use App\Services\RuleEvaluator;
 use App\Services\ShipmentImport\Sources\ShopifySource;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Livewire;
 use Mockery\MockInterface;
 
@@ -212,6 +215,80 @@ it('refuses an offer attributed to a source that never offered it', function ():
         ->and($package->fresh()->status)->toBe(PackageStatus::Unshipped);
 
     $source->shouldNotHaveReceived('createShipment');
+});
+
+it('refuses to buy a second Shopify label for a shipment that already has one', function (): void {
+    // The real adapter, not the stand-in: the withdrawal being tested is its
+    // own gate, and the point is that re-deriving the offers at purchase time
+    // enforces it even for a Ship page that listed Shopify before the first
+    // package went out.
+    $package = blindPurchasePackage();
+    allowBlindPurchase($package);
+    app(CarrierRegistry::class)->registerInstance('Shopify', new ShopifyAdapter);
+    Package::factory()->shipped()->create(['shipment_id' => $package->shipment_id]);
+
+    $result = app(PackageShippingWorkflow::class)->ship($package, new PackageShippingRequest(blindOffer: shopifyBlindOffer()));
+
+    expect($result->success)->toBeFalse()
+        ->and($result->title)->toBe('Offer No Longer Available')
+        ->and($package->fresh()->status)->toBe(PackageStatus::Unshipped);
+});
+
+it('refuses a blind purchase while another package on the shipment is buying one', function (): void {
+    // The per-package lock does not cover this: two packages hold two different
+    // package locks and neither sibling has left a trace yet, so without a
+    // shipment-level lock both would buy against the same fulfillment order.
+    $package = blindPurchasePackage();
+    allowBlindPurchase($package);
+    $source = registerBlindSource();
+
+    $held = Cache::lock("shipment-blind-purchase:{$package->shipment_id}", 180);
+    expect($held->get())->toBeTrue();
+
+    try {
+        $result = app(PackageShippingWorkflow::class)->ship($package, new PackageShippingRequest(blindOffer: shopifyBlindOffer()));
+    } finally {
+        $held->release();
+    }
+
+    expect($result->success)->toBeFalse()
+        ->and($result->title)->toBe('Purchase In Progress')
+        ->and($result->message)->toContain('buys against the whole order')
+        ->and($package->fresh()->status)->toBe(PackageStatus::Unshipped);
+
+    $source->shouldNotHaveReceived('createShipment');
+});
+
+it('lets a carrier account sell postage while a blind purchase is in flight elsewhere on the shipment', function (): void {
+    // The shipment lock covers the shared fulfillment order, not the shipment.
+    // Postage bought from a carrier account touches nothing another package is
+    // using, and refusing it would strand the second parcel.
+    $package = blindPurchasePackage();
+    allowBlindPurchase($package);
+
+    $adapter = Mockery::mock(CarrierAdapterInterface::class);
+    $adapter->shouldReceive('createShipment')->once()->andReturn(ShipResponse::success(
+        trackingNumber: '9400111899223197428490',
+        cost: 8.50,
+        carrier: 'USPS',
+        service: 'Ground Advantage',
+        labelData: base64_encode('LABEL-BYTES'),
+    ));
+    app(CarrierRegistry::class)->registerInstance('USPS', $adapter);
+
+    $held = Cache::lock("shipment-blind-purchase:{$package->shipment_id}", 180);
+    expect($held->get())->toBeTrue();
+
+    try {
+        $result = app(PackageShippingWorkflow::class)->ship($package, new PackageShippingRequest(
+            selectedRate: new RateResponse('USPS', 'USPS_GROUND_ADVANTAGE', 'Ground Advantage', 8.50),
+        ));
+    } finally {
+        $held->release();
+    }
+
+    expect($result->success)->toBeTrue()
+        ->and($package->fresh()->status)->toBe(PackageStatus::Shipped);
 });
 
 it('buys the server\'s copy of the offer, not the one the browser described', function (): void {
