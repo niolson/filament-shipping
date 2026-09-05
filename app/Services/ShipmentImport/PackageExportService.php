@@ -51,7 +51,7 @@ class PackageExportService
             ->where('active', true)
             ->whereJsonContains('settings->export_enabled', true)
             ->get()
-            ->reject(fn (DataSource $s) => $primary && $s->id === $primary->id);
+            ->reject(fn (DataSource $s): bool => $primary && $s->id === $primary->id);
 
         $destinations = collect();
 

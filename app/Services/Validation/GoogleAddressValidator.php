@@ -189,7 +189,7 @@ class GoogleAddressValidator implements AddressValidationInterface
         $components = $result['address']['addressComponents'] ?? [];
 
         $hasSuspiciousComponent = collect($components)
-            ->contains(fn (array $component) => ($component['confirmationLevel'] ?? null) === 'UNCONFIRMED_AND_SUSPICIOUS');
+            ->contains(fn (array $component): bool => ($component['confirmationLevel'] ?? null) === 'UNCONFIRMED_AND_SUSPICIOUS');
 
         return match (true) {
             $hasSuspiciousComponent || ! ($verdict['addressComplete'] ?? false) => [

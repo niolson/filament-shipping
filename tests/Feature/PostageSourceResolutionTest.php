@@ -386,7 +386,7 @@ describe('unresolvable ties', function (): void {
         // arbitrary pick" true for direct carriers: carrier_account_scopes is
         // unique on (carrier, location, client), so each precedence band holds
         // at most one scope and the walk has nothing to arbitrate.
-        expect(fn () => scopeAccountTo($account('Retail USPS'), null, $client))
+        expect(fn (): CarrierAccountScope => scopeAccountTo($account('Retail USPS'), null, $client))
             ->toThrow(UniqueConstraintViolationException::class);
     });
 });

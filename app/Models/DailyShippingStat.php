@@ -36,7 +36,7 @@ class DailyShippingStat extends Model
     {
         return Attribute::make(
             get: fn ($value) => $value ? Carbon::parse($value)->startOfDay() : null,
-            set: fn ($value) => $value ? Carbon::parse($value)->format('Y-m-d') : null,
+            set: fn ($value): ?string => $value ? Carbon::parse($value)->format('Y-m-d') : null,
         );
     }
 

@@ -39,7 +39,7 @@ class ChannelResource extends Resource
                         'heroicon-o-pencil-square' => 'Manual',
                         'heroicon-o-inbox-stack' => 'Inbox',
                         'heroicon-o-truck' => 'Truck',
-                    ])->mapWithKeys(fn (string $label, string $icon) => [
+                    ])->mapWithKeys(fn (string $label, string $icon): array => [
                         $icon => '<span class="flex items-center gap-2">'
                             .svg($icon, 'w-5 h-5')->toHtml()
                             ."<span>{$label}</span></span>",

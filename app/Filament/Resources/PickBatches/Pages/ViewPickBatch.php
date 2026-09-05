@@ -39,25 +39,25 @@ class ViewPickBatch extends ViewRecord
     {
         return [
             Action::make('togglePrintMode')
-                ->label(fn () => $this->printMode ? 'Print' : 'View')
-                ->icon(fn () => $this->printMode ? 'heroicon-o-printer' : 'heroicon-o-eye')
+                ->label(fn (): string => $this->printMode ? 'Print' : 'View')
+                ->icon(fn (): string => $this->printMode ? 'heroicon-o-printer' : 'heroicon-o-eye')
                 ->color('gray')
-                ->outlined(fn () => ! $this->printMode)
-                ->action(fn () => $this->printMode = ! $this->printMode),
+                ->outlined(fn (): bool => ! $this->printMode)
+                ->action(fn (): bool => $this->printMode = ! $this->printMode),
 
             // View mode — open HTML in a new tab
             Action::make('viewSummary')
                 ->label('Picking Summary')
                 ->icon('heroicon-o-list-bullet')
-                ->visible(fn () => ! $this->printMode)
-                ->url(fn () => route('pick-batches.summary', $this->record))
+                ->visible(fn (): bool => ! $this->printMode)
+                ->url(fn (): string => route('pick-batches.summary', $this->record))
                 ->openUrlInNewTab(),
 
             // Print mode — render PDF via Gotenberg and send to report printer
             Action::make('printSummary')
                 ->label('Picking Summary')
                 ->icon('heroicon-o-list-bullet')
-                ->visible(fn () => $this->printMode)
+                ->visible(fn (): bool => $this->printMode)
                 ->action(function (): void {
                     $this->printDocument('pick-batches.summary', [
                         'pickBatch' => $this->record,
@@ -71,15 +71,15 @@ class ViewPickBatch extends ViewRecord
             Action::make('viewPackSlips')
                 ->label('Pack Slips')
                 ->icon('heroicon-o-document-text')
-                ->visible(fn () => ! $this->printMode)
-                ->url(fn () => route('pick-batches.pack-slips', $this->record))
+                ->visible(fn (): bool => ! $this->printMode)
+                ->url(fn (): string => route('pick-batches.pack-slips', $this->record))
                 ->openUrlInNewTab(),
 
             // Print mode — render PDF via Gotenberg and send to report printer
             Action::make('printPackSlips')
                 ->label('Pack Slips')
                 ->icon('heroicon-o-document-text')
-                ->visible(fn () => $this->printMode)
+                ->visible(fn (): bool => $this->printMode)
                 ->action(function (): void {
                     $this->record->load('pickBatchShipments.shipment.shipmentItems.product');
 
@@ -98,7 +98,7 @@ class ViewPickBatch extends ViewRecord
                 ->label('Mark All Picked')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
-                ->visible(fn () => $this->record->status === PickBatchStatus::InProgress)
+                ->visible(fn (): bool => $this->record->status === PickBatchStatus::InProgress)
                 ->requiresConfirmation()
                 ->modalHeading('Mark Batch as Picked')
                 ->modalDescription('This will mark all shipments in this batch as picked and complete the batch.')
@@ -115,7 +115,7 @@ class ViewPickBatch extends ViewRecord
                 ->label('Cancel Batch')
                 ->icon('heroicon-o-x-mark')
                 ->color('danger')
-                ->visible(fn () => $this->record->status === PickBatchStatus::InProgress)
+                ->visible(fn (): bool => $this->record->status === PickBatchStatus::InProgress)
                 ->requiresConfirmation()
                 ->modalHeading('Cancel Pick Batch')
                 ->modalDescription('This will cancel the batch and return all shipments to pending picking status.')

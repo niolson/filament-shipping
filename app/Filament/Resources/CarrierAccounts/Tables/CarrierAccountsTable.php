@@ -42,7 +42,7 @@ class CarrierAccountsTable
                     ->counts('scopes')
                     ->suffix(fn (int $state): string => $state === 1 ? ' scope' : ' scopes')
                     ->sortable()
-                    ->visible(fn () => app(SettingsService::class)->get('multi_location_enabled', false)
+                    ->visible(fn (): bool => app(SettingsService::class)->get('multi_location_enabled', false)
                         || app(SettingsService::class)->get('multi_client_enabled', false)),
                 IconColumn::make('active')
                     ->boolean()

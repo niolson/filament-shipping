@@ -23,7 +23,7 @@ beforeEach(function (): void {
     // SQLite lacks GREATEST(); register it so the billing queries work in tests.
     DB::connection()->getPdo()->sqliteCreateFunction(
         'GREATEST',
-        fn () => max(func_get_args()),
+        fn (): mixed => max(func_get_args()),
         -1
     );
 

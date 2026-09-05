@@ -215,8 +215,8 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
         $items = $order['orderItems'] ?? [];
 
         return collect($items)
-            ->map(fn (array $item) => $this->mapOrderItemToShipmentItem($item))
-            ->filter(fn (array $item) => $item['quantity'] > 0)
+            ->map(fn (array $item): array => $this->mapOrderItemToShipmentItem($item))
+            ->filter(fn (array $item): bool => $item['quantity'] > 0)
             ->values();
     }
 
@@ -350,7 +350,7 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
             $json = $response->json();
             $errors = $json['errors'] ?? [];
             $messages = array_map(
-                fn (array $e) => ($e['code'] ?? 'unknown').': '.($e['message'] ?? ''),
+                fn (array $e): string => ($e['code'] ?? 'unknown').': '.($e['message'] ?? ''),
                 $errors
             );
             $message = 'Amazon shipment confirmation error: '.implode('; ', $messages);

@@ -31,7 +31,7 @@ class CarrierBreakdownChart extends ChartWidget
 
     protected function getData(): array
     {
-        return Cache::remember("widget:carrier_breakdown:{$this->filter}", 60, fn () => $this->buildData());
+        return Cache::remember("widget:carrier_breakdown:{$this->filter}", 60, fn (): array => $this->buildData());
     }
 
     private function buildData(): array

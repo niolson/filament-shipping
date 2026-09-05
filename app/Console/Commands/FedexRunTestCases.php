@@ -63,7 +63,7 @@ class FedexRunTestCases extends Command
         $requested = $this->argument('cases');
 
         if (! empty($requested)) {
-            $testCases = $testCases->filter(fn ($testCase) => in_array($testCase->id, $requested, true));
+            $testCases = $testCases->filter(fn ($testCase): bool => in_array($testCase->id, $requested, true));
 
             if ($testCases->isEmpty()) {
                 $this->error('No matching test cases found. Valid IDs: '.implode(', ', $suite->caseIds()));
@@ -72,8 +72,8 @@ class FedexRunTestCases extends Command
             }
         }
 
-        $skipped = $testCases->filter(fn ($testCase) => ! $testCase->supported);
-        $testCases = $testCases->reject(fn ($testCase) => ! $testCase->supported);
+        $skipped = $testCases->filter(fn ($testCase): bool => ! $testCase->supported);
+        $testCases = $testCases->reject(fn ($testCase): bool => ! $testCase->supported);
 
         foreach ($skipped as $testCase) {
             $this->warn("Skipping {$testCase->id} ({$testCase->description}) — {$testCase->skipReason}");

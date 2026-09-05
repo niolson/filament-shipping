@@ -31,7 +31,7 @@ class ShippedShipmentsChart extends ChartWidget
 
     protected function getData(): array
     {
-        return Cache::remember("widget:shipped_chart:{$this->filter}", 60, function () {
+        return Cache::remember("widget:shipped_chart:{$this->filter}", 60, function (): array {
             $days = $this->filter === 'month' ? 30 : 7;
             $startDate = now(Location::timezone())->subDays($days - 1)->startOfDay();
 

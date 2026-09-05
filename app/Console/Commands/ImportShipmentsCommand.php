@@ -146,7 +146,7 @@ class ImportShipmentsCommand extends Command
             $this->info("Found {$shipments->count()} shipments to import.");
 
             if ($shipments->isNotEmpty()) {
-                $sample = $shipments->take(5)->map(fn ($s) => [
+                $sample = $shipments->take(5)->map(fn ($s): array => [
                     $s['shipment_reference'] ?? 'N/A',
                     trim(($s['first_name'] ?? '').' '.($s['last_name'] ?? '')),
                     $s['city'] ?? 'N/A',

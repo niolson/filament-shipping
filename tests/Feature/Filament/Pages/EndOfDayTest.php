@@ -21,7 +21,7 @@ it('shows all active carriers with ship dates', function (): void {
     Carrier::factory()->create(['name' => 'FedEx', 'active' => true]);
 
     Livewire::test(EndOfDay::class)
-        ->assertSet('carrierSummary', function ($value) {
+        ->assertSet('carrierSummary', function ($value): bool {
             $byCarrier = collect($value)->keyBy('carrier');
 
             return $byCarrier->has('USPS')
@@ -38,7 +38,7 @@ it('shows unmanifested count for USPS packages shipped today', function (): void
     Package::factory()->shipped()->create(['carrier' => 'USPS', 'tracking_number' => '9400222']);
 
     Livewire::test(EndOfDay::class)
-        ->assertSet('carrierSummary', function ($value) {
+        ->assertSet('carrierSummary', function ($value): bool {
             $usps = collect($value)->firstWhere('carrier', 'USPS');
 
             return $usps['unmanifested_count'] === 2;
@@ -56,7 +56,7 @@ it('excludes USPS packages bought through Shopify from the unmanifested count', 
     ]);
 
     Livewire::test(EndOfDay::class)
-        ->assertSet('carrierSummary', function ($value) {
+        ->assertSet('carrierSummary', function ($value): bool {
             $usps = collect($value)->firstWhere('carrier', 'USPS');
 
             return $usps['package_count'] === 0
@@ -76,7 +76,7 @@ it('excludes already-manifested USPS packages from count', function (): void {
     Package::factory()->shipped()->create(['carrier' => 'USPS', 'tracking_number' => '9400222']);
 
     Livewire::test(EndOfDay::class)
-        ->assertSet('carrierSummary', function ($value) {
+        ->assertSet('carrierSummary', function ($value): bool {
             $usps = collect($value)->firstWhere('carrier', 'USPS');
 
             return $usps['unmanifested_count'] === 1;
@@ -88,7 +88,7 @@ it('shows zero unmanifested count for non-USPS carriers', function (): void {
     Package::factory()->shipped()->create(['carrier' => 'FedEx', 'tracking_number' => '7890001']);
 
     Livewire::test(EndOfDay::class)
-        ->assertSet('carrierSummary', function ($value) {
+        ->assertSet('carrierSummary', function ($value): bool {
             $fedex = collect($value)->firstWhere('carrier', 'FedEx');
 
             return $fedex['unmanifested_count'] === 0;
@@ -100,7 +100,7 @@ it('does not show inactive carriers', function (): void {
     Carrier::factory()->create(['name' => 'DHL', 'active' => false]);
 
     Livewire::test(EndOfDay::class)
-        ->assertSet('carrierSummary', function ($value) {
+        ->assertSet('carrierSummary', function ($value): bool {
             $carriers = collect($value)->pluck('carrier');
 
             return $carriers->contains('USPS') && ! $carriers->contains('DHL');

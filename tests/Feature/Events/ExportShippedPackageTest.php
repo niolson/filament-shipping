@@ -24,7 +24,7 @@ it('calls exportPackage on the PackageExportService', function (): void {
     $mock = Mockery::mock(PackageExportService::class);
     $mock->shouldReceive('exportPackage')
         ->once()
-        ->with(Mockery::on(fn ($p) => $p->id === $package->id))
+        ->with(Mockery::on(fn ($p): bool => $p->id === $package->id))
         ->andReturn(new ExportResult(success: true));
 
     app()->instance(PackageExportService::class, $mock);

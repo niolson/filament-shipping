@@ -60,7 +60,7 @@ class PackagesRelationManager extends RelationManager
                 Tables\Columns\IconColumn::make('exported')
                     ->boolean(),
             ])
-            ->recordUrl(fn ($record) => PackageResource::getUrl('view', ['record' => $record]))
+            ->recordUrl(fn ($record): string => PackageResource::getUrl('view', ['record' => $record]))
             ->filters([
                 //
             ])

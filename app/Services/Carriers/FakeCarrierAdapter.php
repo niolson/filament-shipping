@@ -79,7 +79,7 @@ class FakeCarrierAdapter implements DirectCarrierAdapter
 
         return collect($rates)
             ->when(! empty($serviceCodes), fn (Collection $c) => $c->whereIn('code', $serviceCodes))
-            ->map(fn (array $rate) => new RateResponse(
+            ->map(fn (array $rate): RateResponse => new RateResponse(
                 carrier: $this->carrierName,
                 serviceCode: $rate['code'],
                 serviceName: $rate['name'],

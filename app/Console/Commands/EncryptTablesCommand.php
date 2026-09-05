@@ -21,7 +21,7 @@ class EncryptTablesCommand extends Command
         ");
 
         $unencrypted = collect($tables)->filter(
-            fn ($t) => ! str_contains($t->create_options ?? '', 'ENCRYPTION=')
+            fn ($t): bool => ! str_contains($t->create_options ?? '', 'ENCRYPTION=')
                     || str_contains($t->create_options ?? '', "ENCRYPTION='N'")
         );
 

@@ -264,7 +264,7 @@ it('uses request countries when building FedEx rate payloads', function (): void
 
     $this->adapter->getRates($request, ['FEDEX_GROUND']);
 
-    Saloon::assertSent(function (Rates $request) {
+    Saloon::assertSent(function (Rates $request): bool {
         $body = $request->body()->all();
 
         return ($body['requestedShipment']['shipper']['address']['countryCode'] ?? null) === 'CA'
@@ -345,7 +345,7 @@ it('includes smart post info detail for sub-pound smart post rate requests', fun
 
     $this->adapter->getRates($request, ['SMART_POST']);
 
-    Saloon::assertSent(function (Rates $request) {
+    Saloon::assertSent(function (Rates $request): bool {
         $body = $request->body()->all();
 
         return ($body['requestedShipment']['shipper']['address']['postalCode'] ?? null) === '98072'
@@ -390,7 +390,7 @@ it('includes parcel select smart post info detail for 1lb and up rate requests',
 
     $this->adapter->getRates($request, ['SMART_POST']);
 
-    Saloon::assertSent(function (Rates $request) {
+    Saloon::assertSent(function (Rates $request): bool {
         $body = $request->body()->all();
         $detail = $body['requestedShipment']['smartPostInfoDetail'] ?? [];
 
@@ -633,7 +633,7 @@ it('uses the ship-from country for FedEx customs duties payment', function (): v
 
     $this->adapter->createShipment($request);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -718,7 +718,7 @@ it('includes smart post info detail in create shipment requests for smart post s
 
     $this->adapter->createShipment($request);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -1017,7 +1017,7 @@ it('maps package-level special services and declared value into the ship request
     expect($response->success)->toBeTrue()
         ->and($response->appliedServices)->toBe(['adult_signature_required', 'alcohol', 'declared_value']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -1091,7 +1091,7 @@ it('omits battery fields from ground ship requests', function (): void {
     expect($response->success)->toBeTrue()
         ->and($response->appliedServices)->toBe([]);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -1159,7 +1159,7 @@ it('maps battery details into express ship requests', function (): void {
     expect($response->success)->toBeTrue()
         ->and($response->appliedServices)->toBe(['lithium_battery_in_equipment']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -1214,7 +1214,7 @@ it('prints the client-selected reference on the label', function (LabelReference
 
     expect($this->adapter->createShipment(ShipRequest::fromPackageAndRate($package, $rate))->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) use ($package, $expected) {
+    Saloon::assertSent(function ($request) use ($package, $expected): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -1285,7 +1285,7 @@ it('sends a recipient phone number stored before its area code was recognized', 
 
     expect($response->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -1349,7 +1349,7 @@ it('uses the shipper phone when the recipient has no usable phone number', funct
 
     expect($this->adapter->createShipment($request)->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -1417,7 +1417,7 @@ it('does not stand in the shipper phone when the recipient clears customs', func
 
     expect($this->adapter->createShipment($request)->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }
@@ -1490,7 +1490,7 @@ it('declares customs for a Puerto Rico destination that shares the US country co
 
     expect($this->adapter->createShipment($request)->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof CreateShipment) {
             return false;
         }

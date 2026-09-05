@@ -21,7 +21,7 @@ class RateQuoteLogger
 
         $now = now();
 
-        $rows = $rates->map(fn (RateResponse $rate) => [
+        $rows = $rates->map(fn (RateResponse $rate): array => [
             'package_id' => $packageId,
             'carrier' => $rate->carrier,
             'service_code' => $rate->serviceCode,

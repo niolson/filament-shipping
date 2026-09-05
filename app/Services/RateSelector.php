@@ -34,19 +34,19 @@ class RateSelector
     public function classify(Collection $rates, ?Carbon $deadline): Collection
     {
         $classified = $rates->map(
-            fn (RateResponse $rate) => new ClassifiedRate(
+            fn (RateResponse $rate): ClassifiedRate => new ClassifiedRate(
                 rate: $rate,
                 isOnTime: $this->isOnTime($rate, $deadline),
             )
         );
 
         $onTime = $classified
-            ->filter(fn (ClassifiedRate $cr) => $cr->isOnTime)
-            ->sortBy(fn (ClassifiedRate $cr) => $this->sortKey($cr->rate));
+            ->filter(fn (ClassifiedRate $cr): bool => $cr->isOnTime)
+            ->sortBy(fn (ClassifiedRate $cr): array => $this->sortKey($cr->rate));
 
         $late = $classified
-            ->filter(fn (ClassifiedRate $cr) => ! $cr->isOnTime)
-            ->sortBy(fn (ClassifiedRate $cr) => $this->sortKey($cr->rate));
+            ->filter(fn (ClassifiedRate $cr): bool => ! $cr->isOnTime)
+            ->sortBy(fn (ClassifiedRate $cr): array => $this->sortKey($cr->rate));
 
         return $onTime->merge($late)->values();
     }

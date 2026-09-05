@@ -21,7 +21,7 @@ class DatabaseHealthWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $counts = Cache::remember('widget:database_health', 3600, function () {
+        $counts = Cache::remember('widget:database_health', 3600, function (): array {
             return [
                 'shipments' => DB::table('shipments')->count(),
                 'packages' => DB::table('packages')->count(),

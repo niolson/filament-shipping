@@ -99,7 +99,7 @@ class ClientBillingReport extends Page implements HasTable
                 ->label('Export CSV')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(fn () => $this->exportCsv()),
+                ->action(fn (): StreamedResponse => $this->exportCsv()),
         ];
     }
 
@@ -221,7 +221,7 @@ class ClientBillingReport extends Page implements HasTable
                     ->label('')
                     ->badge()
                     ->color('warning')
-                    ->formatStateUsing(fn ($state) => $state ? null : 'No item data'),
+                    ->formatStateUsing(fn ($state): ?string => $state ? null : 'No item data'),
                 Tables\Columns\TextColumn::make('line_total')
                     ->label('Line Total')
                     ->money('USD')

@@ -27,7 +27,7 @@ it('classifies all rates as on-time when there is no deadline', function (): voi
     $classified = app(RateSelector::class)->classify($rates, null);
 
     expect($classified)->toHaveCount(2)
-        ->and($classified->every(fn (ClassifiedRate $cr) => $cr->isOnTime))->toBeTrue();
+        ->and($classified->every(fn (ClassifiedRate $cr): bool => $cr->isOnTime))->toBeTrue();
 });
 
 it('sorts on-time rates before late rates', function (): void {

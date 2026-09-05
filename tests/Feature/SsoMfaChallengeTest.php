@@ -102,7 +102,7 @@ it('renders the MFA challenge on the login page for a pending SSO user', functio
     session()->put('sso_mfa.remember', true);
 
     Livewire::test(Login::class)
-        ->assertSet('userUndertakingMultiFactorAuthentication', fn ($value) => filled($value));
+        ->assertSet('userUndertakingMultiFactorAuthentication', fn ($value): bool => filled($value));
 
     expect(Auth::check())->toBeFalse();
 });

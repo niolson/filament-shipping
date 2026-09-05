@@ -211,7 +211,7 @@ class EloquentPackageDraftWorkflow implements PackageDraftWorkflow
             ->pluck('product_id', 'id');
 
         $scanToAddProductIds = collect($items)
-            ->filter(fn (PackageDraftItemInput $item) => $item->shipmentItemId === null)
+            ->filter(fn (PackageDraftItemInput $item): bool => $item->shipmentItemId === null)
             ->pluck('productId');
 
         $validScanToAddProductIds = $scanToAddProductIds->isNotEmpty()

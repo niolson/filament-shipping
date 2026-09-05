@@ -3,6 +3,7 @@
 use App\Exceptions\PermanentExportException;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
 use App\Services\ShipmentImport\Sources\ShopifySource;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Saloon\Http\Faking\MockResponse;
 use Saloon\Laravel\Facades\Saloon;
@@ -126,7 +127,7 @@ it('throws when channel name is not configured', function (): void {
 it('blocks shipment imports until fulfillment-order import is activated', function (): void {
     $source = new ShopifySource(shopifyConfig());
 
-    expect(fn () => $source->fetchShipments())
+    expect(fn (): Collection => $source->fetchShipments())
         ->toThrow(DomainException::class, 'activate fulfillment-order imports');
 
     Saloon::assertNothingSent();
@@ -368,7 +369,7 @@ it('sends fulfillment mutation with correct carrier mapping', function (): void 
         'fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/5001',
     ]);
 
-    Saloon::assertSent(function (GraphQL $request) {
+    Saloon::assertSent(function (GraphQL $request): bool {
         $body = $request->body()->all();
         $fulfillment = $body['variables']['fulfillment'];
 
@@ -449,7 +450,7 @@ it('maps FedEx carrier name correctly', function (): void {
         'fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/5001',
     ]);
 
-    Saloon::assertSent(function (GraphQL $request) {
+    Saloon::assertSent(function (GraphQL $request): bool {
         $body = $request->body()->all();
 
         return $body['variables']['fulfillment']['trackingInfo']['company'] === 'FedEx';
@@ -490,7 +491,7 @@ it('respects notify_customer config', function (): void {
         'fulfillment_order_id' => 'gid://shopify/FulfillmentOrder/5001',
     ]);
 
-    Saloon::assertSent(function (GraphQL $request) {
+    Saloon::assertSent(function (GraphQL $request): bool {
         $body = $request->body()->all();
 
         return $body['variables']['fulfillment']['notifyCustomer'] === true;

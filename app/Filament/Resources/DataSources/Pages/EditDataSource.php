@@ -122,15 +122,15 @@ class EditDataSource extends EditRecord
                 }),
 
             Action::make('shopify_connect')
-                ->label(fn () => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'Reconnect Shopify' : 'Connect with OAuth')
+                ->label(fn (): string => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'Reconnect Shopify' : 'Connect with OAuth')
                 ->icon('heroicon-o-link')
-                ->color(fn () => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'warning' : 'primary')
-                ->visible(fn () => $this->record->source_type === ShopifySource::class)
-                ->disabled(fn () => ! app(OAuthService::class)->isBrokerConfigured())
+                ->color(fn (): string => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'warning' : 'primary')
+                ->visible(fn (): bool => $this->record->source_type === ShopifySource::class)
+                ->disabled(fn (): bool => ! app(OAuthService::class)->isBrokerConfigured())
                 ->tooltip(fn () => app(OAuthService::class)->brokerlessGuidance('Enter your own Shopify app Client ID and Client Secret on this source instead.'))
                 ->requiresConfirmation()
-                ->modalHeading(fn () => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'Reconnect Shopify' : 'Connect Shopify')
-                ->modalDescription(fn () => app(OAuthService::class)->isDataSourceConnected($this->record)
+                ->modalHeading(fn (): string => app(OAuthService::class)->isDataSourceConnected($this->record) ? 'Reconnect Shopify' : 'Connect Shopify')
+                ->modalDescription(fn (): string => app(OAuthService::class)->isDataSourceConnected($this->record)
                     ? 'This will replace the existing OAuth token. You will be redirected to Shopify to re-authorize.'
                     : 'You will be redirected to Shopify to authorize access. Make sure Shop Domain is saved first.')
                 ->action(function (): void {
@@ -142,7 +142,7 @@ class EditDataSource extends EditRecord
                 ->label('Disconnect Shopify')
                 ->icon('heroicon-o-x-mark')
                 ->color('danger')
-                ->visible(fn () => $this->record->source_type === ShopifySource::class && app(OAuthService::class)->isDataSourceConnected($this->record))
+                ->visible(fn (): bool => $this->record->source_type === ShopifySource::class && app(OAuthService::class)->isDataSourceConnected($this->record))
                 ->requiresConfirmation()
                 ->modalHeading('Disconnect Shopify OAuth')
                 ->modalDescription('This will remove the OAuth access token. The source will fall back to the custom access token or client credentials flow.')
@@ -153,14 +153,14 @@ class EditDataSource extends EditRecord
                 }),
 
             Action::make('amazon_connect')
-                ->label(fn () => app(OAuthService::class)->isDataSourceConnected($this->dataSource()) ? 'Reconnect Amazon' : 'Connect Amazon')
+                ->label(fn (): string => app(OAuthService::class)->isDataSourceConnected($this->dataSource()) ? 'Reconnect Amazon' : 'Connect Amazon')
                 ->icon('heroicon-o-link')
-                ->color(fn () => app(OAuthService::class)->isDataSourceConnected($this->dataSource()) ? 'warning' : 'primary')
-                ->visible(fn () => $this->dataSource()->source_type === AmazonSource::class)
-                ->disabled(fn () => ! app(OAuthService::class)->isBrokerConfigured())
+                ->color(fn (): string => app(OAuthService::class)->isDataSourceConnected($this->dataSource()) ? 'warning' : 'primary')
+                ->visible(fn (): bool => $this->dataSource()->source_type === AmazonSource::class)
+                ->disabled(fn (): bool => ! app(OAuthService::class)->isBrokerConfigured())
                 ->tooltip(fn () => app(OAuthService::class)->brokerlessGuidance('Enter your own Amazon Refresh Token and App Client ID/Secret on this source instead.'))
                 ->requiresConfirmation()
-                ->modalHeading(fn () => app(OAuthService::class)->isDataSourceConnected($this->dataSource()) ? 'Reconnect Amazon' : 'Connect Amazon')
+                ->modalHeading(fn (): string => app(OAuthService::class)->isDataSourceConnected($this->dataSource()) ? 'Reconnect Amazon' : 'Connect Amazon')
                 ->modalDescription('You will be redirected to Seller Central to authorize this Amazon SP-API data source.')
                 ->action(function (): void {
                     $url = app(OAuthService::class)->initiateAuthorizationForDataSource('sp-api', $this->dataSource());
@@ -171,7 +171,7 @@ class EditDataSource extends EditRecord
                 ->label('Disconnect Amazon')
                 ->icon('heroicon-o-x-mark')
                 ->color('danger')
-                ->visible(fn () => $this->dataSource()->source_type === AmazonSource::class && app(OAuthService::class)->isDataSourceConnected($this->dataSource()))
+                ->visible(fn (): bool => $this->dataSource()->source_type === AmazonSource::class && app(OAuthService::class)->isDataSourceConnected($this->dataSource()))
                 ->requiresConfirmation()
                 ->modalHeading('Disconnect Amazon OAuth')
                 ->modalDescription('This removes the seller authorization and refresh token from this data source. You can reconnect at any time.')

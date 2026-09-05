@@ -69,7 +69,7 @@ class ShippingRateService
     public function getExclusions(): array
     {
         return array_map(
-            fn ($carrier, $reason) => ['carrier' => $carrier, 'reason' => $reason],
+            fn ($carrier, $reason): array => ['carrier' => $carrier, 'reason' => $reason],
             array_keys($this->exclusions),
             $this->exclusions,
         );
@@ -349,7 +349,7 @@ class ShippingRateService
         // concurrency overhead needed) or when any request has a fake/mock response set
         // (Saloon faking bypasses the sender, so the shared GuzzleSender can't handle it).
         $hasFakeResponses = collect($preparedRequests)->contains(
-            fn (PreparedRateRequest $p) => $p->pendingRequest->hasFakeResponse()
+            fn (PreparedRateRequest $p): bool => $p->pendingRequest->hasFakeResponse()
         );
 
         if (count($preparedRequests) <= 1 || $hasFakeResponses) {

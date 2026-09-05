@@ -71,11 +71,11 @@ class CarrierAccountForm
                     ->schema([
                         TextEntry::make('usps_oauth_status')
                             ->label('OAuth Status')
-                            ->state(fn (?CarrierAccount $record) => static::renderAccountOauthStatus($record))
+                            ->state(fn (?CarrierAccount $record): HtmlString => static::renderAccountOauthStatus($record))
                             ->columnSpanFull(),
                         TextEntry::make('usps_pricing_tier')
                             ->label('Pricing Tier')
-                            ->state(fn (?CarrierAccount $record) => static::renderUspsPricingTier($record))
+                            ->state(fn (?CarrierAccount $record): HtmlString => static::renderUspsPricingTier($record))
                             ->helperText('Use the "Test USPS Connection" action above to check whether this account has negotiated (CONTRACT) rates.')
                             ->columnSpanFull(),
                         TextInput::make('credentials.crid')
@@ -101,15 +101,15 @@ class CarrierAccountForm
                         TextInput::make('usps_adv_client_id')
                             ->label('Client ID')
                             ->password()
-                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->placeholder(fn (?CarrierAccount $record): string => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured')
                             ->afterStateHydrated(fn ($component) => $component->state(null))
-                            ->dehydrated(fn ($state) => filled($state)),
+                            ->dehydrated(fn ($state): bool => filled($state)),
                         TextInput::make('usps_adv_client_secret')
                             ->label('Client Secret')
                             ->password()
-                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->placeholder(fn (?CarrierAccount $record): string => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
                             ->afterStateHydrated(fn ($component) => $component->state(null))
-                            ->dehydrated(fn ($state) => filled($state)),
+                            ->dehydrated(fn ($state): bool => filled($state)),
                     ])
                     ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'USPS')
                     ->columns(2)
@@ -123,14 +123,14 @@ class CarrierAccountForm
                     ->schema([
                         TextEntry::make('fedex_connection_status')
                             ->label('Connection Status')
-                            ->state(fn (?CarrierAccount $record) => filled($record?->secret('child_key'))
+                            ->state(fn (?CarrierAccount $record): HtmlString => filled($record?->secret('child_key'))
                                 ? new HtmlString('<span class="text-success-600 dark:text-success-400 font-medium">Connected</span> — child credentials provisioned via Account Registration')
                                 : new HtmlString('<span class="text-gray-400 dark:text-gray-500">Not connected</span> — use the Connect FedEx Account action above'))
                             ->columnSpanFull(),
                         TextInput::make('fedex_account_number')
                             ->label('Account Number')
                             ->maxLength(50)
-                            ->readOnly(fn (?CarrierAccount $record) => filled($record?->secret('child_key')))
+                            ->readOnly(fn (?CarrierAccount $record): bool => filled($record?->secret('child_key')))
                             ->afterStateHydrated(fn ($component, ?CarrierAccount $record) => $component->state($record?->credential('account_number'))),
                     ])
                     ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'FedEx')
@@ -142,27 +142,27 @@ class CarrierAccountForm
                         TextInput::make('fedex_adv_api_key')
                             ->label('Production API Key')
                             ->password()
-                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('api_key')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->placeholder(fn (?CarrierAccount $record): string => filled($record?->secret('api_key')) ? 'Configured (leave empty to keep)' : 'Not configured')
                             ->afterStateHydrated(fn ($component) => $component->state(null))
-                            ->dehydrated(fn ($state) => filled($state)),
+                            ->dehydrated(fn ($state): bool => filled($state)),
                         TextInput::make('fedex_adv_api_secret')
                             ->label('Production API Secret')
                             ->password()
-                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('api_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->placeholder(fn (?CarrierAccount $record): string => filled($record?->secret('api_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
                             ->afterStateHydrated(fn ($component) => $component->state(null))
-                            ->dehydrated(fn ($state) => filled($state)),
+                            ->dehydrated(fn ($state): bool => filled($state)),
                         TextInput::make('fedex_adv_sandbox_api_key')
                             ->label('Sandbox API Key')
                             ->password()
-                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('sandbox_api_key')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->placeholder(fn (?CarrierAccount $record): string => filled($record?->secret('sandbox_api_key')) ? 'Configured (leave empty to keep)' : 'Not configured')
                             ->afterStateHydrated(fn ($component) => $component->state(null))
-                            ->dehydrated(fn ($state) => filled($state)),
+                            ->dehydrated(fn ($state): bool => filled($state)),
                         TextInput::make('fedex_adv_sandbox_api_secret')
                             ->label('Sandbox API Secret')
                             ->password()
-                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('sandbox_api_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->placeholder(fn (?CarrierAccount $record): string => filled($record?->secret('sandbox_api_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
                             ->afterStateHydrated(fn ($component) => $component->state(null))
-                            ->dehydrated(fn ($state) => filled($state)),
+                            ->dehydrated(fn ($state): bool => filled($state)),
                     ])
                     ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'FedEx')
                     ->columns(2)
@@ -196,7 +196,7 @@ class CarrierAccountForm
                             ->addActionLabel('Add Assignment')
                             ->columnSpanFull(),
                     ])
-                    ->hidden(fn (?CarrierAccount $record) => ! $record?->exists
+                    ->hidden(fn (?CarrierAccount $record): bool => ! $record?->exists
                         || (! app(SettingsService::class)->get('multi_location_enabled', false)
                             && ! app(SettingsService::class)->get('multi_client_enabled', false)))
                     ->collapsible(),
@@ -208,7 +208,7 @@ class CarrierAccountForm
                     ->schema([
                         TextEntry::make('ups_oauth_status')
                             ->label('OAuth Status')
-                            ->state(fn (?CarrierAccount $record) => static::renderAccountOauthStatus($record))
+                            ->state(fn (?CarrierAccount $record): HtmlString => static::renderAccountOauthStatus($record))
                             ->columnSpanFull(),
                         TextInput::make('ups_account_number')
                             ->label('Account Number')
@@ -224,15 +224,15 @@ class CarrierAccountForm
                         TextInput::make('ups_adv_client_id')
                             ->label('Client ID')
                             ->password()
-                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->placeholder(fn (?CarrierAccount $record): string => filled($record?->secret('client_id')) ? 'Configured (leave empty to keep)' : 'Not configured')
                             ->afterStateHydrated(fn ($component) => $component->state(null))
-                            ->dehydrated(fn ($state) => filled($state)),
+                            ->dehydrated(fn ($state): bool => filled($state)),
                         TextInput::make('ups_adv_client_secret')
                             ->label('Client Secret')
                             ->password()
-                            ->placeholder(fn (?CarrierAccount $record) => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
+                            ->placeholder(fn (?CarrierAccount $record): string => filled($record?->secret('client_secret')) ? 'Configured (leave empty to keep)' : 'Not configured')
                             ->afterStateHydrated(fn ($component) => $component->state(null))
-                            ->dehydrated(fn ($state) => filled($state)),
+                            ->dehydrated(fn ($state): bool => filled($state)),
                     ])
                     ->visible(fn (Get $get): bool => Carrier::find($get('carrier_id'))?->name === 'UPS')
                     ->columns(2)

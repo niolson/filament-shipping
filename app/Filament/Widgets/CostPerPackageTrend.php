@@ -21,7 +21,7 @@ class CostPerPackageTrend extends ChartWidget
 
     protected function getData(): array
     {
-        return Cache::remember('widget:cost_trend', 60, fn () => $this->buildData());
+        return Cache::remember('widget:cost_trend', 60, fn (): array => $this->buildData());
     }
 
     private function buildData(): array

@@ -113,7 +113,7 @@ it('passes box sizes to blade view', function (): void {
     BoxSize::factory()->create(['code' => 'M2']);
 
     Livewire::test(Pack::class)
-        ->assertViewHas('boxSizes', function ($boxSizes) {
+        ->assertViewHas('boxSizes', function ($boxSizes): bool {
             return array_key_exists('S1', $boxSizes)
                 && array_key_exists('M2', $boxSizes);
         });

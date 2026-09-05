@@ -1001,7 +1001,7 @@ it('handles international rate request', function (): void {
         ->and($rates->first()->serviceCode)->toBe('PRIORITY_MAIL_INTERNATIONAL');
 
     // Verify the request was sent with international destination
-    Saloon::assertSent(function (ShippingOptions $req) {
+    Saloon::assertSent(function (ShippingOptions $req): bool {
         $body = $req->body()->all();
 
         return isset($body['destinationCountryCode']) && $body['destinationCountryCode'] === 'CA';
@@ -1104,7 +1104,7 @@ it('asks USPS to print the label reference', function (): void {
 
     expect($this->adapter->createShipment(uspsSpecialServiceShipRequest([], [], ['ORD-10042']))->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Label) {
             return false;
         }
@@ -1120,7 +1120,7 @@ it('sends no customer reference when the client prints none', function (): void 
 
     expect($this->adapter->createShipment(uspsSpecialServiceShipRequest([]))->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Label) {
             return false;
         }
@@ -1136,7 +1136,7 @@ it('cuts the label reference down to what USPS will print', function (): void {
 
     expect($this->adapter->createShipment(uspsSpecialServiceShipRequest([], [], [$reference]))->success)->toBeTrue();
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Label) {
             return false;
         }
@@ -1158,7 +1158,7 @@ it('maps signature and declared value into the domestic label request', function
     expect($response->success)->toBeTrue()
         ->and($response->appliedServices)->toBe(['adult_signature_required', 'declared_value']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Label) {
             return false;
         }
@@ -1183,7 +1183,7 @@ it('uses insurance code 930 with packageValue for declared values at or below th
         ['declared_value' => ['amount' => 200.00, 'currency' => 'USD']],
     ));
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Label) {
             return false;
         }
@@ -1205,7 +1205,7 @@ it('maps battery codes with hazmat content type into the domestic label request'
     expect($response->success)->toBeTrue()
         ->and($response->appliedServices)->toBe(['lithium_battery_standalone']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof Label) {
             return false;
         }
@@ -1234,7 +1234,7 @@ it('includes mapped extra services in the rating request so quotes carry surchar
 
     $this->adapter->getRates($request, ['USPS_GROUND_ADVANTAGE']);
 
-    Saloon::assertSent(function ($request) {
+    Saloon::assertSent(function ($request): bool {
         if (! $request instanceof ShippingOptions) {
             return false;
         }

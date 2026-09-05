@@ -152,7 +152,7 @@ class ExportPackagesCommand extends Command
         $this->info("Found {$packages->count()} packages to export:");
         $this->newLine();
 
-        $rows = $packages->map(fn (Package $p) => [
+        $rows = $packages->map(fn (Package $p): array => [
             $p->id,
             $p->tracking_number ?? 'N/A',
             $p->carrier ?? 'N/A',

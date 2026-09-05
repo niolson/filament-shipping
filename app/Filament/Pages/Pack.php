@@ -338,7 +338,7 @@ class Pack extends Page
      */
     private function mapPackingItems(): array
     {
-        return array_map(fn (array $item) => new PackageDraftItemInput(
+        return array_map(fn (array $item): PackageDraftItemInput => new PackageDraftItemInput(
             shipmentItemId: $this->scanToAddMode ? null : $item['id'],
             productId: $item['product_id'],
             quantity: (int) $item['packed'],

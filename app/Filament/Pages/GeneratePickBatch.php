@@ -90,7 +90,7 @@ class GeneratePickBatch extends Page implements HasForms
                             ->label('Client')
                             ->options(fn () => Client::query()->where('active', true)->orderBy('name')->pluck('name', 'id'))
                             ->placeholder('Select a client')
-                            ->default(fn () => $this->defaultClientId())
+                            ->default(fn (): ?int => $this->defaultClientId())
                             ->required(fn () => app(SettingsService::class)->get('multi_client_enabled', false))
                             ->searchable()
                             ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false)),

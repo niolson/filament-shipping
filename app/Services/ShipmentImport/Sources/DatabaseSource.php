@@ -86,7 +86,7 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
         $clientColumn = $this->config['client_column'] ?? null;
 
         // Map external fields to internal fields
-        return collect($results)->map(function ($row) use ($clientColumn) {
+        return collect($results)->map(function ($row) use ($clientColumn): array {
             $mapped = $this->fieldMapper->mapShipment($row);
 
             // Carry over the raw client column value so the importer can resolve
@@ -123,7 +123,7 @@ class DatabaseSource implements DataSourceInterface, ExportDestinationInterface
                 ->get();
         }
 
-        return collect($results)->map(function ($row) {
+        return collect($results)->map(function ($row): array {
             return $this->fieldMapper->mapShipmentItem($row);
         });
     }

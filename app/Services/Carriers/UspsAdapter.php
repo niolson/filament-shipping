@@ -481,7 +481,7 @@ class UspsAdapter implements DirectCarrierAdapter
             }
 
             $trackingDetails = collect($rawResponse)
-                ->filter(fn ($detail) => is_array($detail))
+                ->filter(fn ($detail): bool => is_array($detail))
                 ->values();
 
             $trackingDetail = $trackingDetails->first();
@@ -498,7 +498,7 @@ class UspsAdapter implements DirectCarrierAdapter
                 ?? 'Tracking update available';
 
             $events = collect($trackingDetail['trackingEvents'] ?? [])
-                ->filter(fn ($event) => is_array($event))
+                ->filter(fn ($event): bool => is_array($event))
                 ->map(fn (array $event): TrackingEventData => $this->mapTrackingEvent($event))
                 ->sortByDesc(fn (TrackingEventData $event) => $event->timestamp?->getTimestamp() ?? 0)
                 ->values()

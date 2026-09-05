@@ -105,10 +105,10 @@ class PackingValidationReport extends Page implements HasTable
                 Tables\Columns\TextColumn::make('expected_weight')
                     ->label('Expected Weight')
                     ->suffix(' lbs')
-                    ->state(fn (Package $record) => number_format($this->calculateExpectedWeight($record), 2)),
+                    ->state(fn (Package $record): string => number_format($this->calculateExpectedWeight($record), 2)),
                 Tables\Columns\TextColumn::make('difference')
                     ->label('Difference %')
-                    ->state(function (Package $record) {
+                    ->state(function (Package $record): string {
                         $expected = $this->calculateExpectedWeight($record);
                         if ($expected == 0) {
                             return '—';
@@ -248,7 +248,7 @@ class PackingValidationReport extends Page implements HasTable
         $record->loadMissing('packageItems.product');
 
         return (float) $record->packageItems->sum(
-            fn ($item) => ($item->product?->weight ?? 0) * $item->quantity
+            fn ($item): int|float => ($item->product?->weight ?? 0) * $item->quantity
         );
     }
 

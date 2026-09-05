@@ -63,7 +63,7 @@ class EndOfDay extends Page
         $this->carrierSummary = Carrier::active()
             ->orderBy('name')
             ->get()
-            ->map(function ($carrier) use ($shipDateService, $registry, $multiLocation) {
+            ->map(function ($carrier) use ($shipDateService, $registry, $multiLocation): array {
                 $locationId = $multiLocation ? $this->locationId : null;
                 $shipDate = $shipDateService->getShipDate($carrier->name, $locationId);
                 $nextShipDate = $shipDateService->getNextPickupDay($carrier->name, $locationId);

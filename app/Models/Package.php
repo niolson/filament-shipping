@@ -292,7 +292,7 @@ class Package extends Model
         $this->loadMissing('packageItems.product');
 
         $expectedWeight = (float) $this->packageItems->sum(
-            fn ($item) => ($item->product?->weight ?? 0) * $item->quantity
+            fn ($item): int|float => ($item->product?->weight ?? 0) * $item->quantity
         );
 
         $actualWeight = (float) $this->weight;

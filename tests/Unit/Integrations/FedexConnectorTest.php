@@ -143,7 +143,7 @@ it('builds correct rate request', function (): void {
 
     $connector->send($request);
 
-    Saloon::assertSent(function (Rates $request) {
+    Saloon::assertSent(function (Rates $request): bool {
         $body = $request->body()->all();
 
         return $body['accountNumber']['value'] === 'TEST_ACCOUNT'
@@ -311,7 +311,7 @@ it('builds correct create shipment request', function (): void {
 
     $response = $connector->send($request);
 
-    Saloon::assertSent(function (CreateShipment $request) {
+    Saloon::assertSent(function (CreateShipment $request): bool {
         $body = $request->body()->all();
 
         return $body['labelResponseOptions'] === 'LABEL'

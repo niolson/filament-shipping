@@ -120,7 +120,7 @@ class RuleEvaluator
             $weight = (float) $package->weight;
         } else {
             $shipment->loadMissing('shipmentItems.product');
-            $weight = $shipment->shipmentItems->sum(fn ($i) => $i->quantity * ($i->product->weight ?? 0));
+            $weight = $shipment->shipmentItems->sum(fn ($i): int|float => $i->quantity * ($i->product->weight ?? 0));
         }
 
         return $this->compareNumeric($data, $weight);

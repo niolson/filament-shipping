@@ -436,7 +436,7 @@ it('exports package to amazon as shipment confirmation', function (): void {
     expect($result->destinationsSucceeded)->toBe(1);
     expect($package->fresh()->exported)->toBeTrue();
 
-    Saloon::assertSent(function (ConfirmShipment $request) use ($package) {
+    Saloon::assertSent(function (ConfirmShipment $request) use ($package): bool {
         $body = $request->body()->all();
 
         assertMatchesSpApiSchema($body, 'ConfirmShipmentRequest');

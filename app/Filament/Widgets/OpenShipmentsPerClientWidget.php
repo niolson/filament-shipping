@@ -43,13 +43,13 @@ class OpenShipmentsPerClientWidget extends BaseWidget
             ->columns([
                 TextColumn::make('name')
                     ->label('Client')
-                    ->url(fn (Client $record) => ClientResource::getUrl('edit', ['record' => $record]))
+                    ->url(fn (Client $record): string => ClientResource::getUrl('edit', ['record' => $record]))
                     ->weight('medium'),
                 TextColumn::make('open_shipments_count')
                     ->label('Open Shipments')
                     ->numeric()
                     ->sortable()
-                    ->url(fn (Client $record) => ShipmentResource::getUrl('index').'?status_tab='.ShipmentStatus::Open->value.'&filters[client][value]='.$record->id)
+                    ->url(fn (Client $record): string => ShipmentResource::getUrl('index').'?status_tab='.ShipmentStatus::Open->value.'&filters[client][value]='.$record->id)
                     ->color(fn (int $state): string => $state > 0 ? 'warning' : 'success'),
             ])
             ->paginated(false);

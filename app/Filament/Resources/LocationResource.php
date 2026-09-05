@@ -54,8 +54,8 @@ class LocationResource extends Resource
                             ->default(true),
                         Forms\Components\Select::make('timezone')
                             ->options(fn () => collect(timezone_identifiers_list())
-                                ->filter(fn ($tz) => str_starts_with($tz, 'America/') || str_starts_with($tz, 'Pacific/') || str_starts_with($tz, 'US/'))
-                                ->mapWithKeys(fn ($tz) => [$tz => str_replace('_', ' ', $tz)]))
+                                ->filter(fn ($tz): bool => str_starts_with($tz, 'America/') || str_starts_with($tz, 'Pacific/') || str_starts_with($tz, 'US/'))
+                                ->mapWithKeys(fn ($tz): array => [$tz => str_replace('_', ' ', $tz)]))
                             ->searchable()
                             ->default('America/New_York')
                             ->required(),
@@ -120,7 +120,7 @@ class LocationResource extends Resource
                                     ->options(fn () => CarrierAccount::with('carrier')
                                         ->where('active', true)
                                         ->get()
-                                        ->mapWithKeys(fn ($a) => [$a->id => "[{$a->carrier->name}] {$a->name}"]))
+                                        ->mapWithKeys(fn ($a): array => [$a->id => "[{$a->carrier->name}] {$a->name}"]))
                                     ->required(),
 
                             ])

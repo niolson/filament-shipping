@@ -36,15 +36,15 @@ class EditCarrierAccount extends EditRecord
         return [
             // USPS OAuth actions
             Action::make('usps_connect')
-                ->label(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect USPS' : 'Connect USPS')
+                ->label(fn (): string => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect USPS' : 'Connect USPS')
                 ->icon('heroicon-o-link')
-                ->color(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'warning' : 'primary')
-                ->visible(fn () => $this->record->carrier?->name === 'USPS')
-                ->disabled(fn () => ! app(OAuthService::class)->isBrokerConfigured())
+                ->color(fn (): string => app(OAuthService::class)->isAccountConnected($this->record) ? 'warning' : 'primary')
+                ->visible(fn (): bool => $this->record->carrier?->name === 'USPS')
+                ->disabled(fn (): bool => ! app(OAuthService::class)->isBrokerConfigured())
                 ->tooltip(fn () => app(OAuthService::class)->brokerlessGuidance('Enter your own USPS developer app credentials under Advanced / API App Credentials instead.'))
                 ->requiresConfirmation()
-                ->modalHeading(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect USPS' : 'Connect USPS')
-                ->modalDescription(fn () => app(OAuthService::class)->isAccountConnected($this->record)
+                ->modalHeading(fn (): string => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect USPS' : 'Connect USPS')
+                ->modalDescription(fn (): string => app(OAuthService::class)->isAccountConnected($this->record)
                     ? 'This will replace the existing OAuth token with a new one. You will be redirected to USPS to re-authorize.'
                     : 'You will be redirected to USPS to authorize access.')
                 ->action(function (): void {
@@ -56,14 +56,14 @@ class EditCarrierAccount extends EditRecord
                 ->label('Test USPS Connection')
                 ->icon('heroicon-o-signal')
                 ->color('gray')
-                ->visible(fn () => $this->record->carrier?->name === 'USPS')
+                ->visible(fn (): bool => $this->record->carrier?->name === 'USPS')
                 ->action(fn () => $this->testUspsConnection()),
 
             Action::make('usps_disconnect')
                 ->label('Disconnect USPS')
                 ->icon('heroicon-o-x-mark')
                 ->color('danger')
-                ->visible(fn () => $this->record->carrier?->name === 'USPS' && app(OAuthService::class)->isAccountConnected($this->record))
+                ->visible(fn (): bool => $this->record->carrier?->name === 'USPS' && app(OAuthService::class)->isAccountConnected($this->record))
                 ->requiresConfirmation()
                 ->modalHeading('Disconnect USPS OAuth')
                 ->modalDescription('This will remove the OAuth access token. You can reconnect anytime, or the app will fall back to client credentials if configured.')
@@ -79,15 +79,15 @@ class EditCarrierAccount extends EditRecord
 
             // UPS OAuth actions
             Action::make('ups_connect')
-                ->label(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect UPS' : 'Connect UPS')
+                ->label(fn (): string => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect UPS' : 'Connect UPS')
                 ->icon('heroicon-o-link')
-                ->color(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'warning' : 'primary')
-                ->visible(fn () => $this->carrierAccountRecord()->carrier?->name === 'UPS')
-                ->disabled(fn () => ! app(OAuthService::class)->isBrokerConfigured())
+                ->color(fn (): string => app(OAuthService::class)->isAccountConnected($this->record) ? 'warning' : 'primary')
+                ->visible(fn (): bool => $this->carrierAccountRecord()->carrier?->name === 'UPS')
+                ->disabled(fn (): bool => ! app(OAuthService::class)->isBrokerConfigured())
                 ->tooltip(fn () => app(OAuthService::class)->brokerlessGuidance('Enter your own UPS developer app credentials under Advanced / API App Credentials instead.'))
                 ->requiresConfirmation()
-                ->modalHeading(fn () => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect UPS' : 'Connect UPS')
-                ->modalDescription(fn () => app(OAuthService::class)->isAccountConnected($this->record)
+                ->modalHeading(fn (): string => app(OAuthService::class)->isAccountConnected($this->record) ? 'Reconnect UPS' : 'Connect UPS')
+                ->modalDescription(fn (): string => app(OAuthService::class)->isAccountConnected($this->record)
                     ? 'This will replace the existing OAuth token with a new one. You will be redirected to UPS to re-authorize.'
                     : 'You will be redirected to UPS to authorize access.')
                 ->action(function (): void {
@@ -99,7 +99,7 @@ class EditCarrierAccount extends EditRecord
                 ->label('Disconnect UPS')
                 ->icon('heroicon-o-x-mark')
                 ->color('danger')
-                ->visible(fn () => $this->carrierAccountRecord()->carrier?->name === 'UPS' && app(OAuthService::class)->isAccountConnected($this->record))
+                ->visible(fn (): bool => $this->carrierAccountRecord()->carrier?->name === 'UPS' && app(OAuthService::class)->isAccountConnected($this->record))
                 ->requiresConfirmation()
                 ->modalHeading('Disconnect UPS OAuth')
                 ->modalDescription('This will remove the OAuth access token. You can reconnect anytime, or the app will fall back to client credentials if configured.')

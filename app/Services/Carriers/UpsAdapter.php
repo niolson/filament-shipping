@@ -290,7 +290,7 @@ class UpsAdapter implements DirectCarrierAdapter
                     if ($saturdayRates->isNotEmpty()) {
                         $saturdayServiceCodes = $saturdayRates->pluck('serviceCode')->unique()->all();
                         $results = $results->reject(
-                            fn ($rate) => in_array($rate->serviceCode, $saturdayServiceCodes)
+                            fn ($rate): bool => in_array($rate->serviceCode, $saturdayServiceCodes)
                         );
                         $results = $results->merge($saturdayRates);
                     }
@@ -363,7 +363,7 @@ class UpsAdapter implements DirectCarrierAdapter
                 ?? 'Tracking update available';
 
             $events = collect($packageData['activity'] ?? [])
-                ->filter(fn ($event) => is_array($event))
+                ->filter(fn ($event): bool => is_array($event))
                 ->map(fn (array $event): TrackingEventData => $this->mapTrackingEvent($event))
                 ->sortByDesc(fn (TrackingEventData $event) => $event->timestamp?->getTimestamp() ?? 0)
                 ->values()
@@ -430,7 +430,7 @@ class UpsAdapter implements DirectCarrierAdapter
             $ratedShipments = [$ratedShipments];
         }
 
-        $returnedServiceCodes = array_map(fn ($s) => $s['Service']['Code'] ?? 'unknown', $ratedShipments);
+        $returnedServiceCodes = array_map(fn ($s): mixed => $s['Service']['Code'] ?? 'unknown', $ratedShipments);
         logger()->debug('UPS rate response filtering', [
             'returned_services' => $returnedServiceCodes,
             'requested_codes' => $serviceCodes,
@@ -515,7 +515,7 @@ class UpsAdapter implements DirectCarrierAdapter
                             'PostalCode' => $request->destinationPostalCode,
                             'CountryCode' => $request->destinationCountry,
                             'ResidentialAddressIndicator' => $request->residential ? '' : null,
-                        ], fn ($v) => $v !== null),
+                        ], fn ($v): bool => $v !== null),
                     ],
                     'ShipFrom' => [
                         'Address' => $this->buildRateOriginAddress($request),
@@ -802,7 +802,7 @@ class UpsAdapter implements DirectCarrierAdapter
      * Classify Saturday delivery eligibility for the requested service codes.
      * Returns 'all', 'none', or 'mixed' based on today's day of week.
      */
-    private function sendCreateShipment($connector, array $shipment, ShipRequest $request, string $serviceCode): Response
+    private function sendCreateShipment(UpsConnector $connector, array $shipment, ShipRequest $request, string $serviceCode): Response
     {
         $apiRequest = new CreateShipment;
         $body = [
@@ -860,7 +860,7 @@ class UpsAdapter implements DirectCarrierAdapter
             'StateProvinceCode' => $request->originStateOrProvince,
             'PostalCode' => $request->originPostalCode,
             'CountryCode' => $request->originCountry,
-        ], fn ($value) => filled($value));
+        ], fn ($value): bool => filled($value));
     }
 
     /**
@@ -952,7 +952,7 @@ class UpsAdapter implements DirectCarrierAdapter
             'Phone' => array_filter([
                 'Number' => $address->phone,
                 'Extension' => $address->phoneExtension,
-            ], fn ($value) => filled($value)),
+            ], fn ($value): bool => filled($value)),
         ];
     }
 
@@ -1106,7 +1106,7 @@ class UpsAdapter implements DirectCarrierAdapter
     private function parseEstimatedDelivery(array $packageData): ?CarbonImmutable
     {
         $deliveryDate = collect($packageData['deliveryDate'] ?? [])
-            ->first(fn ($date) => is_array($date) && in_array(($date['type'] ?? null), ['SDD', 'RDD'], true));
+            ->first(fn ($date): bool => is_array($date) && in_array(($date['type'] ?? null), ['SDD', 'RDD'], true));
 
         $deliveryDateValue = is_array($deliveryDate) ? ($deliveryDate['date'] ?? null) : null;
         $deliveryTime = $packageData['deliveryTime'] ?? [];
@@ -1169,7 +1169,7 @@ class UpsAdapter implements DirectCarrierAdapter
     protected function deliveredAtFallback(array $summary): ?CarbonImmutable
     {
         $deliveredDate = collect($summary['deliveryDate'] ?? [])
-            ->first(fn ($date) => is_array($date) && (($date['type'] ?? null) === 'DEL'));
+            ->first(fn ($date): bool => is_array($date) && (($date['type'] ?? null) === 'DEL'));
 
         $deliveredDateValue = is_array($deliveredDate) ? ($deliveredDate['date'] ?? null) : null;
         $deliveryTime = $summary['deliveryTime'] ?? [];

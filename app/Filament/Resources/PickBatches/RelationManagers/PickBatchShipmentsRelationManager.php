@@ -36,12 +36,12 @@ class PickBatchShipmentsRelationManager extends RelationManager
                     ->color('info'),
                 Tables\Columns\TextColumn::make('shipment.shipment_reference')
                     ->label('Reference')
-                    ->url(fn ($record) => $record->shipment_id
+                    ->url(fn ($record): ?string => $record->shipment_id
                         ? ShipmentResource::getUrl('view', ['record' => $record->shipment_id])
                         : null),
                 Tables\Columns\TextColumn::make('shipment.first_name')
                     ->label('Name')
-                    ->formatStateUsing(fn ($record) => trim(($record->shipment?->first_name ?? '').' '.($record->shipment?->last_name ?? ''))),
+                    ->formatStateUsing(fn ($record): string => trim(($record->shipment?->first_name ?? '').' '.($record->shipment?->last_name ?? ''))),
                 Tables\Columns\TextColumn::make('shipment.city')
                     ->label('City')
                     ->placeholder('—'),
@@ -75,7 +75,7 @@ class PickBatchShipmentsRelationManager extends RelationManager
                     ->label('Mark Picked')
                     ->icon('heroicon-o-check')
                     ->color('success')
-                    ->visible(fn ($record) => $record->picked_at === null)
+                    ->visible(fn ($record): bool => $record->picked_at === null)
                     ->action(function ($record): void {
                         $record->update(['picked_at' => now()]);
 

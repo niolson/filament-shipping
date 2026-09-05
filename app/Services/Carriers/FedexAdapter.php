@@ -298,7 +298,7 @@ class FedexAdapter implements DirectCarrierAdapter
             if ($request->hasSpecialService('saturday_delivery')) {
                 $errors = $response->json('errors', []);
                 $isSaturdayError = collect($errors)->contains(
-                    fn ($e) => ($e['code'] ?? '') === 'SERVICE.PACKAGECOMBINATION.INVALID'
+                    fn ($e): bool => ($e['code'] ?? '') === 'SERVICE.PACKAGECOMBINATION.INVALID'
                 );
 
                 if ($isSaturdayError) {
@@ -343,7 +343,7 @@ class FedexAdapter implements DirectCarrierAdapter
                     if ($saturdayRates->isNotEmpty()) {
                         $saturdayServiceCodes = $saturdayRates->pluck('serviceCode')->unique()->all();
                         $results = $results->reject(
-                            fn ($rate) => in_array($rate->serviceCode, $saturdayServiceCodes)
+                            fn ($rate): bool => in_array($rate->serviceCode, $saturdayServiceCodes)
                                 && empty($rate->metadata['isOneRate'])
                         );
                         $results = $results->merge($saturdayRates);
@@ -603,7 +603,7 @@ class FedexAdapter implements DirectCarrierAdapter
                     'imageType' => $request->labelFormat === 'zpl' ? 'ZPLII' : 'PDF',
                     'labelStockType' => 'STOCK_4X6',
                     'resolution' => $request->labelFormat === 'zpl' ? ($request->labelDpi === 300 ? 300 : 200) : null,
-                ], fn ($v) => $v !== null),
+                ], fn ($v): bool => $v !== null),
                 'requestedPackageLineItems' => [
                     [
                         'weight' => [
@@ -671,7 +671,7 @@ class FedexAdapter implements DirectCarrierAdapter
             $saturdayApplied = $saturdayRequested;
             if ($saturdayRequested && ! $response->successful()) {
                 $errors = $responseData['errors'] ?? [];
-                $isSaturdayError = collect($errors)->contains(function ($e) {
+                $isSaturdayError = collect($errors)->contains(function ($e): bool {
                     $code = $e['code'] ?? '';
                     $message = strtolower($e['message'] ?? '');
                     // Check message or code for Saturday references
@@ -680,7 +680,7 @@ class FedexAdapter implements DirectCarrierAdapter
                     }
                     // Errors that reference SATURDAY_DELIVERY in parameterList
                     $saturdayInParams = collect($e['parameterList'] ?? [])->contains(
-                        fn ($p) => ($p['value'] ?? '') === 'SATURDAY_DELIVERY'
+                        fn ($p): bool => ($p['value'] ?? '') === 'SATURDAY_DELIVERY'
                     );
                     if ($saturdayInParams) {
                         return true;
@@ -700,7 +700,7 @@ class FedexAdapter implements DirectCarrierAdapter
                     $saturdayApplied = false;
                     // Remove only SATURDAY_DELIVERY, preserve other special services (e.g. FEDEX_ONE_RATE)
                     $existingTypes = $requestedShipment['shipmentSpecialServices']['specialServiceTypes'] ?? [];
-                    $remainingTypes = array_values(array_filter($existingTypes, fn ($t) => $t !== 'SATURDAY_DELIVERY'));
+                    $remainingTypes = array_values(array_filter($existingTypes, fn ($t): bool => $t !== 'SATURDAY_DELIVERY'));
                     if (empty($remainingTypes)) {
                         unset($requestedShipment['shipmentSpecialServices']);
                     } else {
@@ -863,8 +863,8 @@ class FedexAdapter implements DirectCarrierAdapter
                 ?? $statusCode;
 
             $events = collect(data_get($trackResult, 'scanEvents', []))
-                ->filter(fn ($event) => is_array($event))
-                ->map(fn (array $event) => $this->mapTrackingEvent($event))
+                ->filter(fn ($event): bool => is_array($event))
+                ->map(fn (array $event): TrackingEventData => $this->mapTrackingEvent($event))
                 ->sortByDesc(fn (TrackingEventData $event) => $event->timestamp?->getTimestamp() ?? 0)
                 ->values()
                 ->all();
@@ -1023,7 +1023,7 @@ class FedexAdapter implements DirectCarrierAdapter
             return collect();
         }
 
-        $returnedServiceTypes = array_map(fn ($d) => $d['serviceType'] ?? 'unknown', $rateReplyDetails);
+        $returnedServiceTypes = array_map(fn ($d): mixed => $d['serviceType'] ?? 'unknown', $rateReplyDetails);
         logger()->debug('FedEx rate response filtering', [
             'returned_services' => $returnedServiceTypes,
             'requested_codes' => $serviceCodes,
@@ -1242,7 +1242,7 @@ class FedexAdapter implements DirectCarrierAdapter
         return $results;
     }
 
-    private function sendCreateShipment($connector, array $requestedShipment, ?CarrierAccount $account): Response
+    private function sendCreateShipment(FedexConnector $connector, array $requestedShipment, ?CarrierAccount $account): Response
     {
         $apiRequest = new CreateShipment;
         $apiRequest->body()->set([
@@ -1263,7 +1263,7 @@ class FedexAdapter implements DirectCarrierAdapter
     private function buildContact(AddressData $address, ?string $fallbackPhone = null): array
     {
         $streetLines = array_filter(array_map(
-            fn ($line) => $line ? substr($line, 0, 35) : null,
+            fn ($line): ?string => $line ? substr($line, 0, 35) : null,
             [$address->streetAddress, $address->streetAddress2],
         ));
 

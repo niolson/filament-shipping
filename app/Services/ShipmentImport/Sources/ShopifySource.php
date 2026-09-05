@@ -220,8 +220,8 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
         }
 
         return collect($order['lineItems'] ?? [])
-            ->filter(fn (array $item) => ($item['requiresShipping'] ?? false) && ($item['remainingQuantity'] ?? 0) > 0)
-            ->map(fn (array $item) => $this->mapFulfillmentOrderLineItem($item))
+            ->filter(fn (array $item): bool => ($item['requiresShipping'] ?? false) && ($item['remainingQuantity'] ?? 0) > 0)
+            ->map(fn (array $item): array => $this->mapFulfillmentOrderLineItem($item))
             ->values();
     }
 
@@ -322,7 +322,7 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
         $assigned = $fulfillmentOrder['assignedLocation'] ?? [];
         $shopifyLocation = $assigned['location'] ?? [];
         $lineItems = collect($fulfillmentOrder['lineItems'] ?? [])
-            ->filter(fn (array $item) => ($item['requiresShipping'] ?? false) && ($item['remainingQuantity'] ?? 0) > 0);
+            ->filter(fn (array $item): bool => ($item['requiresShipping'] ?? false) && ($item['remainingQuantity'] ?? 0) > 0);
         $value = $lineItems->sum(fn (array $item): float => (float) data_get($item, 'lineItem.originalUnitPriceSet.shopMoney.amount', 0)
             * (int) ($item['remainingQuantity'] ?? 0));
 
@@ -473,7 +473,7 @@ class ShopifySource implements DataSourceInterface, ExportDestinationInterface
 
         if (! empty($userErrors)) {
             $messages = array_map(
-                fn (array $e) => (is_array($e['field'] ?? null)
+                fn (array $e): string => (is_array($e['field'] ?? null)
                     ? implode('.', $e['field'])
                     : ($e['field'] ?? 'unknown')).': '.($e['message'] ?? ''),
                 $userErrors

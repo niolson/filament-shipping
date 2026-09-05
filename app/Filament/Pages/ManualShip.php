@@ -279,7 +279,7 @@ class ManualShip extends Page implements HasForms
      */
     private function createShipmentAndPackage(array $data): array
     {
-        return DB::transaction(function () use ($data) {
+        return DB::transaction(function () use ($data): array {
             $channelId = Channel::where('name', 'Manual')->first()?->id;
             $shipment = app(PackagingService::class)->createShipment($data, $channelId);
 

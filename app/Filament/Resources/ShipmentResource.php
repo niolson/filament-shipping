@@ -101,7 +101,7 @@ class ShipmentResource extends Resource
                             ->maxLength(255),
                         Forms\Components\Select::make('status')
                             ->options(ShipmentStatus::class)
-                            ->disabled(fn () => ! auth()->user()?->role->isAtLeast(Role::Manager))
+                            ->disabled(fn (): bool => ! auth()->user()?->role->isAtLeast(Role::Manager))
                             ->visibleOn('edit'),
                         Forms\Components\Select::make('channel_id')
                             ->relationship('channel', 'name')
@@ -149,7 +149,7 @@ class ShipmentResource extends Resource
                                 includeCompany: true,
                                 includePhone: true,
                                 includeEmail: true,
-                                afterStateUpdated: fn (Components\Utilities\Set $set) => $set('checked', false),
+                                afterStateUpdated: fn (Components\Utilities\Set $set): mixed => $set('checked', false),
                             ))
                             ->columns(2),
                         // Forms\Components\TextInput::make('phone_extension')
@@ -315,7 +315,7 @@ class ShipmentResource extends Resource
                 Actions\BulkAction::make('batch-ship')
                     ->label('Batch Ship')
                     ->icon('heroicon-o-paper-airplane')
-                    ->visible(fn () => auth()->user()->role->isAtLeast(Role::Manager) && app(SettingsService::class)->get('batch_shipping_enabled', true))
+                    ->visible(fn (): bool => auth()->user()->role->isAtLeast(Role::Manager) && app(SettingsService::class)->get('batch_shipping_enabled', true))
                     ->schema([
                         Forms\Components\Select::make('box_size_id')
                             ->label('Box Size')
@@ -359,7 +359,7 @@ class ShipmentResource extends Resource
                             $skippedCount = $validation->ineligible->count();
                             Notification::make()
                                 ->title("{$skippedCount} shipment(s) skipped")
-                                ->body($validation->ineligible->map(fn ($item) => "{$item['shipment']->shipment_reference}: {$item['reason']}")->join("\n"))
+                                ->body($validation->ineligible->map(fn ($item): string => "{$item['shipment']->shipment_reference}: {$item['reason']}")->join("\n"))
                                 ->warning()
                                 ->persistent()
                                 ->send();
@@ -379,7 +379,7 @@ class ShipmentResource extends Resource
                 Actions\BulkAction::make('create-picking-batch')
                     ->label('Create Picking Batch')
                     ->icon('heroicon-o-inbox-stack')
-                    ->visible(fn () => auth()->user()->role->isAtLeast(Role::Manager) && app(SettingsService::class)->get('picking_enabled', false))
+                    ->visible(fn (): bool => auth()->user()->role->isAtLeast(Role::Manager) && app(SettingsService::class)->get('picking_enabled', false))
                     ->requiresConfirmation()
                     ->modalHeading('Create Picking Batch')
                     ->modalDescription('Create a pick batch from the selected shipments. Only pending shipments will be included.')
