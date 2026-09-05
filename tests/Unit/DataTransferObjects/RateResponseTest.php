@@ -1,6 +1,8 @@
 <?php
 
+use App\DataTransferObjects\PostageSources\ObservedServiceIdentity;
 use App\DataTransferObjects\Shipping\RateResponse;
+use App\Enums\SourceEnvironment;
 
 it('round-trips the offer identifier through Livewire serialization', function (): void {
     $rate = new RateResponse(
@@ -37,7 +39,43 @@ it('carries nothing that could buy a label on its own', function (): void {
         'metadata',
         'priceUnknown',
         'offerId',
+        'observedService',
     ]);
+});
+
+it('round-trips the observed service identity, which names a service rather than authorizing one', function (): void {
+    // ADR-0003 decision 4. The identity is what `RateSelector` asks the approval
+    // gate about, so a round trip that quietly dropped it would turn a
+    // discovered service back into an authored one — fail-open, in the one place
+    // that must not be. It is safe in browser state for the same reason it is
+    // not purchase authority: it says which service Amazon named, which the page
+    // already shows as a carrier and a service name, and nothing reads it back
+    // off the browser to decide anything. Automation only ever sees rates that
+    // came straight from the quote.
+    $rate = new RateResponse(
+        carrier: 'OnTrac',
+        serviceCode: 'ONTRAC_MFN_GROUND',
+        serviceName: 'OnTrac Ground',
+        price: 5.79,
+        observedService: new ObservedServiceIdentity(
+            source: 'amazon',
+            environment: SourceEnvironment::Production,
+            externalCarrierId: 'ONTRAC',
+            externalServiceId: 'ONTRAC_MFN_GROUND',
+        ),
+    );
+
+    $restored = RateResponse::fromArray($rate->toArray());
+
+    expect($restored->observedService?->approvalKey())->toBe($rate->observedService->approvalKey())
+        ->and($restored->observedService?->environment)->toBe(SourceEnvironment::Production);
+});
+
+it('defaults to no observed service, so an authored carrier service is not treated as discovered', function (): void {
+    $rate = new RateResponse('USPS', 'USPS_GROUND_ADVANTAGE', 'Ground Advantage', 6.93);
+
+    expect($rate->observedService)->toBeNull()
+        ->and(RateResponse::fromArray($rate->toArray())->observedService)->toBeNull();
 });
 
 it('defaults to no offer, for rates from sources that issue none', function (): void {

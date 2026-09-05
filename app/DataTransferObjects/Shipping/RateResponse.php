@@ -2,13 +2,16 @@
 
 namespace App\DataTransferObjects\Shipping;
 
+use App\DataTransferObjects\PostageSources\ObservedServiceIdentity;
 use App\Models\ShippingOffer;
+use App\Services\RateSelector;
 use Carbon\Carbon;
 
 readonly class RateResponse
 {
     /**
      * @param  string|null  $offerId  The opaque identifier of the {@see ShippingOffer} backing this rate, when the source issued one. Everything that can actually buy the label — tokens, source instance, environment, expiry — stays in that row; this is the only part of it that may cross into browser state. ADR-0002 decision 4.
+     * @param  ObservedServiceIdentity|null  $observedService  Which discovered service this is an offer of, for the sources that discover one. Null means an authored `CarrierService` quoted from a carrier account, which is every rate that existed before discovery did. A source whose catalog is discovered — Amazon Buy Shipping — must set it: {@see RateSelector::selectBest()} is what decides whether automation may buy this, and it has no other way to ask (ADR-0003 decision 4).
      */
     public function __construct(
         public string $carrier,
@@ -21,12 +24,13 @@ readonly class RateResponse
         public array $metadata = [],
         public bool $priceUnknown = false,
         public ?string $offerId = null,
+        public ?ObservedServiceIdentity $observedService = null,
     ) {}
 
     /**
      * Convert to array format for Livewire serialization.
      *
-     * @return array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata: array<string, mixed>, priceUnknown: bool, offerId: ?string}
+     * @return array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata: array<string, mixed>, priceUnknown: bool, offerId: ?string, observedService: ?array{source: string, environment: string, externalCarrierId: string, externalServiceId: string}}
      */
     public function toArray(): array
     {
@@ -41,13 +45,14 @@ readonly class RateResponse
             'metadata' => $this->metadata,
             'priceUnknown' => $this->priceUnknown,
             'offerId' => $this->offerId,
+            'observedService' => $this->observedService?->toArray(),
         ];
     }
 
     /**
      * Create a RateResponse from an array (lossless round-trip from toArray).
      *
-     * @param  array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata?: array<string, mixed>, priceUnknown?: bool, offerId?: ?string}  $data
+     * @param  array{carrier: string, serviceCode: string, serviceName: string, price: float, deliveryCommitment: ?string, deliveryDate: ?string, transitTime: ?string, metadata?: array<string, mixed>, priceUnknown?: bool, offerId?: ?string, observedService?: ?array{source: string, environment: string, externalCarrierId: string, externalServiceId: string}}  $data
      */
     public static function fromArray(array $data): self
     {
@@ -62,6 +67,9 @@ readonly class RateResponse
             metadata: $data['metadata'] ?? [],
             priceUnknown: (bool) ($data['priceUnknown'] ?? false),
             offerId: $data['offerId'] ?? null,
+            observedService: isset($data['observedService'])
+                ? ObservedServiceIdentity::fromArray($data['observedService'])
+                : null,
         );
     }
 
