@@ -3,8 +3,11 @@
 namespace App\Services;
 
 use App\Contracts\AsyncRateQuoting;
+use App\Contracts\BlindPurchaseSource;
 use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\PostageOfferSource;
 use App\DataTransferObjects\Shipping\AddressData;
+use App\DataTransferObjects\Shipping\BlindPurchaseOffer;
 use App\DataTransferObjects\Shipping\PreparedRateRequest;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
@@ -33,6 +36,31 @@ class ShippingRateService
     private array $exclusions = [];
 
     /**
+     * Blind-purchase offers advertised during the last getShippingRates() call.
+     *
+     * Kept apart from the rates rather than mixed in, because they are not
+     * rates and must never be sorted against one (ADR-0003 decision 6). The
+     * caller presents them separately and every automated path simply never
+     * looks at them.
+     *
+     * @var Collection<int, BlindPurchaseOffer>
+     */
+    private Collection $blindPurchaseOffers;
+
+    public function __construct()
+    {
+        $this->blindPurchaseOffers = collect();
+    }
+
+    /**
+     * @return Collection<int, BlindPurchaseOffer>
+     */
+    public function getBlindPurchaseOffers(): Collection
+    {
+        return $this->blindPurchaseOffers;
+    }
+
+    /**
      * Returns carriers excluded from the last getShippingRates() call.
      * Each entry is ['carrier' => string, 'reason' => string].
      *
@@ -59,9 +87,80 @@ class ShippingRateService
         $package = Package::with(['packageItems', 'shipment.shippingMethod'])
             ->findOrFail($packageId);
 
+        $rateRequest = RateRequest::fromPackage($package);
+        $carrierTasks = $this->buildCarrierTasks($package, $rateRequest);
+
+        $rateOptions = $this->fetchRatesConcurrently($carrierTasks, $rateRequest);
+
+        try {
+            app(RateQuoteLogger::class)->logRates($packageId, $rateOptions);
+        } catch (\Exception $e) {
+            logger()->warning('Failed to log rate quotes', [
+                'package_id' => $packageId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $rateOptions;
+    }
+
+    /**
+     * The blind-purchase offers this package is eligible for, asking nobody for
+     * a rate.
+     *
+     * The purchase path's answer to "was this ever offered?". Everything that
+     * decides eligibility runs again — the shipping method's services, the
+     * destination, special-service capability, and each source's own gates
+     * (client opt-in, a fulfillment order to buy against, a catalogued
+     * selection) — while `fetchRatesConcurrently()` and its carrier calls are
+     * skipped, because no rate is wanted and no money may be spent finding one.
+     *
+     * Sharing `buildCarrierTasks()` with quoting is the point: an offer is
+     * eligible here exactly when it would have been advertised there, rather
+     * than under a second copy of the rules that can drift from the first.
+     *
+     * @return Collection<int, BlindPurchaseOffer>
+     *
+     * @throws NoActiveCarrierServicesException
+     */
+    public function blindPurchaseOffersFor(Package $package): Collection
+    {
+        $rateRequest = RateRequest::fromPackage($package);
+        $registry = app(CarrierRegistry::class);
+        $shipDateService = app(ShipDateService::class);
+
+        foreach ($this->buildCarrierTasks($package, $rateRequest) as $task) {
+            $source = $registry->blindPurchaseSourceFor($task['name']);
+
+            if (! $source || ! $source->isConfigured()) {
+                continue;
+            }
+
+            $this->blindPurchaseOffers = $this->blindPurchaseOffers->merge($source->blindPurchaseOffers(
+                $rateRequest
+                    ->withShipDate($shipDateService->getShipDate($task['name'], $rateRequest->locationId))
+                    ->withSpecialServiceCodes($task['specialServiceCodes']),
+                $task['serviceCodes'],
+            ));
+        }
+
+        return $this->blindPurchaseOffers;
+    }
+
+    /**
+     * Which sources may be asked for this package, and with what.
+     *
+     * Resets the exclusions and offers recorded from any earlier call, so a
+     * caller reads the reasons belonging to the tasks it just built.
+     *
+     * @return array<int, array{name: string, serviceCodes: array<string>, specialServiceCodes: array<string>}>
+     *
+     * @throws NoActiveCarrierServicesException
+     */
+    private function buildCarrierTasks(Package $package, RateRequest $rateRequest): array
+    {
         $shipment = $package->shipment;
         $shippingMethod = $shipment->shippingMethod;
-        $rateRequest = RateRequest::fromPackage($package);
 
         $resolver = app(SpecialServiceResolver::class);
         $methodCodes = $resolver->methodCodesByMode($shippingMethod);
@@ -76,11 +175,11 @@ class ShippingRateService
         }
 
         $this->exclusions = [];
+        $this->blindPurchaseOffers = collect();
         $scopeMap = $this->loadServiceScopes([...$requiredCodes, ...$defaultCodes]);
         $serviceNames = SpecialService::whereIn('code', [...$requiredCodes, ...$defaultCodes])
             ->pluck('name', 'code');
 
-        // Build the list of carriers to query
         $carrierTasks = [];
 
         if ($shippingMethod) {
@@ -92,7 +191,7 @@ class ShippingRateService
             }
 
             logger()->debug('ShippingRateService: Getting rates', [
-                'package_id' => $packageId,
+                'package_id' => $package->id,
                 'shipping_method' => $shippingMethod->name,
                 'active_carrier_services_count' => $activeCarrierServices->count(),
                 'carrier_services' => $activeCarrierServices->pluck('service_code', 'name')->toArray(),
@@ -115,56 +214,47 @@ class ShippingRateService
                     $carrierTasks[] = $task;
                 }
             }
-        } else {
-            logger()->debug('ShippingRateService: No shipping method assigned, querying all configured carriers', [
-                'package_id' => $packageId,
-            ]);
 
-            $destination = AddressData::fromShipment($shipment);
-            $restrictedDestination = $destination->isPoBox() || $destination->isMilitary();
+            return $carrierTasks;
+        }
 
-            foreach (array_keys(app(CarrierRegistry::class)->getConfiguredAdapters()) as $name) {
-                $services = $this->getActiveCarrierServicesForCarrierName($name, $destination);
+        logger()->debug('ShippingRateService: No shipping method assigned, querying all configured carriers', [
+            'package_id' => $package->id,
+        ]);
 
-                if ($restrictedDestination && $services->isEmpty()) {
-                    // No cataloged service for this carrier is known to reach a PO
-                    // Box / military destination -- querying it blind risks a
-                    // carrier-side reject (e.g. UPS 400s on a military "AE" state).
-                    logger()->debug("ShippingRateService: {$name} has no cataloged service for this destination, skipping", [
-                        'package_id' => $packageId,
-                    ]);
+        $destination = AddressData::fromShipment($shipment);
+        $restrictedDestination = $destination->isPoBox() || $destination->isMilitary();
 
-                    continue;
-                }
+        foreach (array_keys(app(CarrierRegistry::class)->getConfiguredAdapters()) as $name) {
+            $services = $this->getActiveCarrierServicesForCarrierName($name, $destination);
 
-                $task = $this->buildCarrierTask(
-                    $name,
-                    $services,
-                    $requiredCodes,
-                    $defaultCodes,
-                    $scopeMap,
-                    $serviceNames,
-                    $rateRequest,
-                );
+            if ($restrictedDestination && $services->isEmpty()) {
+                // No cataloged service for this carrier is known to reach a PO
+                // Box / military destination -- querying it blind risks a
+                // carrier-side reject (e.g. UPS 400s on a military "AE" state).
+                logger()->debug("ShippingRateService: {$name} has no cataloged service for this destination, skipping", [
+                    'package_id' => $package->id,
+                ]);
 
-                if ($task) {
-                    $carrierTasks[] = $task;
-                }
+                continue;
+            }
+
+            $task = $this->buildCarrierTask(
+                $name,
+                $services,
+                $requiredCodes,
+                $defaultCodes,
+                $scopeMap,
+                $serviceNames,
+                $rateRequest,
+            );
+
+            if ($task) {
+                $carrierTasks[] = $task;
             }
         }
 
-        $rateOptions = $this->fetchRatesConcurrently($carrierTasks, $rateRequest);
-
-        try {
-            app(RateQuoteLogger::class)->logRates($packageId, $rateOptions);
-        } catch (\Exception $e) {
-            logger()->warning('Failed to log rate quotes', [
-                'package_id' => $packageId,
-                'error' => $e->getMessage(),
-            ]);
-        }
-
-        return $rateOptions;
+        return $carrierTasks;
     }
 
     /**
@@ -219,11 +309,25 @@ class ShippingRateService
                     }
                 }
 
-                // Nothing to send: mock rates, or a source with no rate API that
-                // advertises rather than quotes. Ask it synchronously instead.
-                // Only sources that got this far can reach the parse phase below,
-                // which is why the two halves of AsyncRateQuoting travel together.
-                $rateOptions->push(...$adapter->getRates($carrierRateRequest, $serviceCodes));
+                // A source with no rate API at all advertises a purchase rather
+                // than quoting one. Collected separately: it has no price, so
+                // there is nothing to compare it with and nowhere in this
+                // collection it could honestly sit.
+                if ($adapter instanceof BlindPurchaseSource) {
+                    $this->blindPurchaseOffers = $this->blindPurchaseOffers->merge(
+                        $adapter->blindPurchaseOffers($carrierRateRequest, $serviceCodes)
+                    );
+
+                    continue;
+                }
+
+                // Nothing to send: mock rates, or an adapter that declined to
+                // prepare one. Ask it synchronously instead. Only sources that
+                // got this far can reach the parse phase below, which is why the
+                // two halves of AsyncRateQuoting travel together.
+                if ($adapter instanceof CarrierAdapterInterface) {
+                    $rateOptions->push(...$adapter->getRates($carrierRateRequest, $serviceCodes));
+                }
             } catch (CarrierRateFetchException $e) {
                 $loggedException = $e->getPrevious() ?? $e;
 
@@ -456,7 +560,7 @@ class ShippingRateService
      */
     private function declaredValueCapViolation(
         string $code,
-        ?CarrierAdapterInterface $adapter,
+        ?PostageOfferSource $adapter,
         RateRequest $rateRequest,
         string $carrierName,
     ): ?string {

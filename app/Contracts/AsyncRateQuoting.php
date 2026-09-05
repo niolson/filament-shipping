@@ -18,11 +18,16 @@ use Saloon\Http\Response;
  * with no error — which is why this is its own contract rather than two methods
  * on {@see CarrierAdapterInterface}.
  *
- * Not every offer source has a rate API. Shopify Shipping advertises rates it
- * cannot quote and implements none of this; `ShippingRateService` asks such a
- * source synchronously instead.
+ * It extends {@see CarrierAdapterInterface} because the fallback below is not
+ * optional: `prepareRateRequest()` may decline, and the caller then asks
+ * `getRates()` for the same quote. Anything quoting asynchronously must be able
+ * to answer synchronously as well.
+ *
+ * Not every offer source has a rate API. Shopify Shipping sells postage it
+ * cannot quote at all and implements {@see BlindPurchaseSource} instead of any
+ * of this.
  */
-interface AsyncRateQuoting
+interface AsyncRateQuoting extends CarrierAdapterInterface
 {
     /**
      * Prepare a rate API request for async sending.

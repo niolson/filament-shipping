@@ -7,6 +7,7 @@ use App\DataTransferObjects\PackageShipping\PackageAutoShippingRequest;
 use App\DataTransferObjects\PackageShipping\PackageShippingOptions;
 use App\DataTransferObjects\PackageShipping\PackageShippingRequest;
 use App\DataTransferObjects\PackageShipping\PackageShippingResult;
+use App\DataTransferObjects\Shipping\BlindPurchaseOffer;
 use App\DataTransferObjects\Shipping\ClassifiedRate;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
@@ -103,6 +104,12 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
             allRatesLate: $deadline !== null && $classified->isNotEmpty() && $classified->every(fn (ClassifiedRate $cr): bool => ! $cr->isOnTime),
             exclusions: $exclusions,
             selectedRateIndex: $this->selectedRateIndex($options, $ruleResult->preSelectedRate ?? null),
+            // Alongside the rates, never among them, and never pre-selected:
+            // a blind purchase is only ever chosen by a person who confirms it.
+            blindPurchaseOffers: $this->shippingRateService->getBlindPurchaseOffers()
+                ->map(fn (BlindPurchaseOffer $offer): array => $offer->toArray())
+                ->values()
+                ->all(),
         );
     }
 
@@ -163,6 +170,21 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
             );
         }
 
+        // A blind offer names itself and nothing else: the carrier, the
+        // selection and the eligibility all come back off the server's own
+        // list, never off the request.
+        $blindOffer = $request->blindOffer;
+
+        if ($blindOffer !== null) {
+            $resolved = $this->resolveBlindOffer($package, $blindOffer);
+
+            if ($resolved instanceof PackageShippingResult) {
+                return $resolved;
+            }
+
+            $blindOffer = $resolved;
+        }
+
         // A rate carrying an offer identifier is bought against the offer, not
         // against its description: what came back from the browser says which
         // offer, and nothing more. The carrier, service and price come off the
@@ -171,7 +193,7 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
         $offer = null;
         $selectedRate = $request->selectedRate;
 
-        if ($selectedRate->offerId !== null) {
+        if ($selectedRate !== null && $selectedRate->offerId !== null) {
             $inspection = $this->offerStore->inspect($package, $selectedRate->offerId);
 
             if ($inspection->wasRejected()) {
@@ -187,16 +209,27 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
             $selectedRate = $this->rateFromOffer($offer, $selectedRate);
         }
 
-        $this->rateQuoteLogger->markSelected($package->id, $selectedRate);
+        // Nothing to mark for a blind purchase: no quote was logged, because
+        // none was given.
+        if ($selectedRate !== null) {
+            $this->rateQuoteLogger->markSelected($package->id, $selectedRate);
+        }
 
         try {
-            $adapter = $this->carrierRegistry->get($selectedRate->carrier);
-            $shipRequest = ShipRequest::fromPackageAndRate(
-                $package,
-                $selectedRate,
-                $request->labelFormat,
-                $request->labelDpi,
-            );
+            $adapter = $this->carrierRegistry->get($blindOffer !== null ? $blindOffer->source : $selectedRate->carrier);
+            $shipRequest = $blindOffer !== null
+                ? ShipRequest::fromPackageAndBlindOffer(
+                    $package,
+                    $blindOffer,
+                    $request->labelFormat,
+                    $request->labelDpi,
+                )
+                : ShipRequest::fromPackageAndRate(
+                    $package,
+                    $selectedRate,
+                    $request->labelFormat,
+                    $request->labelDpi,
+                );
 
             // Everything that can fail locally fails before the offer is
             // claimed. A customs-weight prompt is a round trip through the
@@ -242,25 +275,29 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
         } catch (MissingDeclaredValueException $e) {
             return PackageShippingResult::failed('Declared Value Required', $e->getMessage());
         } catch (RequestTimeOutException) {
+            $seller = $this->sellerName($request);
+
             logger()->error('Carrier API timeout', [
-                'carrier' => $request->selectedRate->carrier,
+                'carrier' => $seller,
                 'package_id' => $package->id,
             ]);
 
             return PackageShippingResult::failed(
                 'Carrier Timeout',
-                "The {$request->selectedRate->carrier} API is not responding. Please try again in a few moments.",
+                "The {$seller} API is not responding. Please try again in a few moments.",
             );
         } catch (RequestException $e) {
+            $seller = $this->sellerName($request);
+
             logger()->error('Carrier API error', [
-                'carrier' => $request->selectedRate->carrier,
+                'carrier' => $seller,
                 'package_id' => $package->id,
                 'error' => $e->getMessage(),
             ]);
 
             return PackageShippingResult::failed(
                 'Carrier Error',
-                "Unable to connect to {$request->selectedRate->carrier}. Please check your connection and try again.",
+                "Unable to connect to {$seller}. Please check your connection and try again.",
             );
         } catch (\RuntimeException $e) {
             return PackageShippingResult::stateConflict($e->getMessage());
@@ -323,6 +360,97 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
 
             return $result;
         }
+    }
+
+    /**
+     * Who the label is being bought from, for a message a packer reads.
+     */
+    private function sellerName(PackageShippingRequest $request): string
+    {
+        if ($request->blindOffer !== null) {
+            return $request->blindOffer->sourceLabel;
+        }
+
+        return $request->selectedRate === null ? 'carrier' : $request->selectedRate->carrier;
+    }
+
+    /**
+     * The blind offer as the server knows it, or the refusal to buy one.
+     *
+     * What arrives from the browser is a *claim* that this package was offered
+     * something — a public Livewire property, hydrated from whatever the client
+     * sent back, so its source and service code are the client's words. Taking
+     * them at face value would let anyone who can reach the Ship page name a
+     * selection that was never advertised: a service code outside the shipping
+     * method, one that a hard-required special service had excluded, or a
+     * source that never offered anything for this package at all.
+     *
+     * So the offers are derived again here, from the package, and the incoming
+     * one is used only to pick from them by identifier. It is the same rule the
+     * offer store follows for a quoted rate: what comes back says *which*
+     * offer, and nothing more.
+     *
+     * Consent is checked first and separately because it deserves its own
+     * message — the offer will also be absent for a client that has not opted
+     * in, and "no longer available" would send an operator looking for the
+     * wrong thing.
+     *
+     * @return BlindPurchaseOffer|PackageShippingResult the offer to buy, or the reason not to
+     */
+    private function resolveBlindOffer(Package $package, BlindPurchaseOffer $requested): BlindPurchaseOffer|PackageShippingResult
+    {
+        $package->loadMissing(['shipment.client', 'shipment.shippingMethod']);
+
+        if (! $package->shipment?->client?->blind_purchase_enabled) {
+            logger()->warning('Refused a blind purchase for a client that has not opted in', [
+                'package_id' => $package->id,
+                'source' => $requested->source,
+                'client_id' => $package->shipment?->client_id,
+            ]);
+
+            return PackageShippingResult::offerUnavailable(
+                'Blind Purchase Not Enabled',
+                "{$requested->sourceLabel} buys postage without reporting a price or a service, so it is only available to clients that have opted in. "
+                .'Enable it on the client, or choose a rate from a carrier account.',
+            );
+        }
+
+        try {
+            $advertised = $this->shippingRateService->blindPurchaseOffersFor($package);
+        } catch (\Exception $e) {
+            logger()->error('Could not re-derive blind purchase offers before buying', [
+                'package_id' => $package->id,
+                'source' => $requested->source,
+                'error' => $e->getMessage(),
+            ]);
+
+            $advertised = collect();
+        }
+
+        $offer = $advertised->first(fn (BlindPurchaseOffer $candidate): bool => $candidate->id() === $requested->id());
+
+        if ($offer) {
+            return $offer;
+        }
+
+        // The most useful thing to say is usually why the source dropped out,
+        // which rate shopping has just recorded — "cannot guarantee Signature
+        // Required", rather than a bare "not available". Only exclusions naming
+        // this source are relevant; another carrier's is somebody else's news.
+        $exclusion = collect($this->shippingRateService->getExclusions())
+            ->first(fn (array $entry): bool => $entry['carrier'] === $requested->source);
+
+        logger()->warning('Refused a blind purchase that is not on offer for this package', [
+            'package_id' => $package->id,
+            'source' => $requested->source,
+            'service_code' => $requested->serviceCode,
+            'exclusion' => $exclusion['reason'] ?? null,
+        ]);
+
+        return PackageShippingResult::offerUnavailable(
+            'Offer No Longer Available',
+            $exclusion['reason'] ?? "{$requested->sourceLabel} is not offering this option for this package. Get rates again and choose from what comes back.",
+        );
     }
 
     /**
@@ -512,9 +640,15 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
 
         $ruleResult = $this->ruleEvaluator->evaluate($package->shipment, $package);
 
-        if ($ruleResult->hasPreSelectedRate()) {
-            $adapter = $this->carrierRegistry->get($ruleResult->preSelectedRate->carrier);
+        // Only a source that quotes can resolve a pre-selected rate. Anything
+        // else falls through to rate shopping rather than being asked to
+        // invent one — `RuleEvaluator` already declines to pre-select a blind
+        // purchase, and this is the same refusal one layer down.
+        $adapter = $ruleResult->hasPreSelectedRate()
+            ? $this->carrierRegistry->quotingAdapterFor($ruleResult->preSelectedRate->carrier)
+            : null;
 
+        if ($adapter) {
             return $adapter->resolvePreSelectedRate($ruleResult->preSelectedRate, $package);
         }
 
@@ -524,7 +658,12 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
             return null;
         }
 
-        return RateResponse::fromArray($options->rateOptions[$options->selectedRateIndex]);
+        $rate = RateResponse::fromArray($options->rateOptions[$options->selectedRateIndex]);
+
+        // Nothing unpriced is bought unattended, whatever it sorted behind.
+        // ADR-0003 decision 5: an unknown price winning because it was the only
+        // thing left is exactly the outcome automation must not produce.
+        return $rate->priceUnknown ? null : $rate;
     }
 
     private function cleanupPackage(Package $package, PackageAutoShippingRequest $request, PackageShippingResult $result): void

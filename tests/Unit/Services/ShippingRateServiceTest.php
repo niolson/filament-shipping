@@ -1407,6 +1407,7 @@ it('excludes a Shopify offer, visibly, when the shipment hard-requires a special
 
 it('keeps a Shopify offer when the special service is only a default', function (): void {
     $source = createShopifyDataSource([], ['oauth_access_token' => 'shpat_test_token']);
+    allowBlindPurchase();
 
     $signature = createScopedSpecialService('signature_required', 'Signature Required');
 
@@ -1433,10 +1434,12 @@ it('keeps a Shopify offer when the special service is only a default', function 
     $rates = $service->getShippingRates($package->id);
 
     // A default is a preference. An offer that cannot express it goes without,
-    // the same as a code we simply have not wired up.
-    expect($rates)->toHaveCount(1)
-        ->and($rates[0]->carrier)->toBe('Shopify')
-        ->and($rates[0]->priceUnknown)->toBeTrue()
+    // the same as a code we simply have not wired up. It comes back as a blind
+    // purchase and never as a rate, so the rate list stays empty.
+    expect($rates)->toBeEmpty()
+        ->and($service->getBlindPurchaseOffers())->toHaveCount(1)
+        ->and($service->getBlindPurchaseOffers()[0]->source)->toBe('Shopify')
+        ->and($service->getBlindPurchaseOffers()[0]->serviceCode)->toBe('usps:usps_ground_advantage')
         ->and($service->getExclusions())->toBeEmpty();
 });
 

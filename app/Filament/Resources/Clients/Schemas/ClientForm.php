@@ -86,6 +86,16 @@ class ClientForm
                     ])
                     ->columns(2),
 
+                Section::make('Blind Purchase')
+                    ->description('Postage bought on a sales channel\'s own account, at a price and on a service nobody sees until afterwards.')
+                    ->schema([
+                        Toggle::make('blind_purchase_enabled')
+                            ->label('Allow blind purchase for this client')
+                            ->helperText('Shopify Shipping reaches USPS Connect eCommerce rates without an account of our own, but reports no price, no service and no carrier until the label comes back, and its labels cannot be voided from PolyBag. Off by default. Never used by auto-ship, batch ship or shipping rules — a packer picks it on the Ship page and confirms.')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(1),
+
                 Section::make('Billing / Rate Card')
                     ->description('Fees charged to this client per billing period. Used in the Client Billing report.')
                     ->visible(fn () => app(SettingsService::class)->get('multi_client_enabled', false))

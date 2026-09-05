@@ -2,20 +2,22 @@
 
 namespace App\Services\Carriers;
 
+use App\Contracts\BlindPurchaseSource;
 use App\Contracts\CarrierAdapterInterface;
 use App\Contracts\CarrierPolicy;
 use App\Contracts\DirectCarrierAdapter;
+use App\Contracts\PostageOfferSource;
 use InvalidArgumentException;
 
 class CarrierRegistry
 {
     /**
-     * @var array<string, class-string<CarrierAdapterInterface>>
+     * @var array<string, class-string<PostageOfferSource>>
      */
     protected array $adapters;
 
     /**
-     * @var array<string, CarrierAdapterInterface>
+     * @var array<string, PostageOfferSource>
      */
     protected array $instances = [];
 
@@ -32,9 +34,13 @@ class CarrierRegistry
     /**
      * Get an adapter instance for the given carrier name.
      *
+     * Typed at the widest thing registered here: not every source can quote.
+     * A caller that needs rates asks {@see self::quotingAdapterFor()}, and one
+     * that needs a blind purchase asks {@see self::blindPurchaseSourceFor()}.
+     *
      * @throws InvalidArgumentException
      */
-    public function get(string $carrierName): CarrierAdapterInterface
+    public function get(string $carrierName): PostageOfferSource
     {
         if (! $this->has($carrierName)) {
             throw new InvalidArgumentException("Unknown carrier: {$carrierName}");
@@ -64,6 +70,45 @@ class CarrierRegistry
     }
 
     /**
+     * A registered source that can quote a price before the label is bought.
+     * Null for an unknown name or a blind-purchase source.
+     *
+     * The one gate that keeps blind purchase out of the automated paths that
+     * work in rates: a shipping rule naming a source that answers null here has
+     * no rate to pre-select, and nothing invents one (ADR-0003 decision 5).
+     */
+    public function quotingAdapterFor(?string $carrierName): ?CarrierAdapterInterface
+    {
+        $adapter = $this->adapterOrNull($carrierName);
+
+        return $adapter instanceof CarrierAdapterInterface ? $adapter : null;
+    }
+
+    /**
+     * A registered source that sells postage it cannot quote, or null.
+     */
+    public function blindPurchaseSourceFor(?string $carrierName): ?BlindPurchaseSource
+    {
+        $adapter = $this->adapterOrNull($carrierName);
+
+        return $adapter instanceof BlindPurchaseSource ? $adapter : null;
+    }
+
+    /**
+     * Every registered name that sells blind purchases, for the places that
+     * have to exclude them by name rather than by asking one source.
+     *
+     * @return array<int, string>
+     */
+    public function blindPurchaseSourceNames(): array
+    {
+        return array_values(array_filter(
+            array_keys($this->adapters),
+            fn (string $name): bool => $this->blindPurchaseSourceFor($name) !== null,
+        ));
+    }
+
+    /**
      * A registered adapter that is also the carrier itself, so it can void and
      * track the labels it sold us. Null for an unknown name or a resale channel.
      */
@@ -87,7 +132,7 @@ class CarrierRegistry
             ?? throw new InvalidArgumentException("Unknown carrier: {$carrierName}");
     }
 
-    private function adapterOrNull(?string $carrierName): ?CarrierAdapterInterface
+    private function adapterOrNull(?string $carrierName): ?PostageOfferSource
     {
         if (! $carrierName || ! $this->has($carrierName)) {
             return null;
@@ -107,7 +152,7 @@ class CarrierRegistry
     /**
      * Register a new carrier adapter.
      *
-     * @param  class-string<CarrierAdapterInterface>  $adapterClass
+     * @param  class-string<PostageOfferSource>  $adapterClass
      */
     public function register(string $carrierName, string $adapterClass): void
     {
@@ -128,7 +173,7 @@ class CarrierRegistry
     /**
      * Get all configured carrier adapters.
      *
-     * @return array<string, CarrierAdapterInterface>
+     * @return array<string, PostageOfferSource>
      */
     public function getConfiguredAdapters(): array
     {
@@ -147,7 +192,7 @@ class CarrierRegistry
     /**
      * Register an adapter instance directly (useful for testing).
      */
-    public function registerInstance(string $carrierName, CarrierAdapterInterface $adapter): void
+    public function registerInstance(string $carrierName, PostageOfferSource $adapter): void
     {
         $this->adapters[$carrierName] = get_class($adapter);
         $this->instances[$carrierName] = $adapter;

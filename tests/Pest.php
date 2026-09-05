@@ -202,6 +202,19 @@ function createShopifyDataSource(array $settings = [], array $secrets = []): Dat
 }
 
 /**
+ * Put a client's consent to blind purchase on file — ADR-0003 decision 5, and
+ * the gate every Shopify offer is advertised behind. Defaults to the default
+ * client, which is the one every factory-made shipment belongs to.
+ */
+function allowBlindPurchase(?Package $package = null): void
+{
+    $client = $package?->shipment?->client;
+    $client ??= Client::where('is_default', true)->first();
+
+    $client?->update(['blind_purchase_enabled' => true]);
+}
+
+/**
  * A package shipped on a Shopify Shipping label: carrier of record USPS, postage
  * provenance pointing at the Shopify data source that bought it.
  */

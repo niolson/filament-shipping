@@ -2,12 +2,18 @@
 
 namespace App\DataTransferObjects\PackageShipping;
 
+use App\DataTransferObjects\Shipping\BlindPurchaseOffer;
 use App\DataTransferObjects\Shipping\RateResponse;
+use InvalidArgumentException;
 
 readonly class PackageShippingRequest
 {
+    /**
+     * @param  RateResponse|null  $selectedRate  The quoted rate to buy
+     * @param  BlindPurchaseOffer|null  $blindOffer  A priceless offer to buy instead — exactly one of the two, never both
+     */
     public function __construct(
-        public RateResponse $selectedRate,
+        public ?RateResponse $selectedRate = null,
         public string $labelFormat = 'pdf',
         public ?int $labelDpi = null,
         public bool $overrideCustomsWeights = false,
@@ -15,5 +21,10 @@ readonly class PackageShippingRequest
         // Set false for batch/auto-ship flows that have no interactive prompt.
         public bool $requireCustomsWeightOverride = true,
         public ?int $userId = null,
-    ) {}
+        public ?BlindPurchaseOffer $blindOffer = null,
+    ) {
+        if (($selectedRate === null) === ($blindOffer === null)) {
+            throw new InvalidArgumentException('A shipping request buys either a quoted rate or a blind purchase offer, and must name exactly one.');
+        }
+    }
 }

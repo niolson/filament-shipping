@@ -2,9 +2,9 @@
 
 namespace App\Services\Carriers;
 
-use App\Contracts\CarrierAdapterInterface;
+use App\Contracts\BlindPurchaseSource;
+use App\DataTransferObjects\Shipping\BlindPurchaseOffer;
 use App\DataTransferObjects\Shipping\RateRequest;
-use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PostageSource;
@@ -29,28 +29,34 @@ use Illuminate\Support\Str;
  * `ShopifyPostageSource`; carrier policy belongs to whichever carrier Shopify
  * picks, which is not known until the purchase comes back.
  *
- * What remains is unlike the other adapters by necessity. Shopify's Admin API
- * has no rate-quote operation and exposes no price on a purchased label, so:
+ * Since ADR-0003 decision 6 it does not pretend to quote either. Shopify's
+ * Admin API has no rate operation and exposes no price on a purchased label, so
+ * what it sells is a {@see BlindPurchaseOffer} and never a `RateResponse`:
  *
- * - rates are advertised, not quoted (`priceUnknown`), and the cost recorded on
- *   the package is left null rather than invented;
+ * - there is no price to state, so there is no price field to invent one in,
+ *   and the cost recorded on the package is left null;
  * - no purchased service is reported either, so the package records the service
  *   as `unknown` and keeps what was asked for as a requested preference;
- * - there is no rate API at all, so this implements none of `AsyncRateQuoting`
- *   and is quoted synchronously through `getRates()`;
+ * - the offer is advertised only for a client that has opted into blind
+ *   purchase, and never reaches auto-ship, batch ship, shipping rules or
+ *   `RateSelector` — none of which handle anything but rates;
  * - only shipments imported from an active Shopify data source are eligible,
  *   since a purchase is keyed to a Shopify fulfillment order.
  *
  * Service codes are `carrier:service` pairs for Shopify's
  * `preferredRateSelection` (`usps:usps_ground_advantage`), or the bare code
- * `auto` to let Shopify pick the rate the way its admin would.
+ * `auto` to let Shopify pick the rate the way its admin would. Either way they
+ * are a preference we asked for, never a service we were sold.
  */
-class ShopifyAdapter implements CarrierAdapterInterface
+class ShopifyAdapter implements BlindPurchaseSource
 {
     public const CARRIER_NAME = 'Shopify';
 
     /** Service code that leaves rate selection to Shopify. */
     public const AUTO_SERVICE_CODE = 'auto';
+
+    /** How the seller is named to a packer choosing an offer. */
+    public const SOURCE_LABEL = 'Shopify Shipping';
 
     public function getCarrierName(): string
     {
@@ -98,22 +104,37 @@ class ShopifyAdapter implements CarrierAdapterInterface
     }
 
     /**
-     * Advertise the catalogued Shopify services for packages that can actually
-     * use them. The prices aren't known until the label is bought, so each rate
-     * is flagged `priceUnknown` and sorts behind every real quote.
+     * What Shopify will sell for this package, priceless.
+     *
+     * Three gates, and none of them is an error worth telling a packer about:
+     * the client has to have opted into blind purchase (ADR-0003 decision 5),
+     * the shipment has to have come from a live Shopify data source with a
+     * fulfillment order to buy against, and the selection has to be one we
+     * actually catalogue.
+     *
+     * The opt-in is checked here rather than in `ShippingRateService` because
+     * it is a fact about this kind of purchase, not about rate shopping: there
+     * is no price and no service to consent to after the fact, so consent has
+     * to be on file before the offer is shown at all.
      *
      * @param  array<string>  $serviceCodes
-     * @return Collection<int, RateResponse>
+     * @return Collection<int, BlindPurchaseOffer>
      */
-    public function getRates(RateRequest $request, array $serviceCodes): Collection
+    public function blindPurchaseOffers(RateRequest $request, array $serviceCodes): Collection
     {
         if ($serviceCodes === [] || ! $request->packageId) {
             return collect();
         }
 
-        $package = Package::with('shipment.dataSource')->find($request->packageId);
+        $package = Package::with(['shipment.dataSource', 'shipment.client'])->find($request->packageId);
 
-        if (! $package || ! app(ShopifyShippingLabelService::class)->canPurchaseFor($package)) {
+        if (! $package || ! $package->shipment?->client?->blind_purchase_enabled) {
+            return collect();
+        }
+
+        $labelService = app(ShopifyShippingLabelService::class);
+
+        if (! $labelService->canPurchaseFor($package)) {
             return collect();
         }
 
@@ -122,14 +143,16 @@ class ShopifyAdapter implements CarrierAdapterInterface
             ->whereIn('service_code', $serviceCodes)
             ->pluck('name', 'service_code');
 
+        $dataSourceId = $labelService->dataSourceFor($package)?->id;
+
         return collect($serviceCodes)
             ->filter(fn (string $code): bool => $names->has($code))
-            ->map(fn (string $code): RateResponse => new RateResponse(
-                carrier: self::CARRIER_NAME,
+            ->map(fn (string $code): BlindPurchaseOffer => new BlindPurchaseOffer(
+                source: self::CARRIER_NAME,
+                sourceLabel: self::SOURCE_LABEL,
                 serviceCode: $code,
-                serviceName: $names->get($code),
-                price: 0.0,
-                priceUnknown: true,
+                selectionLabel: (string) $names->get($code),
+                postageDataSourceId: $dataSourceId,
             ))
             ->values();
     }
@@ -142,7 +165,16 @@ class ShopifyAdapter implements CarrierAdapterInterface
             return ShipResponse::failure('Shopify Shipping labels can only be bought for a saved package.');
         }
 
-        [$carrierCode, $serviceCode] = $this->splitServiceCode($request->selectedRate->serviceCode);
+        // The only way in. A Shopify label has no rate behind it by
+        // construction, so a request carrying one instead of a blind offer came
+        // from somewhere that still thinks this quotes.
+        $offer = $request->blindOffer;
+
+        if (! $offer) {
+            return ShipResponse::failure('Shopify Shipping labels are bought as a blind purchase, which this request did not carry.');
+        }
+
+        [$carrierCode, $serviceCode] = $this->splitServiceCode($offer->serviceCode);
 
         $labelService = app(ShopifyShippingLabelService::class);
 
@@ -151,7 +183,7 @@ class ShopifyAdapter implements CarrierAdapterInterface
         } catch (ShopifyLabelPurchaseException $e) {
             logger()->error('Shopify label purchase failed', [
                 'package_id' => $package->id,
-                'service_code' => $request->selectedRate->serviceCode,
+                'service_code' => $offer->serviceCode,
                 'error' => $e->getMessage(),
             ]);
 
@@ -179,7 +211,7 @@ class ShopifyAdapter implements CarrierAdapterInterface
             // was asked for is kept as the requested preference, which is audit
             // metadata and not the service value. ADR-0003 decisions 5 and 7.
             service: null,
-            requestedService: $serviceCode === null ? null : $request->selectedRate->serviceName,
+            requestedService: $serviceCode === null ? null : $offer->selectionLabel,
             serviceEvidence: ServiceEvidence::Unknown,
             labelData: $label->labelData,
             labelOrientation: 'portrait',
@@ -198,7 +230,7 @@ class ShopifyAdapter implements CarrierAdapterInterface
                 'shopify_label_document_url' => $label->labelDocumentUrl,
                 // The raw code beside the requested preference the package
                 // records, so a selection Shopify silently ignored stays visible.
-                'shopify_requested_service_code' => $request->selectedRate->serviceCode,
+                'shopify_requested_service_code' => $offer->serviceCode,
             ], fn (?string $value): bool => filled($value)),
         );
     }
@@ -218,23 +250,5 @@ class ShopifyAdapter implements CarrierAdapterInterface
         [$carrierCode, $service] = explode(':', $serviceCode, 2);
 
         return filled($carrierCode) && filled($service) ? [$carrierCode, $service] : [null, null];
-    }
-
-    /**
-     * Nothing to resolve: a Shopify rate has no variants and no price to fill in.
-     */
-    public function resolvePreSelectedRate(RateResponse $rate, Package $package): RateResponse
-    {
-        return $rate->priceUnknown ? $rate : new RateResponse(
-            carrier: $rate->carrier,
-            serviceCode: $rate->serviceCode,
-            serviceName: $rate->serviceName,
-            price: $rate->price,
-            deliveryCommitment: $rate->deliveryCommitment,
-            deliveryDate: $rate->deliveryDate,
-            transitTime: $rate->transitTime,
-            metadata: $rate->metadata,
-            priceUnknown: true,
-        );
     }
 }
