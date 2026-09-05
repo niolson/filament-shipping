@@ -8,6 +8,8 @@ use App\Models\ObservedService;
 use App\Models\Setting;
 use App\Services\PostageSources\ObservedServiceRecorder;
 use App\Services\SettingsService;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 function observation(
     string $carrierId = 'ONTRAC',
@@ -132,6 +134,97 @@ it('never creates a carrier or a carrier service from an observation', function 
     expect(Carrier::count())->toBe(0)
         ->and(CarrierService::count())->toBe(0)
         ->and(ObservedService::count())->toBe(2);
+});
+
+it('carries a human mapping onto the same service seen in another environment', function (): void {
+    $carrierService = CarrierService::factory()->create();
+
+    app(ObservedServiceRecorder::class)->record([observation()]);
+    ObservedService::sole()->update(['carrier_service_id' => $carrierService->id]);
+
+    Setting::updateOrCreate(['key' => 'sandbox_mode'], ['value' => '1', 'type' => 'boolean', 'group' => 'system']);
+    app(SettingsService::class)->clearCache();
+
+    app(ObservedServiceRecorder::class)->record([observation()]);
+
+    // The identity is per-environment; the name is not. Without this, mapping a
+    // service in production and then quoting in sandbox would produce a second
+    // row that nobody ever decided anything about, and it would sit unmapped
+    // for good.
+    expect(ObservedService::count())->toBe(2)
+        ->and(ObservedService::pluck('carrier_service_id')->unique()->all())
+        ->toBe([$carrierService->id]);
+});
+
+it('carries a human mapping onto the same service seen in another marketplace', function (): void {
+    $carrierService = CarrierService::factory()->create();
+
+    app(ObservedServiceRecorder::class)->record([observation()]);
+    ObservedService::sole()->update(['carrier_service_id' => $carrierService->id]);
+
+    app(ObservedServiceRecorder::class)->record([observation(marketplace: 'A2EUQ1WTGCTBG2')]);
+
+    expect(ObservedService::count())->toBe(2)
+        ->and(ObservedService::where('marketplace', 'A2EUQ1WTGCTBG2')->sole()->carrier_service_id)
+        ->toBe($carrierService->id);
+});
+
+it('leaves a new identity unmapped when nobody has named that service', function (): void {
+    $carrierService = CarrierService::factory()->create();
+
+    app(ObservedServiceRecorder::class)->record([observation()]);
+    ObservedService::sole()->update(['carrier_service_id' => $carrierService->id]);
+
+    // A different service from the same carrier, and the same service code
+    // under a different carrier: neither is the service that was mapped.
+    app(ObservedServiceRecorder::class)->record([
+        observation(serviceId: 'ONTRAC_MFN_SUNRISE'),
+        observation(carrierId: 'UPS', carrierName: 'UPS'),
+    ]);
+
+    expect(ObservedService::whereNull('carrier_service_id')->count())->toBe(2);
+});
+
+it('reads and inserts a mapping under one lock', function (): void {
+    $heldDuringInsert = null;
+
+    DB::listen(function ($query) use (&$heldDuringInsert): void {
+        if (! str_contains($query->sql, 'insert') || ! str_contains($query->sql, 'observed_services')) {
+            return;
+        }
+
+        // Non-reentrant, so failing to take it here is the assertion: the
+        // insert is running inside the lock the mapping page also takes.
+        $lock = Cache::lock(ObservedService::MAPPING_LOCK, 10);
+        $acquired = $lock->get();
+        $heldDuringInsert ??= ! $acquired;
+
+        if ($acquired) {
+            $lock->release();
+        }
+    });
+
+    app(ObservedServiceRecorder::class)->record([observation()]);
+
+    expect($heldDuringInsert)->toBeTrue();
+});
+
+it('does not reach for the lock when a quote brings back nothing new', function (): void {
+    $recorder = app(ObservedServiceRecorder::class);
+    $recorder->record([observation()]);
+
+    // The ordinary quote: every identity already on file, so the insert path —
+    // and its lock — is never entered. Holding the lock must not stall it.
+    $lock = Cache::lock(ObservedService::MAPPING_LOCK, 10);
+    expect($lock->get())->toBeTrue();
+
+    try {
+        $recorder->record([observation()]);
+    } finally {
+        $lock->release();
+    }
+
+    expect(ObservedService::sole()->observation_count)->toBe(2);
 });
 
 it('carries through a renamed service without losing its identity', function (): void {

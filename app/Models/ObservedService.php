@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Enums\SourceEnvironment;
+use App\Services\PostageSources\ObservedServiceMapper;
+use App\Services\PostageSources\ObservedServiceRecorder;
 use Database\Factories\ObservedServiceFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -38,6 +40,26 @@ class ObservedService extends Model
 {
     /** @use HasFactory<ObservedServiceFactory> */
     use HasFactory;
+
+    /**
+     * Serializes the two writers of `carrier_service_id`.
+     *
+     * A mapping is stored on every sighting of a service rather than once
+     * beside it, which makes reads a plain foreign key and makes writes two
+     * parties: {@see ObservedServiceMapper}
+     * changes the mapping across existing rows, and
+     * {@see ObservedServiceRecorder} copies the
+     * current mapping onto a row it is inserting. Both are read-then-write, and
+     * interleaved they disagree permanently — a mapping made between the
+     * recorder's read and its insert never reaches the new row, and an unmapping
+     * in the same window is undone by it. Neither leaves a trace, and nothing
+     * revisits the row.
+     *
+     * One name, held briefly by both. Deliberately not per-service: a quote can
+     * bring back a hundred identities at once, and the alternative to one
+     * uncontended lock is a hundred.
+     */
+    public const MAPPING_LOCK = 'observed-service-mapping';
 
     protected $fillable = [
         'source',
@@ -104,5 +126,39 @@ class ObservedService extends Model
     public function scopeUnmapped(Builder $query): void
     {
         $query->whereNull('carrier_service_id');
+    }
+
+    /**
+     * Every row naming the same service, whatever world it was seen in.
+     *
+     * Deliberately narrower than the five-part identity this table is keyed
+     * on: environment and marketplace are dropped. Amazon's sandbox and
+     * production catalogs disagree about what is *offered*, and an approval to
+     * spend money is scoped to one of them (ADR-0003 decision 3) — but a name
+     * is not an approval. If both worlds report
+     * `USPS/USPS_GROUND_ADVANTAGE`, that is one service under one name.
+     *
+     * This is the scope a mapping covers, so it is defined once here rather
+     * than in each of the two places that need it: {@see ObservedServiceMapper}
+     * applies a mapping across it, and {@see ObservedServiceRecorder}
+     * carries that mapping onto rows created later. The two drifting apart
+     * would silently unmap services.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeSameService(Builder $query, string $source, string $externalCarrierId, string $externalServiceId): void
+    {
+        $query->where('source', $source)
+            ->where('external_carrier_id', $externalCarrierId)
+            ->where('external_service_id', $externalServiceId);
+    }
+
+    /**
+     * The same scope as {@see scopeSameService()}, as a key for grouping rows
+     * in memory.
+     */
+    public static function serviceKey(string $source, string $externalCarrierId, string $externalServiceId): string
+    {
+        return implode('|', [$source, $externalCarrierId, $externalServiceId]);
     }
 }
