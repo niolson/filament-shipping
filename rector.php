@@ -31,6 +31,17 @@ return RectorConfig::configure()
     // runtime. Param inference below 43 is confined to private methods, where
     // every call site is in the same file and the inference actually holds.
     ->withTypeCoverageLevel(43)
+    // Dead code stays at 0 deliberately; don't raise it without re-reading this.
+    // At its full level it wants 25 files, and the damage outweighs the finds:
+    // RemoveNullNamedArgOnNullDefaultParamRector strips explicit `service: null`
+    // and `boxSizeId: null` from 9 sites that pass them on purpose — in
+    // ShopifyAdapter it deletes the four-line comment citing ADR-0003 along with
+    // the argument — and RemoveUnusedConstructorParamRector relocates
+    // `@phpstan-ignore` comments onto unrelated lines in PackageExportTest.
+    // RemoveAlwaysTrueIfConditionRector is correct today about the BoxSizeType
+    // exhaustion in UspsAdapter, but collapsing it drops a safe default that a
+    // fourth enum case would need. The three genuine finds from that dry-run
+    // were applied by hand in the commit that added this comment.
     ->withDeadCodeLevel(0)
     ->withCodeQualityLevel(0)
     ->withSkip([

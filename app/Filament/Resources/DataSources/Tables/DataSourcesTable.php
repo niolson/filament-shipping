@@ -32,7 +32,6 @@ class DataSourcesTable
         /** @var SettingsService $settings */
         $settings = app(SettingsService::class);
         $multiClient = (bool) $settings->get('multi_client_enabled', false);
-        $mfaRequired = (bool) $settings->get('require_mfa', false);
 
         return $table
             ->columns([

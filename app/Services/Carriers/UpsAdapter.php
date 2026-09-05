@@ -646,7 +646,7 @@ class UpsAdapter implements DirectCarrierAdapter
                 $shipment['InternationalForms'] = $this->buildCustomsDetail($request);
             }
 
-            $response = $this->sendCreateShipment($connector, $shipment, $request, $serviceCode);
+            $response = $this->sendCreateShipment($connector, $shipment, $request);
             $responseData = $response->json();
 
             // If Saturday delivery was rejected, retry without it
@@ -658,7 +658,7 @@ class UpsAdapter implements DirectCarrierAdapter
                     ]);
                     $saturdayApplied = false;
                     unset($shipment['ShipmentServiceOptions']);
-                    $response = $this->sendCreateShipment($connector, $shipment, $request, $serviceCode);
+                    $response = $this->sendCreateShipment($connector, $shipment, $request);
                     $responseData = $response->json();
                 }
             }
@@ -799,10 +799,14 @@ class UpsAdapter implements DirectCarrierAdapter
     }
 
     /**
-     * Classify Saturday delivery eligibility for the requested service codes.
-     * Returns 'all', 'none', or 'mixed' based on today's day of week.
+     * Send a built shipment to UPS and return the raw response.
+     *
+     * The service lives in $shipment['Service'], set by the caller, so no
+     * service code is passed separately.
+     *
+     * @param  array<string, mixed>  $shipment
      */
-    private function sendCreateShipment(UpsConnector $connector, array $shipment, ShipRequest $request, string $serviceCode): Response
+    private function sendCreateShipment(UpsConnector $connector, array $shipment, ShipRequest $request): Response
     {
         $apiRequest = new CreateShipment;
         $body = [

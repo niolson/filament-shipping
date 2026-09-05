@@ -170,17 +170,6 @@ class FedexAdapter implements DirectCarrierAdapter
     }
 
     /**
-     * International service codes that need mock rates in sandbox mode.
-     */
-    private const INTERNATIONAL_SERVICE_CODES = [
-        'FEDEX_INTERNATIONAL_PRIORITY',
-        'FEDEX_INTERNATIONAL_ECONOMY',
-        'INTERNATIONAL_FIRST',
-        'INTERNATIONAL_PRIORITY',
-        'INTERNATIONAL_ECONOMY',
-    ];
-
-    /**
      * Service codes eligible for FedEx One Rate pricing.
      */
     private const ONE_RATE_ELIGIBLE_SERVICES = [
@@ -233,17 +222,6 @@ class FedexAdapter implements DirectCarrierAdapter
 
     public function getRates(RateRequest $request, array $serviceCodes): Collection
     {
-        // // Check if we need to return mock rates for international sandbox testing
-        // $internationalCodes = array_intersect($serviceCodes, self::INTERNATIONAL_SERVICE_CODES);
-        // if ($this->isSandbox() && $this->isInternational($request) && ! empty($internationalCodes)) {
-        //     logger()->debug('FedEx sandbox detected with international destination - returning mock rates', [
-        //         'destination_country' => $request->destinationCountry,
-        //         'service_codes' => $internationalCodes,
-        //     ]);
-
-        //     return $this->getMockInternationalRates($request, $internationalCodes);
-        // }
-
         $prepared = $this->prepareRateRequest($request, $serviceCodes);
 
         if (! $prepared) {
@@ -268,12 +246,6 @@ class FedexAdapter implements DirectCarrierAdapter
 
     public function prepareRateRequest(RateRequest $request, array $serviceCodes): ?PreparedRateRequest
     {
-        // TODO: restore sandbox international mock rates if needed
-        // $internationalCodes = array_intersect($serviceCodes, self::INTERNATIONAL_SERVICE_CODES);
-        // if ($this->isSandbox() && $this->isInternational($request) && ! empty($internationalCodes)) {
-        //     return null;
-        // }
-
         if (empty($request->packages)) {
             return null;
         }
@@ -1382,78 +1354,5 @@ class FedexAdapter implements DirectCarrierAdapter
     private function isInternational(RateRequest $request): bool
     {
         return $request->originCountry !== $request->destinationCountry;
-    }
-
-    /**
-     * Generate mock international rates for sandbox testing.
-     *
-     * @param  array<string>  $serviceCodes
-     * @return Collection<int, RateResponse>
-     */
-    private function getMockInternationalRates(RateRequest $request, array $serviceCodes): Collection
-    {
-        $package = $request->packages[0] ?? null;
-        $baseWeight = $package?->weight ?? 1.0;
-
-        $mockRates = [
-            'FEDEX_INTERNATIONAL_PRIORITY' => [
-                'serviceName' => 'FedEx International Priority',
-                'basePrice' => 45.00,
-                'transitDays' => '1-3 business days',
-                'deliveryDay' => 'WEDNESDAY',
-            ],
-            'FEDEX_INTERNATIONAL_ECONOMY' => [
-                'serviceName' => 'FedEx International Economy',
-                'basePrice' => 32.00,
-                'transitDays' => '4-6 business days',
-                'deliveryDay' => 'FRIDAY',
-            ],
-            'INTERNATIONAL_FIRST' => [
-                'serviceName' => 'FedEx International First',
-                'basePrice' => 75.00,
-                'transitDays' => '1-2 business days',
-                'deliveryDay' => 'TUESDAY',
-            ],
-            'INTERNATIONAL_PRIORITY' => [
-                'serviceName' => 'FedEx International Priority',
-                'basePrice' => 45.00,
-                'transitDays' => '1-3 business days',
-                'deliveryDay' => 'WEDNESDAY',
-            ],
-            'INTERNATIONAL_ECONOMY' => [
-                'serviceName' => 'FedEx International Economy',
-                'basePrice' => 32.00,
-                'transitDays' => '4-6 business days',
-                'deliveryDay' => 'FRIDAY',
-            ],
-        ];
-
-        $results = collect();
-
-        foreach ($serviceCodes as $serviceCode) {
-            if (! isset($mockRates[$serviceCode])) {
-                continue;
-            }
-
-            $rate = $mockRates[$serviceCode];
-            // Scale price by weight (roughly $5 per pound over 1 lb)
-            $price = $rate['basePrice'] + max(0, ($baseWeight - 1) * 5);
-
-            $results->push(new RateResponse(
-                carrier: 'FedEx',
-                serviceCode: $serviceCode,
-                serviceName: $rate['serviceName'],
-                price: round($price, 2),
-                deliveryDate: $rate['deliveryDay'],
-                transitTime: $rate['transitDays'],
-                metadata: [
-                    'serviceType' => $serviceCode,
-                    'isMockRate' => true,
-                    'sandboxNote' => 'Mock rate generated for sandbox testing of international shipments',
-                ],
-            ));
-        }
-
-        return $results;
     }
 }
