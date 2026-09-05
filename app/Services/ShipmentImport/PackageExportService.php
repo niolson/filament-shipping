@@ -9,6 +9,7 @@ use App\Exceptions\PermanentExportException;
 use App\Models\DataSource;
 use App\Models\Package;
 use App\Models\PackageExport;
+use App\Services\Carriers\AmazonBuyShippingAdapter;
 use App\Services\SettingsService;
 use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
@@ -102,9 +103,16 @@ class PackageExportService
                     $data['_package_reference_id'] = (string) $package->getKey();
                 }
 
-                if ($source->source_type === AmazonSource::class
-                    && ! (bool) app(SettingsService::class)->get('sandbox_mode', false)) {
-                    $data = array_merge($data, $this->buildAmazonExportContext($package));
+                if ($source->source_type === AmazonSource::class) {
+                    // Set in both worlds, unlike the rest of the Amazon context:
+                    // it is what suppresses a second confirmation, and a sandbox
+                    // export that skipped the suppression would double-confirm
+                    // exactly where the behaviour is meant to be exercised.
+                    $data['_amazon_shipment_id'] = AmazonBuyShippingAdapter::shipmentIdFor($package);
+
+                    if (! (bool) app(SettingsService::class)->get('sandbox_mode', false)) {
+                        $data = array_merge($data, $this->buildAmazonExportContext($package));
+                    }
                 }
 
                 $driver->exportPackage($data);
@@ -443,35 +451,11 @@ class PackageExportService
      */
     private function buildAmazonExportContext(Package $package): array
     {
-        $packedItems = $package->packageItems
-            ->filter(fn ($item): bool => (int) $item->quantity > 0);
-        $packageItemCount = $packedItems->count();
-        $orderItems = $packedItems
-            ->filter(fn ($item): bool => filled($item->shipmentItem?->source_item_id))
-            ->map(function ($item): array {
-                $orderItem = [
-                    'orderItemId' => (string) $item->shipmentItem->source_item_id,
-                    'quantity' => (int) $item->quantity,
-                ];
-
-                if (! empty($item->transparency_codes)) {
-                    $orderItem['transparencyCodes'] = $item->transparency_codes;
-                }
-
-                return $orderItem;
-            })
-            ->values()
-            ->all();
-
-        if (count($orderItems) !== $packageItemCount) {
-            throw new PermanentExportException('Amazon shipment confirmation requires an order item ID for every packed item.');
-        }
-
         return [
             '_package_reference_id' => (string) $package->getKey(),
             '_shipped_at' => $package->shipped_at?->toIso8601String(),
             '_shipping_method' => $package->confirmedService(),
-            '_order_items' => $orderItems,
+            '_order_items' => app(AmazonOrderItems::class)->forPackage($package),
         ];
     }
 

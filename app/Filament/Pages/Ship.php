@@ -362,6 +362,16 @@ class Ship extends Page
         $this->confirmedBlindPurchase = false;
 
         if (! $result->success) {
+            // A stale offer is cured by asking again, so ask — the packer gets
+            // a current list to choose from instead of an instruction to press
+            // the button they just pressed. Never reached for an offer that was
+            // already spent: a label may exist for that one, and re-quoting
+            // would invite a second.
+            if ($result->requiresRequote) {
+                Cache::forget($this->rateCacheKey());
+                $this->applyRateOptions($this->prepareCachedRates());
+            }
+
             $this->notifyError($result->title ?? 'Shipping Error', $result->message ?? 'An unexpected error occurred. Please try again.');
 
             return;

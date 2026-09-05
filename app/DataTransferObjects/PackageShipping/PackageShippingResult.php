@@ -5,6 +5,7 @@ namespace App\DataTransferObjects\PackageShipping;
 use App\DataTransferObjects\PrintRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipResponse;
+use App\Enums\OfferRejection;
 use App\Models\Package;
 
 readonly class PackageShippingResult
@@ -18,6 +19,7 @@ readonly class PackageShippingResult
         public ?PrintRequest $printRequest = null,
         public bool $requiresCustomsWeightOverride = false,
         public bool $leavePackageIntact = false,
+        public bool $requiresRequote = false,
     ) {}
 
     /**
@@ -57,10 +59,18 @@ readonly class PackageShippingResult
      * both recoverable by quoting again, and a package deleted out from under
      * an operator who only needs fresh rates is a worse outcome than the stale
      * rate they clicked.
+     *
+     * @param  bool  $requiresRequote  Whether a fresh quote is the whole remedy, so the caller can produce one instead of asking for it. Never set where a label may already exist — see {@see OfferRejection::requiresRequote()}.
      */
-    public static function offerUnavailable(string $title, string $message): self
+    public static function offerUnavailable(string $title, string $message, bool $requiresRequote = false): self
     {
-        return new self(success: false, title: $title, message: $message, leavePackageIntact: true);
+        return new self(
+            success: false,
+            title: $title,
+            message: $message,
+            leavePackageIntact: true,
+            requiresRequote: $requiresRequote,
+        );
     }
 
     public static function stateConflict(string $message): self

@@ -363,7 +363,10 @@ function assertMatchesApiSchema(array $body, string $schema, string $document): 
 }
 
 /**
- * Validate a body against Amazon's Orders API schema.
+ * Validate a body against a vendored Amazon SP-API schema.
+ *
+ * Defaults to the Orders document, which was the only one for a while. Amazon
+ * Buy Shipping passes `shippingV2`.
  *
  * @param  array<string, mixed>  $body
  */

@@ -4,6 +4,7 @@ namespace App\DataTransferObjects\Shipping;
 
 use App\Enums\ServiceCapability;
 use App\Models\Package;
+use App\Models\ShippingOffer;
 use App\Services\LabelReferenceResolver;
 use App\Services\ShipDateService;
 use App\Services\SpecialServiceResolver;
@@ -18,6 +19,7 @@ readonly class ShipRequest
      * @param  array<int, string>  $specialServiceCodes
      * @param  array<string, array<string, mixed>>  $specialServiceConfig  Per-code config values (e.g. declared_value amount)
      * @param  array<int, string>  $references  Identifiers to print on the label, longest-lived first; carriers truncate to their own limits
+     * @param  ShippingOffer|null  $offer  The purchase authority behind $selectedRate, when the source issued one. Server-side only and never serialized: it holds the opaque tokens that actually buy the label, which is why an adapter reads them from here rather than from the rate. ADR-0002 decision 4.
      */
     public function __construct(
         public AddressData $fromAddress,
@@ -35,6 +37,7 @@ readonly class ShipRequest
         public array $references = [],
         public ?int $packageId = null,
         public ?BlindPurchaseOffer $blindOffer = null,
+        public ?ShippingOffer $offer = null,
     ) {}
 
     public function hasSpecialService(string $code): bool
@@ -78,6 +81,7 @@ readonly class ShipRequest
             references: $this->references,
             packageId: $this->packageId,
             blindOffer: $this->blindOffer,
+            offer: $this->offer,
         );
     }
 
@@ -127,6 +131,7 @@ readonly class ShipRequest
             references: $this->references,
             packageId: $this->packageId,
             blindOffer: $this->blindOffer,
+            offer: $this->offer,
         );
     }
 
@@ -135,6 +140,7 @@ readonly class ShipRequest
         RateResponse $rate,
         string $labelFormat = 'pdf',
         ?int $labelDpi = null,
+        ?ShippingOffer $offer = null,
     ): self {
         $customsItems = [];
 
@@ -170,6 +176,7 @@ readonly class ShipRequest
             specialServiceConfig: $resolver->configForPackage($package, $specialServiceCodes),
             references: app(LabelReferenceResolver::class)->forPackage($package),
             packageId: $package->id,
+            offer: $offer,
         );
     }
 
