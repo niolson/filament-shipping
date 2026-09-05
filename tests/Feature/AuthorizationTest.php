@@ -3,6 +3,7 @@
 use App\Enums\Role;
 use App\Filament\Pages\EndOfDay;
 use App\Filament\Pages\Settings;
+use App\Filament\Pages\UnmappedObservedServices;
 use App\Filament\Pages\UnmappedShippingReferences;
 use App\Filament\Resources\BoxSizeResource\Pages\ListBoxSizes;
 use App\Filament\Resources\Carriers\Pages\ListCarriers;
@@ -79,6 +80,10 @@ describe('user role access', function (): void {
         Livewire::test(UnmappedShippingReferences::class)->assertForbidden();
     });
 
+    it('cannot access observed services mapping page', function (): void {
+        Livewire::test(UnmappedObservedServices::class)->assertForbidden();
+    });
+
     it('cannot access end of day page', function (): void {
         Livewire::test(EndOfDay::class)->assertForbidden();
     });
@@ -117,6 +122,10 @@ describe('manager role access', function (): void {
 
     it('can access unmapped references page', function (): void {
         Livewire::test(UnmappedShippingReferences::class)->assertSuccessful();
+    });
+
+    it('can access observed services mapping page', function (): void {
+        Livewire::test(UnmappedObservedServices::class)->assertSuccessful();
     });
 
     it('can access end of day page', function (): void {
@@ -201,6 +210,10 @@ describe('admin role access', function (): void {
 
     it('can access unmapped references page', function (): void {
         Livewire::test(UnmappedShippingReferences::class)->assertSuccessful();
+    });
+
+    it('can access observed services mapping page', function (): void {
+        Livewire::test(UnmappedObservedServices::class)->assertSuccessful();
     });
 
     it('can access end of day page', function (): void {

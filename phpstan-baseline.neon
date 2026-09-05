@@ -289,42 +289,6 @@ parameters:
 			path: app/Enums/TrackingStatus.php
 
 		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/BatchShipResults.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/DevSettings.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/EndOfDay.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/GeneratePickBatch.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 2
-			path: app/Filament/Pages/ManualShip.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 3
-			path: app/Filament/Pages/Pack.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>quantity" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -451,12 +415,6 @@ parameters:
 			path: app/Filament/Pages/Reports/ClientBillingReport.php
 
 		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/Reports/ClientBillingReport.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>label_fee_per_package" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -473,12 +431,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Filament/Pages/Reports/ClientBillingReport.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/Reports/PackingValidationReport.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>weight" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -511,18 +463,6 @@ parameters:
 			path: app/Filament/Pages/Reports/RateComparison.php
 
 		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/Reports/RateComparison.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/Reports/UserShipmentsReport.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$group_id\.$#'
 			identifier: property.notFound
 			count: 2
@@ -535,34 +475,16 @@ parameters:
 			path: app/Filament/Pages/Reports/VolumeReport.php
 
 		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/Reports/VolumeReport.php
-
-		-
 			message: '#^Match expression does not handle remaining value\: string$#'
 			identifier: match.unhandled
 			count: 1
 			path: app/Filament/Pages/Reports/VolumeReport.php
 
 		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/Settings.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Filament/Pages/Settings.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/SetupWizard.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>country" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -581,30 +503,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Filament/Pages/SetupWizard.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/Ship.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/UnmappedChannelReferences.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Pages/UnmappedShippingReferences.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Resources/AuditLogResource.php
 
 		-
 			message: '#^Cannot access property \$id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
@@ -721,18 +619,6 @@ parameters:
 			path: app/Filament/Resources/ChannelResource/Pages/EditChannel.php
 
 		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Resources/Clients/ClientResource.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Resources/DataSources/DataSourceResource.php
-
-		-
 			message: '#^Cannot access property \$active on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
 			identifier: property.nonObject
 			count: 2
@@ -779,12 +665,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Filament/Resources/DataSources/Schemas/DataSourceForm.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Resources/LabelBatchResource.php
 
 		-
 			message: '#^Cannot access property \$bus_batch_id on Illuminate\\Database\\Eloquent\\Model\|int\|string\.$#'
@@ -973,12 +853,6 @@ parameters:
 			path: app/Filament/Resources/PickBatches/Pages/ViewPickBatch.php
 
 		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Resources/PickBatches/PickBatchResource.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>first_name" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -1048,12 +922,6 @@ parameters:
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:toSearchableArray\(\)\.$#'
 			identifier: method.notFound
 			count: 1
-			path: app/Filament/Resources/ShipmentResource.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 3
 			path: app/Filament/Resources/ShipmentResource.php
 
 		-
@@ -1141,12 +1009,6 @@ parameters:
 			path: app/Filament/Resources/UserResource/Pages/EditUser.php
 
 		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Filament/Widgets/DatabaseHealthWidget.php
-
-		-
 			message: '#^Method App\\Http\\Controllers\\Auth\\AzureController\:\:redirect\(\) should return Illuminate\\Http\\RedirectResponse but returns Symfony\\Component\\HttpFoundation\\RedirectResponse\.$#'
 			identifier: return.type
 			count: 1
@@ -1157,12 +1019,6 @@ parameters:
 			identifier: return.type
 			count: 1
 			path: app/Http/Controllers/Auth/GoogleController.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Http/Controllers/OAuthCallbackController.php
 
 		-
 			message: '#^Using nullsafe property access "\?\-\>logo" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
@@ -1267,24 +1123,6 @@ parameters:
 			path: app/Http/Integrations/Ups/UpsConnector.php
 
 		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Http/Middleware/EnsureSetupComplete.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Http/Middleware/EnsureUserIsAdmin.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Http/Middleware/EnsureUserIsManager.php
-
-		-
 			message: '#^Call to an undefined method Monolog\\Handler\\HandlerInterface\:\:getFormatter\(\)\.$#'
 			identifier: method.notFound
 			count: 1
@@ -1361,66 +1199,6 @@ parameters:
 			identifier: match.alwaysFalse
 			count: 3
 			path: app/Notifications/BatchLabelCompleted.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 5
-			path: app/Policies/BoxSizePolicy.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 5
-			path: app/Policies/CarrierPolicy.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 5
-			path: app/Policies/CarrierServicePolicy.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 5
-			path: app/Policies/ChannelPolicy.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 5
-			path: app/Policies/LocationPolicy.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 5
-			path: app/Policies/PackagePolicy.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 5
-			path: app/Policies/ProductPolicy.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 3
-			path: app/Policies/ShipmentPolicy.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 5
-			path: app/Policies/ShippingMethodPolicy.php
-
-		-
-			message: '#^Cannot call method isAtLeast\(\) on string\.$#'
-			identifier: method.nonObject
-			count: 5
-			path: app/Policies/UserPolicy.php
 
 		-
 			message: '#^Cannot call method diffForHumans\(\) on string\.$#'
