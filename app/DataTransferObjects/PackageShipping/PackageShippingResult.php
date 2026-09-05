@@ -20,7 +20,10 @@ readonly class PackageShippingResult
         public bool $leavePackageIntact = false,
     ) {}
 
-    public static function shipped(ShipResponse $response, RateResponse $rate, ?Package $package = null): self
+    /**
+     * @param  RateResponse|null  $rate  Null for a blind purchase, which had no rate behind it
+     */
+    public static function shipped(ShipResponse $response, ?RateResponse $rate, ?Package $package = null): self
     {
         return new self(
             success: true,

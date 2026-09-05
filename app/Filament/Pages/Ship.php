@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Contracts\PackageShippingWorkflow;
 use App\DataTransferObjects\PackageShipping\PackageShippingOptions;
 use App\DataTransferObjects\PackageShipping\PackageShippingRequest;
+use App\DataTransferObjects\Shipping\BlindPurchaseOffer;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\Enums\PackageStatus;
 use App\Enums\Role;
@@ -64,6 +65,26 @@ class Ship extends Page
     public ?int $labelDpi = null;
 
     public ?int $selectedRateIndex = null;
+
+    /**
+     * Priceless offers, listed apart from the rates and never ranked with them.
+     *
+     * @var array<int, array<string, mixed>>
+     */
+    public array $blindPurchaseOffers = [];
+
+    /**
+     * The blind offer chosen, by its identifier. Mutually exclusive with
+     * `$selectedRateIndex` — a package buys one label.
+     */
+    public ?string $selectedBlindOfferId = null;
+
+    /**
+     * Whether the packer has confirmed they are buying without a price or a
+     * service. Reset after every attempt: consent is per purchase, not a mode
+     * the page stays in.
+     */
+    public bool $confirmedBlindPurchase = false;
 
     public string $returnUrl = '/pack';
 
@@ -130,7 +151,7 @@ class Ship extends Page
                 ->action(fn () => $this->ship())
                 ->icon('heroicon-o-printer')
                 ->keybindings(['f12'])
-                ->disabled(fn () => empty($this->rateOptions) || $this->selectedRateIndex === null),
+                ->disabled(fn () => $this->selectedRateIndex === null && $this->selectedBlindOfferId === null),
             Action::make('Back')
                 ->action(fn () => $this->redirect($this->returnUrl))
                 ->icon('heroicon-o-arrow-left')
@@ -234,6 +255,49 @@ class Ship extends Page
         $this->deliverByDate = $options->deliverByDate;
         $this->allRatesLate = $options->allRatesLate;
         $this->selectedRateIndex = $options->selectedRateIndex;
+        $this->blindPurchaseOffers = $options->blindPurchaseOffers;
+        $this->selectedBlindOfferId = null;
+        $this->confirmedBlindPurchase = false;
+    }
+
+    /**
+     * The two selections are one choice, so each clears the other. A blind
+     * purchase is never pre-selected — `selectedRateIndex` may arrive already
+     * set from a shipping rule, and nothing sets this but a packer.
+     */
+    public function updatedSelectedRateIndex(): void
+    {
+        if ($this->selectedRateIndex !== null) {
+            $this->selectedBlindOfferId = null;
+        }
+    }
+
+    public function updatedSelectedBlindOfferId(): void
+    {
+        if ($this->selectedBlindOfferId !== null) {
+            $this->selectedRateIndex = null;
+            $this->confirmedBlindPurchase = false;
+        }
+    }
+
+    /**
+     * The chosen blind offer, matched against the offers this page produced.
+     *
+     * A convenience, not a control: `$blindPurchaseOffers` is public component
+     * state and arrives from the browser like everything else here. The
+     * workflow derives the real offer from the package before spending
+     * anything — see `EloquentPackageShippingWorkflow::resolveBlindOffer()` —
+     * so what this decides is which identifier to send, not what gets bought.
+     */
+    private function selectedBlindOffer(): ?BlindPurchaseOffer
+    {
+        foreach ($this->blindPurchaseOffers as $offer) {
+            if (($offer['id'] ?? null) === $this->selectedBlindOfferId) {
+                return BlindPurchaseOffer::fromArray($offer);
+            }
+        }
+
+        return null;
     }
 
     public function ship(): void
@@ -250,25 +314,43 @@ class Ship extends Page
             return;
         }
 
-        if ($this->selectedRateIndex === null || ! isset($this->rateOptions[$this->selectedRateIndex])) {
+        $blindOffer = $this->selectedBlindOfferId === null ? null : $this->selectedBlindOffer();
+
+        if ($this->selectedBlindOfferId !== null && ! $blindOffer) {
+            $this->notifyError('Offer Unavailable', 'That option is no longer being offered. Get rates again.');
+
+            return;
+        }
+
+        if ($blindOffer && ! $this->confirmedBlindPurchase) {
+            $this->dispatch('open-modal', id: 'blind-purchase-confirm');
+
+            return;
+        }
+
+        if (! $blindOffer && ($this->selectedRateIndex === null || ! isset($this->rateOptions[$this->selectedRateIndex]))) {
             $this->notifyError('No Rate Selected', 'Please select a shipping rate.');
 
             return;
         }
 
-        $rate = $this->rateOptions[$this->selectedRateIndex];
-        $selectedRate = RateResponse::fromArray($rate);
-
-        $result = app(PackageShippingWorkflow::class)->ship(
-            $this->package,
-            new PackageShippingRequest(
-                selectedRate: $selectedRate,
+        $request = $blindOffer
+            ? new PackageShippingRequest(
                 labelFormat: $this->labelFormat,
                 labelDpi: $this->labelDpi,
                 overrideCustomsWeights: $this->overrideCustomsWeights,
                 userId: auth()->id(),
-            ),
-        );
+                blindOffer: $blindOffer,
+            )
+            : new PackageShippingRequest(
+                selectedRate: RateResponse::fromArray($this->rateOptions[$this->selectedRateIndex]),
+                labelFormat: $this->labelFormat,
+                labelDpi: $this->labelDpi,
+                overrideCustomsWeights: $this->overrideCustomsWeights,
+                userId: auth()->id(),
+            );
+
+        $result = app(PackageShippingWorkflow::class)->ship($this->package, $request);
 
         if ($result->requiresCustomsWeightOverride) {
             $this->dispatch('open-modal', id: 'customs-weight-override');
@@ -277,6 +359,7 @@ class Ship extends Page
         }
 
         $this->overrideCustomsWeights = false;
+        $this->confirmedBlindPurchase = false;
 
         if (! $result->success) {
             $this->notifyError($result->title ?? 'Shipping Error', $result->message ?? 'An unexpected error occurred. Please try again.');
@@ -291,6 +374,18 @@ class Ship extends Page
         } else {
             $this->redirect($this->returnUrl);
         }
+    }
+
+    /**
+     * Explicit consent to buy without a price or a service, given once per
+     * purchase. ADR-0003 decision 6 requires the confirmation; resetting it
+     * after every attempt is what keeps it from becoming a setting.
+     */
+    public function confirmBlindPurchase(): void
+    {
+        $this->confirmedBlindPurchase = true;
+        $this->dispatch('close-modal', id: 'blind-purchase-confirm');
+        $this->ship();
     }
 
     public function confirmCustomsWeightOverride(): void

@@ -1,5 +1,8 @@
 <?php
 
+use App\Contracts\BlindPurchaseSource;
+use App\Contracts\CarrierAdapterInterface;
+use App\DataTransferObjects\Shipping\BlindPurchaseOffer;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
@@ -30,31 +33,68 @@ it('is configured only while an active Shopify data source exists', function ():
     expect($this->adapter->isConfigured())->toBeFalse();
 });
 
-it('advertises catalogued services without a price for a Shopify-sourced package', function (): void {
+it('does not quote at all', function (): void {
+    // ADR-0003 decision 6: a source that cannot state a carrier, a service or a
+    // price has no business returning something shaped like a rate.
+    expect($this->adapter)->not->toBeInstanceOf(CarrierAdapterInterface::class)
+        ->and($this->adapter)->toBeInstanceOf(BlindPurchaseSource::class)
+        ->and(method_exists($this->adapter, 'getRates'))->toBeFalse()
+        ->and(method_exists($this->adapter, 'resolvePreSelectedRate'))->toBeFalse();
+});
+
+it('advertises catalogued selections as priceless offers for a Shopify-sourced package', function (): void {
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+    allowBlindPurchase($package);
+
+    $offers = $this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package), ['auto', 'usps:usps_ground_advantage']);
+
+    expect($offers)->toHaveCount(2)
+        ->and($offers->pluck('serviceCode')->all())->toBe(['auto', 'usps:usps_ground_advantage'])
+        ->and($offers->every(fn (BlindPurchaseOffer $offer): bool => $offer->source === 'Shopify'))->toBeTrue()
+        ->and($offers->first()->sourceLabel)->toBe('Shopify Shipping')
+        ->and($offers->first()->selectionLabel)->toBe("Shopify's choice")
+        ->and($offers->first()->postageDataSourceId)->toBe($package->shipment->data_source_id);
+});
+
+it('advertises nothing for a client that has not opted into blind purchase', function (): void {
     seedShopifyCarrierServices();
     $package = shopifyPackage();
 
-    $rates = $this->adapter->getRates(RateRequest::fromPackage($package), ['auto', 'usps:usps_ground_advantage']);
-
-    expect($rates)->toHaveCount(2)
-        ->and($rates->pluck('serviceCode')->all())->toBe(['auto', 'usps:usps_ground_advantage'])
-        ->and($rates->every(fn (RateResponse $rate): bool => $rate->priceUnknown))->toBeTrue()
-        ->and($rates->every(fn (RateResponse $rate): bool => $rate->carrier === 'Shopify'))->toBeTrue();
+    expect($this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package), ['auto']))->toBeEmpty();
 });
 
 it('advertises nothing for a package that has no Shopify fulfillment order', function (): void {
     seedShopifyCarrierServices();
     $package = shopifyPackage(['metadata' => []]);
+    allowBlindPurchase($package);
 
-    expect($this->adapter->getRates(RateRequest::fromPackage($package), ['auto']))->toBeEmpty();
+    expect($this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package), ['auto']))->toBeEmpty();
 });
 
 it('advertises nothing once the Shopify data source is deactivated', function (): void {
     seedShopifyCarrierServices();
     $package = shopifyPackage();
+    allowBlindPurchase($package);
     $package->shipment->dataSource->update(['active' => false]);
 
-    expect($this->adapter->getRates(RateRequest::fromPackage($package->fresh()), ['auto']))->toBeEmpty();
+    expect($this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package->fresh()), ['auto']))->toBeEmpty();
+});
+
+it('refuses to buy from a request that carries a rate instead of a blind purchase', function (): void {
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+
+    $response = $this->adapter->createShipment(ShipRequest::fromPackageAndRate($package, new RateResponse(
+        carrier: 'Shopify',
+        serviceCode: 'auto',
+        serviceName: "Shopify's choice",
+        price: 0.0,
+        priceUnknown: true,
+    )));
+
+    expect($response->success)->toBeFalse()
+        ->and($response->errorMessage)->toContain('blind purchase');
 });
 
 it('splits a service code into the parts Shopify selects a rate with', function (): void {
@@ -487,12 +527,11 @@ function shopifyPackage(array $shipmentAttributes = []): Package
 
 function shopifyShipRequest(Package $package, string $serviceCode = 'auto'): ShipRequest
 {
-    return ShipRequest::fromPackageAndRate($package, new RateResponse(
-        carrier: 'Shopify',
+    return ShipRequest::fromPackageAndBlindOffer($package, new BlindPurchaseOffer(
+        source: 'Shopify',
+        sourceLabel: 'Shopify Shipping',
         serviceCode: $serviceCode,
-        serviceName: $serviceCode === 'auto' ? "Shopify's choice" : 'USPS Ground Advantage',
-        price: 0.0,
-        priceUnknown: true,
+        selectionLabel: $serviceCode === 'auto' ? "Shopify's choice" : 'USPS Ground Advantage',
     ));
 }
 

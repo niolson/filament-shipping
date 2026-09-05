@@ -126,6 +126,7 @@ class Settings extends Page
                     'return_postal_code' => $client->return_postal_code,
                     'return_country' => $client->return_country,
                     'return_phone' => $client->return_phone,
+                    'blind_purchase_enabled' => $client->blind_purchase_enabled,
                 ];
             }
         }
@@ -267,6 +268,19 @@ class Settings extends Page
                                 ->tel()
                                 ->maxLength(50)
                                 ->columnSpanFull(),
+                        ])
+                        ->columns(1),
+
+                    Section::make('Blind Purchase')
+                        ->description('Postage bought on a sales channel\'s own account, at a price and on a service nobody sees until afterwards.')
+                        // Single-client installs edit their one client here;
+                        // multi-client installs edit it per client, which is
+                        // where this consent belongs (ADR-0003 decision 5).
+                        ->visible(fn (): bool => ! (bool) app(SettingsService::class)->get('multi_client_enabled', false))
+                        ->schema([
+                            Toggle::make('client.blind_purchase_enabled')
+                                ->label('Allow blind purchase')
+                                ->helperText('Shopify Shipping reaches USPS Connect eCommerce rates without an account of our own, but reports no price, no service and no carrier until the label comes back, and its labels cannot be voided from PolyBag. Off by default. Never used by auto-ship, batch ship or shipping rules — a packer picks it on the Ship page and confirms.'),
                         ])
                         ->columns(1),
 
@@ -716,6 +730,7 @@ class Settings extends Page
                     'return_postal_code' => $data['client']['return_postal_code'] ?? null,
                     'return_country' => $data['client']['return_country'] ?? null,
                     'return_phone' => $data['client']['return_phone'] ?? null,
+                    'blind_purchase_enabled' => (bool) ($data['client']['blind_purchase_enabled'] ?? false),
                 ]);
             }
         }

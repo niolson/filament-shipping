@@ -9,9 +9,14 @@ use App\Enums\ShippingRuleAction;
 use App\Models\Package;
 use App\Models\Shipment;
 use App\Models\ShippingRule;
+use App\Services\Carriers\CarrierRegistry;
 
 class RuleEvaluator
 {
+    public function __construct(
+        private readonly CarrierRegistry $carrierRegistry,
+    ) {}
+
     public function evaluate(Shipment $shipment, ?Package $package = null): RuleEvaluationResult
     {
         $rules = ShippingRule::query()
@@ -43,6 +48,21 @@ class RuleEvaluator
             };
 
             if ($rule->action === ShippingRuleAction::UseService) {
+                // A rule is automation choosing on a packer's behalf, and a
+                // blind purchase is the one thing nobody may choose for them:
+                // there is no price and no service to have decided about
+                // (ADR-0003 decision 5). Skipped rather than fatal, so the next
+                // matching rule applies as if this one had not been written.
+                if ($this->carrierRegistry->blindPurchaseSourceFor($carrier->name)) {
+                    logger()->warning('Ignored a shipping rule that pre-selects a blind purchase', [
+                        'rule' => $rule->name,
+                        'carrier' => $carrier->name,
+                        'service_code' => $service->service_code,
+                    ]);
+
+                    continue;
+                }
+
                 $preSelectedRate = new RateResponse(
                     carrier: $carrier->name,
                     serviceCode: $service->service_code,

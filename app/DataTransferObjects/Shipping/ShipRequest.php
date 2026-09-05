@@ -2,6 +2,7 @@
 
 namespace App\DataTransferObjects\Shipping;
 
+use App\Enums\ServiceCapability;
 use App\Models\Package;
 use App\Services\LabelReferenceResolver;
 use App\Services\ShipDateService;
@@ -11,6 +12,8 @@ use Carbon\CarbonImmutable;
 readonly class ShipRequest
 {
     /**
+     * @param  RateResponse|null  $selectedRate  What was quoted and chosen — null for a blind purchase, which had no price or service to quote
+     * @param  BlindPurchaseOffer|null  $blindOffer  The priceless offer being bought instead, when there is one. Exactly one of the two is set.
      * @param  array<int, CustomsItem>  $customsItems
      * @param  array<int, string>  $specialServiceCodes
      * @param  array<string, array<string, mixed>>  $specialServiceConfig  Per-code config values (e.g. declared_value amount)
@@ -20,7 +23,7 @@ readonly class ShipRequest
         public AddressData $fromAddress,
         public AddressData $toAddress,
         public PackageData $packageData,
-        public RateResponse $selectedRate,
+        public ?RateResponse $selectedRate = null,
         public array $customsItems = [],
         public string $labelFormat = 'pdf',
         public ?int $labelDpi = null,
@@ -31,6 +34,7 @@ readonly class ShipRequest
         public array $specialServiceConfig = [],
         public array $references = [],
         public ?int $packageId = null,
+        public ?BlindPurchaseOffer $blindOffer = null,
     ) {}
 
     public function hasSpecialService(string $code): bool
@@ -73,6 +77,7 @@ readonly class ShipRequest
             specialServiceConfig: $this->specialServiceConfig,
             references: $this->references,
             packageId: $this->packageId,
+            blindOffer: $this->blindOffer,
         );
     }
 
@@ -121,6 +126,7 @@ readonly class ShipRequest
             specialServiceConfig: $this->specialServiceConfig,
             references: $this->references,
             packageId: $this->packageId,
+            blindOffer: $this->blindOffer,
         );
     }
 
@@ -164,6 +170,58 @@ readonly class ShipRequest
             specialServiceConfig: $resolver->configForPackage($package, $specialServiceCodes),
             references: app(LabelReferenceResolver::class)->forPackage($package),
             packageId: $package->id,
+        );
+    }
+
+    /**
+     * The same request for a purchase with no rate behind it.
+     *
+     * Everything a label needs that does not come from a quote is assembled
+     * exactly as above — addresses, customs items, references, ship date. What
+     * is missing is missing because the source never stated it: no carrier, no
+     * service, no price (ADR-0003 decision 6).
+     *
+     * No special services are sent. A hard-required one excluded this source at
+     * offer time, and a default one is dropped rather than requested, because
+     * an unconstrained selection cannot promise to apply it — see
+     * {@see ServiceCapability::Unguaranteed}.
+     *
+     * The ship date is still resolved through `ShipDateService` under the
+     * source's name, which is where Shopify's own pickup and cutoff policy is
+     * configured.
+     */
+    public static function fromPackageAndBlindOffer(
+        Package $package,
+        BlindPurchaseOffer $offer,
+        string $labelFormat = 'pdf',
+        ?int $labelDpi = null,
+    ): self {
+        $customsItems = [];
+
+        $package->loadMissing(['packageItems.product', 'packageItems.shipmentItem']);
+
+        foreach ($package->packageItems as $packageItem) {
+            $customsItems[] = CustomsItem::fromPackageItem($packageItem);
+        }
+
+        $package->loadMissing('location');
+        $fromAddress = $package->location
+            ? AddressData::fromLocation($package->location)
+            : AddressData::fromConfig();
+
+        return new self(
+            fromAddress: $fromAddress,
+            toAddress: AddressData::fromShipment($package->shipment),
+            packageData: PackageData::fromPackage($package),
+            customsItems: $customsItems,
+            labelFormat: $labelFormat,
+            labelDpi: $labelDpi,
+            locationId: $package->location_id,
+            clientId: $package->shipment->client_id,
+            shipDate: app(ShipDateService::class)->getShipDate($offer->source, $package->location_id),
+            references: app(LabelReferenceResolver::class)->forPackage($package),
+            packageId: $package->id,
+            blindOffer: $offer,
         );
     }
 }

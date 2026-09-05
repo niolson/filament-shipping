@@ -15,9 +15,11 @@ class RateSelector
      * Unknown delivery date with a deadline counts as late.
      * No deadline = all rates classified as on-time.
      *
-     * Rates whose price is only known at purchase time (Shopify Shipping) sort
-     * after every priced rate in their group, so an unpriced option is never
-     * mistaken for the cheapest one — it only wins when nothing else is offered.
+     * A rate whose price is only known at purchase time sorts after every
+     * priced rate in its group, so it is never mistaken for the cheapest one.
+     * It stays in the list: this is the attended view, where a packer sees what
+     * is unpriced and takes responsibility for choosing it. What it may not do
+     * is win unattended — see {@see self::selectBest()}.
      *
      * @param  Collection<int, RateResponse>  $rates
      * @return Collection<int, ClassifiedRate>
@@ -45,11 +47,24 @@ class RateSelector
     /**
      * Select the best rate: cheapest on-time when a deadline exists, otherwise cheapest overall.
      *
+     * Unpriced rates are dropped rather than ranked last, and null is the
+     * honest answer when nothing priced is left. This is the unattended path —
+     * auto-ship, batch ship — and "it only wins when nothing else is offered"
+     * is precisely the case ADR-0003 decision 5 refuses: spending money at a
+     * price nobody has seen, on nobody's authority, because the alternatives
+     * happened to be unavailable.
+     *
      * @param  Collection<int, RateResponse>  $rates
      */
-    public function selectBest(Collection $rates, ?Carbon $deadline): RateResponse
+    public function selectBest(Collection $rates, ?Carbon $deadline): ?RateResponse
     {
-        return $this->classify($rates, $deadline)->first()->rate;
+        $priced = $rates->reject(fn (RateResponse $rate): bool => $rate->priceUnknown);
+
+        if ($priced->isEmpty()) {
+            return null;
+        }
+
+        return $this->classify($priced, $deadline)->first()->rate;
     }
 
     /**

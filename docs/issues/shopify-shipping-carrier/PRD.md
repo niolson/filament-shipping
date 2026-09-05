@@ -42,14 +42,19 @@ data source are eligible — Manual Ship and non-Shopify channels are out by con
 Built 2026-08-29 to 2026-08-31, on `main`, tests green:
 
 - `ShopifyAdapter` — a real `Carrier` + `CarrierService`, not a bespoke Ship-page
-  button, so shipping-method mapping, shipping rules, auto-ship and batch ship all reach
-  it through the paths they already use
+  button, so shipping-method mapping reaches it through the path it already uses.
+  **Half superseded 2026-09-04 by `09`:** the catalog rows and the shipping-method
+  mapping stay; shipping rules, auto-ship and batch ship no longer reach it, because
+  ADR-0003 decision 5 excludes blind purchase from every automated path
 - `ShopifyShippingLabelService` — purchase, poll, download, and void detection
 - `ShopifyLabelVoidSynchronizer` + `packages:sync-shopify-voids`, scheduled every 15
   minutes
 - `RateResponse::$priceUnknown` — Shopify rates display as "Price set at purchase" and
   sort behind every real quote, so a `$0.00` row can never win "cheapest" and silently
-  reroute all shipping
+  reroute all shipping. **Superseded 2026-09-04 by `09`:** ADR-0003 decision 6 rejects
+  modelling this as a rate at all. Shopify now returns a `BlindPurchaseOffer`, listed
+  apart from the rates and reachable by no automated path; `priceUnknown` survives on
+  `RateResponse` for sources that quote a rate whose price is not yet fixed
 - UI: warning badge on the package page, disabled Void button with explanation, carrier
   column reading `Shopify` with *"via <actual carrier>"* beneath
 
@@ -60,7 +65,9 @@ zero would read as a free label everywhere cost is totalled. See `08` for the re
 consequence.
 
 **The carrier of record is always `Shopify`**, with whatever Shopify actually picked
-stored in `packages.service` and `packages.metadata.shopify_tracking_company`. This is
+stored in `packages.service` and `packages.metadata.shopify_tracking_company`.
+(Both halves of that sentence were reversed later: `postage-source-split/11` and `10`
+put the picked carrier in the carrier column and left the service null.) This is
 the catch-all for Shopify choosing a carrier PolyBag has no account or catalogued
 service for. It also defends against `preferredRateSelection` being ignored — see `02`.
 

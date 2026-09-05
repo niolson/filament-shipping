@@ -127,7 +127,8 @@
                             <p class="mt-2 text-gray-500 dark:text-gray-400">No shipping rates available for this package.</p>
                             <p class="text-sm text-gray-400 dark:text-gray-500">Check the shipping method configuration.</p>
                         </div>
-                    @else
+                    @endif
+                    @if(!empty($rateOptions))
                         @if($allRatesLate && $deliverByDate)
                             <div class="rounded-lg bg-warning-50 dark:bg-warning-950 p-4 mb-4 border border-warning-300 dark:border-warning-700">
                                 <div class="flex items-center gap-2">
@@ -138,7 +139,11 @@
                                 </div>
                             </div>
                         @endif
-                        <div class="space-y-2" x-data="{ selected: {{ $selectedRateIndex ?? 'null' }} }">
+                        {{-- Selection is read from the server state rather than mirrored
+                             in Alpine: a blind purchase below can take the selection away
+                             from this list, and two copies of "what is selected" would
+                             disagree the moment it does. --}}
+                        <div class="space-y-2" x-data="{ get selected() { return $wire.selectedRateIndex === null ? null : Number($wire.selectedRateIndex) } }">
                             @foreach($rateOptions as $index => $rate)
                                 @php
                                     $logoFile = match(strtolower($rate['carrier'] ?? '')) {
@@ -157,8 +162,7 @@
                                 >
                                     <input
                                         type="radio"
-                                        wire:model="selectedRateIndex"
-                                        x-on:change="selected = {{ $index }}"
+                                        wire:model.live="selectedRateIndex"
                                         value="{{ $index }}"
                                         class="text-primary-600 focus:ring-primary-500"
                                     >
@@ -186,6 +190,55 @@
                                                 @endforeach
                                             </div>
                                         @endif
+                                    </div>
+                                </label>
+                            @endforeach
+                        </div>
+                    @endif
+
+                    {{-- Priced rates end here. What follows is not one, and is
+                         separated deliberately: Shopify Shipping reports no
+                         price and no service, before or after the purchase, so
+                         it is never sorted, ranked or compared against the list
+                         above (ADR-0003 decisions 5 and 6). --}}
+                    @if(!empty($blindPurchaseOffers))
+                        <div class="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2">
+                            <div class="rounded-lg bg-warning-50 dark:bg-warning-950 p-3 border border-warning-300 dark:border-warning-700">
+                                <div class="flex items-start gap-2">
+                                    <x-filament::icon icon="heroicon-o-eye-slash" class="w-5 h-5 flex-shrink-0 text-warning-600 dark:text-warning-400" />
+                                    <div class="text-sm text-warning-800 dark:text-warning-200">
+                                        <p class="font-medium">Bought without a price or a service</p>
+                                        <p class="mt-0.5 text-xs">
+                                            These options are not quotes. The carrier, the service and the cost are
+                                            chosen by the seller and are not reported back — not before the purchase,
+                                            and not after it. Nothing here can be compared with the rates above.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            @foreach($blindPurchaseOffers as $offer)
+                                <label
+                                    wire:key="blind-{{ $offer['id'] }}"
+                                    x-bind:class="$wire.selectedBlindOfferId === '{{ $offer['id'] }}'
+                                        ? 'border-warning-500 bg-warning-50 dark:bg-warning-950 dark:border-warning-500'
+                                        : 'border-dashed border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'"
+                                    class="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+                                >
+                                    <input
+                                        type="radio"
+                                        wire:model.live="selectedBlindOfferId"
+                                        value="{{ $offer['id'] }}"
+                                        class="text-warning-600 focus:ring-warning-500"
+                                    >
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-2 font-medium text-sm text-gray-900 dark:text-white">
+                                            <span>{{ $offer['sourceLabel'] }}</span>
+                                            <span>{{ $offer['selectionLabel'] }}</span>
+                                        </div>
+                                        <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                            Price and service unknown until purchase — you will be asked to confirm
+                                        </div>
                                     </div>
                                 </label>
                             @endforeach
@@ -222,6 +275,23 @@
                 Override & Ship
             </x-filament::button>
             <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'customs-weight-override' })">
+                Cancel
+            </x-filament::button>
+        </x-slot>
+    </x-filament::modal>
+
+    <x-filament::modal id="blind-purchase-confirm" width="md">
+        <x-slot name="heading">Buy without a price or a service?</x-slot>
+        <x-slot name="description">
+            This label is bought on the seller's account. They choose the carrier and the service
+            themselves, and report neither back — so the cost will not appear against this package,
+            the service will stay unknown, and the label cannot be voided from PolyBag.
+        </x-slot>
+        <x-slot name="footerActions">
+            <x-filament::button color="warning" wire:click="confirmBlindPurchase">
+                I understand — buy the label
+            </x-filament::button>
+            <x-filament::button color="gray" x-on:click="$dispatch('close-modal', { id: 'blind-purchase-confirm' })">
                 Cancel
             </x-filament::button>
         </x-slot>

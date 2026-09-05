@@ -128,10 +128,11 @@ it('sorts a rate priced only at purchase behind every quoted rate', function ():
         ->and($classified->last()->rate->priceUnknown)->toBeTrue();
 });
 
-it('selectBest picks a rate priced at purchase only when nothing else is offered', function (): void {
-    $best = app(RateSelector::class)->selectBest(collect([makeUnpricedRate()]), null);
-
-    expect($best->priceUnknown)->toBeTrue()
+it('selectBest never buys a rate whose price nobody has seen', function (): void {
+    // Attended, an unpriced rate sorts last and a packer may still take it.
+    // Unattended there is nobody to take responsibility, so "it was the only
+    // thing offered" is a reason to buy nothing at all — ADR-0003 decision 5.
+    expect(app(RateSelector::class)->selectBest(collect([makeUnpricedRate()]), null))->toBeNull()
         ->and(app(RateSelector::class)->selectBest(collect([makeUnpricedRate(), makeRate(9.00)]), null)->price)->toBe(9.00);
 });
 
