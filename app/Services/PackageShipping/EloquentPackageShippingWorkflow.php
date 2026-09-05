@@ -11,6 +11,7 @@ use App\DataTransferObjects\Shipping\BlindPurchaseOffer;
 use App\DataTransferObjects\Shipping\ClassifiedRate;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
+use App\DataTransferObjects\Shipping\UnattendedRateSelection;
 use App\Enums\PackageStatus;
 use App\Enums\PostageSource;
 use App\Exceptions\MissingDeclaredValueException;
@@ -314,10 +315,11 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
     public function autoShip(Package $package, PackageAutoShippingRequest $request): PackageShippingResult
     {
         try {
-            $selectedRate = $this->selectedRateForAutoShip($package);
+            $selection = $this->selectedRateForAutoShip($package);
+            $selectedRate = $selection->rate;
 
             if (! $selectedRate) {
-                $result = PackageShippingResult::failed('Shipping Error', 'No shipping rates available for this package.');
+                $result = $this->nothingToBuyUnattended($package, $selection);
                 $this->cleanupPackage($package, $request, $result);
 
                 return $result;
@@ -634,11 +636,29 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
         return $totalCustomsWeight > $shipRequest->packageData->weight;
     }
 
-    private function selectedRateForAutoShip(Package $package): ?RateResponse
+    /**
+     * What automation may buy for this package, and what it refused to.
+     *
+     * Every unattended path arrives here — auto-ship from Pack and Manual Ship,
+     * and batch ship through `GenerateLabelJob` — and every one of them leaves
+     * through {@see RateSelector::selectForAutomation()}, which is the single
+     * place ADR-0003 decision 4 is enforced. A shipping rule's pre-selected rate
+     * goes through it too rather than around it: a rule is automation choosing,
+     * so a rule naming a service nobody approved must not buy it either.
+     *
+     * Deliberately not routed through {@see prepareRates()}. That builds the
+     * attended view — where an unapproved service is *supposed* to appear, with
+     * its price, for a packer to take responsibility for — and its
+     * `selectedRateIndex` is a default highlight, not a decision. Reading a
+     * choice off the attended list is how the two would come to mean the same
+     * thing again.
+     */
+    private function selectedRateForAutoShip(Package $package): UnattendedRateSelection
     {
         $package->loadMissing(['packageItems.product', 'packageItems.shipmentItem', 'shipment.shippingMethod']);
 
         $ruleResult = $this->ruleEvaluator->evaluate($package->shipment, $package);
+        $clientId = $package->shipment?->client_id;
 
         // Only a source that quotes can resolve a pre-selected rate. Anything
         // else falls through to rate shopping rather than being asked to
@@ -649,21 +669,55 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
             : null;
 
         if ($adapter) {
-            return $adapter->resolvePreSelectedRate($ruleResult->preSelectedRate, $package);
+            return $this->rateSelector->selectForAutomation(
+                collect([$adapter->resolvePreSelectedRate($ruleResult->preSelectedRate, $package)]),
+                deadline: null,
+                clientId: $clientId,
+            );
         }
 
-        $options = $this->prepareRates($package);
+        $rates = $this->shippingRateService->getShippingRates($package->id);
 
-        if ($options->selectedRateIndex === null || ! isset($options->rateOptions[$options->selectedRateIndex])) {
-            return null;
+        if ($ruleResult->shouldFilterRates()) {
+            $rates = $rates->reject(
+                fn (RateResponse $rate): bool => in_array($rate->serviceCode, $ruleResult->excludedServiceCodes, true)
+            );
         }
 
-        $rate = RateResponse::fromArray($options->rateOptions[$options->selectedRateIndex]);
+        return $this->rateSelector->selectForAutomation(
+            $rates,
+            $package->shipment->getDeliverByDate(),
+            $clientId,
+        );
+    }
 
-        // Nothing unpriced is bought unattended, whatever it sorted behind.
-        // ADR-0003 decision 5: an unknown price winning because it was the only
-        // thing left is exactly the outcome automation must not produce.
-        return $rate->priceUnknown ? null : $rate;
+    /**
+     * Why nothing was bought, in words an operator can act on.
+     *
+     * "No shipping rates available" is true of an empty rate list and false of
+     * a package that was quoted three services none of which an administrator
+     * has approved — and it sends whoever reads it to the carrier rather than
+     * to the approval page. A batch of several hundred is exactly where that
+     * misdirection costs the most, so the refusal names itself.
+     */
+    private function nothingToBuyUnattended(Package $package, UnattendedRateSelection $selection): PackageShippingResult
+    {
+        if (! $selection->withheldAnything()) {
+            return PackageShippingResult::failed('Shipping Error', 'No shipping rates available for this package.');
+        }
+
+        logger()->warning('Withheld a rate from automated purchase because nobody has approved the service', [
+            'package_id' => $package->id,
+            'client_id' => $package->shipment?->client_id,
+            'withheld' => $selection->withheldForLog(),
+        ]);
+
+        return PackageShippingResult::failed(
+            'No Approved Rates',
+            'This package was quoted, but no service it was offered is approved for automated purchase: '
+            .$selection->withheldSummary().'. '
+            .'Approve it on Map Carrier Services, or ship this package from the Ship page, where a person chooses the rate.',
+        );
     }
 
     private function cleanupPackage(Package $package, PackageAutoShippingRequest $request, PackageShippingResult $result): void

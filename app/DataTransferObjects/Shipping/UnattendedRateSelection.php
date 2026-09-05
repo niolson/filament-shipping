@@ -1,0 +1,67 @@
+<?php
+
+namespace App\DataTransferObjects\Shipping;
+
+use App\Services\RateSelector;
+use Illuminate\Support\Collection;
+
+/**
+ * What automation may buy, and what it declined to buy on nobody's authority.
+ *
+ * {@see RateSelector::selectBest()} answers only the first half, because that
+ * is the answer the ADR names and a caller must not be able to get a rate out
+ * of it that nobody approved. The second half is here so that the refusal can
+ * be reported rather than presented as "no rates available" — a packer told
+ * that goes looking at the carrier, when what actually happened is that a
+ * service was quoted and an administrator has not approved it (ADR-0003
+ * decision 4).
+ *
+ * Both halves come out of one pass, so reporting the reason costs no extra
+ * query on a batch of several hundred labels.
+ */
+readonly class UnattendedRateSelection
+{
+    /**
+     * @param  RateResponse|null  $rate  The rate to buy, or null when nothing is eligible
+     * @param  Collection<int, RateResponse>  $withheld  Rates that were quoted and are not approved for automated purchase
+     */
+    public function __construct(
+        public ?RateResponse $rate,
+        public Collection $withheld,
+    ) {}
+
+    public function withheldAnything(): bool
+    {
+        return $this->withheld->isNotEmpty();
+    }
+
+    /**
+     * The withheld services as an operator would name them, for a notification
+     * and for the log line beside it.
+     */
+    public function withheldSummary(): string
+    {
+        return $this->withheld
+            ->map(fn (RateResponse $rate): string => trim("{$rate->carrier} {$rate->serviceName}")
+                .($rate->observedService === null ? '' : " (via {$rate->observedService->source})"))
+            ->unique()
+            ->implode(', ');
+    }
+
+    /**
+     * @return array<int, array{source: string, environment: string, carrier: string, service: string}>
+     */
+    public function withheldForLog(): array
+    {
+        return $this->withheld
+            ->filter(fn (RateResponse $rate): bool => $rate->observedService !== null)
+            ->map(fn (RateResponse $rate): array => [
+                'source' => $rate->observedService->source,
+                'environment' => $rate->observedService->environment->value,
+                'carrier' => $rate->observedService->externalCarrierId,
+                'service' => $rate->observedService->externalServiceId,
+            ])
+            ->values()
+            ->all();
+    }
+}

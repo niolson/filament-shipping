@@ -38,6 +38,12 @@ Notes that predate `01` and survived it unchanged:
 - **Labels** are base64 with a format that must be one of the chosen rate's
   `supportedDocumentSpecifications` — the *purchase* fails otherwise, not the quote. PNG is not
   a format our printing path supports. Request 4x6 INCH explicitly.
+- **Every rate this adapter returns must carry an `ObservedServiceIdentity`** on its
+  `RateResponse`. That is what `07` gates automated purchase on, and it is the only thing that
+  tells a discovered service apart from an authored `CarrierService` at selection time — a rate
+  that arrives without one is treated as authored configuration and can win `selectBest()`
+  unapproved. Build it from the same `(source, environment, carrierId, serviceId)` the adapter
+  is already handing `ObservedServiceRecorder`, so the two cannot disagree.
 
 ## Acceptance criteria
 
@@ -47,6 +53,7 @@ Notes that predate `01` and survived it unchanged:
 - [ ] Request bodies validate against the vendored Shipping v2 schema, following the pattern
       in `tests/Fixtures/Schemas/`
 - [ ] An expired offer re-quotes rather than failing the packer
+- [ ] Every returned rate carries its observed-service identity, so `07`'s approval gate applies
 
 ## Blocked by
 
