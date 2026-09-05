@@ -146,7 +146,10 @@ it('gives no answer when the source that bought the label has been deactivated',
 
 it('refuses to track a label bought through a postage source it has no integration for', function (): void {
     $package = shippedShopifyPackage();
-    $package->postageDataSource->update(['source_type' => 'App\\Services\\ShipmentImport\\Sources\\AmazonSource']);
+    // A driver that imports orders and sells no postage at all. This used to be
+    // AmazonSource, which stopped being an example of the case when Amazon Buy
+    // Shipping got an implementation of its own.
+    $package->postageDataSource->update(['source_type' => 'App\\Services\\ShipmentImport\\Sources\\DatabaseSource']);
 
     $response = app(TrackingService::class)->refreshPackage($package->fresh());
 

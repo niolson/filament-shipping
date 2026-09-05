@@ -237,8 +237,36 @@ class AmazonSource implements DataSourceInterface, ExportDestinationInterface
         return 'amazon';
     }
 
+    /**
+     * Write the tracking number back to Amazon as a shipment confirmation.
+     *
+     * Skipped outright for a label bought through Amazon Buy Shipping. That
+     * purchase confirms the order as part of buying the postage, and Ship+
+     * orders reject a manual `confirmShipment` afterwards with a 400 — so the
+     * export's job here is already done, and doing it again would turn a
+     * shipped package into a permanently failed export.
+     *
+     * Gated on the stored Amazon `shipmentId` rather than on the package's
+     * postage source: what matters is that *Amazon* bought this label, and the
+     * shipment ID is the only thing that says so. A package re-pointed at
+     * another data source keeps it, and correctly stays unconfirmed here.
+     */
     public function exportPackage(array $data): void
     {
+        // Before the credential check, deliberately. There is nothing to send,
+        // so there is nothing credentials are needed for — and a seller who
+        // rotates or removes them after the label was bought would otherwise
+        // fail an export that had already succeeded at purchase time, leaving a
+        // correctly shipped package permanently unexported.
+        if (filled($data['_amazon_shipment_id'] ?? null)) {
+            Log::info('Skipping Amazon shipment confirmation for a Buy Shipping label', [
+                'amazon_shipment_id' => $data['_amazon_shipment_id'],
+                'package' => $data['_package_reference_id'] ?? null,
+            ]);
+
+            return;
+        }
+
         $this->validateExportConfiguration();
 
         $amazonOrderId = $data['amazon_order_id'] ?? null;

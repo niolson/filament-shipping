@@ -7,6 +7,7 @@ golden array we wrote by hand at the same time as the code that builds it.
 | File | Source | License |
 |---|---|---|
 | `ordersV0.json` | [`amzn/selling-partner-api-models`](https://github.com/amzn/selling-partner-api-models) — `models/orders-api-model/ordersV0.json` | Apache-2.0 |
+| `shippingV2.json` | [`amzn/selling-partner-api-models`](https://github.com/amzn/selling-partner-api-models) — `models/shipping-api-model/shippingV2.json` | Apache-2.0 |
 | `upsRating.json` | [`UPS-API/api-documentation`](https://github.com/UPS-API/api-documentation) — `Rating.yaml` | MIT |
 | `upsShipping.json` | [`UPS-API/api-documentation`](https://github.com/UPS-API/api-documentation) — `Shipping.yaml` | MIT |
 
@@ -18,14 +19,15 @@ vendored verbatim in `licenses/` rather than named only in the table above:
 | Notice | Covers |
 |---|---|
 | `licenses/UPS-API-api-documentation-LICENSE.txt` | `upsRating.json`, `upsShipping.json` |
-| `licenses/amzn-selling-partner-api-models-LICENSE.txt` | `ordersV0.json` |
-| `licenses/amzn-selling-partner-api-models-NOTICE.txt` | `ordersV0.json` |
+| `licenses/amzn-selling-partner-api-models-LICENSE.txt` | `ordersV0.json`, `shippingV2.json` |
+| `licenses/amzn-selling-partner-api-models-NOTICE.txt` | `ordersV0.json`, `shippingV2.json` |
 
 MIT requires "the above copyright notice and this permission notice" to be included in all
 copies or substantial portions; Apache-2.0 §4 requires a copy of the License and the
-upstream NOTICE. All three files are byte-for-byte copies of their upstream originals.
+upstream NOTICE. All three notice files are byte-for-byte copies of their upstream
+originals.
 
-**`ordersV0.json` is an unmodified copy.** The two UPS files are **modified copies**:
+**Both Amazon files are unmodified copies.** The two UPS files are **modified copies**:
 converted from YAML to JSON and passed through the cardinality fix described below. Both
 transformations are mechanical and reproducible from the refresh script — no schema was
 hand-edited to accommodate our request bodies.
@@ -34,11 +36,12 @@ These notices cover the vendored specs only. They say nothing about PolyBag's ow
 and nothing about the separate agreements governing *use* of either API — UPS's spec
 carries an `info.termsOfService` pointing at its own service agreement.
 
-Refresh the Amazon spec with:
+Refresh the Amazon specs with:
 
 ```bash
-curl -sL -o tests/Fixtures/Schemas/ordersV0.json \
-  https://raw.githubusercontent.com/amzn/selling-partner-api-models/main/models/orders-api-model/ordersV0.json
+B=https://raw.githubusercontent.com/amzn/selling-partner-api-models/main/models
+curl -sL -o tests/Fixtures/Schemas/ordersV0.json $B/orders-api-model/ordersV0.json
+curl -sL -o tests/Fixtures/Schemas/shippingV2.json $B/shipping-api-model/shippingV2.json
 ```
 
 The UPS specs need a conversion step — see below.
@@ -141,7 +144,23 @@ If we ever schema-check the *read* side (today those responses are mocked), that
 needs `orders_2026-01-01.json` vendored alongside this file, and
 `assertMatchesSpApiSchema()` takes the document name as its third argument.
 
-Note the spec is looser than Amazon's real validation in places — for example
+## What `shippingV2` covers
+
+Amazon Buy Shipping: `GetRatesRequest` for the quote and `PurchaseShipmentRequest` for the
+buy. Both are validated in `tests/Feature/AmazonBuyShippingTest.php` off the bodies the
+adapter actually builds.
+
+Two things the schema will *not* catch, both of which fail the **purchase** rather than the
+quote — so they are covered by tests of their own instead:
+
+- `requestedDocumentSpecification` has to match one of the chosen rate's
+  `supportedDocumentSpecifications`. The spec types it as a free-standing object, and
+  what makes a value legal is the rate, not the schema. A production `getRates` offered
+  PDF at both 8.5x11 and 4x6, ZPL only at 4x6/300 DPI, and PNG we cannot print at all.
+- A value-added-service group marked `isRequired` has to be answered. Nothing in the
+  schema says so, and the groups vary per rate.
+
+Note the specs are looser than Amazon's real validation in places — for example
 `packageReferenceId` is typed `string`, with "only positive numeric values are
 supported" living in the prose description. Passing this check is a floor, not a
 guarantee the live API will accept the request.

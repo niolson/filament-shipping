@@ -9,6 +9,7 @@ use App\Models\CarrierAccount;
 use App\Models\DataSource;
 use App\Models\Package;
 use App\Services\Carriers\CarrierRegistry;
+use App\Services\ShipmentImport\Sources\AmazonSource;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use Illuminate\Support\Collection;
 
@@ -44,14 +45,15 @@ class PostageSourceResolver
     /**
      * Import drivers whose account can also sell postage.
      *
-     * Amazon joins the list with its Buy Shipping adapter. A driver's presence
-     * here says the *kind* of account can sell postage, not that this one is
-     * entitled to — Amazon's per-marketplace approval is a separate gate that
-     * belongs with that adapter.
+     * A driver's presence here says the *kind* of account can sell postage, not
+     * that this one is entitled to. Amazon's entitlement is settled per order
+     * by `getRates` itself: a seller who cannot buy a service is told so in
+     * `ineligibleRates`, and one who cannot buy any gets an empty rate list —
+     * which is an absence of offers, not an error.
      *
      * @var array<int, class-string>
      */
-    private const CHANNEL_POSTAGE_DRIVERS = [ShopifySource::class];
+    private const CHANNEL_POSTAGE_DRIVERS = [ShopifySource::class, AmazonSource::class];
 
     public function __construct(
         private readonly CarrierRegistry $carrierRegistry,

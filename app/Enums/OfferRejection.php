@@ -41,6 +41,24 @@ enum OfferRejection: string
     }
 
     /**
+     * Whether a fresh quote is the whole remedy.
+     *
+     * True for every rejection that is cured by asking again, which is all of
+     * them but one. The Ship page acts on it by re-quoting on the spot, so the
+     * packer is looking at a current list by the time they read the message;
+     * the unattended paths have nobody to show a list to and simply fail, which
+     * is why the wording above stays an instruction rather than a report.
+     *
+     * `AlreadyConsumed` is the exception, and not by omission: a label may
+     * already exist for that offer, so quoting again is exactly what must not
+     * happen automatically. Someone has to look first.
+     */
+    public function requiresRequote(): bool
+    {
+        return $this !== self::AlreadyConsumed;
+    }
+
+    /**
      * Wording aimed at a packer at the Ship page, who needs to know what to do
      * next rather than which invariant held.
      */

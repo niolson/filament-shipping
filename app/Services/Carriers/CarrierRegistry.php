@@ -28,6 +28,7 @@ class CarrierRegistry
             'FedEx' => FedexAdapter::class,
             'UPS' => UpsAdapter::class,
             ShopifyAdapter::CARRIER_NAME => ShopifyAdapter::class,
+            AmazonBuyShippingAdapter::SOURCE_NAME => AmazonBuyShippingAdapter::class,
         ];
     }
 
@@ -216,6 +217,7 @@ class CarrierRegistry
             'FedEx' => FedexAdapter::class,
             'UPS' => UpsAdapter::class,
             ShopifyAdapter::CARRIER_NAME => ShopifyAdapter::class,
+            AmazonBuyShippingAdapter::SOURCE_NAME => AmazonBuyShippingAdapter::class,
         ];
         $this->instances = [];
     }

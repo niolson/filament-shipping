@@ -3,6 +3,8 @@
 namespace App\Services\PackageShipping;
 
 use App\Contracts\PackageShippingWorkflow;
+use App\Contracts\PostageOfferSource;
+use App\Contracts\RecoversUnresolvedPurchase;
 use App\DataTransferObjects\PackageShipping\PackageAutoShippingRequest;
 use App\DataTransferObjects\PackageShipping\PackageShippingOptions;
 use App\DataTransferObjects\PackageShipping\PackageShippingRequest;
@@ -13,7 +15,6 @@ use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
 use App\DataTransferObjects\Shipping\UnattendedRateSelection;
 use App\Enums\PackageStatus;
-use App\Enums\PostageSource;
 use App\Exceptions\MissingDeclaredValueException;
 use App\Models\Carrier;
 use App\Models\CarrierAccount;
@@ -22,6 +23,7 @@ use App\Models\ShippingOffer;
 use App\Models\SpecialService;
 use App\Services\Carriers\CarrierRegistry;
 use App\Services\PostageSources\OfferStore;
+use App\Services\PostageSources\PostageSourceDispatcher;
 use App\Services\RateQuoteLogger;
 use App\Services\RateSelector;
 use App\Services\RuleEvaluator;
@@ -40,6 +42,7 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
         private readonly RateQuoteLogger $rateQuoteLogger,
         private readonly CarrierRegistry $carrierRegistry,
         private readonly OfferStore $offerStore,
+        private readonly PostageSourceDispatcher $postageSources,
     ) {}
 
     public function prepareRates(Package $package): PackageShippingOptions
@@ -158,17 +161,8 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
         // account for. An offer consumed without the source either confirming
         // or declining may have bought a label we never recorded, and a second
         // purchase would pay for a second one.
-        if (($unresolved = $this->offerStore->awaitingPurchaseConfirmation($package))->isNotEmpty()) {
-            logger()->warning('Refused to buy postage while an earlier purchase is unaccounted for', [
-                'package_id' => $package->id,
-                'offers' => $unresolved->pluck('public_id')->all(),
-            ]);
-
-            return PackageShippingResult::offerUnavailable(
-                'Earlier Purchase Unresolved',
-                'A previous attempt to buy postage for this package did not report back, so a label may already exist. '
-                .'Check the carrier or channel for a label on this package before buying again.',
-            );
+        if (($blocked = $this->settleEarlierPurchases($package, $request)) !== null) {
+            return $blocked;
         }
 
         // A blind offer names itself and nothing else: the carrier, the
@@ -198,12 +192,16 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
             $inspection = $this->offerStore->inspect($package, $selectedRate->offerId);
 
             if ($inspection->wasRejected()) {
-                return PackageShippingResult::offerUnavailable($inspection->title(), $inspection->message());
+                return PackageShippingResult::offerUnavailable(
+                    $inspection->title(),
+                    $inspection->message(),
+                    $inspection->requiresRequote(),
+                );
             }
 
             $offer = $inspection->offer;
 
-            if ($rejection = $this->unsupportedDispatch($offer) ?? $this->accountNoLongerResolves($offer, $package)) {
+            if ($rejection = $this->accountNoLongerResolves($offer, $package)) {
                 return $rejection;
             }
 
@@ -217,7 +215,14 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
         }
 
         try {
-            $adapter = $this->carrierRegistry->get($blindOffer !== null ? $blindOffer->source : $selectedRate->carrier);
+            $adapter = $blindOffer !== null
+                ? $this->carrierRegistry->get($blindOffer->source)
+                : $this->sellerFor($offer, $selectedRate);
+
+            if ($adapter === null) {
+                return $this->unsupportedDispatch($offer, $selectedRate);
+            }
+
             $shipRequest = $blindOffer !== null
                 ? ShipRequest::fromPackageAndBlindOffer(
                     $package,
@@ -230,6 +235,7 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
                     $selectedRate,
                     $request->labelFormat,
                     $request->labelDpi,
+                    $offer,
                 );
 
             // Everything that can fail locally fails before the offer is
@@ -251,7 +257,11 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
                 $claim = $this->offerStore->redeem($package, $offer->public_id);
 
                 if ($claim->wasRejected()) {
-                    return PackageShippingResult::offerUnavailable($claim->title(), $claim->message());
+                    return PackageShippingResult::offerUnavailable(
+                        $claim->title(),
+                        $claim->message(),
+                        $claim->requiresRequote(),
+                    );
                 }
 
                 $offer = $claim->offer;
@@ -456,40 +466,157 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
     }
 
     /**
-     * Refuse an offer this workflow cannot honestly dispatch.
+     * Who to ask to buy this rate.
      *
-     * Purchase still routes through `CarrierRegistry` by carrier name, which is
-     * correct for exactly one case: an offer bought on one of our own carrier
-     * accounts, where the carrier of record and the adapter to call are the
-     * same thing. They are not the same thing for channel postage — an Amazon
-     * offer carried by OnTrac has to be bought from Amazon, and looking up
-     * "OnTrac" would find a direct adapter we do not have and have no account
-     * with.
+     * An offer names its own seller, and that is the only correct answer for
+     * channel postage: an Amazon rate carried by OnTrac has to be bought from
+     * Amazon, while the carrier name on it — the carrier of record, which is
+     * what the packer reads and what the package will record — would find a
+     * direct adapter we do not have and hold no account with.
      *
-     * The real fix is quoting and purchasing on `PostageSourceOperations`,
-     * dispatched by the offer's source instance with its own purchase context.
-     * That is `amazon-buy-shipping/03`, and this guard is what it deletes.
-     * Until then a channel offer fails loudly rather than reaching the wrong
-     * carrier.
+     * A rate with no offer behind it is a direct-carrier rate quoted before
+     * offers existed for that source, and dispatches by carrier name exactly as
+     * it always did.
      */
-    private function unsupportedDispatch(ShippingOffer $offer): ?PackageShippingResult
+    private function sellerFor(?ShippingOffer $offer, ?RateResponse $selectedRate): ?PostageOfferSource
     {
-        if ($offer->postage_source === PostageSource::CarrierAccount) {
-            return null;
+        if ($offer !== null) {
+            return $this->postageSources->sellerFor($offer);
         }
 
-        logger()->error('An offer was selected that no purchase path can dispatch yet', [
-            'package_id' => $offer->package_id,
-            'offer' => $offer->public_id,
-            'postage_source' => $offer->postage_source->value,
-            'carrier' => $offer->carrier,
+        return $selectedRate === null
+            ? null
+            : $this->carrierRegistry->quotingAdapterFor($selectedRate->carrier);
+    }
+
+    /**
+     * Refuse a rate nothing can honestly be asked to buy.
+     *
+     * Reached when the offer's source no longer sells postage — a data source
+     * re-pointed at a database driver between quote and purchase, say. Falling
+     * back to the carrier here is the one thing that must not happen: it would
+     * buy the label on an account of ours that never quoted the price.
+     */
+    private function unsupportedDispatch(?ShippingOffer $offer, ?RateResponse $selectedRate): PackageShippingResult
+    {
+        logger()->error('An offer was selected that no source can be asked to buy', [
+            'package_id' => $offer?->package_id,
+            'offer' => $offer?->public_id,
+            'postage_source' => $offer?->postage_source->value,
+            'carrier' => $offer->carrier ?? $selectedRate?->carrier,
         ]);
 
         return PackageShippingResult::offerUnavailable(
             'Rate Not Purchasable',
-            'This rate was quoted through a sales channel, and buying it needs a purchase path that is not built yet. '
-            .'Choose a rate from one of your own carrier accounts.',
+            'Nothing configured can sell this rate any more — the account or channel it was quoted through '
+            .'no longer offers postage. Get rates again and choose from what comes back.',
         );
+    }
+
+    /**
+     * Account for every purchase this package has already spent an offer on.
+     *
+     * A consumed offer with no answer either way may have bought a label
+     * upstream that we never recorded, so nothing else may be spent until it is
+     * settled. Settling it is a question for the source, not for us: Amazon
+     * recognizes a repeated purchase under the same idempotency key and hands
+     * back the shipment it already made, so asking again is a lookup rather
+     * than a second purchase — which is exactly what
+     * {@see RecoversUnresolvedPurchase} claims of whoever implements it.
+     *
+     * Three ways out, in the order they are worth having: the label exists and
+     * the package ships on it; the source is certain nothing was bought and the
+     * offer resolves, freeing the package to be quoted again; or nobody can
+     * say, and the package stays blocked. Only the last is what this used to do
+     * unconditionally, and it is a state a single dropped connection could put
+     * a parcel into permanently.
+     */
+    private function settleEarlierPurchases(Package $package, PackageShippingRequest $request): ?PackageShippingResult
+    {
+        $unresolved = $this->offerStore->awaitingPurchaseConfirmation($package);
+
+        if ($unresolved->isEmpty()) {
+            return null;
+        }
+
+        foreach ($unresolved as $offer) {
+            if ($shipped = $this->recoverPurchase($package, $offer, $request)) {
+                return $shipped;
+            }
+        }
+
+        if (($stillUnresolved = $this->offerStore->awaitingPurchaseConfirmation($package))->isEmpty()) {
+            return null;
+        }
+
+        logger()->warning('Refused to buy postage while an earlier purchase is unaccounted for', [
+            'package_id' => $package->id,
+            'offers' => $stillUnresolved->pluck('public_id')->all(),
+        ]);
+
+        return PackageShippingResult::offerUnavailable(
+            'Earlier Purchase Unresolved',
+            'A previous attempt to buy postage for this package did not report back, so a label may already exist. '
+            .'Check the carrier or channel for a label on this package before buying again.',
+        );
+    }
+
+    /**
+     * Ask one source what became of one spent offer.
+     *
+     * Returns a shipped result only when the source produced the label it had
+     * already been paid for. A definite "nothing was bought" resolves the offer
+     * and returns null, so the caller carries on to the purchase the operator
+     * actually asked for; anything else leaves the offer unresolved on purpose.
+     */
+    private function recoverPurchase(Package $package, ShippingOffer $offer, PackageShippingRequest $request): ?PackageShippingResult
+    {
+        $seller = $this->postageSources->sellerFor($offer);
+
+        if (! $seller instanceof RecoversUnresolvedPurchase) {
+            return null;
+        }
+
+        try {
+            $response = $seller->recoverPurchase(ShipRequest::fromPackageAndRate(
+                $package,
+                $this->rateFromOffer($offer),
+                $request->labelFormat,
+                $request->labelDpi,
+                $offer,
+            ));
+        } catch (\Exception $e) {
+            logger()->error('Could not ask a postage source about an unresolved purchase', [
+                'package_id' => $package->id,
+                'offer' => $offer->public_id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+
+        if ($response === null) {
+            return null;
+        }
+
+        if (! $response->success) {
+            $this->offerStore->recordFailure(
+                $offer,
+                $response->errorMessage ?? 'The source reported no purchase against this offer.',
+            );
+
+            return null;
+        }
+
+        logger()->info('Recovered a label bought against an offer whose reply never arrived', [
+            'package_id' => $package->id,
+            'offer' => $offer->public_id,
+        ]);
+
+        $this->recordPurchaseAgainstOffer($offer, $response->trackingNumber);
+        $package->markShipped($response, $response->postageSource, $request->userId);
+
+        return PackageShippingResult::shipped($response, null, $package);
     }
 
     /**
@@ -556,16 +683,16 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
      * same reason the price is: the source stated it, and the browser does not
      * get to restate it.
      */
-    private function rateFromOffer(ShippingOffer $offer, RateResponse $selected): RateResponse
+    private function rateFromOffer(ShippingOffer $offer, ?RateResponse $selected = null): RateResponse
     {
         return new RateResponse(
             carrier: $offer->carrier,
             serviceCode: $offer->service_code ?? '',
             serviceName: $offer->service_name ?? '',
             price: (float) ($offer->price ?? 0.0),
-            deliveryCommitment: $selected->deliveryCommitment,
-            deliveryDate: $selected->deliveryDate,
-            transitTime: $selected->transitTime,
+            deliveryCommitment: $selected?->deliveryCommitment,
+            deliveryDate: $selected?->deliveryDate,
+            transitTime: $selected?->transitTime,
             metadata: $offer->rate_metadata ?? [],
             priceUnknown: $offer->price === null,
             offerId: $offer->public_id,
@@ -606,12 +733,27 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
     }
 
     /**
+     * Which rate a shipping rule pre-selected, in this list.
+     *
+     * The offer identifier wins when there is one, which is the collision
+     * ADR-0002 decision 4 named: the same carrier and service code can now
+     * arrive twice in one list — once quoted directly and once resold through a
+     * channel — and they are different purchases at different prices. Carrier
+     * plus service code remains the fallback, because a rule pre-selects a rate
+     * that was resolved separately and may carry no offer of its own.
+     *
      * @param  array<int, array<string, mixed>>  $rateOptions
      */
     private function selectedRateIndex(array $rateOptions, ?RateResponse $preSelectedRate): ?int
     {
         if (! $preSelectedRate) {
             return $rateOptions === [] ? null : 0;
+        }
+
+        foreach ($rateOptions as $key => $rateArray) {
+            if ($preSelectedRate->offerId !== null && ($rateArray['offerId'] ?? null) === $preSelectedRate->offerId) {
+                return $key;
+            }
         }
 
         foreach ($rateOptions as $key => $rateArray) {

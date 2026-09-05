@@ -60,6 +60,15 @@ readonly class OfferRedemption
      * True only for an offer spent with nothing confirmed back — the state
      * where a label may exist upstream that we never recorded.
      */
+    /**
+     * Whether a fresh quote is the whole remedy — see
+     * {@see OfferRejection::requiresRequote()}.
+     */
+    public function requiresRequote(): bool
+    {
+        return $this->rejection?->requiresRequote() ?? false;
+    }
+
     public function requiresPurchaseRecovery(): bool
     {
         return $this->rejection === OfferRejection::AlreadyConsumed
