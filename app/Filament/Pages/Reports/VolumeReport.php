@@ -57,8 +57,9 @@ class VolumeReport extends Page implements HasTable
                     DB::raw('COALESCE(shipping_methods.name, "Unmapped") as group_name'),
                     DB::raw('daily_shipping_stats.shipping_method_id as group_id'),
                     DB::raw('SUM(daily_shipping_stats.package_count) as package_count'),
+                    DB::raw($this->uncostedCountExpression('daily_shipping_stats.')),
                     DB::raw('SUM(daily_shipping_stats.total_cost) as total_cost'),
-                    DB::raw('CASE WHEN SUM(daily_shipping_stats.package_count) > 0 THEN SUM(daily_shipping_stats.total_cost) / SUM(daily_shipping_stats.package_count) ELSE 0 END as avg_cost'),
+                    DB::raw($this->averageCostExpression('daily_shipping_stats.')),
                     DB::raw('MIN(daily_shipping_stats.id) as id'),
                 ])
                 ->groupBy('group_name', 'group_id'),
@@ -66,8 +67,9 @@ class VolumeReport extends Page implements HasTable
                 ->select([
                     DB::raw($this->periodGroupExpression()),
                     DB::raw('SUM(package_count) as package_count'),
+                    DB::raw($this->uncostedCountExpression()),
                     DB::raw('SUM(total_cost) as total_cost'),
-                    DB::raw('CASE WHEN SUM(package_count) > 0 THEN SUM(total_cost) / SUM(package_count) ELSE 0 END as avg_cost'),
+                    DB::raw($this->averageCostExpression()),
                     DB::raw('MIN(id) as id'),
                 ])
                 ->groupBy('group_name')
@@ -78,8 +80,9 @@ class VolumeReport extends Page implements HasTable
                     DB::raw('COALESCE(channels.name, "Unknown") as group_name'),
                     DB::raw('daily_shipping_stats.channel_id as group_id'),
                     DB::raw('SUM(daily_shipping_stats.package_count) as package_count'),
+                    DB::raw($this->uncostedCountExpression('daily_shipping_stats.')),
                     DB::raw('SUM(daily_shipping_stats.total_cost) as total_cost'),
-                    DB::raw('CASE WHEN SUM(daily_shipping_stats.package_count) > 0 THEN SUM(daily_shipping_stats.total_cost) / SUM(daily_shipping_stats.package_count) ELSE 0 END as avg_cost'),
+                    DB::raw($this->averageCostExpression('daily_shipping_stats.')),
                     DB::raw('MIN(daily_shipping_stats.id) as id'),
                 ])
                 ->groupBy('group_name', 'group_id'),
@@ -110,10 +113,13 @@ class VolumeReport extends Page implements HasTable
                 Tables\Columns\TextColumn::make('total_cost')
                     ->label('Total Cost')
                     ->money('USD')
+                    ->description(fn (Model $record): ?string => $this->uncostedNote($record))
                     ->sortable(),
                 Tables\Columns\TextColumn::make('avg_cost')
                     ->label('Avg Cost')
                     ->money('USD')
+                    ->placeholder('Unknown')
+                    ->description(fn (Model $record): ?string => $this->averageBasisNote($record))
                     ->sortable(),
             ])
             ->filters([
@@ -142,6 +148,57 @@ class VolumeReport extends Page implements HasTable
     public function resolveTableRecord(?string $key): ?Model
     {
         return DailyShippingStat::find($key);
+    }
+
+    /**
+     * Packages the rollup counted but could not price.
+     *
+     * A null `costed_package_count` is a row aggregated before the column
+     * existed; falling back to `package_count` reports no gap, which is how
+     * those rows already read.
+     */
+    private function uncostedCountExpression(string $prefix = ''): string
+    {
+        return "SUM({$prefix}package_count) - SUM(COALESCE({$prefix}costed_package_count, {$prefix}package_count)) as uncosted_package_count";
+    }
+
+    /**
+     * Average cost over the packages that actually reported one.
+     *
+     * Dividing by `package_count` would put unpriced packages in the
+     * denominator with nothing in the numerator, dragging the average toward
+     * zero. When nothing in the group reported a cost the average is unknown,
+     * not zero.
+     */
+    private function averageCostExpression(string $prefix = ''): string
+    {
+        $costed = "SUM(COALESCE({$prefix}costed_package_count, {$prefix}package_count))";
+
+        return "CASE WHEN {$costed} > 0 THEN SUM({$prefix}total_cost) / {$costed} ELSE NULL END as avg_cost";
+    }
+
+    private function uncostedNote(Model $record): ?string
+    {
+        $uncosted = (int) ($record->uncosted_package_count ?? 0);
+
+        if ($uncosted < 1) {
+            return null;
+        }
+
+        return 'excludes '.number_format($uncosted).' with no reported cost';
+    }
+
+    private function averageBasisNote(Model $record): ?string
+    {
+        $uncosted = (int) ($record->uncosted_package_count ?? 0);
+
+        if ($uncosted < 1) {
+            return null;
+        }
+
+        $costed = (int) ($record->package_count ?? 0) - $uncosted;
+
+        return 'over '.number_format($costed).' priced';
     }
 
     private function buildDrillDownUrl(Model $record): ?string

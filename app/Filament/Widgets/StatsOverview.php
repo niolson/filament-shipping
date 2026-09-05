@@ -17,9 +17,15 @@ class StatsOverview extends BaseWidget
 
     protected ?string $pollingInterval = '60s';
 
+    /**
+     * Packages counted but never priced. A null `costed_package_count` predates
+     * the column, so it falls back to `package_count` and reports no gap.
+     */
+    private const UNCOSTED = 'SUM(package_count) - SUM(COALESCE(costed_package_count, package_count)) as uncosted';
+
     protected function getStats(): array
     {
-        $data = Cache::remember('widget:stats_overview', 60, function (): array {
+        $data = Cache::remember('widget:stats_overview:v2', 60, function (): array {
             $tz = Location::timezone();
             $localToday = now($tz)->startOfDay();
             $thisWeekStart = now($tz)->startOfWeek();
@@ -34,6 +40,12 @@ class StatsOverview extends BaseWidget
                 'shipped_month' => (int) DailyShippingStat::where('date', '>=', $thisMonthStart->toDateString())->sum('package_count'),
                 'cost_this_week' => (float) DailyShippingStat::where('date', '>=', $thisWeekStart->toDateString())->sum('total_cost'),
                 'cost_last_week' => (float) DailyShippingStat::whereBetween('date', [$lastWeekStart->toDateString(), $lastWeekEnd->toDateString()])->sum('total_cost'),
+                'uncosted_week' => (int) DailyShippingStat::where('date', '>=', $thisWeekStart->toDateString())
+                    ->selectRaw(self::UNCOSTED)
+                    ->value('uncosted'),
+                'uncosted_last_week' => (int) DailyShippingStat::whereBetween('date', [$lastWeekStart->toDateString(), $lastWeekEnd->toDateString()])
+                    ->selectRaw(self::UNCOSTED)
+                    ->value('uncosted'),
             ];
         });
 
@@ -55,13 +67,38 @@ class StatsOverview extends BaseWidget
                 ->description('Packages this month')
                 ->descriptionIcon('heroicon-m-calendar-days')
                 ->color('primary'),
-            $this->buildCostStat($data['cost_this_week'], $data['cost_last_week']),
+            $this->buildCostStat(
+                $data['cost_this_week'],
+                $data['cost_last_week'],
+                $data['uncosted_week'],
+                $data['uncosted_last_week'],
+            ),
         ];
     }
 
-    private function buildCostStat(float $thisWeekCost, float $lastWeekCost): Stat
-    {
+    /**
+     * The total is a sum of what was reported, not of what was spent: postage
+     * bought where the seller reports no price contributes nothing to it. Say
+     * how many packages that covers rather than letting the figure read as
+     * complete.
+     *
+     * Where either week left postage unpriced, the week-over-week change is
+     * withheld along with its colour and arrow. A percentage between two
+     * subtotals is not a percentage between two spends, and an understated
+     * last week inflates it without looking any different — the strongest
+     * claim on the card would be the one nobody measured.
+     */
+    private function buildCostStat(
+        float $thisWeekCost,
+        float $lastWeekCost,
+        int $uncostedThisWeek,
+        int $uncostedLastWeek,
+    ): Stat {
         $stat = Stat::make('Shipping Cost This Week', '$'.number_format($thisWeekCost, 2));
+
+        if ($uncostedThisWeek > 0 || $uncostedLastWeek > 0) {
+            return $stat->description($this->uncostedNote($uncostedThisWeek, $uncostedLastWeek));
+        }
 
         if ($lastWeekCost > 0) {
             $change = (($thisWeekCost - $lastWeekCost) / $lastWeekCost) * 100;
@@ -71,5 +108,20 @@ class StatsOverview extends BaseWidget
         }
 
         return $stat;
+    }
+
+    private function uncostedNote(int $uncostedThisWeek, int $uncostedLastWeek): string
+    {
+        if ($uncostedThisWeek > 0 && $uncostedLastWeek > 0) {
+            return 'excludes '.number_format($uncostedThisWeek).' this week and '
+                .number_format($uncostedLastWeek).' last week with no reported cost';
+        }
+
+        if ($uncostedThisWeek > 0) {
+            return 'excludes '.number_format($uncostedThisWeek).' with no reported cost';
+        }
+
+        return 'no comparison — last week excludes '
+            .number_format($uncostedLastWeek).' with no reported cost';
     }
 }
