@@ -6,6 +6,7 @@ use App\DataTransferObjects\Shipping\BlindPurchaseOffer;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\RateResponse;
 use App\DataTransferObjects\Shipping\ShipRequest;
+use App\Enums\PackageStatus;
 use App\Enums\PostageSource;
 use App\Enums\ServiceEvidence;
 use App\Http\Integrations\Shopify\Requests\GraphQL;
@@ -79,6 +80,90 @@ it('advertises nothing once the Shopify data source is deactivated', function ()
     $package->shipment->dataSource->update(['active' => false]);
 
     expect($this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package->fresh()), ['auto']))->toBeEmpty();
+});
+
+it('advertises nothing once another package on the shipment has shipped', function (): void {
+    // One fulfillment order buys one label, and the fulfillment order is
+    // recorded on the shipment — so the second package would ask Shopify to
+    // fulfill what it has already fulfilled.
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+    allowBlindPurchase($package);
+    Package::factory()->shipped()->create(['shipment_id' => $package->shipment_id]);
+
+    expect($this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package), ['auto']))->toBeEmpty();
+});
+
+it('still advertises when the shipment\'s other label was voided', function (): void {
+    // Voiding reopens the fulfillment order, so there is a label to buy again.
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+    allowBlindPurchase($package);
+    Package::factory()->shipped()->create([
+        'shipment_id' => $package->shipment_id,
+        'status' => PackageStatus::Void,
+    ]);
+
+    expect($this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package), ['auto']))->toHaveCount(1);
+});
+
+it('advertises nothing while a sibling package holds a label bought by an earlier attempt', function (): void {
+    // The dangerous case, and the one status alone misses: Shopify has sold the
+    // label and the shop has been charged, but the download failed, so the
+    // sibling is still `Unshipped`. The marker is the only evidence.
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+    allowBlindPurchase($package);
+    Package::factory()->create([
+        'shipment_id' => $package->shipment_id,
+        'status' => PackageStatus::Unshipped,
+        'metadata' => ['shopify_shipping_label_id' => 'gid://shopify/ShippingLabel/1'],
+    ]);
+
+    expect($this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package), ['auto']))->toBeEmpty();
+});
+
+it('advertises nothing while a sibling package has a purchase still in flight', function (): void {
+    // Persisted the moment Shopify accepts the mutation, before any label
+    // exists. A purchase nobody has resolved yet is still a purchase.
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+    allowBlindPurchase($package);
+    Package::factory()->create([
+        'shipment_id' => $package->shipment_id,
+        'status' => PackageStatus::Unshipped,
+        'metadata' => ['shopify_purchase_result_id' => 'gid://shopify/ShippingLabelPurchaseResult/1'],
+    ]);
+
+    expect($this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package), ['auto']))->toBeEmpty();
+});
+
+it('advertises again once a voided sibling has had its purchase markers cleared', function (): void {
+    // What `ShopifyFulfillmentSynchronizer::applyVoid()` leaves behind: void
+    // status, no markers, fulfillment order reopened at Shopify.
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+    allowBlindPurchase($package);
+    Package::factory()->shipped()->create([
+        'shipment_id' => $package->shipment_id,
+        'status' => PackageStatus::Void,
+        'metadata' => ['shopify_tracking_company' => 'USPS'],
+    ]);
+
+    expect($this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package), ['auto']))->toHaveCount(1);
+});
+
+it('still advertises when the shipment\'s other package is an open draft', function (): void {
+    // Two drafts is a packing state, not a purchase collision.
+    seedShopifyCarrierServices();
+    $package = shopifyPackage();
+    allowBlindPurchase($package);
+    Package::factory()->create([
+        'shipment_id' => $package->shipment_id,
+        'status' => PackageStatus::Unshipped,
+    ]);
+
+    expect($this->adapter->blindPurchaseOffers(RateRequest::fromPackage($package), ['auto']))->toHaveCount(1);
 });
 
 it('refuses to buy from a request that carries a rate instead of a blind purchase', function (): void {

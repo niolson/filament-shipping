@@ -7,6 +7,7 @@ use App\DataTransferObjects\Shipping\BlindPurchaseOffer;
 use App\DataTransferObjects\Shipping\RateRequest;
 use App\DataTransferObjects\Shipping\ShipRequest;
 use App\DataTransferObjects\Shipping\ShipResponse;
+use App\Enums\PackageStatus;
 use App\Enums\PostageSource;
 use App\Enums\ServiceCapability;
 use App\Enums\ServiceEvidence;
@@ -16,6 +17,7 @@ use App\Models\DataSource;
 use App\Models\Package;
 use App\Services\ShipmentImport\Sources\ShopifySource;
 use App\Services\ShopifyShippingLabelService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
@@ -106,10 +108,11 @@ class ShopifyAdapter implements BlindPurchaseSource
     /**
      * What Shopify will sell for this package, priceless.
      *
-     * Three gates, and none of them is an error worth telling a packer about:
+     * Four gates, and none of them is an error worth telling a packer about:
      * the client has to have opted into blind purchase (ADR-0003 decision 5),
      * the shipment has to have come from a live Shopify data source with a
-     * fulfillment order to buy against, and the selection has to be one we
+     * fulfillment order to buy against, no label can have been bought against
+     * that fulfillment order already, and the selection has to be one we
      * actually catalogue.
      *
      * The opt-in is checked here rather than in `ShippingRateService` because
@@ -138,6 +141,10 @@ class ShopifyAdapter implements BlindPurchaseSource
             return collect();
         }
 
+        if ($this->shipmentAlreadyBoughtALabel($package)) {
+            return collect();
+        }
+
         $names = CarrierService::query()
             ->whereHas('carrier', fn ($query) => $query->where('name', self::CARRIER_NAME))
             ->whereIn('service_code', $serviceCodes)
@@ -155,6 +162,46 @@ class ShopifyAdapter implements BlindPurchaseSource
                 postageDataSourceId: $dataSourceId,
             ))
             ->values();
+    }
+
+    /**
+     * Whether a label has already been bought against this shipment's
+     * fulfillment order, or is being bought right now.
+     *
+     * `shopify_fulfillment_order_id` lives on the shipment, so every package of
+     * a shipment buys against the same fulfillment order. A second purchase
+     * asks Shopify to fulfill what it has already fulfilled, and what comes
+     * back — `JOB_NOT_ENQUEUED` or `FULFILLMENT_ORDER_INVALID` — reaches the
+     * packer verbatim, after the box is taped shut. Withdrawing the offer is
+     * the honest answer: this shipment's remaining packages need postage from a
+     * carrier account.
+     *
+     * A shipped sibling is the obvious case and not the dangerous one.
+     * `ShopifyShippingLabelService` persists `shopify_purchase_result_id` the
+     * moment Shopify accepts the mutation and `shopify_shipping_label_id` as
+     * soon as a label exists — both *before* the package is marked shipped,
+     * precisely so a download that fails does not lose a label the shop has
+     * already been charged for. A sibling stuck in that state is `Unshipped`
+     * and holds a live purchase, so status alone would let this package buy a
+     * second label against the same fulfillment order.
+     *
+     * Those markers are therefore disqualifying until something clears them,
+     * and the only thing that clears them is
+     * `ShopifyFulfillmentSynchronizer::applyVoid()`, on a confirmed
+     * Shopify-side void. That is also why `Void` status is not disqualifying:
+     * voiding reopens the fulfillment order and strips the markers in the same
+     * write, so a shipment whose only previous label was voided can buy
+     * another one.
+     */
+    private function shipmentAlreadyBoughtALabel(Package $package): bool
+    {
+        return $package->shipment?->packages()
+            ->whereKeyNot($package->getKey())
+            ->where(fn (Builder $query): Builder => $query
+                ->where('status', PackageStatus::Shipped)
+                ->orWhereNotNull('metadata->shopify_shipping_label_id')
+                ->orWhereNotNull('metadata->shopify_purchase_result_id'))
+            ->exists() ?? false;
     }
 
     public function createShipment(ShipRequest $request): ShipResponse

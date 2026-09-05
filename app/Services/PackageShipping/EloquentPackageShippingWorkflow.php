@@ -136,6 +136,10 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
      * Taken without waiting. Queueing behind a carrier call that may run for a
      * minute would leave a packer staring at a frozen button, and the honest
      * answer — someone is already buying this — is one they can act on.
+     *
+     * A blind purchase needs a second, coarser lock on top of this one, because
+     * what it buys against belongs to the shipment rather than to the package —
+     * see {@see withBlindPurchaseLock()}.
      */
     public function ship(Package $package, PackageShippingRequest $request): PackageShippingResult
     {
@@ -149,7 +153,66 @@ class EloquentPackageShippingWorkflow implements PackageShippingWorkflow
         }
 
         try {
-            return $this->buyPostage($package, $request);
+            return $this->withBlindPurchaseLock(
+                $package,
+                $request,
+                fn (): PackageShippingResult => $this->buyPostage($package, $request),
+            );
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /**
+     * Serialize a blind purchase across every package of one shipment.
+     *
+     * The per-package lock above is keyed by package, which is the right grain
+     * for postage bought against a package. A blind purchase is not: it is
+     * bought against a shipment-level resource — for Shopify, the fulfillment
+     * order recorded on `shipments.metadata`, which every package of the
+     * shipment shares. Two packages therefore hold two different package locks,
+     * both revalidate cleanly because neither sibling has been marked shipped
+     * or carries a purchase marker yet, and both buy against the same
+     * fulfillment order.
+     *
+     * Withdrawing the offer (see `ShopifyAdapter::shipmentAlreadyBoughtALabel()`)
+     * closes that only once the first purchase has left a trace. This closes
+     * the window before it does, by making revalidation and purchase one
+     * decision per shipment rather than per package.
+     *
+     * Only blind purchases take it. Postage bought from a carrier account is
+     * per-package by nature, and serializing those would refuse a second packer
+     * boxing a second parcel of the same shipment for no reason.
+     *
+     * Taken after the package lock and never the other way round, and like that
+     * one taken without waiting — so there is no ordering in which two requests
+     * can wait on each other.
+     *
+     * @param  \Closure(): PackageShippingResult  $buy
+     */
+    private function withBlindPurchaseLock(
+        Package $package,
+        PackageShippingRequest $request,
+        \Closure $buy,
+    ): PackageShippingResult {
+        $offer = $request->blindOffer;
+
+        if ($offer === null || ! $package->shipment_id) {
+            return $buy();
+        }
+
+        $lock = Cache::lock("shipment-blind-purchase:{$package->shipment_id}", self::PURCHASE_LOCK_SECONDS);
+
+        if (! $lock->get()) {
+            return PackageShippingResult::offerUnavailable(
+                'Purchase In Progress',
+                "{$offer->sourceLabel} buys against the whole order, and another package on this shipment is buying from it right now. "
+                .'Wait for that attempt to finish, then get rates again.',
+            );
+        }
+
+        try {
+            return $buy();
         } finally {
             $lock->release();
         }
