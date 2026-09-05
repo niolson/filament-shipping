@@ -17,12 +17,14 @@ class DailyShippingStat extends Model
         'shipping_method_id',
         'location_id',
         'package_count',
+        'costed_package_count',
         'total_cost',
         'total_weight',
     ];
 
     protected $casts = [
         'package_count' => 'integer',
+        'costed_package_count' => 'integer',
         'total_cost' => 'decimal:2',
         'total_weight' => 'decimal:2',
     ];

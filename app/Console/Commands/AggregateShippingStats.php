@@ -91,7 +91,7 @@ class AggregateShippingStats extends Command
         // MySQL: efficient INSERT...SELECT
         return DB::affectingStatement('
             INSERT INTO daily_shipping_stats
-                (date, carrier, service, channel_id, shipping_method_id, location_id, package_count, total_cost, total_weight, created_at, updated_at)
+                (date, carrier, service, channel_id, shipping_method_id, location_id, package_count, costed_package_count, total_cost, total_weight, created_at, updated_at)
             SELECT
                 p.ship_date,
                 p.carrier,
@@ -100,6 +100,7 @@ class AggregateShippingStats extends Command
                 s.shipping_method_id,
                 p.location_id,
                 COUNT(*),
+                COUNT(p.cost),
                 COALESCE(SUM(p.cost), 0),
                 COALESCE(SUM(p.weight), 0),
                 NOW(),
@@ -122,7 +123,7 @@ class AggregateShippingStats extends Command
             ->where('p.status', 'shipped')
             ->whereBetween('p.ship_date', [$from->toDateString(), $to->toDateString()])
             ->selectRaw('p.ship_date as date, p.carrier, p.service, s.channel_id, s.shipping_method_id, p.location_id')
-            ->selectRaw('COUNT(*) as package_count, COALESCE(SUM(p.cost), 0) as total_cost, COALESCE(SUM(p.weight), 0) as total_weight')
+            ->selectRaw('COUNT(*) as package_count, COUNT(p.cost) as costed_package_count, COALESCE(SUM(p.cost), 0) as total_cost, COALESCE(SUM(p.weight), 0) as total_weight')
             ->groupBy('p.ship_date', 'p.carrier', 'p.service', 's.channel_id', 's.shipping_method_id', 'p.location_id')
             ->get();
 
@@ -135,6 +136,7 @@ class AggregateShippingStats extends Command
             'shipping_method_id' => $row->shipping_method_id,
             'location_id' => $row->location_id,
             'package_count' => $row->package_count,
+            'costed_package_count' => $row->costed_package_count,
             'total_cost' => $row->total_cost,
             'total_weight' => $row->total_weight,
             'created_at' => $now,

@@ -13,10 +13,10 @@ class InvalidateDashboardCache implements ShouldQueue
      * All widget cache keys that should be invalidated when shipping data changes.
      */
     private const CACHE_KEYS = [
-        'widget:stats_overview',
+        'widget:stats_overview:v2',
         'widget:shipped_chart:week',
         'widget:shipped_chart:month',
-        'widget:cost_trend',
+        'widget:cost_trend:v2',
         'widget:carrier_breakdown:week',
         'widget:carrier_breakdown:month',
         'widget:exceptions',
