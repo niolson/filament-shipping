@@ -66,56 +66,56 @@ function mfaRequired(): void
 
 // --- idpSatisfiesMfa: the security decision, in isolation -------------------
 
-it('is satisfied for a trusted Entra tenant asserting amr:mfa', function () {
+it('is satisfied for a trusted Entra tenant asserting amr:mfa', function (): void {
     trustIdpMfa();
     trustAzureTids([TRUSTED_TID]);
 
     expect(ssoService()->idpSatisfiesMfa('azure', azureClaims()))->toBeTrue();
 });
 
-it('is not satisfied when the trust setting is off', function () {
+it('is not satisfied when the trust setting is off', function (): void {
     trustIdpMfa(false);
     trustAzureTids([TRUSTED_TID]);
 
     expect(ssoService()->idpSatisfiesMfa('azure', azureClaims()))->toBeFalse();
 });
 
-it('is not satisfied for a non-Azure provider even with amr:mfa', function () {
+it('is not satisfied for a non-Azure provider even with amr:mfa', function (): void {
     trustIdpMfa();
     trustAzureTids([TRUSTED_TID]);
 
     expect(ssoService()->idpSatisfiesMfa('google', azureClaims()))->toBeFalse();
 });
 
-it('is not satisfied when amr does not contain mfa', function () {
+it('is not satisfied when amr does not contain mfa', function (): void {
     trustIdpMfa();
     trustAzureTids([TRUSTED_TID]);
 
     expect(ssoService()->idpSatisfiesMfa('azure', azureClaims(amr: ['pwd'])))->toBeFalse();
 });
 
-it('is not satisfied when the tenant is not on the allowlist', function () {
+it('is not satisfied when the tenant is not on the allowlist', function (): void {
     trustIdpMfa();
     trustAzureTids([TRUSTED_TID]);
 
     expect(ssoService()->idpSatisfiesMfa('azure', azureClaims(tid: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee')))->toBeFalse();
 });
 
-it('is not satisfied when the allowlist is empty (fail closed)', function () {
+it('is not satisfied when the allowlist is empty (fail closed)', function (): void {
     trustIdpMfa();
     trustAzureTids([]);
 
     expect(ssoService()->idpSatisfiesMfa('azure', azureClaims()))->toBeFalse();
 });
 
-it('never trusts the Microsoft consumer tenant, even if allowlisted', function () {
+it('never trusts the Microsoft consumer tenant, even if allowlisted', function (): void {
     trustIdpMfa();
     trustAzureTids([MSA_TID]);
 
     expect(ssoService()->idpSatisfiesMfa('azure', azureClaims(tid: MSA_TID)))->toBeFalse();
 });
 
-it('is not satisfied when amr or tid is absent', function () {
+it('is not satisfied when amr or tid is absent', function (): void {
     trustIdpMfa();
     trustAzureTids([TRUSTED_TID]);
 
@@ -124,7 +124,7 @@ it('is not satisfied when amr or tid is absent', function () {
         ->and(ssoService()->idpSatisfiesMfa('azure', []))->toBeFalse();
 });
 
-it('matches tenant ids case-insensitively (uppercase in the allowlist)', function () {
+it('matches tenant ids case-insensitively (uppercase in the allowlist)', function (): void {
     trustIdpMfa();
     // Operator pastes an uppercase GUID; Entra asserts the canonical lowercase tid.
     trustAzureTids([strtoupper(TRUSTED_TID)]);
@@ -132,14 +132,14 @@ it('matches tenant ids case-insensitively (uppercase in the allowlist)', functio
     expect(ssoService()->idpSatisfiesMfa('azure', azureClaims(tid: TRUSTED_TID)))->toBeTrue();
 });
 
-it('matches tenant ids case-insensitively (uppercase in the assertion)', function () {
+it('matches tenant ids case-insensitively (uppercase in the assertion)', function (): void {
     trustIdpMfa();
     trustAzureTids([TRUSTED_TID]);
 
     expect(ssoService()->idpSatisfiesMfa('azure', azureClaims(tid: strtoupper(TRUSTED_TID))))->toBeTrue();
 });
 
-it('ignores auth_time (freshness bound deferred) — a stale assertion still satisfies', function () {
+it('ignores auth_time (freshness bound deferred) — a stale assertion still satisfies', function (): void {
     trustIdpMfa();
     trustAzureTids([TRUSTED_TID]);
 
@@ -148,7 +148,7 @@ it('ignores auth_time (freshness bound deferred) — a stale assertion still sat
 
 // --- completeLogin: the wired outcome (skip vs. defer) ----------------------
 
-it('skips the app challenge and logs in when a trusted IdP asserts MFA', function () {
+it('skips the app challenge and logs in when a trusted IdP asserts MFA', function (): void {
     mfaRequired();
     trustIdpMfa();
     trustAzureTids([TRUSTED_TID]);
@@ -163,7 +163,7 @@ it('skips the app challenge and logs in when a trusted IdP asserts MFA', functio
         ->and($response->getTargetUrl())->toBe(url('/'));
 });
 
-it('still challenges when the IdP asserts only a password (no mfa)', function () {
+it('still challenges when the IdP asserts only a password (no mfa)', function (): void {
     mfaRequired();
     trustIdpMfa();
     trustAzureTids([TRUSTED_TID]);
@@ -178,7 +178,7 @@ it('still challenges when the IdP asserts only a password (no mfa)', function ()
         ->and($response->headers->getCookies())->toBe([]);
 });
 
-it('still challenges when amr:mfa comes from an untrusted tenant', function () {
+it('still challenges when amr:mfa comes from an untrusted tenant', function (): void {
     mfaRequired();
     trustIdpMfa();
     trustAzureTids([TRUSTED_TID]);
@@ -191,7 +191,7 @@ it('still challenges when amr:mfa comes from an untrusted tenant', function () {
         ->and(session('sso_mfa.user_id'))->toBe($user->id);
 });
 
-it('ignores the IdP assertion entirely when the trust setting is off', function () {
+it('ignores the IdP assertion entirely when the trust setting is off', function (): void {
     mfaRequired();
     trustIdpMfa(false);
     trustAzureTids([TRUSTED_TID]);
@@ -204,7 +204,7 @@ it('ignores the IdP assertion entirely when the trust setting is off', function 
         ->and(session('sso_mfa.user_id'))->toBe($user->id);
 });
 
-it('the trusted-tid allowlist round-trips through the settings service as a list', function () {
+it('the trusted-tid allowlist round-trips through the settings service as a list', function (): void {
     trustAzureTids([TRUSTED_TID, 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee']);
 
     expect(app(SettingsService::class)->get('trusted_azure_tids'))

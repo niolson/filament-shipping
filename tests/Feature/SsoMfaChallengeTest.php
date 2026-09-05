@@ -28,7 +28,7 @@ function requireMfa(bool $enabled = true): void
 
 // --- SsoLoginService: the single MFA decision point -------------------------
 
-it('logs in and does not gate when MFA is not required', function () {
+it('logs in and does not gate when MFA is not required', function (): void {
     requireMfa(false);
     $user = User::factory()->create();
     enrollTotp($user);
@@ -40,7 +40,7 @@ it('logs in and does not gate when MFA is not required', function () {
         ->and($response->getTargetUrl())->toBe(url('/'));
 });
 
-it('defers authentication when MFA is required and a factor is enrolled', function () {
+it('defers authentication when MFA is required and a factor is enrolled', function (): void {
     requireMfa();
     $user = User::factory()->create();
     enrollTotp($user);
@@ -55,7 +55,7 @@ it('defers authentication when MFA is required and a factor is enrolled', functi
         ->and($response->headers->getCookies())->toBe([]);
 });
 
-it('does not gate when MFA is required but the user has no enrolled factor', function () {
+it('does not gate when MFA is required but the user has no enrolled factor', function (): void {
     requireMfa();
     $user = User::factory()->create();
 
@@ -67,7 +67,7 @@ it('does not gate when MFA is required but the user has no enrolled factor', fun
         ->and($response->getTargetUrl())->toBe(url('/'));
 });
 
-it('treats an email-authentication user as requiring a challenge', function () {
+it('treats an email-authentication user as requiring a challenge', function (): void {
     requireMfa();
     $user = User::factory()->create([
         'email' => 'ops@example.com',
@@ -79,7 +79,7 @@ it('treats an email-authentication user as requiring a challenge', function () {
 
 // --- Deferred-auth protection: pending user can't reach the app -------------
 
-it('bounces a pending SSO user from an authenticated route to the login challenge', function () {
+it('bounces a pending SSO user from an authenticated route to the login challenge', function (): void {
     requireMfa();
     $user = User::factory()->create();
     enrollTotp($user);
@@ -94,7 +94,7 @@ it('bounces a pending SSO user from an authenticated route to the login challeng
 
 // --- Login page SSO challenge -----------------------------------------------
 
-it('renders the MFA challenge on the login page for a pending SSO user', function () {
+it('renders the MFA challenge on the login page for a pending SSO user', function (): void {
     requireMfa();
     $user = User::factory()->create();
     enrollTotp($user);
@@ -107,7 +107,7 @@ it('renders the MFA challenge on the login page for a pending SSO user', functio
     expect(Auth::check())->toBeFalse();
 });
 
-it('authenticates only after a valid TOTP code is submitted', function () {
+it('authenticates only after a valid TOTP code is submitted', function (): void {
     requireMfa();
     $user = User::factory()->create();
     $secret = enrollTotp($user);
@@ -126,7 +126,7 @@ it('authenticates only after a valid TOTP code is submitted', function () {
         ->and(session('sso_mfa.user_id'))->toBeNull();
 });
 
-it('rejects an invalid TOTP code and stays unauthenticated', function () {
+it('rejects an invalid TOTP code and stays unauthenticated', function (): void {
     requireMfa();
     $user = User::factory()->create();
     enrollTotp($user);
@@ -142,7 +142,7 @@ it('rejects an invalid TOTP code and stays unauthenticated', function () {
         ->and(session('sso_mfa.user_id'))->toBe($user->id);
 });
 
-it('rejects a stale challenge when a second SSO attempt changed the pending user', function () {
+it('rejects a stale challenge when a second SSO attempt changed the pending user', function (): void {
     requireMfa();
     $userA = User::factory()->create();
     $secretA = enrollTotp($userA);
@@ -169,7 +169,7 @@ it('rejects a stale challenge when a second SSO attempt changed the pending user
         ->and(session('sso_mfa.user_id'))->toBeNull();
 });
 
-it('accepts a recovery code', function () {
+it('accepts a recovery code', function (): void {
     requireMfa();
     $user = User::factory()->create();
     enrollTotp($user);

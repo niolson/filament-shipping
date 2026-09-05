@@ -25,7 +25,7 @@ function useKeys(string $current, array $previous = []): void
     Crypt::swap($encrypter);
 }
 
-it('re-encrypts secrets so they are readable with the new key alone', function () {
+it('re-encrypts secrets so they are readable with the new key alone', function (): void {
     $cipher = config('app.cipher');
     $keyA = Encrypter::generateKey($cipher);
     $keyB = Encrypter::generateKey($cipher);
@@ -65,7 +65,7 @@ it('re-encrypts secrets so they are readable with the new key alone', function (
     expect(Setting::find('oauth.token')->value)->toBe('tok-123');
 });
 
-it('leaves unencrypted settings untouched', function () {
+it('leaves unencrypted settings untouched', function (): void {
     $cipher = config('app.cipher');
     $keyA = Encrypter::generateKey($cipher);
     $keyB = Encrypter::generateKey($cipher);
@@ -81,7 +81,7 @@ it('leaves unencrypted settings untouched', function () {
         ->toBe('PolyBag');
 });
 
-it('does not write anything on a dry run', function () {
+it('does not write anything on a dry run', function (): void {
     $cipher = config('app.cipher');
     $keyA = Encrypter::generateKey($cipher);
     $keyB = Encrypter::generateKey($cipher);

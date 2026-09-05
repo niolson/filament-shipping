@@ -7,7 +7,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-it('registers a connection for a host-based database source', function () {
+it('registers a connection for a host-based database source', function (): void {
     $dataSource = DataSource::factory()->create([
         'source_type' => DatabaseSource::class,
         'settings' => [
@@ -29,7 +29,7 @@ it('registers a connection for a host-based database source', function () {
         ->and($connection['charset'])->toBe('utf8');
 });
 
-it('registers a connection for a file-based source that has no host', function () {
+it('registers a connection for a file-based source that has no host', function (): void {
     // A SQLite source has no db_host to gate on, so gating purely on that key
     // would leave its connection unregistered and every query would fail.
     $dataSource = DataSource::factory()->create([
@@ -50,7 +50,7 @@ it('registers a connection for a file-based source that has no host', function (
     ]);
 });
 
-it('passes SQL Server TLS settings through to the connection', function () {
+it('passes SQL Server TLS settings through to the connection', function (): void {
     $dataSource = DataSource::factory()->create([
         'source_type' => DatabaseSource::class,
         'settings' => [
