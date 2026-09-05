@@ -15,6 +15,7 @@ use App\Models\CarrierService;
 use App\Models\DataSource;
 use App\Models\Location;
 use App\Models\Product;
+use App\Models\ServiceApproval;
 use App\Models\Setting;
 use App\Models\ShippingMethod;
 use App\Models\ShippingRule;
@@ -98,7 +99,7 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
-        Event::listen(function (SocialiteWasCalled $event) {
+        Event::listen(function (SocialiteWasCalled $event): void {
             $event->extendSocialite('azure', Provider::class);
         });
 
@@ -113,6 +114,9 @@ class AppServiceProvider extends ServiceProvider
             ShippingMethod::class,
             ShippingRule::class,
             Product::class,
+            // Every grant and every withdrawal of permission to spend money
+            // unattended, with who did it — ADR-0003 decision 3.
+            ServiceApproval::class,
         ]);
         Setting::observe(SettingObserver::class);
 
