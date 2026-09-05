@@ -3,7 +3,7 @@
 use App\Filament\AvatarProviders\LocalAvatarProvider;
 use App\Models\User;
 
-it('generates a local data-uri svg avatar with the user initials', function () {
+it('generates a local data-uri svg avatar with the user initials', function (): void {
     $user = User::factory()->make(['name' => 'Ada Lovelace']);
 
     $uri = app(LocalAvatarProvider::class)->get($user);
@@ -17,7 +17,7 @@ it('generates a local data-uri svg avatar with the user initials', function () {
         ->and($uri)->not->toContain('ui-avatars.com');
 });
 
-it('falls back to a placeholder when no name is present', function () {
+it('falls back to a placeholder when no name is present', function (): void {
     $user = User::factory()->make(['name' => '']);
 
     $svg = base64_decode(

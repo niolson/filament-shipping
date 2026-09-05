@@ -16,7 +16,7 @@ beforeEach(function (): void {
     Cache::put('shopify_access_token_'.md5('test-shop.myshopify.com'), 'shpat_test_token', 3600);
 });
 
-test('it activates the one-way fulfillment order import after preflight succeeds', function () {
+test('it activates the one-way fulfillment order import after preflight succeeds', function (): void {
     $source = createShopifyDataSource();
     DataSourceLocation::factory()->create([
         'data_source_id' => $source,
@@ -32,7 +32,7 @@ test('it activates the one-way fulfillment order import after preflight succeeds
         ->and($settings['authoritative_shipment_items'])->toBeTrue();
 });
 
-test('it reports missing shopify scopes before activation', function () {
+test('it reports missing shopify scopes before activation', function (): void {
     $source = createShopifyDataSource();
     fakeShopifyAccessScopes(['read_orders']);
 
@@ -40,7 +40,7 @@ test('it reports missing shopify scopes before activation', function () {
         ->toThrow(DomainException::class, 'read_locations');
 });
 
-test('it activates without inspecting shipments created outside fulfillment-order import', function () {
+test('it activates without inspecting shipments created outside fulfillment-order import', function (): void {
     $source = createShopifyDataSource();
     DataSourceLocation::factory()->create([
         'data_source_id' => $source,

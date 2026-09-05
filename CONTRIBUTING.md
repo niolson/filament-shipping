@@ -93,6 +93,10 @@ vendor/bin/phpstan analyse --memory-limit=1G     # static analysis, level 5
 composer run format                              # rector + phpstan + pint together
 ```
 
+CI gates all three. `composer run format` runs `rector process` in place, so on a branch
+that has drifted it rewrites files you never touched — run it, then check `git diff`
+before committing rather than after review asks you to.
+
 Browser tests — Pest 4 browser testing, which drives Playwright under the hood. They are
 **not** picked up by `php artisan test`: `phpunit.xml` defines only the `Unit` and
 `Feature` suites, so `tests/Browser/` and `tests/External/` both need naming explicitly.

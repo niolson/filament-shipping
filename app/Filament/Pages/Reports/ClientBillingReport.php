@@ -369,7 +369,7 @@ class ClientBillingReport extends Page implements HasTable
 
         $filename = 'client-billing-summary-'.$from.'-to-'.$until.'.csv';
 
-        return response()->streamDownload(function () use ($rows) {
+        return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'w');
             fputcsv($out, ['Client', 'Orders', 'Packages', 'Postage', 'Label Fees', 'Pick Fees', 'Materials', 'Surcharges', 'Total Billable']);
 
@@ -403,7 +403,7 @@ class ClientBillingReport extends Page implements HasTable
 
         $filename = 'client-billing-'.$client?->code.'-'.$from.'-to-'.$until.'.csv';
 
-        return response()->streamDownload(function () use ($rows) {
+        return response()->streamDownload(function () use ($rows): void {
             $out = fopen('php://output', 'w');
             fputcsv($out, ['Reference', 'Date', 'Packages', 'Postage', 'Label Fee', 'Pick Fee', 'Extra Items', 'Materials', 'Surcharges', 'No Item Data', 'Line Total']);
 

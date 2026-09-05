@@ -85,6 +85,14 @@ jobs:
       - name: Check code style
         run: vendor/bin/pint --test
 
+      # Rector is gated here for the same reason Pint is. It was previously
+      # only reachable through `composer run format`, which writes in place, so
+      # every branch that ran the documented format command picked up the same
+      # backlog of unrelated files and had it reverted in review. Nothing ever
+      # committed the fix, so the next branch rediscovered it.
+      - name: Check Rector
+        run: vendor/bin/rector process --dry-run --no-progress-bar
+
       # Dependency advisories are deliberately not gated here. The
       # security-audit workflow runs composer and npm audit on every push and
       # pull request across all branches, at the same --audit-level=high the

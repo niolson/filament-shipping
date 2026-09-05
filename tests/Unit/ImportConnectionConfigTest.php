@@ -8,7 +8,7 @@ $base = [
     'db_username' => 'importer',
 ];
 
-it('builds a MySQL connection with the MySQL-only keys', function () use ($base) {
+it('builds a MySQL connection with the MySQL-only keys', function () use ($base): void {
     $config = ImportConnectionConfig::build($base + ['db_driver' => 'mysql'], 'secret');
 
     expect($config)->toMatchArray([
@@ -24,7 +24,7 @@ it('builds a MySQL connection with the MySQL-only keys', function () use ($base)
     ]);
 });
 
-it('never sends utf8mb4 to PostgreSQL', function () use ($base) {
+it('never sends utf8mb4 to PostgreSQL', function () use ($base): void {
     // Laravel writes `charset` into the Postgres DSN as `client_encoding`, so a
     // MySQL charset here makes every connection fail at connect time.
     $config = ImportConnectionConfig::build($base + ['db_driver' => 'pgsql']);
@@ -35,13 +35,13 @@ it('never sends utf8mb4 to PostgreSQL', function () use ($base) {
         ->and($config)->not->toHaveKeys(['collation', 'strict']);
 });
 
-it('honours a custom PostgreSQL schema', function () use ($base) {
+it('honours a custom PostgreSQL schema', function () use ($base): void {
     $config = ImportConnectionConfig::build($base + ['db_driver' => 'pgsql', 'db_schema' => 'wms']);
 
     expect($config['search_path'])->toBe('wms');
 });
 
-it('builds a SQL Server connection with TLS arguments and no MySQL keys', function () use ($base) {
+it('builds a SQL Server connection with TLS arguments and no MySQL keys', function () use ($base): void {
     $config = ImportConnectionConfig::build($base + ['db_driver' => 'sqlsrv']);
 
     expect($config)->toMatchArray([
@@ -52,7 +52,7 @@ it('builds a SQL Server connection with TLS arguments and no MySQL keys', functi
     ])->and($config)->not->toHaveKeys(['charset', 'collation', 'strict']);
 });
 
-it('lets SQL Server trust a self-signed certificate', function () use ($base) {
+it('lets SQL Server trust a self-signed certificate', function () use ($base): void {
     $config = ImportConnectionConfig::build($base + [
         'db_driver' => 'sqlsrv',
         'db_trust_server_certificate' => true,
@@ -61,7 +61,7 @@ it('lets SQL Server trust a self-signed certificate', function () use ($base) {
     expect($config['trust_server_certificate'])->toBe('yes');
 });
 
-it('builds a SQLite connection without host or credentials', function () {
+it('builds a SQLite connection without host or credentials', function (): void {
     $config = ImportConnectionConfig::build([
         'db_driver' => 'sqlite',
         'db_database' => '/data/erp.sqlite',
@@ -75,7 +75,7 @@ it('builds a SQLite connection without host or credentials', function () {
     ]);
 });
 
-it('falls back to the default port when none is configured', function (string $driver, int $expected) use ($base) {
+it('falls back to the default port when none is configured', function (string $driver, int $expected) use ($base): void {
     $config = ImportConnectionConfig::build($base + ['db_driver' => $driver, 'db_port' => '']);
 
     expect($config['port'])->toBe($expected);
@@ -85,13 +85,13 @@ it('falls back to the default port when none is configured', function (string $d
     ['sqlsrv', 1433],
 ]);
 
-it('keeps an explicitly configured port', function () use ($base) {
+it('keeps an explicitly configured port', function () use ($base): void {
     $config = ImportConnectionConfig::build($base + ['db_driver' => 'pgsql', 'db_port' => 6432]);
 
     expect($config['port'])->toBe(6432);
 });
 
-it('only treats networked drivers as host-based', function () {
+it('only treats networked drivers as host-based', function (): void {
     expect(ImportConnectionConfig::usesHost('mysql'))->toBeTrue()
         ->and(ImportConnectionConfig::usesHost('pgsql'))->toBeTrue()
         ->and(ImportConnectionConfig::usesHost('sqlsrv'))->toBeTrue()
@@ -99,7 +99,7 @@ it('only treats networked drivers as host-based', function () {
         ->and(ImportConnectionConfig::usesHost(null))->toBeFalse();
 });
 
-it('never sends PDO::ATTR_TIMEOUT to SQL Server', function () use ($base) {
+it('never sends PDO::ATTR_TIMEOUT to SQL Server', function () use ($base): void {
     // pdo_sqlsrv throws SQLSTATE[IMSSP] on that attribute, which would make every
     // SQL Server connection fail before it reached the server.
     $config = ImportConnectionConfig::withConnectTimeout(
@@ -111,7 +111,7 @@ it('never sends PDO::ATTR_TIMEOUT to SQL Server', function () use ($base) {
         ->and($config['login_timeout'])->toBe(10);
 });
 
-it('uses PDO::ATTR_TIMEOUT for drivers that support it', function (string $driver) use ($base) {
+it('uses PDO::ATTR_TIMEOUT for drivers that support it', function (string $driver) use ($base): void {
     $config = ImportConnectionConfig::withConnectTimeout(
         ImportConnectionConfig::build($base + ['db_driver' => $driver]),
         10,
@@ -121,7 +121,7 @@ it('uses PDO::ATTR_TIMEOUT for drivers that support it', function (string $drive
         ->and($config)->not->toHaveKey('login_timeout');
 })->with(['mysql', 'pgsql']);
 
-it('applies no connect timeout to a file-based driver', function () {
+it('applies no connect timeout to a file-based driver', function (): void {
     $config = ImportConnectionConfig::build(['db_driver' => 'sqlite', 'db_database' => '/tmp/erp.sqlite']);
 
     expect(ImportConnectionConfig::withConnectTimeout($config, 10))->toBe($config);

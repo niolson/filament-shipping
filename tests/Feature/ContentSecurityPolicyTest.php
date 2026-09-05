@@ -2,7 +2,7 @@
 
 use Illuminate\Support\Facades\Log;
 
-it('adds the enforcing CSP header to responses', function () {
+it('adds the enforcing CSP header to responses', function (): void {
     $response = $this->get('/up');
 
     $response->assertOk();
@@ -20,7 +20,7 @@ it('adds the enforcing CSP header to responses', function () {
         ->and($csp)->not->toContain('ui-avatars.com');  // avatars are generated locally
 });
 
-it('logs CSP violation reports to the csp channel and returns 204', function () {
+it('logs CSP violation reports to the csp channel and returns 204', function (): void {
     Log::shouldReceive('channel')->with('csp')->once()->andReturnSelf();
     Log::shouldReceive('warning')->once()->withArgs(function (string $message, array $context): bool {
         return $message === 'CSP violation'
