@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\DataTransferObjects\Shipping\ServiceInference;
 use App\DataTransferObjects\Shipping\ShipResponse;
 use App\Enums\PackageStatus;
 use App\Enums\PostageSource;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 use Laravel\Scout\Attributes\SearchUsingPrefix;
 use Laravel\Scout\Searchable;
@@ -280,6 +282,74 @@ class Package extends Model
     public function confirmedService(): ?string
     {
         return $this->service_evidence->isPublishable() ? $this->service : null;
+    }
+
+    /**
+     * Record a service we derived ourselves, or leave the package alone.
+     *
+     * A narrow path of its own rather than a reuse of `markShipped()`, which is a
+     * one-shot transition out of `Unshipped` under optimistic locking and cannot
+     * upgrade a package after the fact.
+     *
+     * The rules it enforces:
+     *
+     * - A `confirmed` service is never overwritten. The postage source reported
+     *   it; nothing we derive outranks that.
+     * - An inference never downgrades. Re-running produces a value or it does
+     *   not, and a run that produces nothing leaves the previous one standing.
+     * - An inference from an older ruleset is replaced together with its version
+     *   stamp, so a value and the rules that produced it never disagree.
+     * - An inference under the same ruleset is a no-op, because re-deriving the
+     *   same value from the same tables says nothing new.
+     *
+     * Enforced as conditions on the update rather than as checks before it. This
+     * runs over packages in bulk while shipping continues, so a service the
+     * postage source confirms between loading a package and writing to it must
+     * lose the race rather than be silently overwritten by a guess.
+     *
+     * Returns whether the package was changed.
+     */
+    public function recordInferredService(ServiceInference $inference): bool
+    {
+        if (! $inference->isResolved() || ! $this->exists) {
+            return false;
+        }
+
+        $updated = DB::table('packages')
+            ->where('id', $this->id)
+            ->where(function (QueryBuilder $query) use ($inference): void {
+                $query
+                    ->where('service_evidence', ServiceEvidence::Unknown->value)
+                    ->orWhere(function (QueryBuilder $query) use ($inference): void {
+                        $query
+                            ->where('service_evidence', ServiceEvidence::Inferred->value)
+                            ->where(function (QueryBuilder $query) use ($inference): void {
+                                $query
+                                    ->whereNull('service_ruleset_version')
+                                    ->orWhere('service_ruleset_version', '<', $inference->rulesetVersion);
+                            });
+                    });
+            })
+            ->update([
+                'service' => $inference->service,
+                'service_evidence' => ServiceEvidence::Inferred->value,
+                'service_inference_method' => $inference->method,
+                'service_ruleset_version' => $inference->rulesetVersion,
+                'updated_at' => now(),
+            ]);
+
+        if ($updated === 0) {
+            return false;
+        }
+
+        $this->forceFill([
+            'service' => $inference->service,
+            'service_evidence' => ServiceEvidence::Inferred,
+            'service_inference_method' => $inference->method,
+            'service_ruleset_version' => $inference->rulesetVersion,
+        ])->syncOriginal();
+
+        return true;
     }
 
     /**

@@ -1,0 +1,3699 @@
+{
+    "source": "https://postalpro.usps.com/IMPB_Service_Type_Codes",
+    "document": "Service Type Codes for Intelligent Mail Package Barcode (IMpb), Appendix I",
+    "effective_date": "2026-06-24",
+    "generated_by": "php artisan app:build-service-inference-ruleset",
+    "codes": {
+        "001": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz USPS Tracking",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "019": {
+            "product": "Priority Mail Return",
+            "description": "Priority Mail Return",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "452"
+            ],
+            "evs": true
+        },
+        "020": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: Up to 15.999oz",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "452"
+            ],
+            "evs": true
+        },
+        "021": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Signature Confirmation",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921"
+            ],
+            "evs": true
+        },
+        "022": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: One Pound or More",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "452"
+            ],
+            "evs": true
+        },
+        "026": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail",
+            "mail_class": "PM",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "910"
+            ],
+            "evs": true
+        },
+        "027": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "910",
+                "955"
+            ],
+            "evs": true
+        },
+        "028": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail Return Receipt Electronic",
+            "mail_class": "PM",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "910",
+                "957"
+            ],
+            "evs": true
+        },
+        "029": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail Return Receipt Return Receipt Electronic",
+            "mail_class": "PM",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "910",
+                "955",
+                "957"
+            ],
+            "evs": true
+        },
+        "031": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "911",
+                "955"
+            ],
+            "evs": true
+        },
+        "032": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail Restricted Delivery",
+            "mail_class": "PM",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "911"
+            ],
+            "evs": true
+        },
+        "033": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: COD",
+            "mail_class": "PM",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915"
+            ],
+            "evs": true
+        },
+        "035": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: COD Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "955"
+            ],
+            "evs": true
+        },
+        "037": {
+            "product": "Priority Mail Return",
+            "description": "Priority Mail Return: Hazardous Materials",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "452",
+                "857"
+            ],
+            "evs": true
+        },
+        "039": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: COD Return Receipt Electronic",
+            "mail_class": "PM",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "957"
+            ],
+            "evs": true
+        },
+        "043": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Registered Mail Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "941",
+                "955"
+            ],
+            "evs": false
+        },
+        "046": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: COD Restricted Delivery, Return Receipt Electronic",
+            "mail_class": "PM",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "957"
+            ],
+            "evs": true
+        },
+        "049": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: COD Restricted Delivery Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "955"
+            ],
+            "evs": true
+        },
+        "052": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: COD Restricted Delivery",
+            "mail_class": "PM",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917"
+            ],
+            "evs": true
+        },
+        "053": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: COD Signature Confirmation",
+            "mail_class": "PM",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "921"
+            ],
+            "evs": true
+        },
+        "055": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: USPS Tracking",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "058": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Insurance <= $500",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930"
+            ],
+            "evs": true
+        },
+        "061": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Insurance > $500",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931"
+            ],
+            "evs": true
+        },
+        "063": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Signature Confirmation Hazardous Materials",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "921",
+                "857"
+            ],
+            "evs": true
+        },
+        "065": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Insurance > $500 Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "955"
+            ],
+            "evs": true
+        },
+        "070": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Insurance > $500 Restricted Delivery Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934",
+                "955"
+            ],
+            "evs": true
+        },
+        "071": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Certified Mail",
+            "mail_class": "FC",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "910"
+            ],
+            "evs": true
+        },
+        "072": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Insurance > $500 Restricted Delivery",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934"
+            ],
+            "evs": true
+        },
+        "073": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Insurance > $500",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931"
+            ],
+            "evs": true
+        },
+        "075": {
+            "product": "Priority Mail",
+            "description": "Priority Mail Adult Signature Over 21 Hazardous Materials",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG 21 OLDR HAZMAT",
+            "extra_services": [
+                "922",
+                "857"
+            ],
+            "evs": true
+        },
+        "076": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Signature Confirmation Insurance <= $500",
+            "mail_class": "PS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "930",
+                "921"
+            ],
+            "evs": true
+        },
+        "078": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Signature Confirmation Insurance <= $500",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "930",
+                "921"
+            ],
+            "evs": true
+        },
+        "079": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Signature Confirmation Insurance <= $500 HFPU",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "930",
+                "921",
+                "985"
+            ],
+            "evs": true
+        },
+        "080": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail COD Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "915",
+                "940",
+                "955"
+            ],
+            "evs": true
+        },
+        "081": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail Restricted Delivery Return Receipt Electronic",
+            "mail_class": "PM",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "911",
+                "957"
+            ],
+            "evs": false
+        },
+        "083": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail Restricted Delivery COD Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "915",
+                "941",
+                "955"
+            ],
+            "evs": false
+        },
+        "088": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940"
+            ],
+            "evs": false
+        },
+        "089": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail COD",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "915"
+            ],
+            "evs": false
+        },
+        "090": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office to Addressee Signature Requested Cremated Remains",
+            "mail_class": "EX",
+            "banner": "USPS SIG REQ CREMATED REMAINS",
+            "extra_services": [
+                "858",
+                "981",
+                "986"
+            ],
+            "evs": true
+        },
+        "091": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office to Addressee Signature Waived Cremated Remains",
+            "mail_class": "EX",
+            "banner": "USPS TRKG # CREMATED REMAINS",
+            "extra_services": [
+                "858",
+                "986"
+            ],
+            "evs": true
+        },
+        "092": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office to Addressee Return Receipt Cremated Remains",
+            "mail_class": "EX",
+            "banner": "USPS SIG REQ CREMATED REMAINS",
+            "extra_services": [
+                "858",
+                "955",
+                "986"
+            ],
+            "evs": true
+        },
+        "093": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office to Addressee Addtnl Insurance Cremated Remains",
+            "mail_class": "EX",
+            "banner": "USPS SIG REQ CREMATED REMAINS",
+            "extra_services": [
+                "858",
+                "925",
+                "986"
+            ],
+            "evs": true
+        },
+        "100": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "955"
+            ],
+            "evs": false
+        },
+        "101": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail Return Receipt Electronic",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "957"
+            ],
+            "evs": false
+        },
+        "102": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail Restricted Delivery Return Receipt Electronic",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "941",
+                "957"
+            ],
+            "evs": false
+        },
+        "105": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail Restricted Delivery Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "941",
+                "955"
+            ],
+            "evs": false
+        },
+        "106": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail Restricted Delivery",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "941"
+            ],
+            "evs": false
+        },
+        "107": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail Signature Confirmation",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "921"
+            ],
+            "evs": false
+        },
+        "108": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Signature Confirmation",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921"
+            ],
+            "evs": true
+        },
+        "109": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Signature Confirmation Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921",
+                "985"
+            ],
+            "evs": true
+        },
+        "111": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail Signature Confirmation Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "921",
+                "940",
+                "955"
+            ],
+            "evs": false
+        },
+        "112": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: HFPU",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "985"
+            ],
+            "evs": true
+        },
+        "113": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Insurance <= $500 HFPU",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930",
+                "985"
+            ],
+            "evs": true
+        },
+        "114": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Insurance > $500 HFPU",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "985"
+            ],
+            "evs": true
+        },
+        "115": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Signature Confirmation HFPU",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921",
+                "985"
+            ],
+            "evs": true
+        },
+        "116": {
+            "product": "Priority Mail",
+            "description": "Priority Mail USPS Tracking Hazardous Materials",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "920",
+                "857"
+            ],
+            "evs": true
+        },
+        "120": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Insurance <= $500 Hazardous Materials",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "930",
+                "857"
+            ],
+            "evs": true
+        },
+        "121": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Over 21 Restricted Delivery Hazardous Materials",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 HZMT",
+            "extra_services": [
+                "923",
+                "857"
+            ],
+            "evs": true
+        },
+        "123": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Open and Distribute (PMOD)",
+            "mail_class": "PM",
+            "banner": "USPS SCAN ON ARRIVAL",
+            "extra_services": [
+                "430"
+            ],
+            "evs": true
+        },
+        "139": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: USPS Tracking Insurance > $500 HFPU",
+            "mail_class": "BB",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "985"
+            ],
+            "evs": true
+        },
+        "140": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: USPS Tracking Insurance < = $500 HFPU",
+            "mail_class": "BB",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930",
+                "985"
+            ],
+            "evs": true
+        },
+        "141": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: HFPU",
+            "mail_class": "BB",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "985"
+            ],
+            "evs": true
+        },
+        "147": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Certified Mail Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "910",
+                "955"
+            ],
+            "evs": true
+        },
+        "148": {
+            "product": "First-Class Mail",
+            "description": "First Class Mail: Certified Mail Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "910",
+                "957"
+            ],
+            "evs": true
+        },
+        "149": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Certified Mail Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "911"
+            ],
+            "evs": true
+        },
+        "152": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz COD",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915"
+            ],
+            "evs": true
+        },
+        "153": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Registered Mail COD",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "915"
+            ],
+            "evs": false
+        },
+        "154": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Certified Mail Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "911",
+                "955"
+            ],
+            "evs": true
+        },
+        "157": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz COD Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "955"
+            ],
+            "evs": true
+        },
+        "158": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz COD Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "957"
+            ],
+            "evs": true
+        },
+        "159": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz COD Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917"
+            ],
+            "evs": true
+        },
+        "160": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz COD Signature Confirmation",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "921"
+            ],
+            "evs": true
+        },
+        "161": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Registered Mail COD Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "915",
+                "957"
+            ],
+            "evs": false
+        },
+        "164": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930"
+            ],
+            "evs": true
+        },
+        "166": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Signature Confirmation Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "921",
+                "857"
+            ],
+            "evs": true
+        },
+        "167": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Registered Mail Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "955"
+            ],
+            "evs": false
+        },
+        "168": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz COD Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "955"
+            ],
+            "evs": true
+        },
+        "169": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz COD Restricted Delivery Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "957"
+            ],
+            "evs": true
+        },
+        "172": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Insurance > $500 Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "955"
+            ],
+            "evs": true
+        },
+        "173": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Registered Mail Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "957"
+            ],
+            "evs": false
+        },
+        "174": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Insurance > $500 Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934"
+            ],
+            "evs": true
+        },
+        "175": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Adult Signature Required Restricted Delivery Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "930"
+            ],
+            "evs": true
+        },
+        "176": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Adult Signature Required Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "955"
+            ],
+            "evs": true
+        },
+        "177": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Signature Confirmation Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "930",
+                "921"
+            ],
+            "evs": true
+        },
+        "179": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Registered Mail",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940"
+            ],
+            "evs": false
+        },
+        "180": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Registered Mail COD",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "915"
+            ],
+            "evs": false
+        },
+        "181": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Registered Mail COD Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "915",
+                "955"
+            ],
+            "evs": false
+        },
+        "183": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Registered Mail COD Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "915",
+                "957"
+            ],
+            "evs": false
+        },
+        "184": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz USPS Tracking Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "920",
+                "857"
+            ],
+            "evs": true
+        },
+        "185": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Insurance <= $500 Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "930",
+                "857"
+            ],
+            "evs": true
+        },
+        "186": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Insurance > $500 Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "931",
+                "857"
+            ],
+            "evs": true
+        },
+        "187": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: Up to 15.999oz Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "452",
+                "857"
+            ],
+            "evs": true
+        },
+        "189": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Insurance > $500 Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934",
+                "955"
+            ],
+            "evs": true
+        },
+        "190": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: Up to 15.999oz Insurance <= $500 Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "930",
+                "452",
+                "857"
+            ],
+            "evs": true
+        },
+        "191": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: Up to 15.999oz Insurance > $500 Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "931",
+                "452",
+                "857"
+            ],
+            "evs": true
+        },
+        "192": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Registered Mail Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "955"
+            ],
+            "evs": false
+        },
+        "193": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Registered Mail Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "957"
+            ],
+            "evs": false
+        },
+        "194": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Registered Mail Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "941"
+            ],
+            "evs": false
+        },
+        "195": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Registered Mail Signature Confirmation",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "921"
+            ],
+            "evs": false
+        },
+        "196": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Registered Mail Signature Confirmation",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "921"
+            ],
+            "evs": false
+        },
+        "203": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Registered Mail Signature Confirmation Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "921",
+                "955"
+            ],
+            "evs": false
+        },
+        "204": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Registered Mail Signature Confirmation Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "921",
+                "955"
+            ],
+            "evs": false
+        },
+        "206": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Registered Mail Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "941",
+                "955"
+            ],
+            "evs": false
+        },
+        "209": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920",
+                "985"
+            ],
+            "evs": true
+        },
+        "211": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Insurance <= $500 Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930",
+                "985"
+            ],
+            "evs": true
+        },
+        "212": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Insurance > $500 Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "985"
+            ],
+            "evs": true
+        },
+        "213": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Signature Confirmation Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921",
+                "985"
+            ],
+            "evs": true
+        },
+        "214": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Signature Confirmation Insurance <=$500 Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "930",
+                "921",
+                "985"
+            ],
+            "evs": true
+        },
+        "215": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Adult Signature Required Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "930"
+            ],
+            "evs": true
+        },
+        "217": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: Up to 15.999oz Division 6.2 Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "452",
+                "826"
+            ],
+            "evs": true
+        },
+        "218": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: One Pound or More Division 6.2 Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "452",
+                "826"
+            ],
+            "evs": true
+        },
+        "219": {
+            "product": "Priority Mail Return",
+            "description": "Priority Mail Return: Division 6.2 Hazardous Materials",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "452",
+                "826",
+                "857"
+            ],
+            "evs": true
+        },
+        "220": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Adult Signature Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS ADLT SIG 21 OLDR HAZMAT",
+            "extra_services": [
+                "922",
+                "857"
+            ],
+            "evs": true
+        },
+        "223": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Adult Signature Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS ADLT SIG 21 OLDR HAZMAT",
+            "extra_services": [
+                "922",
+                "857"
+            ],
+            "evs": true
+        },
+        "248": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: Insurance > $500",
+            "mail_class": "SA",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931"
+            ],
+            "evs": true
+        },
+        "249": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: Heavy Printed Matter Commercial Marketing Parcels USPS Tracking",
+            "mail_class": "S2",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "250": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: Heavy Printed Matter Commercial Marketing Parcels",
+            "mail_class": "S2",
+            "banner": "USPS TRACKING #",
+            "extra_services": [],
+            "evs": true
+        },
+        "254": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: Heavy Printed Matter Nonprofit Commercial Marketing Parcels USPS Tracking",
+            "mail_class": "S2",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "255": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: Insurance > $500 Return Receipt",
+            "mail_class": "SA",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "955"
+            ],
+            "evs": true
+        },
+        "256": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: Insurance > $500 Restricted Delivery",
+            "mail_class": "SA",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934"
+            ],
+            "evs": true
+        },
+        "258": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: Heavy Printed Matter Nonprofit Commercial Marketing Parcels",
+            "mail_class": "S2",
+            "banner": "USPS TRACKING #",
+            "extra_services": [],
+            "evs": true
+        },
+        "259": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: USPS Tracking Insurance <= $500",
+            "mail_class": "SA",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930",
+                "920"
+            ],
+            "evs": true
+        },
+        "265": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: Insurance <= $500",
+            "mail_class": "SA",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930"
+            ],
+            "evs": true
+        },
+        "269": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: USPS Tracking",
+            "mail_class": "SA",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "286": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail: Insurance > $500 Restricted Delivery Return Receipt",
+            "mail_class": "SA",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934",
+                "955"
+            ],
+            "evs": true
+        },
+        "323": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Insurance > $500 Hazardous Materials",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "931",
+                "857"
+            ],
+            "evs": true
+        },
+        "329": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Registered Mail Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "941"
+            ],
+            "evs": false
+        },
+        "344": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Adult Signature Required Insurance > $500",
+            "mail_class": "FC",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "931"
+            ],
+            "evs": true
+        },
+        "345": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Adult Signature Required Restricted Delivery Insurance > $500",
+            "mail_class": "FC",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "931"
+            ],
+            "evs": true
+        },
+        "346": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More USPS Tracking",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "347": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More COD",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915"
+            ],
+            "evs": true
+        },
+        "348": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More COD Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "985"
+            ],
+            "evs": true
+        },
+        "349": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Signature Confirmation",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921"
+            ],
+            "evs": true
+        },
+        "352": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Insurance > $500",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931"
+            ],
+            "evs": true
+        },
+        "353": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More COD Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "955"
+            ],
+            "evs": true
+        },
+        "354": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More COD Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "957"
+            ],
+            "evs": true
+        },
+        "355": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More COD Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917"
+            ],
+            "evs": true
+        },
+        "356": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More COD Signature Confirmation",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "921"
+            ],
+            "evs": true
+        },
+        "358": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Adult Signature Required",
+            "mail_class": "FC",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922"
+            ],
+            "evs": true
+        },
+        "360": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Certified Mail Restricted Delivery Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS CERTIFIED MAIL\u2122",
+            "extra_services": [
+                "911",
+                "957"
+            ],
+            "evs": true
+        },
+        "361": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930"
+            ],
+            "evs": true
+        },
+        "362": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More USPS Tracking Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "920",
+                "857"
+            ],
+            "evs": true
+        },
+        "363": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Insurance <= $500 Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "930",
+                "857"
+            ],
+            "evs": true
+        },
+        "365": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Insurance > $500 Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "931",
+                "857"
+            ],
+            "evs": true
+        },
+        "367": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More USPS Tracking Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920",
+                "985"
+            ],
+            "evs": true
+        },
+        "368": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Insurance <= $500 Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930",
+                "985"
+            ],
+            "evs": true
+        },
+        "370": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Insurance > $500 Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "985"
+            ],
+            "evs": true
+        },
+        "372": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More COD Restricted Delivery Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "957"
+            ],
+            "evs": true
+        },
+        "373": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More COD Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "955"
+            ],
+            "evs": true
+        },
+        "375": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Insurance > $500 Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "955"
+            ],
+            "evs": true
+        },
+        "376": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Insurance > $500 Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934"
+            ],
+            "evs": true
+        },
+        "383": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Signature Confirmation Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "921",
+                "857"
+            ],
+            "evs": true
+        },
+        "385": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: One Pound or More Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "452",
+                "857"
+            ],
+            "evs": true
+        },
+        "386": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Adult Signature Required Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923"
+            ],
+            "evs": true
+        },
+        "387": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Insurance > $500 Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934",
+                "955"
+            ],
+            "evs": true
+        },
+        "388": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: One Pound or More Insurance <= $500 Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "930",
+                "452",
+                "857"
+            ],
+            "evs": true
+        },
+        "394": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Signature Confirmation Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "930",
+                "921"
+            ],
+            "evs": true
+        },
+        "395": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: USPS Tracking Hazardous Materials",
+            "mail_class": "PS",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "920",
+                "857"
+            ],
+            "evs": true
+        },
+        "397": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Registered Mail COD Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "915",
+                "955"
+            ],
+            "evs": false
+        },
+        "399": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: One Pound or More Insurance > $500 Hazardous Materials",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "931",
+                "452",
+                "857"
+            ],
+            "evs": true
+        },
+        "406": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Registered Mail",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940"
+            ],
+            "evs": false
+        },
+        "419": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: USPS Tracking",
+            "mail_class": "BB",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "420": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: COD",
+            "mail_class": "BB",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915"
+            ],
+            "evs": true
+        },
+        "422": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: Signature Confirmation",
+            "mail_class": "BB",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921"
+            ],
+            "evs": true
+        },
+        "423": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: Insurance > $500",
+            "mail_class": "BB",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931"
+            ],
+            "evs": true
+        },
+        "424": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: COD, Return Receipt",
+            "mail_class": "BB",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "955"
+            ],
+            "evs": true
+        },
+        "425": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: COD, Return Receipt Electronic",
+            "mail_class": "BB",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "957"
+            ],
+            "evs": true
+        },
+        "426": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: COD Restricted Delivery",
+            "mail_class": "BB",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917"
+            ],
+            "evs": true
+        },
+        "431": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: Insurance <= $500",
+            "mail_class": "BB",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930"
+            ],
+            "evs": true
+        },
+        "447": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: COD Restricted Delivery, Return Receipt",
+            "mail_class": "BB",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "955"
+            ],
+            "evs": true
+        },
+        "453": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Insurance <=$500",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930"
+            ],
+            "evs": true
+        },
+        "454": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: Insurance > $500, Return Receipt",
+            "mail_class": "BB",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "955"
+            ],
+            "evs": true
+        },
+        "455": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: Insurance > $500 Restricted Delivery",
+            "mail_class": "BB",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934"
+            ],
+            "evs": true
+        },
+        "462": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Insurance > $500",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931"
+            ],
+            "evs": true
+        },
+        "463": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Insurance > $500 Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "955"
+            ],
+            "evs": true
+        },
+        "464": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Insurance Restricted Delivery > $500",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934"
+            ],
+            "evs": true
+        },
+        "467": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Insurance Restricted Delivery > $500 Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934",
+                "955"
+            ],
+            "evs": true
+        },
+        "468": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Insurance < =$500 Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930",
+                "985"
+            ],
+            "evs": true
+        },
+        "473": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Insurance > $500 Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "985"
+            ],
+            "evs": true
+        },
+        "483": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Insurance <= $500 Hazardous Materials",
+            "mail_class": "PS",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "930",
+                "857"
+            ],
+            "evs": true
+        },
+        "490": {
+            "product": "Media Mail",
+            "description": "Media Mail: USPS Tracking",
+            "mail_class": "BS",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "491": {
+            "product": "Media Mail",
+            "description": "Media Mail: COD",
+            "mail_class": "BS",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915"
+            ],
+            "evs": true
+        },
+        "493": {
+            "product": "Media Mail",
+            "description": "Media Mail: Signature Confirmation",
+            "mail_class": "BS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921"
+            ],
+            "evs": true
+        },
+        "494": {
+            "product": "Media Mail",
+            "description": "Media Mail: Insurance > $500",
+            "mail_class": "BS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931"
+            ],
+            "evs": true
+        },
+        "497": {
+            "product": "Media Mail",
+            "description": "Media Mail: COD Restricted Delivery",
+            "mail_class": "BS",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917"
+            ],
+            "evs": true
+        },
+        "501": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Registered Mail",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940"
+            ],
+            "evs": false
+        },
+        "502": {
+            "product": "Media Mail",
+            "description": "Media Mail: Insurance <= $500",
+            "mail_class": "BS",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930"
+            ],
+            "evs": true
+        },
+        "515": {
+            "product": "Priority Mail Return",
+            "description": "Priority Mail Return: Insurance <= $500 Hazardous Materials",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "930",
+                "452",
+                "857"
+            ],
+            "evs": true
+        },
+        "517": {
+            "product": "Priority Mail Return",
+            "description": "Priority Mail Return: Insurance > $500 Hazardous Materials",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "931",
+                "452",
+                "857"
+            ],
+            "evs": true
+        },
+        "518": {
+            "product": "Media Mail",
+            "description": "Media Mail: Insurance > $500 Restricted Delivery",
+            "mail_class": "BS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934"
+            ],
+            "evs": true
+        },
+        "520": {
+            "product": "Media Mail",
+            "description": "Media Mail: Signature Confirmation Insurance <= $500",
+            "mail_class": "BS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "930",
+                "921"
+            ],
+            "evs": true
+        },
+        "522": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Registered Mail Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "955"
+            ],
+            "evs": false
+        },
+        "529": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Registered Mail Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "940",
+                "957"
+            ],
+            "evs": false
+        },
+        "531": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Registered Mail Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "941"
+            ],
+            "evs": false
+        },
+        "533": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Registered Mail Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "941",
+                "955"
+            ],
+            "evs": false
+        },
+        "551": {
+            "product": "Library Mail",
+            "description": "Library Mail: USPS Tracking",
+            "mail_class": "BL",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "552": {
+            "product": "Library Mail",
+            "description": "Library Mail: COD",
+            "mail_class": "BL",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915"
+            ],
+            "evs": true
+        },
+        "554": {
+            "product": "Library Mail",
+            "description": "Library Mail: Signature Confirmation",
+            "mail_class": "BL",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921"
+            ],
+            "evs": true
+        },
+        "555": {
+            "product": "Library Mail",
+            "description": "Library Mail: Insurance > $500",
+            "mail_class": "BL",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931"
+            ],
+            "evs": true
+        },
+        "556": {
+            "product": "Library Mail",
+            "description": "Library Mail: COD Return Receipt",
+            "mail_class": "BL",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "955"
+            ],
+            "evs": true
+        },
+        "558": {
+            "product": "Library Mail",
+            "description": "Library Mail: COD Restricted Delivery",
+            "mail_class": "BL",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917"
+            ],
+            "evs": true
+        },
+        "560": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Registered Mail COD",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "915"
+            ],
+            "evs": false
+        },
+        "562": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Registered Mail COD Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "915",
+                "955"
+            ],
+            "evs": false
+        },
+        "563": {
+            "product": "Library Mail",
+            "description": "Library Mail: Insurance <= $500",
+            "mail_class": "BL",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930"
+            ],
+            "evs": true
+        },
+        "564": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Registered Mail COD Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "915",
+                "957"
+            ],
+            "evs": false
+        },
+        "575": {
+            "product": "Library Mail",
+            "description": "Library Mail: Insurance > $500 Return Receipt",
+            "mail_class": "BL",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931",
+                "955"
+            ],
+            "evs": true
+        },
+        "579": {
+            "product": "Library Mail",
+            "description": "Library Mail: Insurance > $500 Restricted Delivery",
+            "mail_class": "BL",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934"
+            ],
+            "evs": true
+        },
+        "582": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Registered Mail COD Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "917"
+            ],
+            "evs": false
+        },
+        "583": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: Registered Mail COD Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS REGISTERED MAIL\u2122 COD",
+            "extra_services": [
+                "940",
+                "917",
+                "955"
+            ],
+            "evs": false
+        },
+        "587": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: COD",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915"
+            ],
+            "evs": true
+        },
+        "589": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: COD Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "955"
+            ],
+            "evs": true
+        },
+        "590": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: COD Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "957"
+            ],
+            "evs": true
+        },
+        "592": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: COD Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "985"
+            ],
+            "evs": true
+        },
+        "594": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: COD Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917"
+            ],
+            "evs": true
+        },
+        "595": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: COD Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "955"
+            ],
+            "evs": true
+        },
+        "596": {
+            "product": "Priority Mail Return",
+            "description": "Priority Mail Return: Insurance <= $500",
+            "mail_class": "PM",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "452",
+                "930"
+            ],
+            "evs": true
+        },
+        "597": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: Up to 15.999oz Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "452",
+                "930"
+            ],
+            "evs": true
+        },
+        "598": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: One Pound or More Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "452",
+                "930"
+            ],
+            "evs": true
+        },
+        "599": {
+            "product": "Priority Mail Return",
+            "description": "Priority Mail Return: Insurance > $500",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "452",
+                "931"
+            ],
+            "evs": true
+        },
+        "600": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: Up to 15.999oz Insurance > $500",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "452",
+                "931"
+            ],
+            "evs": true
+        },
+        "601": {
+            "product": "USPS Ground Advantage Return",
+            "description": "USPS Ground Advantage Return: One Pound or More Insurance > $500",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "452",
+                "931"
+            ],
+            "evs": true
+        },
+        "602": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: COD HFPU",
+            "mail_class": "PM",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "985"
+            ],
+            "evs": true
+        },
+        "603": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz COD Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "985",
+                "915"
+            ],
+            "evs": true
+        },
+        "612": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: USPS Tracking",
+            "mail_class": "PS",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "613": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: COD",
+            "mail_class": "PS",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915"
+            ],
+            "evs": true
+        },
+        "615": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Signature Confirmation",
+            "mail_class": "PS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921"
+            ],
+            "evs": true
+        },
+        "616": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Insurance > $500",
+            "mail_class": "PS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "931"
+            ],
+            "evs": true
+        },
+        "619": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: COD Restricted Delivery",
+            "mail_class": "PS",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917"
+            ],
+            "evs": true
+        },
+        "621": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: COD Restricted Delivery Return Receipt Electronic",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "957"
+            ],
+            "evs": true
+        },
+        "624": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Insurance <= $500",
+            "mail_class": "PS",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "930"
+            ],
+            "evs": true
+        },
+        "628": {
+            "product": "Parcel Select",
+            "description": "Parcel Select Insurance > $500 Hazardous Materials",
+            "mail_class": "PS",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "931",
+                "857"
+            ],
+            "evs": true
+        },
+        "629": {
+            "product": "First-Class Mail",
+            "description": "First-Class Mail: COD Restricted Delivery Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "985"
+            ],
+            "evs": true
+        },
+        "637": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Insurance > $500 Restricted Delivery Return Receipt",
+            "mail_class": "PS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934",
+                "955"
+            ],
+            "evs": true
+        },
+        "640": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Insurance > $500 Restricted Delivery",
+            "mail_class": "PS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934"
+            ],
+            "evs": true
+        },
+        "646": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Signature Confirmation Hazardous Materials",
+            "mail_class": "PS",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "921",
+                "857"
+            ],
+            "evs": true
+        },
+        "655": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Return Receipt",
+            "mail_class": "EX",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "955",
+                "986"
+            ],
+            "evs": true
+        },
+        "656": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Restricted Delivery Return Receipt",
+            "mail_class": "EX",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "955",
+                "986"
+            ],
+            "evs": true
+        },
+        "657": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Return Receipt HFPU",
+            "mail_class": "EX",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "955",
+                "985"
+            ],
+            "evs": true
+        },
+        "658": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Restricted Delivery Return Receipt HFPU",
+            "mail_class": "EX",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "955",
+                "985"
+            ],
+            "evs": true
+        },
+        "659": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "955"
+            ],
+            "evs": true
+        },
+        "660": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Restricted Delivery, Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "955"
+            ],
+            "evs": true
+        },
+        "661": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Return Receipt HFPU",
+            "mail_class": "PM",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "955",
+                "985"
+            ],
+            "evs": true
+        },
+        "662": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Restricted Delivery, Return Receipt, HFPU",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "955",
+                "985"
+            ],
+            "evs": true
+        },
+        "665": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Over 21 Restricted Delivery Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 HZMT",
+            "extra_services": [
+                "923",
+                "986",
+                "857"
+            ],
+            "evs": true
+        },
+        "667": {
+            "product": "Priority Mail Express Return",
+            "description": "Priority Mail Express Return: Signature Waived Division 6.2 Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "452",
+                "826",
+                "857"
+            ],
+            "evs": true
+        },
+        "668": {
+            "product": "Priority Mail Express Return",
+            "description": "Priority Mail Express Return: Division 6.2 Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "452",
+                "826",
+                "857",
+                "981"
+            ],
+            "evs": true
+        },
+        "670": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Adult Signature Required Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "955"
+            ],
+            "evs": true
+        },
+        "681": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Required",
+            "mail_class": "PM",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922"
+            ],
+            "evs": true
+        },
+        "682": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Restricted Delivery",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923"
+            ],
+            "evs": true
+        },
+        "683": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail Adult Signature Required",
+            "mail_class": "PM",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "912"
+            ],
+            "evs": true
+        },
+        "684": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail Adult Signature Restricted Delivery",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "913"
+            ],
+            "evs": true
+        },
+        "687": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Insurance <= 500",
+            "mail_class": "PM",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "930"
+            ],
+            "evs": true
+        },
+        "688": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Restricted Delivery Insurance <= $500",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "930"
+            ],
+            "evs": true
+        },
+        "689": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Insurance > $500",
+            "mail_class": "PM",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "931"
+            ],
+            "evs": true
+        },
+        "690": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Restricted Delivery Insurance > $500",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "931"
+            ],
+            "evs": true
+        },
+        "691": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Adult Signature Required",
+            "mail_class": "PS",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922"
+            ],
+            "evs": true
+        },
+        "692": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Adult Signature Restricted Delivery",
+            "mail_class": "PS",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923"
+            ],
+            "evs": true
+        },
+        "696": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Adult Signature Insurance <= $500",
+            "mail_class": "PS",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "930"
+            ],
+            "evs": true
+        },
+        "697": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Adult Signature Restricted Delivery Insurance <= $500",
+            "mail_class": "PS",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "930"
+            ],
+            "evs": true
+        },
+        "698": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Adult Signature Required Insurance > $500",
+            "mail_class": "PS",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "931"
+            ],
+            "evs": true
+        },
+        "699": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Adult Signature Restricted Delivery Insurance > $500",
+            "mail_class": "PS",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "931"
+            ],
+            "evs": true
+        },
+        "701": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office-Addressee Signature Waived",
+            "mail_class": "EX",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "986"
+            ],
+            "evs": true
+        },
+        "702": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail\u2122",
+            "mail_class": "SA",
+            "banner": "USPS TRACKING #",
+            "extra_services": [],
+            "evs": true
+        },
+        "703": {
+            "product": "USPS Marketing Mail Parcels",
+            "description": "USPS Marketing Mail\u2122 Parcels",
+            "mail_class": "S2",
+            "banner": "USPS TRACKING #",
+            "extra_services": [],
+            "evs": true
+        },
+        "704": {
+            "product": "USPS Marketing Mail",
+            "description": "USPS Marketing Mail\u2122 Parcel: USPS Tracking",
+            "mail_class": "S2",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "920"
+            ],
+            "evs": true
+        },
+        "711": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office-Addressee Return Receipt",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "955",
+                "986"
+            ],
+            "evs": false
+        },
+        "712": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office-Addressee Insurance",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "925",
+                "986"
+            ],
+            "evs": true
+        },
+        "713": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office-Addressee Insurance Return Receipt",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "925",
+                "955",
+                "986"
+            ],
+            "evs": false
+        },
+        "714": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office-Addressee COD",
+            "mail_class": "EX",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "986"
+            ],
+            "evs": true
+        },
+        "715": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office-Addressee COD Return Receipt",
+            "mail_class": "EX",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "955",
+                "986"
+            ],
+            "evs": false
+        },
+        "716": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: HFPU",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "985"
+            ],
+            "evs": true
+        },
+        "717": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: HFPU Return Receipt",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "955",
+                "985"
+            ],
+            "evs": true
+        },
+        "718": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: HFPU Insurance",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "925",
+                "985"
+            ],
+            "evs": true
+        },
+        "719": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: HFPU Insurance Return Receipt",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "925",
+                "955",
+                "985"
+            ],
+            "evs": true
+        },
+        "720": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: HFPU COD",
+            "mail_class": "EX",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "985"
+            ],
+            "evs": false
+        },
+        "721": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: HFPU COD Return Receipt",
+            "mail_class": "EX",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "915",
+                "955",
+                "985"
+            ],
+            "evs": false
+        },
+        "723": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Open and Distribute (PMEOD)",
+            "mail_class": "EX",
+            "banner": "USPS SCAN ON ARRIVAL",
+            "extra_services": [
+                "430"
+            ],
+            "evs": true
+        },
+        "724": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature",
+            "mail_class": "EX",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "986"
+            ],
+            "evs": true
+        },
+        "725": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Restricted Delivery",
+            "mail_class": "EX",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "986"
+            ],
+            "evs": true
+        },
+        "726": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Addtnl Insurance",
+            "mail_class": "EX",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "925",
+                "986"
+            ],
+            "evs": true
+        },
+        "727": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Restricted Delivery Addtnl Insurance",
+            "mail_class": "EX",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "925",
+                "986"
+            ],
+            "evs": true
+        },
+        "729": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature HFPU",
+            "mail_class": "EX",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "985"
+            ],
+            "evs": false
+        },
+        "730": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Restricted Delivery, HFPU",
+            "mail_class": "EX",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "985"
+            ],
+            "evs": false
+        },
+        "731": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Addtnl Insurance HFPU",
+            "mail_class": "EX",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "925",
+                "985"
+            ],
+            "evs": false
+        },
+        "732": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Restricted Delivery Addtnl Insurance HFPU",
+            "mail_class": "EX",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "925",
+                "985"
+            ],
+            "evs": false
+        },
+        "760": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Signature Waived Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "986",
+                "857"
+            ],
+            "evs": true
+        },
+        "761": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Signature Requested Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "981",
+                "986",
+                "857"
+            ],
+            "evs": true
+        },
+        "762": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Addtnl Insurance Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "925",
+                "986",
+                "857"
+            ],
+            "evs": true
+        },
+        "763": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Addtnl Insurance Restricted Delivery Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "934",
+                "986",
+                "857"
+            ],
+            "evs": true
+        },
+        "764": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Adult Signature Over 21 Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS ADLT SIG 21 OLDR HAZMAT",
+            "extra_services": [
+                "922",
+                "986",
+                "857"
+            ],
+            "evs": true
+        },
+        "772": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature HFPU",
+            "mail_class": "PM",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "985"
+            ],
+            "evs": true
+        },
+        "773": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Restricted Delivery HFPU",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "985"
+            ],
+            "evs": true
+        },
+        "774": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Insurance <= $500 HFPU",
+            "mail_class": "PM",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "930",
+                "985"
+            ],
+            "evs": true
+        },
+        "775": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Restricted Delivery Insurance <= $500 HFPU",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "930",
+                "985"
+            ],
+            "evs": true
+        },
+        "776": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Insurance > $500 HFPU",
+            "mail_class": "PM",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "931",
+                "985"
+            ],
+            "evs": true
+        },
+        "777": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Adult Signature Restricted Delivery Insurance > $500 HFPU",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "931",
+                "985"
+            ],
+            "evs": true
+        },
+        "796": {
+            "product": "Priority Mail Express Return",
+            "description": "Priority Mail Express Return",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "452",
+                "981"
+            ],
+            "evs": true
+        },
+        "797": {
+            "product": "Priority Mail Express Return",
+            "description": "Priority Mail Express Return: Additional Insurance",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "452",
+                "925"
+            ],
+            "evs": true
+        },
+        "798": {
+            "product": "Priority Mail Express Return",
+            "description": "Priority Mail Express Return: Signature Waived",
+            "mail_class": "EX",
+            "banner": "USPS TRACKING #",
+            "extra_services": [
+                "452"
+            ],
+            "evs": true
+        },
+        "817": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Post Office-Addressee Signature Requested",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "986",
+                "981"
+            ],
+            "evs": true
+        },
+        "837": {
+            "product": "Priority Mail Express Return",
+            "description": "Priority Mail Express Return: Signature Waived Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS TRACKING # HAZMAT",
+            "extra_services": [
+                "452",
+                "857"
+            ],
+            "evs": true
+        },
+        "838": {
+            "product": "Priority Mail Express Return",
+            "description": "Priority Mail Express Return: Signature Requested Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "452",
+                "857",
+                "981"
+            ],
+            "evs": true
+        },
+        "839": {
+            "product": "Priority Mail Express Return",
+            "description": "Priority Mail Express Return: Additional Insurance Hazardous Materials",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRKNG # HAZMAT",
+            "extra_services": [
+                "452",
+                "857",
+                "925"
+            ],
+            "evs": true
+        },
+        "861": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Signature Confirmation Insurance <= $500 Hold for Pickup",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "921",
+                "930",
+                "985"
+            ],
+            "evs": true
+        },
+        "893": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Signature Confirmation Restricted Delivery",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924"
+            ],
+            "evs": true
+        },
+        "895": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Signature Confirmation Restricted Delivery",
+            "mail_class": "PS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924"
+            ],
+            "evs": true
+        },
+        "896": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Signature Confirmation Restricted Delivery Insurance <= $500",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924",
+                "930"
+            ],
+            "evs": true
+        },
+        "905": {
+            "product": null,
+            "description": "Saturation Mail USPS Marketing Mail\u2122",
+            "mail_class": "SA",
+            "banner": "USPS TRACKING #",
+            "extra_services": [],
+            "evs": false
+        },
+        "906": {
+            "product": null,
+            "description": "Periodical USPS Marketing Mail\u2122",
+            "mail_class": "SA",
+            "banner": "USPS TRACKING #",
+            "extra_services": [],
+            "evs": false
+        },
+        "907": {
+            "product": null,
+            "description": "Periodical First-Class Mail",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [],
+            "evs": false
+        },
+        "909": {
+            "product": null,
+            "description": "Domestic Return Receipt PS3811 Green Card",
+            "mail_class": "FC",
+            "banner": "USPS TRACKING #",
+            "extra_services": [],
+            "evs": true
+        },
+        "910": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Registered Mail Restricted Delivery Signature Confirmation",
+            "mail_class": "PM",
+            "banner": "USPS REGISTERED MAIL\u2122",
+            "extra_services": [
+                "941",
+                "921"
+            ],
+            "evs": false
+        },
+        "911": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail Adult Signature Restricted Delivery Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "913",
+                "955"
+            ],
+            "evs": true
+        },
+        "915": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Signature Confirmation Restricted Delivery Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924",
+                "955"
+            ],
+            "evs": true
+        },
+        "916": {
+            "product": "Priority Mail",
+            "description": "Priority Mail: Certified Mail Adult Signature Return Receipt",
+            "mail_class": "PM",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "912",
+                "955"
+            ],
+            "evs": true
+        },
+        "917": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: COD Restricted Delivery Return Receipt",
+            "mail_class": "EX",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "955"
+            ],
+            "evs": true
+        },
+        "918": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: COD Restricted Delivery Return Receipt HFPU",
+            "mail_class": "EX",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "955",
+                "985"
+            ],
+            "evs": true
+        },
+        "919": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: COD Restricted Delivery",
+            "mail_class": "EX",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917"
+            ],
+            "evs": true
+        },
+        "920": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: COD Restricted Delivery HFPU",
+            "mail_class": "EX",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "985"
+            ],
+            "evs": true
+        },
+        "921": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Insurance > $500 Restricted Delivery",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934"
+            ],
+            "evs": true
+        },
+        "922": {
+            "product": "Priority Mail Express",
+            "description": "Priority Mail Express: Insurance > $500 Restricted Delivery Return Receipt",
+            "mail_class": "EX",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "934",
+                "955"
+            ],
+            "evs": true
+        },
+        "928": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Adult Signature Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "930"
+            ],
+            "evs": true
+        },
+        "929": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Adult Signature Insurance > $500",
+            "mail_class": "FC",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "931"
+            ],
+            "evs": true
+        },
+        "930": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Adult Signature Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "955"
+            ],
+            "evs": true
+        },
+        "931": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Adult Signature Restricted Delivery Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "930"
+            ],
+            "evs": true
+        },
+        "932": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Adult Signature Restricted Delivery Insurance > $500",
+            "mail_class": "FC",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "931"
+            ],
+            "evs": true
+        },
+        "933": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Adult Signature Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "955"
+            ],
+            "evs": true
+        },
+        "936": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Insurance <= $500 Signature Confirmation Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924",
+                "930"
+            ],
+            "evs": true
+        },
+        "937": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Signature Confirmation Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924"
+            ],
+            "evs": true
+        },
+        "939": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Signature Confirmation Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924",
+                "955"
+            ],
+            "evs": true
+        },
+        "941": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Adult Signature Restricted Delivery, Return Receipt",
+            "mail_class": "PS",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923",
+                "955"
+            ],
+            "evs": true
+        },
+        "942": {
+            "product": "Parcel Select",
+            "description": "Parcel Select: Adult Signature Return Receipt",
+            "mail_class": "PS",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922",
+                "955"
+            ],
+            "evs": true
+        },
+        "959": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: COD Restricted Delivery Return Receipt Electronic",
+            "mail_class": "BB",
+            "banner": "USPS COD SIGNATURE TRACKING #",
+            "extra_services": [
+                "917",
+                "957"
+            ],
+            "evs": true
+        },
+        "965": {
+            "product": "Media Mail",
+            "description": "Media Mail: Signature Confirmation Restricted Delivery Insurance <= $500",
+            "mail_class": "BS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924",
+                "930"
+            ],
+            "evs": true
+        },
+        "967": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Signature Confirmation Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924"
+            ],
+            "evs": true
+        },
+        "968": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Signature Confirmation Restricted Delivery Insurance <= $500",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924",
+                "930"
+            ],
+            "evs": true
+        },
+        "970": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: One Pound or More Signature Confirmation Restricted Delivery Return Receipt",
+            "mail_class": "FC",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924",
+                "955"
+            ],
+            "evs": true
+        },
+        "974": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Adult Signature",
+            "mail_class": "FC",
+            "banner": "USPS ADULT SIG 21 OR OLDER",
+            "extra_services": [
+                "922"
+            ],
+            "evs": true
+        },
+        "975": {
+            "product": "USPS Ground Advantage",
+            "description": "USPS Ground Advantage: Up to 15.999oz Adult Signature Restricted Delivery",
+            "mail_class": "FC",
+            "banner": "USPS ADLT SIG/RSTR DEL 21 OLDR",
+            "extra_services": [
+                "923"
+            ],
+            "evs": true
+        },
+        "976": {
+            "product": "Library Mail",
+            "description": "Library Mail: Signature Confirmation Restricted Delivery",
+            "mail_class": "BL",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924"
+            ],
+            "evs": true
+        },
+        "977": {
+            "product": "Media Mail",
+            "description": "Media Mail: Signature Confirmation Restricted Delivery",
+            "mail_class": "BS",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924"
+            ],
+            "evs": true
+        },
+        "978": {
+            "product": "Bound Printed Matter",
+            "description": "Bound Printed Matter: Signature Confirmation Restricted Delivery",
+            "mail_class": "BB",
+            "banner": "USPS SIGNATURE TRACKING #",
+            "extra_services": [
+                "924"
+            ],
+            "evs": true
+        }
+    }
+}

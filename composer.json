@@ -20,6 +20,7 @@
         "saloonphp/laravel-plugin": "^4.0",
         "saloonphp/saloon": "^4.0",
         "sentry/sentry-laravel": "^4.25",
+        "smalot/pdfparser": "^2.12",
         "socialiteproviders/microsoft-azure": "^5.2"
     },
     "require-dev": {
