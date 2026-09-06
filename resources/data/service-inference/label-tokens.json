@@ -1,0 +1,37 @@
+{
+    "notes": [
+        "Service tokens exactly as they are printed on a label, per carrier. This is a",
+        "third vocabulary: it is neither the carrier API's service code nor a",
+        "CarrierService.service_code. DHL eCommerce prints GRD for the product its own API",
+        "calls GND; a FedEx label prints 'FedEx Ground' where the catalog says FEDEX_GROUND.",
+        "",
+        "A token is matched against a whole label field, case-insensitively, never as a",
+        "substring of one. Substring matching lets a shorter service name swallow a longer",
+        "one -- GROUND would match 'FedEx Ground Economy', which is not FedEx Ground but",
+        "FedEx's USPS-last-mile service. A field with no exact entry falls through.",
+        "",
+        "Carrier keys are matched through CarrierAlias::lookupKey against the canonical",
+        "carrier name, so a postage source's own spelling resolves through aliases first.",
+        "",
+        "Every entry here is transcribed from a label we hold, and the token is the entire",
+        "field as printed. Do not add a token from a carrier's documentation without a label",
+        "that prints it -- what a carrier calls a service and what it prints routinely",
+        "differ. See issue 14 for the evidence still to be gathered."
+    ],
+    "carriers": {
+        "fedex": {
+            "observed_on": "FedEx sandbox labels under storage/app/private (not committed)",
+            "tokens": {
+                "EXPRESS SAVER": "FedEx Express Saver®",
+                "FedEx Ground": "FedEx Ground®",
+                "PRIORITY OVERNIGHT": "FedEx Priority Overnight®"
+            }
+        },
+        "dhl ecommerce": {
+            "observed_on": "DHL eCommerce v4 API documentation sample label (sandbox)",
+            "tokens": {
+                "GRD": "DHL SmartMail Parcel Ground"
+            }
+        }
+    }
+}
