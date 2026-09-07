@@ -1,6 +1,6 @@
 # Make nginx resolve the app upstream at request time
 
-Status: ready-for-agent
+Status: done
 Category: bug
 Type: AFK
 Repo: **`polybag`**
@@ -126,7 +126,7 @@ Also confirm, after the change:
 ## Blast radius
 
 `docker/nginx.conf` is copied into the nginx image stage
-(`Dockerfile:104`) and ships to **on-prem standalone installs** as well as any
+(`Dockerfile:134`) and ships to **on-prem standalone installs** as well as any
 hosted deployment. This is a public release affecting self-hosters and needs to go
 out through the app repo's normal release path, not a quiet server-side edit.
 
@@ -147,3 +147,59 @@ image rebuild.
   deployment tooling does today. It does not help on-prem, does not help manual `docker compose up -d
   app`, and leaves a 502 window inside every deploy. The deploy-side half of this is
   tracked privately alongside that tooling.
+
+## Comments
+
+**Implemented 2026-09-06.** `docker/nginx.conf` now carries `resolver 127.0.0.11
+valid=10s ipv6=off;` and `set $upstream_app app:9000; fastcgi_pass $upstream_app;`
+inside the `location ~ \.php$` block, with the reasoning in a comment beside it so
+nobody reverts it to the literal form as a tidy-up. Nothing else in the block moved.
+
+### The `valid=` question, answered
+
+The issue asked to confirm what TTL Docker's embedded DNS actually returns for a
+container name. It is **600 seconds**:
+
+```
+app.  600  IN  A  172.18.0.2
+```
+
+So `valid=10s` is doing real work rather than restating the record: without it nginx
+would honour the full ten minutes, and the stale window this issue exists to close
+would still be up to ten minutes wide. An `AAAA` query returns an empty answer, which
+is what `ipv6=off` avoids paying for.
+
+### Verification
+
+Run against the real `nginx:alpine` image with the real `docker/nginx.conf`, with a
+`php:8.4-fpm-alpine` backend under the network alias `app`, both configs through the
+same harness. The app container was moved to a new address by holding its old one with
+a spacer container, leaving nginx running throughout.
+
+| | before (`fastcgi_pass app:9000`) | after |
+|---|---|---|
+| baseline `/up` | 200 | 200 |
+| `/up` after app moves `…0.2` → `…0.4` | **502**, still 502 at +12s | **200** at +1s |
+| nginx error log | `upstream: "fastcgi://172.18.0.2:9000"` — the dead address | no upstream errors |
+| `/build/` during the outage | 200 | 200 |
+| `nginx -t` with `app` absent | `[emerg] host not found in upstream "app"` | passes |
+| app stopped: nginx | would refuse to start | stays up, 502 for PHP, 200 for `/build/` |
+
+The last two rows are the behaviour change the issue asked to accept deliberately, now
+observed rather than predicted. The before-column 502 confirms the harness can actually
+detect the bug — the recovery in the after-column is not a test that passes either way.
+
+Recovery was immediate rather than taking the `valid=10s` window, since the cached entry
+was already past its window by the time the next request arrived.
+
+`docker compose config` still validates for both the standalone/on-prem and base
+invocations. A full `up -d --build` of the stack was not run — the change is confined to
+this one file and was exercised against the real image, and the ordinary bring-up path
+is covered by the baseline row above, where nginx starts with `app` already present.
+
+### Follow-on
+
+The deploy-side half — whether hosted deploys should still restart nginx now that this
+has landed — stays tracked privately with that tooling, as the PRD says. This change
+makes the restart unnecessary rather than harmful, so there is no ordering constraint
+between the two.

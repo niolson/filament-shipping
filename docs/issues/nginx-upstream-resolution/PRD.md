@@ -38,7 +38,7 @@ deploy. The fix is a one-line config change here.
 ## Slices
 
 1. `issues/01-resolve-fastcgi-upstream-at-runtime.md` — resolve the upstream at request
-   time via Docker's embedded DNS resolver. **`ready-for-agent`.**
+   time via Docker's embedded DNS resolver. **`done`** 2026-09-06.
 
 The deploy-side follow-on — whether hosted deploys should still restart nginx once this
 lands — is tracked privately with that deployment tooling, since it concerns no one
